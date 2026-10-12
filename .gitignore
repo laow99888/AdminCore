@@ -1,0 +1,63 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+frontend/.env.*.local
+frontend/*.log
+
+# Backend
+backend/venv/
+backend/.env
+backend/.env.local
+backend/__pycache__/
+backend/*.pyc
+backend/logs/
+backend/db.sqlite3
+backend/media/
+backend/staticfiles/
+backend/.DS_Store
+backend/.vscode/
+backend/.idea/
+__pycache__/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+.env.production
+.env
+
+# 备份产物（含业务数据）
+backups/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 本地版本验收日志（包含未通过检查的诊断证据）
+.codex-validation/
+
+# 各目录的本地环境配置（仅提交示例配置）
+.env.*
+!.env.example
+
+# Python 缓存、测试报告和本地数据库
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.sqlite3
+*.sqlite3-*
+
+# 本地运行时和凭据
+.venv/
+*.key
+*.pem

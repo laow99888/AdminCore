@@ -1,0 +1,10 @@
+venv/
+logs/
+media/
+staticfiles/
+__pycache__/
+*.pyc
+db.sqlite3
+.env
+.env.local
+.codex-validation/

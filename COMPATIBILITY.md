@@ -1,0 +1,36 @@
+# AdminCore 兼容性与验证记录
+
+基线与验收日期：2026-10-13。版本来源见 [版本要求](版本要求.md)，逐项修复记录见 [修复验收报告](docs/修复验收报告-2026-10-13.md)。
+
+## 已验证环境
+
+- Windows x64：Python 3.13.15、Node 24.21.0、npm 11.19.0。
+- Docker Desktop / WSL2：Python 3.13.15-slim、Node 24.21.0-slim、Nginx 1.29.8-alpine、PostgreSQL 18.6、Redis 8.10.2。
+- 六服务在独立 Compose 项目中验收，API 入口 18082，后端入口 18083。未修改原有 admincore 服务或数据。
+
+## 执行结果
+
+| 检查 | 结果与范围 |
+|---|---|
+| 后端 pytest | 86 passed；SQLite、LocMemCache、Celery eager；含 26 个新增回归用例 |
+| 后端冒烟脚本 | 40 个 PASS |
+| Django check / makemigrations --check --dry-run | 0 issues / No changes detected |
+| 前端 lint / vue-tsc / Vite build | 通过；现有大分块警告仍存在 |
+| Linux 前后端镜像构建 | 通过，锁文件与 engine-strict 安装执行成功 |
+| PostgreSQL 并发刷新与审批 | 每次两个并发请求，恰好一个成功；覆盖竞态回归，不代表负载压测 |
+| Nginx 与真实 Redis/Celery | 超过 2 MiB 上传、鉴权下载、admin CSS、队列导入、排队取消均通过 |
+| 备份 / 恢复 | 完整快照恢复、健康失败自动回滚数据库与媒体、坏 DB 归档提前拒绝通过 |
+| 媒体归档 | 路径穿越、绝对路径、符号链接、坏归档拒绝；正常及有效空归档切换/回滚通过 |
+| USE_TLS=True | 内部探针、可信网关协议传递、外部伪造协议头拒绝通过 |
+| 下载回归 | 实际 Axios 拦截器：并发 401 单次刷新、旋转令牌、重试 Blob、自定义 API 地址、刷新失败阻止下载 |
+| 实际浏览器 | 十个业务页英文、普通用户导航/审批、编辑保留姓名、详情/关闭、375px 弹窗通过 |
+
+日志、XML、验收脚本和截图保留于 `.codex-validation/full-review/`；早期失败及修复前复现也保留，避免将历史结果误当作当前状态。
+
+## 验证边界与升级注意
+
+- 本次修复已验证到代码和隔离部署，**没有替换当前运行的旧镜像**。上线前先处理旧默认管理员密码，再应用迁移和新镜像；旧令牌会失效。
+- 未执行真实公网证书/TLS 终结设备部署、长时间并发负载、大规模数据恢复、跨 PostgreSQL 大版本迁移、其它平台编排验收。
+- 测试中的 76 个警告均为本地未 collectstatic 的 WhiteNoise 目录提示；生产镜像已收集静态文件，真实入口 CSS 验证通过。
+- 邮件通知、在线文件预览、多级审批等原待做功能仍见功能清单；本轮没有据此宣称全部生产功能完成。
+- Python/Node/Nginx 镜像锁定精确标签；提供方仍可能更新标签，要求字节级复现的发布应记录 digest。

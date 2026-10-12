@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sub2API 设计规范 · 组件预览</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  .preview-wrap { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem; }
+  .row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+  .demo-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .demo-table th { padding: 0.75rem 1rem; text-align: left; font-weight: 500; color: var(--text-secondary); background: var(--table-head-bg); border-bottom: 1px solid var(--control-border); }
+  .demo-table td { padding: 0.75rem 1rem; color: var(--text-body); border-bottom: 1px solid var(--card-border); }
+  .theme-btn { position: fixed; right: 1rem; top: 1rem; z-index: 200; }
+</style>
+</head>
+<body>
+<button class="btn btn-secondary btn-sm theme-btn" onclick="document.documentElement.classList.toggle('dark')">切换明/暗</button>
+<main class="preview-wrap" style="padding: 2.5rem 1rem;">
+
+  <header>
+    <h1 style="font-size:1.5rem;">设计规范组件预览</h1>
+    <p class="text-secondary" style="margin:0.25rem 0 0;">tokens.css 渲染效果 · 右上角切换暗色</p>
+  </header>
+
+  <section class="card p-6 animate-slide-up">
+    <h3 style="margin-bottom:1rem;">按钮</h3>
+    <div class="row">
+      <button class="btn btn-primary">主按钮</button>
+      <button class="btn btn-secondary">次要</button>
+      <button class="btn btn-ghost">幽灵</button>
+      <button class="btn btn-danger">危险</button>
+      <button class="btn btn-success">成功</button>
+      <button class="btn btn-warning">警告</button>
+      <button class="btn btn-primary" disabled>禁用</button>
+    </div>
+    <div class="row" style="margin-top:0.75rem;">
+      <button class="btn btn-primary btn-sm">小按钮</button>
+      <button class="btn btn-primary btn-md">中按钮</button>
+      <button class="btn btn-primary btn-lg">大按钮</button>
+    </div>
+  </section>
+
+  <section class="card p-6">
+    <h3 style="margin-bottom:1rem;">输入框与徽章</h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1rem;">
+      <div><label class="input-label">站点名称</label><input class="input" placeholder="请输入站点名称" /><p class="input-hint">不超过 50 个字符</p></div>
+      <div><label class="input-label">金额</label><input class="input input-error" value="-1" /><p class="input-error-text">金额不能为负数</p></div>
+    </div>
+    <div class="row" style="margin-top:1rem;">
+      <span class="badge badge-primary">primary</span>
+      <span class="badge badge-success">● 运行中</span>
+      <span class="badge badge-warning">警告</span>
+      <span class="badge badge-danger">异常</span>
+      <span class="badge badge-gray">中性</span>
+      <span class="badge badge-purple">特色</span>
+    </div>
+  </section>
+
+  <section class="grid-cards" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem;">
+    <div class="card card-hover p-4">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <div style="border-radius:var(--radius-lg); background:var(--primary-100); padding:0.5rem; color:var(--primary-600);">▦</div>
+        <div><p class="text-xs font-medium text-secondary">今日请求</p><p style="font-size:1.25rem; font-weight:700; color:var(--heading-color);">12,480</p></div>
+      </div>
+    </div>
+    <div class="card card-hover p-4">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <div style="border-radius:var(--radius-lg); background:var(--emerald-100); padding:0.5rem; color:var(--emerald-600);">✓</div>
+        <div><p class="text-xs font-medium text-secondary">成功率</p><p style="font-size:1.25rem; font-weight:700; color:var(--heading-color);">99.9%</p></div>
+      </div>
+    </div>
+    <div class="card card-hover p-4">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <div style="border-radius:var(--radius-lg); background:var(--amber-100); padding:0.5rem; color:var(--amber-600);">!</div>
+        <div><p class="text-xs font-medium text-secondary">待处理</p><p style="font-size:1.25rem; font-weight:700; color:var(--heading-color);">3</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" style="overflow:hidden;">
+    <table class="demo-table">
+      <thead><tr><th>渠道</th><th>状态</th><th style="text-align:right;">操作</th></tr></thead>
+      <tbody>
+        <tr><td style="font-weight:500; color:var(--heading-color);">OpenAI 主渠道</td><td><span class="badge badge-success">● 正常</span></td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm text-danger">删除</button></td></tr>
+        <tr><td style="font-weight:500; color:var(--heading-color);">Claude 备用</td><td><span class="badge badge-warning">限流</span></td><td style="text-align:right;"><button class="btn btn-ghost btn-sm">编辑</button><button class="btn btn-ghost btn-sm text-danger">删除</button></td></tr>
+      </tbody>
+    </table>
+    <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px solid var(--control-border); padding:0.75rem 1rem;">
+      <p class="text-sm text-secondary">共 <span style="font-weight:500;">2</span> 条</p>
+      <div class="row"><button class="btn btn-secondary btn-sm">上一页</button><button class="btn btn-primary btn-sm">1</button><button class="btn btn-secondary btn-sm">下一页</button></div>
+    </div>
+  </section>
+
+  <section class="card p-6" style="display:flex; flex-wrap:wrap; gap:2rem; align-items:center;">
+    <div>
+      <h3 style="margin-bottom:0.75rem;">标签页 / 开关 / 进度条</h3>
+      <div class="tabs" style="display:inline-flex;">
+        <button class="tab tab-active">概览</button><button class="tab">用量</button><button class="tab">日志</button>
+      </div>
+      <div class="row" style="margin-top:1rem;">
+        <button class="switch switch-active" onclick="this.classList.toggle('switch-active')"><span class="switch-thumb"></span></button>
+        <button class="switch" onclick="this.classList.toggle('switch-active')"><span class="switch-thumb"></span></button>
+      </div>
+      <div class="progress" style="margin-top:1rem; width:240px;"><div class="progress-bar" style="width:68%;"></div></div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:0.75rem;">加载与骨架</h3>
+      <div class="row">
+        <div class="spinner text-primary"></div>
+        <div class="skeleton" style="width:120px; height:0.875rem;"></div>
+        <div class="skeleton" style="width:2.5rem; height:2.5rem; border-radius:9999px;"></div>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-bottom:0.75rem;">代码</h3>
+      <span class="code">sk-abc123</span>
+      <div class="code-block" style="margin-top:0.5rem; width:260px;">curl -H "Authorization: Bearer …" \</div>
+    </div>
+  </section>
+
+  <section class="card p-6 empty-state">
+    <div class="empty-state-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:2.5rem;height:2.5rem;display:block;margin:0 auto;">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+      </svg>
+    </div>
+    <h3 class="empty-state-title">暂无数据</h3>
+    <p class="empty-state-description">当前筛选条件下没有匹配的记录，试试调整时间范围。</p>
+    <div style="margin-top:1.5rem;"><button class="btn btn-primary">新建</button></div>
+  </section>
+
+</main>
+</body>
+</html>

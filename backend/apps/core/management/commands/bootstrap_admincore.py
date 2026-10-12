@@ -1,0 +1,158 @@
+"""
+初始化权限和管理员；演示账号仅通过非生产环境的 --demo 创建。
+
+幂等设计：已存在的数据自动跳过，可重复执行。
+用法：python manage.py bootstrap_admincore
+"""
+
+from django.contrib.auth import get_user_model
+from django.core.management.base import BaseCommand, CommandError
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+import os
+
+User = get_user_model()
+
+# 固定凭据仅用于显式 --demo 的非生产环境。
+ADMIN_USERNAME = 'admin'
+ADMIN_PASSWORD = 'Admin#12345'
+DEMO_USERNAME = 'demo'
+DEMO_PASSWORD = 'Demo#12345'
+
+# 权限清单（resource, action, name, code）
+PERMISSIONS = [
+    ('user', 'read', '查看用户', 'user:read'),
+    ('user', 'create', '创建用户', 'user:create'),
+    ('user', 'update', '修改用户', 'user:update'),
+    ('user', 'delete', '删除用户', 'user:delete'),
+    ('role', 'read', '查看角色', 'role:read'),
+    ('role', 'update', '修改角色', 'role:update'),
+    ('file', 'upload', '上传文件', 'file:upload'),
+    ('file', 'download', '下载文件', 'file:download'),
+    ('approval', 'read', '查看审批', 'approval:read'),
+    ('approval', 'decide', '审批处理', 'approval:decide'),
+    ('log', 'read', '查看日志', 'log:read'),
+    ('data_io', 'import', '数据导入', 'data_io:import'),
+    ('data_io', 'export', '数据导出', 'data_io:export'),
+    ('menu', 'read', '查看菜单配置', 'menu:read'),
+    ('task', 'read', '查看任务', 'task:read'),
+    ('task', 'cancel', '取消任务', 'task:cancel'),
+    ('task', 'delete', '清理任务历史', 'task:delete'),
+]
+
+# 角色与权限码
+ROLES = {
+    '系统管理员': ('全部权限', [code for *_, code in PERMISSIONS]),
+    '运营编辑': ('内容与用户管理', ['user:read', 'user:create', 'file:upload', 'file:download', 'approval:read']),
+    '只读访客': ('仅查看', ['user:read', 'role:read', 'approval:read', 'log:read']),
+}
+
+# 菜单树（与前端路由对应）
+MENUS = [
+    ('仪表盘', '/', 'layout-dashboard', 1, None, None),
+    ('用户管理', '/users', 'users', 2, None, 'user:read'),
+    ('角色权限', '/roles', 'shield-check', 3, None, 'role:read'),
+    ('菜单管理', '/menus', 'list-tree', 4, None, 'menu:read'),
+    ('文件管理', '/files', 'folder-open', 5, None, None),
+    ('审批工作流', '/approvals', 'clipboard-check', 6, None, None),
+    ('通知中心', '/notifications', 'bell', 7, None, None),
+    ('任务中心', '/tasks', 'list-checks', 8, None, 'task:read'),
+    ('操作日志', '/logs', 'file-text', 9, None, 'log:read'),
+    ('系统设置', '/settings', 'settings', 10, None, None),
+]
+
+
+class Command(BaseCommand):
+    help = '初始化 AdminCore 权限与管理员（幂等，可重复执行）'
+
+    def add_arguments(self, parser):
+        parser.add_argument('--demo', action='store_true', help='仅非生产环境：创建固定凭据的演示用户')
+
+    def handle(self, *args, **options):
+        from apps.notifications.models import Notification
+        from apps.permissions.models import Menu, Permission, Role, RolePermission
+
+        demo_mode = options['demo']
+        if demo_mode and os.getenv('DJANGO_ENV') == 'production':
+            raise CommandError('生产环境禁止 --demo')
+        username = ADMIN_USERNAME if demo_mode else os.getenv('ADMINCORE_ADMIN_USERNAME', 'admin')
+        password = ADMIN_PASSWORD if demo_mode else os.getenv('ADMINCORE_ADMIN_PASSWORD', '')
+        existing = User.objects.filter(username=username).first()
+        if not demo_mode:
+            if existing and (not existing.is_superuser or existing.check_password(ADMIN_PASSWORD)):
+                raise CommandError('现有初始化账户权限或密码不安全，请先通过管理命令修正')
+            if existing is None:
+                if not password:
+                    raise CommandError('首次初始化必须设置 ADMINCORE_ADMIN_PASSWORD')
+                try:
+                    validate_password(password, User(username=username))
+                except ValidationError as exc:
+                    raise CommandError('初始化密码不符合密码策略') from exc
+                if password in (ADMIN_PASSWORD, DEMO_PASSWORD):
+                    raise CommandError('生产初始化不能使用演示密码')
+        self.stdout.write('开始初始化基础数据...')
+
+        # 1. 超级管理员
+        admin, created = User.objects.get_or_create(
+            username=username,
+            defaults={'email': os.getenv('ADMINCORE_ADMIN_EMAIL', 'admin@example.com'), 'is_staff': True, 'is_superuser': True},
+        )
+        if created:
+            admin.set_password(password)
+            admin.save()
+            self.stdout.write(self.style.SUCCESS(f'  创建超级管理员：{username}'))
+        else:
+            self.stdout.write(f'  超级管理员已存在：{username}（跳过）')
+
+        # 2. 演示用户
+        demo = None
+        if demo_mode:
+            demo, created = User.objects.get_or_create(username=DEMO_USERNAME, defaults={'email': 'demo@example.com'})
+            if created:
+                demo.set_password(DEMO_PASSWORD)
+                demo.save()
+            self.stdout.write(f'  演示用户就绪：{DEMO_USERNAME}')
+
+        # 3. 权限
+        permission_map = {}
+        for resource, action, name, code in PERMISSIONS:
+            perm, _ = Permission.objects.get_or_create(
+                resource=resource, action=action,
+                defaults={'name': name, 'code': code},
+            )
+            permission_map[code] = perm
+        self.stdout.write(f'  权限就绪：{len(permission_map)} 项')
+
+        # 4. 角色 + 角色权限
+        from apps.permissions.models import UserRole
+        role_map = {}
+        for role_name, (desc, codes) in ROLES.items():
+            role, _ = Role.objects.get_or_create(name=role_name, defaults={'description': desc})
+            role_map[role_name] = role
+            for code in codes:
+                RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
+        if demo:
+            UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
+        self.stdout.write(f'  角色就绪：{len(role_map)} 个（演示用户已绑定「只读访客」）')
+
+        # 5. 菜单
+        for name, path, icon, order, parent, perm_code in MENUS:
+            Menu.objects.update_or_create(
+                path=path,
+                defaults={
+                    'name': name, 'icon': icon, 'order': order,
+                    'permission': permission_map.get(perm_code) if perm_code else None,
+                    'is_visible': True,
+                },
+            )
+        self.stdout.write(f'  菜单就绪：{len(MENUS)} 项')
+
+        # 6. 欢迎通知
+        Notification.push(
+            recipient_ids=[admin.id] + ([demo.id] if demo else []),
+            title='欢迎使用 AdminCore',
+            content='系统基础数据已初始化，请妥善保管账户凭据。',
+            notification_type='system',
+            link='/',
+        )
+        self.stdout.write(self.style.SUCCESS('初始化完成 ✔'))

@@ -1,0 +1,6 @@
+# 源码统一使用 LF，避免 Windows 检出后影响 Linux 容器和 Shell 脚本。
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+# Markdown 行末双空格用于显式换行。
+*.md whitespace=-blank-at-eol

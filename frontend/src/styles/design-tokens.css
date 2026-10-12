@@ -1,0 +1,207 @@
+/**
+ * AdminCore 设计令牌（CSS 变量）
+ * 视觉数值提取自 design-spec/（跨项目通用视觉规范，本项目以 Element Plus 实现）
+ * 对应关系见 design-spec/README.md 的"项目适配说明"
+ * 所有颜色、间距、字号、圆角都由这里定义
+ */
+
+:root {
+  /* ===== 色彩系统 - Light 模式 ===== */
+
+  /* Primary - 青色系（Teal） */
+  --color-primary-50: #f0fdfa;
+  --color-primary-100: #ccfbf1;
+  --color-primary-200: #99f6e4;
+  --color-primary-300: #5eead4;
+  --color-primary-400: #2dd4bf;
+  --color-primary-500: #14b8a6;
+  --color-primary-600: #0d9488;
+  --color-primary-700: #0f766e;
+  --color-primary-800: #115e59;
+  --color-primary-900: #134e4a;
+  --color-primary-950: #042f2e;
+
+  /* Accent/Dark - 石板灰系（Slate） */
+  --color-dark-50: #f8fafc;
+  --color-dark-100: #f1f5f9;
+  --color-dark-200: #e2e8f0;
+  --color-dark-300: #cbd5e1;
+  --color-dark-400: #94a3b8;
+  --color-dark-500: #64748b;
+  --color-dark-600: #475569;
+  --color-dark-700: #334155;
+  --color-dark-800: #1e293b;
+  --color-dark-900: #0f172a;
+  --color-dark-950: #020617;
+
+  /* Gray - 灰阶（Light 模式主力） */
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+
+  /* 语义色 */
+  --color-success: #10b981; /* emerald-500 */
+  --color-warning: #f59e0b; /* amber-500 */
+  --color-error: #ef4444; /* red-500 */
+  --color-info: var(--color-primary-500);
+
+  /* 背景 */
+  --color-bg-page: var(--color-gray-50);
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: var(--color-gray-50);
+  --color-bg-hover: var(--color-gray-100);
+
+  /* 文字 */
+  --color-text-primary: var(--color-gray-900);
+  --color-text-secondary: var(--color-gray-700);
+  --color-text-tertiary: var(--color-gray-500);
+  --color-text-disabled: var(--color-gray-400);
+  --color-text-placeholder: var(--color-gray-400);
+
+  /* 边框 */
+  --color-border-light: var(--color-gray-100);
+  --color-border: var(--color-gray-200);
+  --color-border-dark: var(--color-gray-300);
+
+  /* ===== 排版 ===== */
+
+  /* 字体族 */
+  --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-family-mono: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+
+  /* 字号（对应规范 Tailwind 档位：sm=14 为正文/控件默认，base=16 为长文本/大按钮） */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-base: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+
+  /* 字重 */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* 行高 */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+
+  /* ===== 间距 ===== */
+
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  --spacing-2xl: 32px;
+  --spacing-3xl: 48px;
+
+  /* ===== 圆角（对应规范"控件 xl、容器 2xl、药丸 full、卡内小件 lg"的换算） ===== */
+
+  --radius-sm: 4px;   /* 极小控件 */
+  --radius-md: 8px;   /* 卡内小件：图标底座、徽章、表格内嵌元素 */
+  --radius-lg: 12px;  /* 控件标准：按钮、输入框、下拉 */
+  --radius-xl: 16px;  /* 容器标准：卡片、弹窗、表格容器 */
+  --radius-full: 9999px; /* 药丸：头像、状态点、开关 */
+
+  /* ===== 阴影 ===== */
+
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.1);
+  --shadow-md: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-2xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* ===== 过渡 ===== */
+
+  --transition-fast: 200ms ease-out;
+  --transition-normal: 250ms ease-out;
+  --transition-slow: 300ms ease-out;
+
+  /* ===== 其他尺寸 ===== */
+
+  --header-height: 64px;
+  --sidebar-width: 256px;
+  --sidebar-collapsed-width: 72px;
+}
+
+/* ===== Dark 模式覆盖 ===== */
+.dark {
+  /* Primary - 青色保持不变 */
+  /* ... 保持同 Light 模式 ... */
+
+  /* 背景 */
+  --color-bg-page: var(--color-dark-950);
+  --color-bg-card: var(--color-dark-800);
+  --color-bg-elevated: var(--color-dark-900);
+  --color-bg-hover: rgb(30 41 59 / 0.3);
+
+  /* 文字 */
+  --color-text-primary: var(--color-gray-100);
+  --color-text-secondary: var(--color-gray-300);
+  --color-text-tertiary: var(--color-dark-400);
+  --color-text-disabled: var(--color-dark-500);
+  --color-text-placeholder: var(--color-dark-400);
+
+  /* 边框 */
+  --color-border-light: var(--color-dark-700);
+  --color-border: var(--color-dark-600);
+  --color-border-dark: var(--color-dark-500);
+
+  /* 阴影 */
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.15);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.3);
+  --shadow-xl: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+  --shadow-2xl: 0 20px 25px -5px rgb(0 0 0 / 0.3), 0 8px 10px -6px rgb(0 0 0 / 0.3);
+}
+
+/* ===== 全局重置 ===== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+  transition: background-color var(--transition-normal), color var(--transition-normal);
+}
+
+/* ===== 选中文本 ===== */
+::selection {
+  background-color: rgb(20 184 166 / 0.2);
+  color: inherit;
+}
+
+.dark ::selection {
+  background-color: rgb(20 184 166 / 0.3);
+}

@@ -1,0 +1,856 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>云媒体平台 · sub2api 规范全站改造预览</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { font-size: 0.875rem; }
+  .app { display: flex; min-height: 100vh; background: var(--page-bg); }
+  /* ---------- 侧栏 ---------- */
+  .sider { width: 256px; flex-shrink: 0; position: sticky; top: 0; height: 100vh;
+           display: flex; flex-direction: column;
+           background: var(--float-bg); border-right: 1px solid var(--control-border); }
+  .dark .sider { background: var(--dark-900); border-right-color: var(--dark-800); }
+  .sider-header { height: 64px; padding: 0 1.5rem; display: flex; align-items: center; gap: 0.75rem;
+                  border-bottom: 1px solid var(--card-border); flex-shrink: 0; }
+  .logo-tile { width: 2.25rem; height: 2.25rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+               background-image: linear-gradient(to right, var(--primary-500), var(--primary-600));
+               color: #fff; font-weight: 700; font-size: 1.1rem; box-shadow: var(--shadow-glow); flex-shrink: 0; }
+  .sider-nav { flex: 1; overflow-y: auto; padding: 1rem 0.75rem; }
+  .sider-bottom { border-top: 1px solid var(--card-border); padding: 0.75rem; flex-shrink: 0; }
+  /* ---------- 顶栏与内容 ---------- */
+  .main-wrap { flex: 1; min-width: 0; }
+  .topbar { position: sticky; top: 0; z-index: 30; height: 64px; display: flex; align-items: center;
+            justify-content: space-between; gap: 1rem; padding: 0 2rem;
+            background: var(--glass-bg); -webkit-backdrop-filter: blur(24px); backdrop-filter: blur(24px);
+            border-bottom: 1px solid rgba(229,231,235,0.5); }
+  .dark .topbar { border-bottom-color: rgba(51,65,85,0.5); }
+  .content { padding: 2rem; }
+  .page { display: none; flex-direction: column; gap: 1.5rem; }
+  .page.active { display: flex; }
+  /* ---------- 通用部件 ---------- */
+  .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+  .stat-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .icon-tile { width: 2.5rem; height: 2.5rem; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.5rem; border-bottom: 1px solid var(--card-border); }
+  .card-title { font-size: 0.875rem; font-weight: 600; color: var(--heading-color); margin: 0; }
+  .split-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: stretch; }
+  .split-1-1 { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: stretch; }
+  .legend-dot { width: 0.5rem; height: 0.5rem; border-radius: 999px; display: inline-block; flex-shrink: 0; }
+  .mono { font-family: var(--font-mono); }
+  .icon-svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+  .row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+  .row-between { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .tbl { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+  .tbl th { padding: 0.75rem 1rem; text-align: left; font-weight: 500; white-space: nowrap;
+            color: var(--text-secondary); background: var(--table-head-bg); border-bottom: 1px solid var(--control-border); }
+  .tbl td { padding: 0.75rem 1rem; color: var(--text-body); border-bottom: 1px solid var(--card-border); vertical-align: middle; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tbody tr { transition: background-color 150ms; }
+  .tbl tbody tr:hover { background: var(--hover-bg-subtle); }
+  .link-btn { color: var(--primary-600); cursor: pointer; font-size: 0.8125rem; font-weight: 500; background: none; border: none; padding: 0; white-space: nowrap; }
+  .dark .link-btn { color: var(--primary-400); }
+  .link-btn.danger { color: var(--red-600); } .dark .link-btn.danger { color: var(--red-400); }
+  .status-row { display: flex; align-items: center; justify-content: space-between; padding: 0.625rem 0; }
+  .status-row + .status-row { border-top: 1px solid var(--card-border); }
+  .progress-thin { height: 0.375rem; }
+  /* ---------- 直播回放画廊 ---------- */
+  .poster-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 0.875rem; }
+  .poster { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 9 / 14; background: var(--dark-900); }
+  .poster .ph { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.375rem; color: rgba(255,255,255,0.35); }
+  .poster .ov { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end;
+                padding: 0.5rem 0.625rem; background: linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0.05) 55%, transparent); }
+  .poster .tag { position: absolute; top: 0.5rem; left: 0.5rem; font-size: 0.625rem; color: rgba(255,255,255,0.85);
+                 background: rgba(0,0,0,0.45); border-radius: 999px; padding: 0.125rem 0.5rem; backdrop-filter: blur(4px); }
+  .poster .star { position: absolute; top: 0.375rem; right: 0.375rem; color: rgba(255,255,255,0.6); }
+  .poster .name { color: #fff; font-weight: 600; font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .poster .meta { color: rgba(255,255,255,0.75); font-size: 0.625rem; margin-top: 0.125rem; white-space: nowrap; }
+  .poster .date { color: rgba(255,255,255,0.55); font-size: 0.625rem; margin-top: 0.125rem; }
+  /* ---------- 电视墙 ---------- */
+  .tv-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.25rem; }
+  .tv-cell { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 9 / 16; background: #020617; border: 1px solid var(--card-border); }
+  .tv-cell .live-ph { position: absolute; inset: 0; }
+  .tv-cell .info { position: absolute; top: 0.625rem; left: 0.75rem; right: 0.625rem; color: #fff;
+                   display: flex; flex-direction: column; gap: 0.125rem; text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+  .tv-cell .info .n { font-weight: 700; font-size: 0.8125rem; }
+  .tv-cell .info .m { font-size: 0.6875rem; color: rgba(255,255,255,0.8); }
+  .tv-cell .plat { position: absolute; top: 0.625rem; right: 0.625rem; font-size: 0.625rem; color: rgba(255,255,255,0.85);
+                   background: rgba(0,0,0,0.4); padding: 0.125rem 0.5rem; border-radius: 999px; }
+  .tv-cell .nosig { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgba(255,255,255,0.12); }
+  /* ---------- 设置手风琴 ---------- */
+  .acc-item { border-bottom: 1px solid var(--card-border); }
+  .acc-item:last-child { border-bottom: none; }
+  .acc-head { display: flex; align-items: center; gap: 0.75rem; padding: 1rem 1.5rem; cursor: pointer; color: var(--text-body); font-weight: 500; }
+  .acc-body { padding: 0.25rem 1.5rem 1.25rem; }
+  .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 3rem; }
+  .kv { display: flex; gap: 0.5rem; font-size: 0.875rem; }
+  .kv .k { color: var(--text-secondary); flex-shrink: 0; }
+  .kv .v { color: var(--text-body); word-break: break-all; }
+  .note-row { padding: 0.625rem 0; border-bottom: 1px dashed var(--card-border); color: var(--text-body); }
+  .note-row:last-child { border-bottom: none; }
+  @media (max-width: 1200px) { .stat-grid, .stat-grid-3 { grid-template-columns: repeat(2, 1fr); } .split-2-1, .split-1-1 { grid-template-columns: 1fr; } .poster-grid { grid-template-columns: repeat(4, 1fr); } .tv-grid { grid-template-columns: repeat(2, 1fr); } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ======================= 侧边栏 ======================= -->
+  <aside class="sider">
+    <div class="sider-header">
+      <div class="logo-tile">云</div>
+      <div>
+        <div style="font-weight:700; color:var(--heading-color); font-size:1.05rem;">云媒体平台</div>
+        <div style="font-size:0.6875rem; color:var(--text-faint);">Media Ops Console</div>
+      </div>
+    </div>
+    <nav class="sider-nav">
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">总览</div>
+        <a class="sidebar-link sidebar-link-active" data-target="dashboard" onclick="showPage('dashboard')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+          <span>仪表盘</span>
+        </a>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">媒体运营</div>
+        <a class="sidebar-link" data-target="streamers" onclick="showPage('streamers')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+          <span>主播管理</span>
+        </a>
+        <a class="sidebar-link" data-target="uploads" onclick="showPage('uploads')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+          <span>上传队列</span>
+        </a>
+        <a class="sidebar-link" data-target="replays" onclick="showPage('replays')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+          <span>直播回放</span>
+        </a>
+        <a class="sidebar-link" data-target="tvwall" onclick="showPage('tvwall')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6.429 9.75L2.25 12l4.179 2.25m0-4.5l5.571 3 5.571-3m-11.142 0L2.25 7.5 12 2.25l9.75 5.25-4.179 2.25m0 0l4.179 2.25L12 17.25 2.25 12m15.321-2.25l4.179 2.25L12 17.25l-9.75-5.25"/></svg>
+          <span>电视墙</span>
+        </a>
+        <a class="sidebar-link" data-target="monitor" onclick="showPage('monitor')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>博主监控</span>
+        </a>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">系统</div>
+        <a class="sidebar-link" data-target="settings" onclick="showPage('settings')">
+          <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <span>系统设置</span>
+        </a>
+      </div>
+    </nav>
+    <div class="sider-bottom">
+      <button class="sidebar-link" onclick="document.documentElement.classList.toggle('dark')">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z"/></svg>
+        <span>切换暗色</span>
+      </button>
+      <a class="sidebar-link" href="#">
+        <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
+        <span>admin</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ======================= 主区 ======================= -->
+  <div class="main-wrap">
+    <header class="topbar">
+      <div>
+        <h1 id="page-title" style="font-size:1.125rem; font-weight:600; color:var(--heading-color); margin:0;">仪表盘</h1>
+        <p id="page-desc" style="margin:0; font-size:0.75rem; color:var(--text-secondary);">系统运行与媒体资产概览</p>
+      </div>
+      <div class="row" style="gap:0.75rem;">
+        <span class="text-xs text-secondary">每 30 秒自动刷新</span>
+        <button class="btn btn-secondary btn-sm">
+          <svg class="icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:1rem;height:1rem;"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+          刷新
+        </button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <!-- ================================================== -->
+      <!-- 页面：仪表盘（已验收，保持不变） -->
+      <!-- ================================================== -->
+      <section class="page active" data-page="dashboard">
+        <div class="stat-grid">
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--primary-100); color:var(--primary-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">今日上传</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">301 <span class="text-xs font-normal text-secondary">个 · 347.3 GB</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--red-100); color:var(--red-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">失败任务</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">242 <span class="text-xs font-normal" style="color:var(--red-500);">待排查</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--amber-100); color:var(--amber-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">电视墙解析异常</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">3 <span class="text-xs font-normal text-secondary">个</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--emerald-100); color:var(--emerald-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3"/></svg>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <p class="text-xs font-medium text-secondary" style="margin:0;">Bot 池</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">8 / 10 <span class="text-xs font-normal text-secondary">空闲</span></p>
+              <div class="progress progress-thin" style="margin-top:0.375rem;"><div class="progress-bar" style="width:80%;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3 class="card-title">系统负载</h3><span class="badge badge-gray">实时</span></div>
+          <div style="padding:1.25rem 1.5rem;">
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:1.5rem;">
+              <div>
+                <div class="row-between"><span class="text-xs text-secondary">CPU</span><span style="font-weight:700; color:var(--amber-600);">85.0%</span></div>
+                <div class="progress" style="margin-top:0.5rem;"><div class="progress-bar" style="width:85%; background:var(--amber-500);"></div></div>
+              </div>
+              <div>
+                <div class="row-between"><span class="text-xs text-secondary">内存</span><span style="font-weight:700; color:var(--heading-color);">48.9%</span></div>
+                <div class="progress" style="margin-top:0.5rem;"><div class="progress-bar" style="width:48.9%;"></div></div>
+              </div>
+              <div>
+                <div class="row-between"><span class="text-xs text-secondary">磁盘</span><span style="font-weight:700; color:var(--heading-color);">51.7%</span></div>
+                <div class="progress" style="margin-top:0.5rem;"><div class="progress-bar" style="width:51.7%;"></div></div>
+              </div>
+              <div>
+                <div class="row-between"><span class="text-xs text-secondary">网络</span><span class="mono" style="font-weight:600; color:var(--heading-color); font-size:0.8125rem;">↑ 1.2 ↓ 1.1 KB/s</span></div>
+                <p class="text-xs text-secondary" style="margin:0.75rem 0 0;">出口 / 入口速率</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="split-2-1">
+          <div class="card">
+            <div class="card-head">
+              <h3 class="card-title">上传趋势</h3>
+              <div class="row" style="gap:1rem;">
+                <span class="text-xs text-secondary">近 7 天 · 2.2 TB</span>
+                <span class="text-xs" style="display:flex; align-items:center; gap:0.375rem;"><span class="legend-dot" style="background:#3b82f6;"></span>数量</span>
+                <span class="text-xs" style="display:flex; align-items:center; gap:0.375rem;"><span class="legend-dot" style="background:#10b981;"></span>体积</span>
+              </div>
+            </div>
+            <div style="padding:1rem 1.5rem 1.25rem;">
+              <div style="height:12rem;">
+                <svg viewBox="0 0 640 192" preserveAspectRatio="none" style="width:100%; height:100%;">
+                  <g stroke="var(--divider-color)" stroke-width="1">
+                    <line x1="0" y1="48" x2="640" y2="48"/><line x1="0" y1="96" x2="640" y2="96"/><line x1="0" y1="144" x2="640" y2="144"/><line x1="0" y1="190" x2="640" y2="190"/>
+                  </g>
+                  <polyline fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="10,32 115,58 220,66 325,74 430,78 535,82 630,84"/>
+                  <polyline fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="10,40 115,76 220,98 325,106 430,110 535,112 630,104"/>
+                </svg>
+              </div>
+              <div style="display:flex; justify-content:space-between; margin-top:0.5rem;" class="text-xs text-secondary">
+                <span>09/23</span><span>09/24</span><span>09/25</span><span>09/26</span><span>09/27</span><span>09/28</span><span>09/29</span>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="display:flex; flex-direction:column;">
+            <div class="card-head"><h3 class="card-title">回放资产</h3><span class="badge badge-primary">112.5 TB</span></div>
+            <div style="padding:1.25rem 1.5rem; flex:1;">
+              <div style="display:flex; align-items:center; gap:1.25rem;">
+                <div style="width:7.5rem; height:7.5rem; border-radius:999px; flex-shrink:0; position:relative;
+                            background:conic-gradient(#3b82f6 0% 87.6%, #10b981 87.6% 92.5%, #f59e0b 92.5% 96.7%, #ef4444 96.7% 98.6%, #8b5cf6 98.6% 99.9%, #ec4899 99.9% 100%);">
+                  <div style="position:absolute; inset:1.25rem; border-radius:999px; background:var(--card-bg); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+                    <span class="mono" style="font-weight:700; color:var(--heading-color); font-size:1.05rem;">110920</span>
+                    <span class="text-xs text-secondary">个视频</span>
+                  </div>
+                </div>
+                <div style="flex:1;">
+                  <p class="text-xs text-secondary" style="margin:0 0 0.25rem;">506 位主播 · 6 个平台</p>
+                  <div class="legend-row" style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0;"><span class="legend-dot" style="background:#3b82f6;"></span><span class="text-xs">douyin</span><span class="count mono" style="margin-left:auto; font-size:0.8125rem; color:var(--text-body);">97234</span></div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0;"><span class="legend-dot" style="background:#10b981;"></span><span class="text-xs">stripchat</span><span class="mono" style="margin-left:auto; font-size:0.8125rem; color:var(--text-body);">5427</span></div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0;"><span class="legend-dot" style="background:#f59e0b;"></span><span class="text-xs">bigo</span><span class="mono" style="margin-left:auto; font-size:0.8125rem; color:var(--text-body);">4712</span></div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0;"><span class="legend-dot" style="background:#ef4444;"></span><span class="text-xs">huya</span><span class="mono" style="margin-left:auto; font-size:0.8125rem; color:var(--text-body);">2063</span></div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0;"><span class="legend-dot" style="background:#8b5cf6;"></span><span class="text-xs">douyu</span><span class="mono" style="margin-left:auto; font-size:0.8125rem; color:var(--text-body);">1467</span></div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; padding:0.25rem 0;"><span class="legend-dot" style="background:#ec4899;"></span><span class="text-xs">来秀</span><span class="mono" style="margin-left:auto; font-size:0.8125rem; color:var(--text-body);">17</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3 class="card-title">当前直播</h3><span class="badge badge-success"><span class="legend-dot" style="background:var(--emerald-500);"></span>6 个在线</span></div>
+          <div style="padding:1rem 1.5rem 1.25rem;">
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem;" id="live-grid"></div>
+          </div>
+        </div>
+
+        <div class="split-1-1">
+          <div class="card">
+            <div class="card-head"><h3 class="card-title">系统健康</h3><span class="badge badge-success">全部正常</span></div>
+            <div style="padding:0.75rem 1.5rem 1rem;">
+              <div class="status-row"><span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>Capacity</span><span class="badge badge-success">正常</span></div>
+              <div class="status-row"><span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>Upload queue</span><span class="badge badge-success">正常</span></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3 class="card-title">服务状态</h3><span class="badge badge-success">4 / 4 运行中</span></div>
+            <div style="padding:0.75rem 1.5rem 1rem; display:grid; grid-template-columns:1fr 1fr; column-gap:2rem;">
+              <div class="status-row"><span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>后端接口</span><span class="badge badge-success">运行中</span></div>
+              <div class="status-row"><span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>内网页面</span><span class="badge badge-success">运行中</span></div>
+              <div class="status-row"><span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>公网入口</span><span class="badge badge-success">运行中</span></div>
+              <div class="status-row"><span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>录制上传</span><span class="badge badge-success">运行中</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 页面：主播管理 -->
+      <!-- ================================================== -->
+      <section class="page" data-page="streamers">
+        <div class="row-between">
+          <div class="row" style="gap:0.5rem;">
+            <button class="btn btn-secondary btn-sm">
+              <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+              同步节点
+            </button>
+            <button class="btn btn-secondary btn-sm">待分配</button>
+          </div>
+          <button class="btn btn-primary btn-sm">
+            <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            添加主播
+          </button>
+        </div>
+
+        <div class="stat-grid">
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--primary-100); color:var(--primary-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">录制节点</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">6 <span class="text-xs font-normal" style="color:var(--emerald-600);">/ 6 在线</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--purple-100); color:var(--purple-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">录制任务</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">240 <span class="text-xs font-normal text-secondary">个主播</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--emerald-100); color:var(--emerald-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">当前直播</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">13 <span class="text-xs font-normal text-secondary">个房间</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--amber-100); color:var(--amber-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 14.25h13.5m-13.5 0a3 3 0 01-3-3m3 3a3 3 0 100 6h13.5a3 3 0 100-6m-16.5-3a3 3 0 013-3h13.5a3 3 0 013 3m-19.5 0a4.5 4.5 0 01.9-2.7L5.737 5.1a3.375 3.375 0 012.7-1.35h7.126c1.062 0 2.062.5 2.7 1.35l2.587 3.45a4.5 4.5 0 01.9 2.7m0 0a3 3 0 01-3 3"/></svg>
+            </div>
+            <div style="flex:1; min-width:0;">
+              <p class="text-xs font-medium text-secondary" style="margin:0;">可用容量</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">180 <span class="text-xs font-normal text-secondary">/ 420</span></p>
+              <div class="progress progress-thin" style="margin-top:0.375rem;"><div class="progress-bar" style="width:42.9%;"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="row"><h3 class="card-title">录制节点</h3><span class="badge badge-gray">6 个节点</span></div>
+            <a class="link-btn">查看节点</a>
+          </div>
+          <div style="padding:1rem 1.5rem; display:grid; grid-template-columns:repeat(4,1fr); gap:0.75rem;" id="node-grid"></div>
+        </div>
+
+        <div class="card">
+          <div style="padding:1rem 1.5rem;" class="row-between">
+            <div class="row" style="flex:1;">
+              <div style="max-width:240px; flex:1;"><label class="input-label" style="margin-bottom:0.25rem;">主播</label><input class="input" placeholder="请输入" /></div>
+              <div style="max-width:200px;"><label class="input-label" style="margin-bottom:0.25rem;">平台</label><select class="input"><option>请选择</option></select></div>
+            </div>
+            <div class="row" style="align-self:flex-end;">
+              <button class="btn btn-secondary btn-md">重置</button>
+              <button class="btn btn-primary btn-md">查询</button>
+              <button class="btn btn-ghost btn-md">展开 ▾</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table class="tbl">
+              <thead><tr><th>主播</th><th>平台</th><th>录制节点</th><th>状态</th><th>最近上传</th><th style="text-align:right;">回放</th><th>最近开播</th><th style="text-align:right;">操作</th></tr></thead>
+              <tbody id="streamer-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 页面：上传队列 -->
+      <!-- ================================================== -->
+      <section class="page" data-page="uploads">
+        <div class="row-between">
+          <div class="row" style="gap:0.5rem;">
+            <span class="text-xs text-secondary">自动刷新</span>
+            <button class="switch switch-active" onclick="this.classList.toggle('switch-active')"><span class="switch-thumb"></span></button>
+          </div>
+          <div class="row" style="gap:0.5rem;">
+            <button class="btn btn-secondary btn-sm">
+              <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+              刷新
+            </button>
+            <button class="btn btn-primary btn-sm">失败批量重试</button>
+            <button class="btn btn-secondary btn-sm">
+              <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+              清理记录
+            </button>
+          </div>
+        </div>
+
+        <div class="stat-grid">
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--gray-100); color:var(--gray-500);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">排队中</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">0 <span class="text-xs font-normal text-secondary">个</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--primary-100); color:var(--primary-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">上传中</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">2 <span class="text-xs font-normal text-secondary">个 · 平均 85%</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--emerald-100); color:var(--emerald-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">今日成功</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">301 <span class="text-xs font-normal text-secondary">个 · 347 GB</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--red-100); color:var(--red-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">失败 / 重试</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">242 <span class="text-xs font-normal" style="color:var(--red-500);">个</span></p></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="padding:0.875rem 1.5rem;" class="row-between">
+            <div class="tabs" id="queue-tabs"></div>
+            <div class="row">
+              <select class="input" style="width:110px;"><option>平台</option></select>
+              <select class="input" style="width:120px;"><option>全部时间</option></select>
+              <input class="input" style="width:200px;" placeholder="搜索文件名 / 标题" />
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-secondary" style="margin:-0.5rem 0 0;">共 2940 条中（当前筛选范围 2940 条）。成功/跳过记录保留 7 天后自动清理；失败任务源文件超过保留期（默认 7 天）后由系统自动清理，也可手动清理。计数为数据库全量口径。</p>
+
+        <div class="card" style="overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table class="tbl">
+              <thead><tr><th style="width:2.5rem;"><input type="checkbox" /></th><th>任务</th><th>状态 / 进度</th><th>大小</th><th>执行</th><th>耗时</th><th style="text-align:right;">重试</th><th style="text-align:right;">操作</th></tr></thead>
+              <tbody id="queue-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 页面：直播回放 -->
+      <!-- ================================================== -->
+      <section class="page" data-page="replays">
+        <div class="row-between">
+          <span></span>
+          <div class="row" style="gap:0.5rem;">
+            <div class="row" style="gap:0.25rem; background:var(--gray-100); border-radius:12px; padding:0.25rem;">
+              <button class="btn btn-sm" style="background:var(--float-bg); box-shadow:var(--shadow-sm); padding:0.375rem 0.5rem;">
+                <svg style="width:1rem;height:1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"/></svg>
+              </button>
+              <button class="btn btn-ghost btn-sm" style="padding:0.375rem 0.5rem;">
+                <svg style="width:1rem;height:1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3.375 5.25c-.621 0-1.125.504-1.125 1.125v3.026a2.999 2.999 0 010 5.198v3.026c0 .621.504 1.125 1.125 1.125h17.25c.621 0 1.125-.504 1.125-1.125v-3.026a2.999 2.999 0 010-5.198V6.375c0-.621-.504-1.125-1.125-1.125H3.375z"/></svg>
+              </button>
+            </div>
+            <button class="btn btn-primary btn-sm">手动上传回放</button>
+          </div>
+        </div>
+
+        <div class="stat-grid-3">
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--primary-100); color:var(--primary-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">主播</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">506 <span class="text-xs font-normal text-secondary">人</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--purple-100); color:var(--purple-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">视频</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">110,921 <span class="text-xs font-normal text-secondary">条</span></p></div>
+          </div>
+          <div class="card p-4" style="display:flex; align-items:center; gap:0.75rem;">
+            <div class="icon-tile" style="background:var(--emerald-100); color:var(--emerald-600);">
+              <svg class="icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"/></svg>
+            </div>
+            <div><p class="text-xs font-medium text-secondary" style="margin:0;">平台</p>
+              <p style="margin:0; font-size:1.25rem; font-weight:700; color:var(--heading-color);">6 <span class="text-xs font-normal text-secondary">个</span></p></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div style="padding:0.875rem 1.5rem;" class="row-between">
+            <input class="input" style="max-width:260px;" placeholder="搜索主播" />
+            <div class="row">
+              <select class="input" style="width:130px;"><option>全部平台</option></select>
+              <span class="text-xs text-secondary">全部主播</span>
+              <button class="switch" onclick="this.classList.toggle('switch-active')"><span class="switch-thumb"></span></button>
+            </div>
+          </div>
+        </div>
+
+        <div class="poster-grid" id="poster-grid"></div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 页面：电视墙 -->
+      <!-- ================================================== -->
+      <section class="page" data-page="tvwall">
+        <div class="row-between">
+          <span></span>
+          <div class="row" style="gap:0.5rem;">
+            <button class="btn btn-secondary btn-sm">全局播放</button>
+            <select class="input" style="width:130px;"><option>标准模式</option></select>
+            <button class="btn btn-secondary btn-sm">管理电视墙</button>
+          </div>
+        </div>
+
+        <div class="row-between">
+          <div class="row" style="gap:0.5rem;">
+            <span class="badge badge-primary">直播监控</span>
+            <span class="text-sm text-secondary">6 个房间正在直播</span>
+          </div>
+          <span class="badge badge-success">实时同步</span>
+        </div>
+
+        <div class="tv-grid" id="tv-grid"></div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 页面：博主监控 -->
+      <!-- ================================================== -->
+      <section class="page" data-page="monitor">
+        <div class="row-between">
+          <div class="row" style="flex:1;">
+            <div style="max-width:220px;"><label class="input-label" style="margin-bottom:0.25rem;">平台</label><select class="input"><option>请选择</option></select></div>
+          </div>
+          <div class="row" style="align-self:flex-end;">
+            <button class="btn btn-secondary btn-md">重置</button>
+            <button class="btn btn-primary btn-md">查询</button>
+          </div>
+        </div>
+
+        <div class="row-between">
+          <span></span>
+          <div class="row" style="gap:0.375rem;">
+            <button class="btn btn-primary btn-sm">
+              <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+              添加博主
+            </button>
+            <button class="btn btn-ghost btn-icon btn-sm" aria-label="刷新">
+              <svg style="width:1rem;height:1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-icon btn-sm" aria-label="信息">
+              <svg style="width:1rem;height:1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z"/></svg>
+            </button>
+            <button class="btn btn-ghost btn-icon btn-sm" aria-label="设置">
+              <svg style="width:1rem;height:1rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281a1.125 1.125 0 00-.644-.87 6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281zM15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="card" style="overflow:hidden;">
+          <div style="overflow-x:auto;">
+            <table class="tbl">
+              <thead><tr><th>主体</th><th>账号名称</th><th>平台</th><th>监控状态</th><th>最后检查</th><th>平台作品</th><th style="text-align:right;">本地记录</th><th style="text-align:right;">已缓存</th><th>单次扫描上限</th><th style="text-align:right;">操作</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td style="font-weight:500; color:var(--heading-color);">小怡宝</td>
+                  <td><div class="row" style="gap:0.375rem;">小怡宝 <span class="badge badge-primary mono" style="font-size:0.625rem;">cccatt11</span></div></td>
+                  <td>抖音</td>
+                  <td><span class="badge badge-success"><span class="legend-dot" style="background:var(--emerald-500);"></span>启用</span></td>
+                  <td class="mono" style="font-size:0.8125rem;">2026-09-27 03:09:44</td>
+                  <td class="text-secondary">未知</td>
+                  <td style="text-align:right;" class="mono">44</td>
+                  <td style="text-align:right;" class="mono">44</td>
+                  <td class="text-secondary">不限</td>
+                  <td style="text-align:right; white-space:nowrap;">
+                    <button class="link-btn">立即检查</button>&ensp;
+                    <button class="link-btn">查看作品</button>&ensp;
+                    <button class="link-btn">编辑</button>&ensp;
+                    <button class="link-btn danger">删除</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="font-weight:500; color:var(--heading-color);">小怡在干嘛</td>
+                  <td><div class="row" style="gap:0.375rem;">小怡在干嘛 <span class="badge badge-primary mono" style="font-size:0.625rem;">wozhenkeai_18</span></div></td>
+                  <td>抖音</td>
+                  <td><span class="badge badge-success"><span class="legend-dot" style="background:var(--emerald-500);"></span>启用</span></td>
+                  <td class="mono" style="font-size:0.8125rem;">2026-09-27 02:51:04</td>
+                  <td class="text-secondary">未知</td>
+                  <td style="text-align:right;" class="mono">63</td>
+                  <td style="text-align:right;" class="mono">62</td>
+                  <td class="text-secondary">不限</td>
+                  <td style="text-align:right; white-space:nowrap;">
+                    <button class="link-btn">立即检查</button>&ensp;
+                    <button class="link-btn">查看作品</button>&ensp;
+                    <button class="link-btn">编辑</button>&ensp;
+                    <button class="link-btn danger">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="row-between" style="border-top:1px solid var(--control-border); padding:0.75rem 1.5rem;">
+            <p class="text-sm text-secondary" style="margin:0;">第 1-2 条 / 总共 2 条</p>
+            <div class="row" style="gap:0.25rem;">
+              <button class="btn btn-secondary btn-sm" disabled>‹</button>
+              <button class="btn btn-primary btn-sm">1</button>
+              <button class="btn btn-secondary btn-sm" disabled>›</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================================== -->
+      <!-- 页面：系统设置 -->
+      <!-- ================================================== -->
+      <section class="page" data-page="settings">
+        <div class="tabs" style="align-self:flex-start;">
+          <button class="tab tab-active">全局配置</button>
+          <button class="tab">上传录制</button>
+          <button class="tab">电视墙设置</button>
+          <button class="tab">博主监控</button>
+          <button class="tab">账号权限</button>
+        </div>
+
+        <div class="card">
+          <div class="acc-item">
+            <div class="acc-head">
+              <svg style="width:1rem;height:1rem; color:var(--text-secondary); transform:rotate(90deg);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+              关于与更新
+            </div>
+            <div class="acc-body">
+              <div class="kv-grid">
+                <div class="kv"><span class="k">产品版本：</span><span class="v mono">1.0.2</span></div>
+                <div class="kv"><span class="k">页面版本：</span><span class="v mono">1.0.2</span></div>
+                <div class="kv"><span class="k">接口兼容性：</span><span class="v">兼容 <span class="badge badge-success" style="margin-left:0.25rem;">正常</span></span></div>
+                <div class="kv"><span class="k">源码提交：</span><span class="v mono" style="font-size:0.8125rem;">7da0f34af0d75321db58d9798c5b4e9d0c010f79</span></div>
+                <div class="kv"><span class="k">构建时间：</span><span class="v mono">2026-09-29T10:44:11.000Z</span></div>
+                <div class="kv"><span class="k">数据库目标版本：</span><span class="v mono">20260926_0024</span></div>
+              </div>
+
+              <h4 style="margin:1.25rem 0 0.25rem; font-size:0.875rem;">版本更新</h4>
+              <div class="note-row">作品监控分页失败时保留已发现作品，并准确报告未完成状态。</div>
+              <div class="note-row">历史分页遇风控受控检查最新页，保留历史进度和单次扫描上限。</div>
+              <div class="note-row">区分 DTK 永久失败与临时故障，避免对无效来源反复重试。</div>
+
+              <h4 style="margin:1.25rem 0 0.25rem; font-size:0.875rem;">组件版本</h4>
+              <p class="mono text-xs text-secondary" style="margin:0.25rem 0;">platform：未固定源码版本 · 内置 · SEE LICENSE</p>
+              <p class="mono text-xs text-secondary" style="margin:0.25rem 0;">dtk：3fa19d9aeb5326df3ade80a7ce75f62f7a154dfb · 外部服务 · Apache-2.0</p>
+              <p class="mono text-xs text-secondary" style="margin:0.25rem 0;">rust-src：未固定源码版本 · 外部服务 · verification-required-before-bundling</p>
+
+              <div class="row" style="margin-top:1.25rem;">
+                <button class="btn btn-secondary btn-md">
+                  <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"/></svg>
+                  刷新版本信息
+                </button>
+                <button class="btn btn-secondary btn-md">
+                  <svg style="width:0.875rem;height:0.875rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                  导出版本诊断
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="acc-item"><div class="acc-head"><svg style="width:1rem;height:1rem; color:var(--text-secondary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>Telegram Bot API</div></div>
+          <div class="acc-item"><div class="acc-head"><svg style="width:1rem;height:1rem; color:var(--text-secondary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>第三方存储</div></div>
+          <div class="acc-item"><div class="acc-head"><svg style="width:1rem;height:1rem; color:var(--text-secondary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>高级：存储与缩略图参数</div></div>
+          <div class="acc-item"><div class="acc-head"><svg style="width:1rem;height:1rem; color:var(--text-secondary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>通知渠道</div></div>
+          <div class="acc-item"><div class="acc-head"><svg style="width:1rem;height:1rem; color:var(--text-secondary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>高级：历史索引恢复凭据</div></div>
+          <div class="acc-item"><div class="acc-head"><svg style="width:1rem;height:1rem; color:var(--text-secondary);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>备份与恢复</div></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script>
+/* ---------- 页面切换 ---------- */
+const PAGES = {
+  dashboard: ['仪表盘', '系统运行与媒体资产概览'],
+  streamers: ['主播管理', '录制节点与主播任务 · 添加主播的总入口'],
+  uploads:   ['上传队列', '录制成片 → Bot 上传 → 频道索引的全过程进度与结果'],
+  replays:   ['直播回放', ''],
+  tvwall:    ['电视墙', ''],
+  monitor:   ['博主监控', ''],
+  settings:  ['系统设置', '按业务配置，保存后由对应模块执行'],
+};
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.dataset.page === id));
+  document.querySelectorAll('.sider-nav .sidebar-link').forEach(a => a.classList.toggle('sidebar-link-active', a.dataset.target === id));
+  const [t, d] = PAGES[id];
+  document.getElementById('page-title').textContent = t;
+  const desc = document.getElementById('page-desc');
+  desc.textContent = d; desc.style.display = d ? '' : 'none';
+  window.scrollTo(0, 0);
+}
+
+/* ---------- 仪表盘：当前直播 ---------- */
+document.getElementById('live-grid').innerHTML = ['诗诗Echo✨','奥特粒粒子','络','Sana小贱','Zyin','娜咋了']
+  .map(n => `<div class="live-item" style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; padding:0.625rem 0.875rem; border-radius:8px; border:1px solid var(--card-border);">
+    <span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body);"><span class="legend-dot" style="background:var(--emerald-500);"></span>${n}</span>
+    <span class="badge badge-success">直播中</span></div>`).join('');
+
+/* ---------- 主播管理：录制节点 ---------- */
+document.getElementById('node-grid').innerHTML = [
+  ['rust1','41/70'],['rust2','40/70'],['rust3','40/70'],['rust4','40/70']
+].map(([n, c]) => `<div class="live-item" style="border:1px solid var(--card-border); border-radius:8px; padding:0.625rem 0.875rem;">
+    <span style="display:flex; align-items:center; gap:0.5rem; color:var(--text-body); font-weight:500;"><span class="legend-dot" style="background:var(--emerald-500);"></span>${n}</span>
+    <span class="mono text-xs text-secondary">${c}</span>&ensp;<span class="badge badge-success">在线</span></div>`).join('');
+
+/* ---------- 主播管理：表格 ---------- */
+const ACT = '<button class="link-btn">详情</button>&ensp;<button class="link-btn">监控作品</button>&ensp;<button class="link-btn">电视墙</button>&ensp;<button class="link-btn">暂停</button>&ensp;<button class="link-btn danger">删除</button>';
+const streamers = [
+  ['Zyin','Yin_0520','rust1','done','670','2026/9/29 20:52:36'],
+  ['小蛋糕','46627261469','rust4','done','348','2026/9/29 20:47:00'],
+  ['小柒','85800799464','rust2','done','354','2026/9/29 20:44:48'],
+  ['娜咋了','88250576876','rust2','done','33','2026/9/29 20:25:13'],
+  ['诗诗Echo✨','39751102435','rust4','done','346','2026/9/29 20:04:26'],
+  ['爱播','84905169226','rust2','done','505','2026/9/29 19:57:12'],
+  ['络','L1123A','rust5','up','61','2026/9/29 19:25:02'],
+  ['云灵Cyra','762648807L','rust2','up','282','2026/9/29 18:55:51'],
+  ['甜崽','C197707','rust1','done','358','2026/9/29 18:38:04'],
+];
+document.getElementById('streamer-tbody').innerHTML = streamers.map(([n, id, node, st, cnt, t]) => `
+  <tr>
+    <td><div style="font-weight:500; color:var(--heading-color);">${n}</div><div class="text-xs text-secondary mono">${id}</div></td>
+    <td>抖音</td>
+    <td class="mono">${node}</td>
+    <td><span class="badge badge-success"><span class="legend-dot" style="background:var(--emerald-500);"></span>录制中</span></td>
+    <td>${st === 'done'
+      ? '<span class="badge badge-success">已上传</span> <span class="mono text-xs">100%</span>'
+      : '<span class="badge badge-primary">上传中</span> <span class="mono text-xs">85%</span>'}</td>
+    <td style="text-align:right;" class="mono">${cnt}</td>
+    <td class="mono text-xs">${t}</td>
+    <td style="text-align:right; white-space:nowrap;">${ACT}</td>
+  </tr>`).join('');
+
+/* ---------- 上传队列：tabs 与表格 ---------- */
+const tabs = [['全部', 2940, 1], ['待上传', 0, 0], ['上传中', 2, 0], ['已成功', 2686, 0], ['失败 · 重试', 242, 0], ['已跳过', 10, 0]];
+document.getElementById('queue-tabs').innerHTML = tabs.map(([label, n, active]) =>
+  `<button class="tab ${active ? 'tab-active' : ''}">${label} <span class="badge ${active ? 'badge-primary' : 'badge-gray'}" style="margin-left:0.25rem;">${n}</span></button>`).join('');
+
+const jobs = [
+  ['络-1-2026-09-29 11-25-03.mp4', 'up', 85, '1.9 GB', 'worker:684d2db22a374909851da2e1', '已传 1 分 15 秒', 0],
+  ['云灵Cyra—一分钟一套风格换装-2026-09-29 12-24-17.mp4', 'up', 85, '1.9 GB', 'worker:684d2db22a374909851da2e1', '已传 2 分 41 秒', 0],
+  ['甜崽-欧巴～-2026-09-29 10-38-06.mp4', 'ok', null, '1.9 GB', 'worker:d2fa443d85824eb18e3131b3', '2 分 47 秒', 0],
+  ['大头🍒-橙发第七天-2026-09-29 11-40-44.mp4', 'ok', null, '601 MB', 'worker:a8a13ee923804588b058959a', '47 秒', 0],
+  ['🐻崩妮不崩蛋-不恋爱，不见面-2026-09-29 11-53-01.mp4', 'ok', null, '1.9 GB', 'worker:4c2803bfcf7541d696ad5ece', '2 分 50 秒', 0],
+  ['云灵Cyra—一分钟一套风格换装-2026-09-29 11-54-50.mp4', 'ok', null, '1.9 GB', 'worker:4c2803bfcf7541d696ad5ece', '2 分 53 秒', 0],
+  ['奥特粒粒子-我会记住每一个为我花钱的男人-2026-09-2…', 'ok', null, '1.9 GB', 'worker:feebae62f119c48afb739b645', '2 分 56 秒', 0],
+  ['叶小清⚽-足球女孩小清正在直播-2026-09-29 10-33-53…', 'ok', null, '1.9 GB', 'worker:4e08b73cee', '2 分 50 秒', 0],
+];
+document.getElementById('queue-tbody').innerHTML = jobs.map(([name, st, pct, size, worker, cost, retry]) => `
+  <tr>
+    <td><input type="checkbox" /></td>
+    <td><div style="font-weight:500; color:var(--heading-color); max-width:420px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${name}</div><div class="text-xs text-secondary">抖音</div></td>
+    <td style="min-width:220px;">
+      ${st === 'up'
+        ? `<span class="badge badge-primary"><span class="legend-dot" style="background:var(--primary-500);"></span>上传中</span>
+           <div class="progress progress-thin" style="margin-top:0.375rem; max-width:180px;"><div class="progress-bar" style="width:${pct}%;"></div></div>
+           <div class="text-xs text-secondary mono" style="margin-top:0.25rem;">${pct}% · ${worker}</div>`
+        : '<span class="badge badge-success"><span class="legend-dot" style="background:var(--emerald-500);"></span>已成功</span>'}
+    </td>
+    <td class="mono text-xs">${size}</td>
+    <td class="mono text-xs text-secondary" style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${worker}</td>
+    <td class="text-xs">${cost}</td>
+    <td style="text-align:right;" class="mono">${retry}</td>
+    <td style="text-align:right;"><button class="link-btn">详情</button></td>
+  </tr>`).join('');
+
+/* ---------- 直播回放：画廊 ---------- */
+const posters = [
+  ['云灵Cyra','281 个视频','461.53GB','09/29 21:00', null],
+  ['甜崽','358 个视频','427.22GB','09/29 20:50', 'linear-gradient(160deg,#7c2d12,#b45309)'],
+  ['大头(假奶川菜)','196 个视频','134.99GB','09/29 20:46', null],
+  ['🐻崩妮不崩蛋','1156 个视频','2.01TB','09/29 20:32', 'linear-gradient(160deg,#4c1d95,#7e22ce)'],
+  ['奥特粒粒子','124 个视频','112.35GB','09/29 20:18', 'linear-gradient(160deg,#134e4a,#0d9488)'],
+  ['叶小清⚽','384 个视频','509.79GB','09/29 20:11', 'linear-gradient(160deg,#1e3a8a,#3b82f6)'],
+  ['Sana小贱','845 个视频','741.23GB','09/29 20:04', null],
+  ['潇潇','429 个视频','644.47GB','09/29 18:27', 'linear-gradient(160deg,#831843,#db2777)'],
+  ['敏静','293 个视频','230.61GB','09/29 18:12', 'linear-gradient(160deg,#334155,#64748b)'],
+  ['爱播','505 个视频','693.54GB','09/29 17:59', 'linear-gradient(160deg,#14532d,#16a34a)'],
+  ['芒果汁','745 个视频','911.16GB','09/29 17:52', 'linear-gradient(160deg,#713f12,#ca8a04)'],
+  ['最最Cynthia','496 个视频','600.83GB','09/29 17:39', 'linear-gradient(160deg,#701a75,#c026d3)'],
+  ['小柔','354 个视频','267.7GB','09/29 17:33', 'linear-gradient(160deg,#0c4a6e,#0284c7)'],
+  ['AAA-画材批发 雯总','676 个视频','723.56GB','09/29 17:28', 'linear-gradient(160deg,#3f3f46,#a1a1aa)'],
+  ['萝拉Rola💙','354 个视频','419.25GB','09/29 17:05', null],
+  ['玉栀','692 个视频','601.28GB','09/29 16:56', 'linear-gradient(160deg,#7f1d1d,#ef4444)'],
+];
+const CAM = '<svg style="width:2rem;height:2rem;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z"/></svg>';
+document.getElementById('poster-grid').innerHTML = posters.map(([name, cnt, size, date, grad]) => `
+  <div class="poster">
+    ${grad
+      ? `<div class="ph" style="background:${grad}; opacity:1; color:rgba(255,255,255,0.4);">${CAM}</div>`
+      : `<div class="ph">${CAM}<span style="font-size:0.625rem;">缩略图未就绪</span></div>`}
+    <span class="tag">抖音</span>
+    <span class="star">☆</span>
+    <div class="ov">
+      <div class="name">${name}</div>
+      <div class="meta">▷ ${cnt} · ⬌ ${size}</div>
+      <div class="date">◷ ${date}</div>
+    </div>
+  </div>`).join('');
+
+/* ---------- 电视墙 ---------- */
+const tvs = [
+  ['络','12 人','1 KB/s', null],
+  ['奥特粒粒子','11 人','1 KB/s', null],
+  ['Sana小贱','8 人','1.4 MB/s', 'linear-gradient(165deg,#4a044e,#a21caf 60%,#e879f9)'],
+  ['诗诗Echo','1,000 人','1.6 MB/s', 'linear-gradient(165deg,#0f172a,#1e293b 50%,#334155)'],
+  ['娜咋了','5 人','1 KB/s', null],
+  ['Zyin','13 人','864 KB/s', 'linear-gradient(165deg,#172554,#1d4ed8 70%,#60a5fa)'],
+];
+document.getElementById('tv-grid').innerHTML = tvs.map(([n, ppl, rate, grad]) => `
+  <div class="tv-cell">
+    ${grad ? `<div class="live-ph" style="background:${grad};"></div>` : ''}
+    <div class="info">
+      <span class="n">${n}</span>
+      <span class="m">${ppl} · ${rate}</span>
+    </div>
+    <span class="plat">抖音直播</span>
+    ${grad ? '' : `<div class="nosig">${CAM}</div>`}
+  </div>`).join('');
+</script>
+</body>
+</html>

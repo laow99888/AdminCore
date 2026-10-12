@@ -1,0 +1,64 @@
+/* ============================================================
+   Sub2API 设计规范 → Ant Design 补丁样式
+   token 化不了的部分（渐变、玻璃、氛围背景、卡片上浮）在这里补。
+   与 antd-theme.ts 配合使用；暗色依赖 <html> 上的 .dark 类。
+   ============================================================ */
+
+/* ---- 1. 玻璃拟态顶栏（配合 Layout.Header） ---- */
+.ant-layout-header.sub2api-glass {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5); /* gray-200/50 */
+}
+.dark .ant-layout-header.sub2api-glass {
+  border-bottom-color: rgba(51, 65, 85, 0.5); /* dark-700/50 */
+}
+
+/* ---- 2. 渐变主按钮（原 .btn-primary：135° teal 渐变 + 按下缩放） ---- */
+.ant-btn-primary.sub2api-gradient {
+  background-image: linear-gradient(to right, #14b8a6, #0d9488);
+  transition: all 0.2s ease-out;
+}
+.ant-btn-primary.sub2api-gradient:hover:not(:disabled) {
+  background-image: linear-gradient(to right, #0d9488, #0f766e);
+}
+.ant-btn-primary.sub2api-gradient:not(:disabled):active {
+  transform: scale(0.98);
+}
+
+/* ---- 3. 页面氛围背景（原 mesh-gradient，套在 Layout 内容层） ---- */
+.sub2api-mesh-bg {
+  background-image:
+    radial-gradient(at 40% 20%, rgba(20, 184, 166, 0.12) 0px, transparent 50%),
+    radial-gradient(at 80% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+    radial-gradient(at 0% 50%, rgba(20, 184, 166, 0.08) 0px, transparent 50%);
+}
+
+/* ---- 4. 卡片悬浮（原 .card-hover） ---- */
+.ant-card.sub2api-card-hover {
+  transition: all 0.3s ease-out;
+}
+.ant-card.sub2api-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+  border-color: #e5e7eb;
+}
+.dark .ant-card.sub2api-card-hover:hover {
+  border-color: #475569;
+}
+
+/* ---- 5. 徽章四件套（Tag 语义变体，原 .badge-* 公式） ---- */
+.sub2api-tag-success { background: #d1fae5; color: #047857; border-color: transparent; }
+.sub2api-tag-warning { background: #fef3c7; color: #b45309; border-color: transparent; }
+.sub2api-tag-danger  { background: #fee2e2; color: #b91c1c; border-color: transparent; }
+.sub2api-tag-primary { background: #ccfbf1; color: #0f766e; border-color: transparent; }
+.dark .sub2api-tag-success { background: rgba(6, 78, 59, 0.3);  color: #34d399; }
+.dark .sub2api-tag-warning { background: rgba(120, 53, 15, 0.3); color: #fbbf24; }
+.dark .sub2api-tag-danger  { background: rgba(127, 29, 29, 0.3); color: #f87171; }
+.dark .sub2api-tag-primary { background: rgba(19, 78, 74, 0.3); color: #2dd4bf; }
+
+/* ---- 6. 选中文本与全局焦点色（原 ::selection / focus ring） ---- */
+.sub2api-scope ::selection { background: rgba(20, 184, 166, 0.2); }

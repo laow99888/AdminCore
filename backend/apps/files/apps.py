@@ -1,0 +1,11 @@
+"""
+文件管理应用配置
+"""
+
+from django.apps import AppConfig
+
+
+class FilesConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'apps.files'
+    verbose_name = '文件管理'
