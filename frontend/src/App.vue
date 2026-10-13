@@ -1,7 +1,7 @@
 <template>
   <el-config-provider :locale="elementLocale">
     <div class="app-container">
-      <router-view :key="locale" />
+      <router-view :key="route.meta.preserveOnLocaleChange ? route.path : locale" />
     </div>
   </el-config-provider>
 </template>
@@ -15,7 +15,7 @@ import en from 'element-plus/es/locale/lang/en'
 import { useThemeStore } from './stores/theme'
 import { useAuthStore } from './stores/auth'
 import { useModuleStore } from './stores/modules'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { canAccessPage } from './router/access'
 
 const themeStore = useThemeStore()
@@ -24,6 +24,7 @@ const elementLocale = computed(() => locale.value === 'en-US' ? en : zhCn)
 const auth = useAuthStore()
 const modules = useModuleStore()
 const router = useRouter()
+const route = useRoute()
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let refreshing = false
 async function refreshAccess() {

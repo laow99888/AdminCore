@@ -58,6 +58,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class UserSerializer(serializers.ModelSerializer):
     """用户序列化器"""
     permissions = serializers.SerializerMethodField()
+    has_avatar = serializers.SerializerMethodField()
+    avatar_enabled = serializers.SerializerMethodField()
+
+    def get_has_avatar(self, user) -> bool:
+        return bool(user.avatar_file_id)
+
+    def get_avatar_enabled(self, user) -> bool:
+        from apps.core.modules import module_enabled
+        return module_enabled('files')
 
     def get_permissions(self, user) -> list[str]:
         if user.must_change_password:
@@ -67,7 +76,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'is_staff', 'is_superuser', 'permissions', 'must_change_password', 'created_at', 'updated_at')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'is_staff', 'is_superuser', 'permissions', 'must_change_password', 'profile_version', 'has_avatar', 'avatar_enabled', 'created_at', 'updated_at')
         read_only_fields = ('id', 'created_at', 'updated_at')
 
 

@@ -111,6 +111,8 @@ class UserUpdateSerializer(UserRoleAssignmentMixin, serializers.ModelSerializer)
     def update(self, instance, validated_data):
         instance = User.objects.select_for_update().get(pk=instance.pk)
         roles = validated_data.pop('assigned_roles', None)
+        if {'email', 'first_name', 'last_name', 'phone', 'avatar'} & validated_data.keys():
+            validated_data['profile_version'] = instance.profile_version + 1
         instance = super().update(instance, validated_data)
         self.save_roles(instance, roles)
         return instance

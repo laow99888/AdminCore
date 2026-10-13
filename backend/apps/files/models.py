@@ -35,6 +35,7 @@ class FileModel(SoftDeleteModel):
     description = models.CharField(max_length=255, blank=True, verbose_name='描述')
     uploader = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='files', verbose_name='上传者')
     download_count = models.IntegerField(default=0, verbose_name='下载次数')
+    purpose = models.CharField(max_length=16, default='general', choices=[('general', '普通文件'), ('avatar', '个人头像')])
 
     class Meta:
         verbose_name = '文件'
@@ -50,6 +51,8 @@ class FileModel(SoftDeleteModel):
         return self.original_name
 
     def validate_restore(self):
+        if self.purpose == 'avatar':
+            raise LifecycleConflict('历史头像不能从文件回收站恢复，请重新上传')
         try:
             exists = self.file and self.file.storage.exists(self.file.name)
         except Exception as exc:
@@ -63,6 +66,8 @@ class FileModel(SoftDeleteModel):
             row = type(self).objects.select_for_update().filter(pk=self.pk).first()
             if row is None:
                 return False
+            if row.avatar_users.exists():
+                raise LifecycleConflict('当前头像仍被用户引用，不能彻底删除')
             if expected_version is not None:
                 row.check_lifecycle_version(expected_version)
             if deleted_before is not None and (

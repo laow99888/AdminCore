@@ -10,6 +10,7 @@ import { uiText } from "@/i18n/uiText"
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '../router'
+import { useAuthStore } from '../stores/auth'
 
 export interface ApiResponse<T = any> {
   code: number
@@ -67,9 +68,8 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 function forceRelogin() {
+  useAuthStore().clearSession()
   if (router.currentRoute.value.path !== '/login') {
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
     ElMessage.error(uiText("登录已过期，请重新登录"))
     router.push('/login')
   }

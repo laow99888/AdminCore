@@ -8,15 +8,7 @@
             <template #header>
               <div class="card-header-title">{{ uiText("个人信息") }}</div>
             </template>
-            <div class="profile">
-              <div class="avatar">
-                <UserRound :size="30" :stroke-width="1.5" />
-              </div>
-              <div class="profile-info">
-                <div class="username">{{ authStore.user?.username || '—' }}</div>
-                <div class="email">{{ authStore.user?.email || '' }}</div>
-              </div>
-            </div>
+            <ProfileEditor />
           </BaseCard>
         </el-col>
 
@@ -69,24 +61,23 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { onMounted, ref } from 'vue'
+import { onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { UserRound } from 'lucide-vue-next'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
+import ProfileEditor from '@/components/auth/ProfileEditor.vue'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const { locale } = useI18n()
 
-const currentLocale = ref(locale.value)
+const currentLocale = computed(() => locale.value)
 
 const switchLanguage = (value: string) => {
   locale.value = value
-  currentLocale.value = value
   localStorage.setItem('language', value)
 }
 
@@ -102,36 +93,6 @@ onMounted(() => {
 
 .card-header-title {
   font-weight: var(--font-weight-semibold);
-}
-
-.profile {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-lg);
-  padding: var(--spacing-md) 0;
-}
-
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: var(--color-bg-elevated);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-}
-
-.username {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
-.email {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  margin-top: var(--spacing-xs);
 }
 
 .setting-row {

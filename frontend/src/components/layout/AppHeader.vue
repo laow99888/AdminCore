@@ -68,7 +68,7 @@
         <el-dropdown @command="handleCommand">
           <button class="action-btn user-btn" :aria-label="uiText('用户菜单')">
             <span class="user-avatar">
-              <User :size="15" :stroke-width="1.75" />
+              <PrivateAvatar :icon-size="15" />
             </span>
             <span class="user-name">{{ displayName }}</span>
           </button>
@@ -94,7 +94,8 @@ import { useThemeStore } from '../../stores/theme'
 import { useAuthStore } from '../../stores/auth'
 import { notificationsApi } from '../../api'
 import { useI18n } from 'vue-i18n'
-import { Search, Bell, Sun, Moon, Languages, User, Menu } from 'lucide-vue-next'
+import { Search, Bell, Sun, Moon, Languages, Menu } from 'lucide-vue-next'
+import PrivateAvatar from '@/components/auth/PrivateAvatar.vue'
 import { useSidebar } from '../../composables/useSidebar'
 import { useModuleStore } from '@/stores/modules'
 

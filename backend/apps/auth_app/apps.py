@@ -9,3 +9,6 @@ class AuthAppConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
     name = 'apps.auth_app'
     verbose_name = '认证系统'
+
+    def ready(self):
+        from . import signals  # noqa: F401

@@ -43,7 +43,8 @@ class FileViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return FileModel.objects.none()
-        queryset = FileModel.objects.select_related('uploader')
+        # 头像有独立的本人鉴权入口，不能从一般文件/回收站 API 操作。
+        queryset = FileModel.objects.select_related('uploader').filter(purpose='general')
         if self.action == 'recycle':
             queryset = queryset.filter(is_deleted=True)
         elif self.action not in {'restore', 'recycle_action', 'purge'}:

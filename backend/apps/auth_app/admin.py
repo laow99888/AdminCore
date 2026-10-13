@@ -25,15 +25,24 @@ class RequiredPasswordChangeForm(AdminPasswordChangeForm):
 class UserAdmin(BaseUserAdmin):
     """用户管理后台"""
     change_password_form = RequiredPasswordChangeForm
-    readonly_fields = ('must_change_password',)
+    readonly_fields = ('must_change_password', 'avatar_file', 'profile_version')
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('额外信息', {'fields': ('avatar', 'phone', 'last_login_ip', 'login_count', 'must_change_password')}),
+        ('额外信息', {'fields': ('avatar', 'phone', 'last_login_ip', 'login_count', 'must_change_password', 'avatar_file', 'profile_version')}),
     )
     list_display = ('username', 'email', 'is_active', 'login_count', 'created_at')
     search_fields = ('username', 'email', 'phone')
     list_filter = ('is_active', 'created_at')
 
+    @transaction.atomic
     def save_model(self, request, obj, form, change):
         if not change:
             obj.must_change_password = True
+        else:
+            current = User.objects.select_for_update().get(pk=obj.pk)
+            # 未编辑字段沿用锁内状态，避免后台表单覆盖头像绑定或改密状态。
+            for field in User._meta.concrete_fields:
+                if field.name not in form.changed_data:
+                    setattr(obj, field.attname, getattr(current, field.attname))
+            if {'email', 'first_name', 'last_name', 'phone', 'avatar'} & set(form.changed_data):
+                obj.profile_version += 1
         super().save_model(request, obj, form, change)

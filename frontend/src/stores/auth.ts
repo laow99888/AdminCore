@@ -3,7 +3,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onScopeDispose } from 'vue'
 import authApi from '../api/auth'
 
 export interface CurrentUser {
@@ -15,17 +15,68 @@ export interface CurrentUser {
   is_superuser?: boolean
   permissions?: string[]
   must_change_password?: boolean
+  profile_version?: number
+  has_avatar?: boolean
+  avatar_enabled?: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const refreshToken = ref<string>(localStorage.getItem('refreshToken') || '')
   const user = ref<CurrentUser | null>(null)
+  const avatarUrl = ref('')
+  const avatarLoading = ref(false)
+  const avatarError = ref(false)
+  let avatarRequest: AbortController | undefined
+  let avatarGeneration = 0
   let fetchedAt = 0
   let fetching: Promise<CurrentUser | null> | undefined
   let sessionGeneration = 0
 
   const isAuthenticated = computed(() => !!token.value)
+
+  function clearAvatar() {
+    avatarGeneration++
+    avatarRequest?.abort()
+    avatarRequest = undefined
+    if (avatarUrl.value) URL.revokeObjectURL(avatarUrl.value)
+    avatarUrl.value = ''
+    avatarLoading.value = false
+    avatarError.value = false
+  }
+
+  async function loadAvatar() {
+    clearAvatar()
+    if (!token.value || !user.value?.has_avatar || !user.value.avatar_enabled || user.value.must_change_password) return
+    const generation = avatarGeneration
+    const controller = new AbortController()
+    avatarRequest = controller
+    avatarLoading.value = true
+    try {
+      const blob = await authApi.avatar(controller.signal)
+      if (generation === avatarGeneration) avatarUrl.value = URL.createObjectURL(blob)
+    } catch {
+      if (generation === avatarGeneration && !controller.signal.aborted) avatarError.value = true
+    } finally {
+      if (generation === avatarGeneration) { avatarLoading.value = false; avatarRequest = undefined }
+    }
+  }
+
+  function avatarDecodeFailed() {
+    clearAvatar()
+    avatarError.value = true
+  }
+
+  watch([() => user.value?.id, () => user.value?.profile_version, () => user.value?.has_avatar,
+         () => user.value?.avatar_enabled, () => user.value?.must_change_password], loadAvatar)
+  onScopeDispose(clearAvatar)
+
+  function applyUser(value: CurrentUser) {
+    sessionGeneration++
+    fetching = undefined
+    user.value = value
+    fetchedAt = Date.now()
+  }
 
   async function login(username: string, password: string) {
     sessionGeneration++
@@ -55,6 +106,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function clearSession() {
+    clearAvatar()
     sessionGeneration++
     fetching = undefined
     token.value = ''
@@ -77,5 +129,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, refreshToken, user, isAuthenticated, login, fetchUser, logout, clearSession, can }
+  return { token, refreshToken, user, isAuthenticated, login, fetchUser, logout, clearSession, can,
+           avatarUrl, avatarLoading, avatarError, loadAvatar, avatarDecodeFailed, applyUser }
 })

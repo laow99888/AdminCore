@@ -24,6 +24,31 @@ pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
 
 
+def test_real_s3_private_profile_avatar_lifecycle(s3_storage, member_client, member_user, admin_client):
+    from datetime import timedelta
+    from PIL import Image
+    from tests.test_personal_profile import upload, AVATAR
+    from apps.tasks.tasks import cleanup_soft_deleted_files
+    assert upload(member_client).status_code == 200
+    member_user.refresh_from_db()
+    old = member_user.avatar_file
+    with Image.open(io.BytesIO(member_client.get(AVATAR).content)) as image:
+        assert image.size == (256, 256) and image.format == 'PNG'
+    assert admin_client.get(AVATAR).status_code == 404
+    assert admin_client.get(f'/api/v1/files/{old.pk}/download/').status_code == 404
+    unsigned = s3_storage.url(old.file.name).split('?')[0]
+    with pytest.raises(urllib.error.HTTPError) as private:
+        urllib.request.urlopen(unsigned)
+    assert private.value.code == 403
+    assert old.file.name in media_keys(s3_storage)
+    assert upload(member_client, 2).status_code == 200
+    assert member_client.delete(AVATAR, {'profile_version': 3}, format='json').status_code == 200
+    assert s3_storage.exists(old.file.name)
+    FileModel.objects.filter(purpose='avatar').update(deleted_at=timezone.now() - timedelta(days=40))
+    assert cleanup_soft_deleted_files()['purged_files'] == 2
+    assert not s3_storage.exists(old.file.name) and not FileModel.objects.exists()
+
+
 def test_real_s3_authenticated_image_and_pdf_preview(s3_storage, admin_client, member_client):
     from tests.test_file_preview import image_bytes, pdf_bytes, upload, preview
     for name, content, mime in [('private.png', image_bytes(), 'image/png'),

@@ -143,12 +143,18 @@ def main():
         check('精简契约关闭全部可选模块', all(not module['enabled'] for module in capabilities['modules']))
         api('system/config/', expected=404, token=token)
         api('files/', expected=404, token=token)
+        check('精简部署可编辑本人资料且头像关闭', not api('auth/profile/', token=token).json()['data']['avatar_enabled'])
+        api('auth/profile/', 'PATCH', {'profile_version': 1, 'bio': '精简个人资料'}, token=token)
+        api('auth/avatar/', expected=404, token=token)
         compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "from apps.core.models import SystemConfig; SystemConfig.objects.create(key='brand.name',value='迁移保留品牌')")
         compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'redis', 'backend', 'frontend')
         ready()
         token = login(password)
         check('精简库重新启用模块保留历史配置', api('brand/').json()['data']['name'] == '迁移保留品牌')
+        version = api('auth/profile/', token=token).json()['data']['profile_version']
+        statuses = concurrent_patch('auth/profile/', [{'profile_version': version, 'bio': name} for name in ['窗口甲', '窗口乙']], token)
+        check('PostgreSQL 本人资料同版本并发仅一次成功', statuses == [200, 409])
         statuses = concurrent_patch('system/config/files.retention_days/', [{'value': value, 'version': 0} for value in [45, 60, 75, 90]], token)
         check('PostgreSQL 并发首次配置仅一次成功', statuses == [200, 409, 409, 409])
         config = api('system/config/files.retention_days/', token=token).json()['data'][0]
@@ -202,12 +208,30 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 回收站行锁、版本冲突与恢复/清理竞争', True)
+        encoded = base64.b64encode((ROOT / 'scripts/profile_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL 头像绑定/陈旧删除及删除/上传双向竞争', True)
         # 在真实 Nginx/PostgreSQL/本地存储链路上验收二进制预览及模块 worker MIME。
         import io
         from PIL import Image
         from pypdf import PdfWriter
         png = io.BytesIO()
         Image.new('RGB', (16, 16), 'blue').save(png, format='PNG')
+        version = api('auth/profile/', token=token).json()['data']['profile_version']
+        for offset in [0, 1]:
+            avatar = requests.post(BASE + 'auth/avatar/', files={'file': ('avatar.png', png.getvalue(), 'image/png')},
+                                   data={'profile_version': version + offset}, headers={'Authorization': 'Bearer ' + token}, timeout=20)
+            check('真实 HTTP 本人头像上传/替换 ' + str(offset), avatar.status_code == 200 and avatar.json()['data']['has_avatar'])
+        avatar = api('auth/avatar/', token=token)
+        check('真实 Nginx 私有头像响应和归一化尺寸', avatar.headers['Content-Type'] == 'image/png'
+              and avatar.headers['Cache-Control'] == 'private, no-store' and avatar.headers['X-Content-Type-Options'] == 'nosniff'
+              and Image.open(io.BytesIO(avatar.content)).size == (256, 256))
+        api('auth/avatar/', expected=401)
+        api('auth/avatar/', 'DELETE', {'profile_version': version + 1}, 409, token)
+        api('auth/avatar/', 'DELETE', {'profile_version': version + 2}, token=token)
+        api('auth/avatar/', expected=404, token=token)
+        check('头像不进入普通文件回收站', api('files/recycle/', token=token).json()['data']['pagination']['total'] == 0)
         pdf = io.BytesIO()
         writer = PdfWriter()
         writer.add_blank_page(width=200, height=300)

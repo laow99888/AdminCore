@@ -20,6 +20,9 @@ class User(AbstractUser):
     login_count = models.IntegerField(default=0, verbose_name='登录次数')
     session_version = models.PositiveIntegerField(default=0, verbose_name='登录凭据版本')
     must_change_password = models.BooleanField(default=False, verbose_name='下次登录必须修改密码')
+    profile_version = models.PositiveIntegerField(default=1, verbose_name='个人资料版本')
+    avatar_file = models.ForeignKey('files.FileModel', on_delete=models.PROTECT, null=True, blank=True,
+                                    related_name='avatar_users', verbose_name='托管头像')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 

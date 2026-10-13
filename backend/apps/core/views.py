@@ -96,7 +96,7 @@ class DashboardStatsView(APIView):
             'data': {
                 'totals': {
                     'users': scope_queryset(User.objects.filter(is_active=True), user, 'user', 'pk').count(),
-                    'files': scope_queryset(FileModel.objects.filter(is_deleted=False), user, 'file', 'uploader_id', fallback='self').count() if module_enabled('files') else 0,
+                    'files': scope_queryset(FileModel.objects.filter(is_deleted=False, purpose='general'), user, 'file', 'uploader_id', fallback='self').count() if module_enabled('files') else 0,
                     'pending_approvals': ApprovalRequest.objects.filter(assignee=user, status='pending').count() if module_enabled('approvals') else 0,
                     'unread_notifications': user.notifications.filter(is_read=False).count() if module_enabled('notifications') else 0,
                     'today_logins': scope_queryset(LoginLog.objects.filter(created_at__gte=today_start, status='success'), user, 'log', 'user_id').count(),

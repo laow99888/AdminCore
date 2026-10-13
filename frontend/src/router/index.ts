@@ -101,7 +101,7 @@ const routes: RouteRecordRaw[] = [
     path: '/settings',
     name: 'Settings',
     component: SettingsView,
-    meta: { title: uiText("系统设置"), requiresAuth: true },
+    meta: { title: uiText("系统设置"), requiresAuth: true, preserveOnLocaleChange: true },
   },
   {
     path: '/:pathMatch(.*)*',

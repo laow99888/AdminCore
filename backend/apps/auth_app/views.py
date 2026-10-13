@@ -19,6 +19,10 @@ from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
 from rest_framework_simplejwt.utils import get_md5_hash_password
+from django.http import HttpResponse
+from drf_spectacular.utils import OpenApiTypes
+from .profile import (ProfileReadSerializer, ProfileWriteSerializer, AvatarUploadSerializer,
+                      ProfileVersionSerializer, update_profile, replace_avatar, remove_avatar, require_avatar_module)
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer,
@@ -64,6 +68,46 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 class AuthViewSet(viewsets.ViewSet):
     """认证相关端点"""
     permission_classes = [AllowAny]
+
+    @extend_schema(methods=['GET'], responses=envelope('PersonalProfileResponse', ProfileReadSerializer()))
+    @extend_schema(methods=['PATCH'], request=ProfileWriteSerializer,
+                   responses=envelope('PersonalProfileUpdatedResponse', ProfileReadSerializer()))
+    @action(detail=False, methods=['get', 'patch'], permission_classes=[IsAuthenticated])
+    def profile(self, request):
+        user = request.user
+        if request.method == 'PATCH':
+            serializer = ProfileWriteSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = update_profile(request, serializer.validated_data)
+        return Response({'code': 200, 'message': 'success', 'data': ProfileReadSerializer(user).data})
+
+    @extend_schema(methods=['GET'], responses={(200, 'image/png'): OpenApiTypes.BINARY})
+    @extend_schema(methods=['POST'], request={'multipart/form-data': AvatarUploadSerializer},
+                   responses=envelope('AvatarUpdatedResponse', ProfileReadSerializer()))
+    @extend_schema(methods=['DELETE'], request=ProfileVersionSerializer,
+                   responses=envelope('AvatarRemovedResponse', ProfileReadSerializer()))
+    @action(detail=False, methods=['get', 'post', 'delete'], permission_classes=[IsAuthenticated])
+    def avatar(self, request):
+        require_avatar_module()
+        if request.method == 'GET':
+            from apps.core.exceptions import APIError
+            from apps.files.models import FileModel
+            from apps.files.preview import preview_content
+            asset = FileModel.objects.filter(pk=request.user.avatar_file_id, uploader=request.user,
+                                             purpose='avatar', is_deleted=False).first()
+            if asset is None:
+                raise APIError('尚未设置头像', status_code=404)
+            content, mime = preview_content(asset)
+            response = HttpResponse(content, content_type=mime)
+            response['Cache-Control'] = 'private, no-store'
+            response['X-Content-Type-Options'] = 'nosniff'
+            response['Content-Disposition'] = 'inline; filename="avatar.png"'
+            response['Content-Security-Policy'] = "sandbox; default-src 'none'; frame-ancestors 'none'"
+            return response
+        serializer = (AvatarUploadSerializer if request.method == 'POST' else ProfileVersionSerializer)(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = (replace_avatar if request.method == 'POST' else remove_avatar)(request, serializer.validated_data)
+        return Response({'code': 200, 'message': 'success', 'data': ProfileReadSerializer(user).data})
 
     @action(detail=False, methods=['post'])
     def register(self, request):
