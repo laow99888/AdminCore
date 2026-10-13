@@ -85,11 +85,26 @@
           <el-form-item v-if="!formData.id" :label="uiText('密码')" required>
             <el-input v-model="formData.password" type="password" show-password :placeholder="uiText('初始密码')" />
           </el-form-item>
+          <el-form-item v-if="!formData.id" :label="uiText('下次登录必须修改密码')">
+            <el-switch v-model="formData.must_change_password" :aria-label="uiText('下次登录必须修改密码')" />
+          </el-form-item>
           <el-form-item v-if="auth.user?.is_staff || auth.user?.is_superuser" :label="uiText('角色')">
             <el-select v-model="formData.role_ids" multiple :loading="rolesLoading" :disabled="rolesLoading || rolesFailed" :placeholder="uiText('选择用户角色')" style="width: 100%">
               <el-option v-for="role in roleOptions" :key="role.id" :label="role.name" :value="role.id" :disabled="!role.is_active && !formData.role_ids.includes(role.id)" />
             </el-select>
             <el-alert v-if="rolesFailed" :title="uiText('角色加载失败，请重新打开编辑窗口')" type="error" :closable="false" />
+          </el-form-item>
+        </el-form>
+      </BaseDialog>
+
+      <BaseDialog v-model="resetVisible" :title="uiText('重置密码')" :loading="resetSaving" @confirm="saveResetPassword">
+        <el-form label-position="top">
+          <p>{{ resetTarget?.username }}</p>
+          <el-form-item :label="uiText('新密码')" required>
+            <el-input v-model="resetValue" type="password" show-password autocomplete="new-password" :disabled="resetSaving" />
+          </el-form-item>
+          <el-form-item :label="uiText('下次登录必须修改密码')">
+            <el-switch v-model="resetRequired" :aria-label="uiText('下次登录必须修改密码')" :disabled="resetSaving" />
           </el-form-item>
         </el-form>
       </BaseDialog>
@@ -174,6 +189,7 @@ const formData = reactive({
   last_name: '',
   is_active: true,
   password: '',
+  must_change_password: true,
   role_ids: [] as string[],
 })
 
@@ -226,7 +242,7 @@ const handleReset = () => {
 
 const handleCreate = () => {
   Object.assign(formData, {
-    id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '', role_ids: [],
+    id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true,
   })
   dialogVisible.value = true
   loadRoleOptions()
@@ -269,6 +285,7 @@ const handleSaveUser = async () => {
         last_name: formData.last_name,
         is_active: formData.is_active,
         password: formData.password,
+        must_change_password: formData.must_change_password,
         ...((auth.user?.is_staff || auth.user?.is_superuser) ? { role_ids: formData.role_ids } : {}),
       })
       ElMessage.success(uiText("创建成功"))
@@ -296,19 +313,28 @@ const handleDelete = (row: UserRow) => {
     .catch(() => {})
 }
 
+const resetVisible = ref(false)
+const resetSaving = ref(false)
+const resetTarget = ref<UserRow>()
+const resetValue = ref('')
+const resetRequired = ref(true)
 const handleResetPassword = (row: UserRow) => {
-  ElMessageBox.prompt(uiText("为用户 {p0} 设置新密码（至少 8 位）", { p0: row.username }), uiText("重置密码"), {
-    confirmButtonText: uiText("确定"),
-    cancelButtonText: uiText("取消"),
-    inputPattern: /^.{8,}$/,
-    inputErrorMessage: uiText("密码至少 8 位"),
-    inputType: 'password',
-  })
-    .then(async ({ value }) => {
-      await usersApi.resetPassword(row.id, value)
-      ElMessage.success(uiText("密码已重置"))
-    })
-    .catch(() => {})
+  resetTarget.value = row
+  resetValue.value = ''
+  resetRequired.value = true
+  resetVisible.value = true
+}
+const saveResetPassword = async () => {
+  if (resetSaving.value || !resetTarget.value) return
+  if (resetValue.value.length < 8) { ElMessage.warning(uiText('密码至少 8 位')); return }
+  resetSaving.value = true
+  try {
+    await usersApi.resetPassword(resetTarget.value.id, resetValue.value, resetRequired.value)
+    resetValue.value = ''
+    resetVisible.value = false
+    ElMessage.success(uiText('密码已重置'))
+  } catch { /* 拦截器已提示，保留表单供修改。 */ }
+  finally { resetSaving.value = false }
 }
 
 // ===== 导入导出 =====

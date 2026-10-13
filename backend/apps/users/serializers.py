@@ -77,7 +77,8 @@ class UserCreateSerializer(UserRoleAssignmentMixin, serializers.ModelSerializer)
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'first_name', 'last_name', 'is_active', 'role_ids')
+        fields = ('username', 'email', 'password', 'first_name', 'last_name', 'is_active', 'role_ids', 'must_change_password')
+        extra_kwargs = {'must_change_password': {'default': True}}
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

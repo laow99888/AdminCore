@@ -19,6 +19,7 @@ class User(AbstractUser):
     last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='最后登录 IP')
     login_count = models.IntegerField(default=0, verbose_name='登录次数')
     session_version = models.PositiveIntegerField(default=0, verbose_name='登录凭据版本')
+    must_change_password = models.BooleanField(default=False, verbose_name='下次登录必须修改密码')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
 

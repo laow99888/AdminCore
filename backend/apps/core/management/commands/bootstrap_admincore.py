@@ -117,6 +117,7 @@ class Command(BaseCommand):
         admin_created = created
         if created:
             admin.set_password(password)
+            admin.must_change_password = not demo_mode
             admin.save()
             self.stdout.write(self.style.SUCCESS(f'  创建超级管理员：{username}'))
         else:

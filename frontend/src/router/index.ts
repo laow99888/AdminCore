@@ -22,6 +22,7 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/change-password', component: () => import('../views/auth/ChangePasswordView.vue'), meta: { requiresAuth: true } },
   { path: '/files/recycle', component: () => import('../views/files/RecycleBinView.vue'), meta: { title: uiText('文件回收站'), requiresAuth: true } },
   { path: '/reliability/events', component: () => import('../views/system/ReliableEventsView.vue'), meta: { title: uiText('可靠事件'), requiresAuth: true } },
   { path: '/organization', component: () => import('../views/system/OrganizationView.vue'), meta: { requiresAuth: true } },
@@ -126,8 +127,14 @@ router.beforeEach(async (to, _from, next) => {
     if (to.meta.requiresAuth) {
       const auth = useAuthStore()
       const modules = useModuleStore()
-      await auth.fetchUser()
+      await auth.fetchUser(to.path === '/change-password')
       if (!auth.user) { next(localStorage.getItem('token') ? '/unavailable' : '/login'); return }
+      if (auth.user.must_change_password) {
+        if (to.path === '/change-password') next()
+        else next('/change-password')
+        return
+      }
+      if (to.path === '/change-password') { next('/settings'); return }
       try {
         await modules.load()
       } catch {

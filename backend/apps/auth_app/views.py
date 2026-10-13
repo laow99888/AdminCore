@@ -17,6 +17,8 @@ from .authentication import revoke_user_sessions
 from .throttling import LoginRateThrottle
 from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.db import transaction
+from rest_framework_simplejwt.utils import get_md5_hash_password
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer,
@@ -29,7 +31,7 @@ User = get_user_model()
 
 
 @extend_schema_view(
-    post=extend_schema(request=LoginRequestSerializer, responses=inline_serializer('LoginResponse', fields={'access': serializers.CharField(), 'refresh': serializers.CharField(), 'user': inline_serializer('LoginUser', fields={name: serializers.CharField() for name in ['id', 'username', 'email', 'avatar']})})),
+    post=extend_schema(request=LoginRequestSerializer, responses=inline_serializer('LoginResponse', fields={'access': serializers.CharField(), 'refresh': serializers.CharField(), 'user': inline_serializer('LoginUser', fields={**{name: serializers.CharField() for name in ['id', 'username', 'email', 'avatar']}, 'must_change_password': serializers.BooleanField()})})),
 )
 class CustomTokenObtainPairView(TokenObtainPairView):
     """自定义登录视图"""
@@ -134,11 +136,16 @@ class AuthViewSet(viewsets.ViewSet):
         })
 
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
+    @transaction.atomic
     def change_password(self, request):
         """修改密码"""
-        serializer = ChangePasswordSerializer(data=request.data)
+        user = User.objects.select_for_update().get(pk=request.user.pk)
+        # 锁内再验凭据，防止等待期间管理员重置密码或撤销会话。
+        if (request.auth.get('session_version') != user.session_version
+                or request.auth.get('hash_password') != get_md5_hash_password(user.password)):
+            return Response({'code': 401, 'message': '登录凭据已撤销', 'data': None}, status=401)
+        serializer = ChangePasswordSerializer(data=request.data, context={'user': user})
         if serializer.is_valid():
-            user = request.user
             if not user.check_password(serializer.validated_data['old_password']):
                 return Response({
                     'code': 400,
@@ -147,7 +154,12 @@ class AuthViewSet(viewsets.ViewSet):
                 }, status=status.HTTP_400_BAD_REQUEST)
 
             user.set_password(serializer.validated_data['new_password'])
-            user.save()
+            user.must_change_password = False
+            user.session_version += 1
+            user.save(update_fields=['password', 'must_change_password', 'session_version', 'updated_at'])
+            from apps.logs.models import OperationLog
+            OperationLog.objects.create(user=user, action='update', resource='user', resource_id=str(user.pk),
+                                       description='用户完成密码修改', ip_address=request.META.get('REMOTE_ADDR', ''))
             return Response({
                 'code': 200,
                 'message': '密码修改成功',

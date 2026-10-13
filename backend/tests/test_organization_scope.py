@@ -67,7 +67,8 @@ def test_user_scope_list_detail_write_and_export(member_client, member_user, sco
         if not permitted:
             assert member_client.delete(detail).status_code == 404
         assert member_client.patch(detail, {'first_name': '范围内'}, format='json').status_code == (200 if permitted else 404)
-        assert member_client.post(detail + 'reset_password/', {'password': 'ChangedSecure#7824'}, format='json').status_code == (200 if permitted else 404)
+        # 本用例验证数据范围；显式不强制改密，避免自重置后中断后续范围断言。
+        assert member_client.post(detail + 'reset_password/', {'password': 'ChangedSecure#7824', 'must_change_password': False}, format='json').status_code == (200 if permitted else 404)
         if target.pk == member_user.pk and permitted:
             login = member_client.post('/api/v1/auth/login/', {'username': member_user.username, 'password': 'ChangedSecure#7824'}, format='json')
             assert login.status_code == 200

@@ -1,4 +1,10 @@
 export const uiMessages: Record<string, string> = {
+  '设置个人密码': 'Set Your Password',
+  '当前密码由管理员设置，请先修改密码再使用系统': 'Your current password was set by an administrator. Change it before using the system.',
+  '新密码不能与当前密码相同': 'The new password must differ from the current password',
+  '修改失败，请重试': 'Could not change the password. Retry.',
+  '下次登录必须修改密码': 'Require password change at next sign-in',
+  '重置后默认要求用户修改密码': 'Password reset requires a password change at next sign-in',
   '文件回收站': 'File Recycle Bin', '恢复': 'Restore', '恢复所选': 'Restore Selected', '彻底删除': 'Delete Permanently',
   '彻底删除所选': 'Delete Selected Permanently', '返回文件列表': 'Back to Files', '删除时间': 'Deleted At',
   '已移入回收站': 'Moved to the recycle bin', '搜索文件名': 'Search file names', '回收站加载失败，请重试': 'Could not load the recycle bin. Retry.',

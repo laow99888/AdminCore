@@ -121,6 +121,24 @@ def main():
         check('精简部署只有数据库、后端、前端', set(services) == {'db', 'backend', 'frontend'})
         api('health/')
         token = login(password)
+        check('新初始化账号必须改密', api('auth/me/', token=token).json()['data']['must_change_password'])
+        blocked = api('users/', expected=403, token=token).json()
+        check('改密前服务端禁止业务访问', blocked['data']['reason'] == 'password_change_required')
+        new_password = secrets.token_urlsafe(40)
+        api('auth/change_password/', 'POST', {'old_password': password, 'new_password': new_password,
+                                            'new_password2': new_password}, token=token)
+        api('auth/me/', expected=401, token=token)
+        password = new_password
+        token = login(password)
+        check('改密后解除限制', not api('auth/me/', token=token).json()['data']['must_change_password'])
+        competing = [secrets.token_urlsafe(40), secrets.token_urlsafe(40)]
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            decisions = list(pool.map(lambda candidate: api('auth/change_password/', 'POST', {
+                'old_password': password, 'new_password': candidate, 'new_password2': candidate}, None, token).status_code,
+                competing))
+        check('PostgreSQL 并发改密只有一次成功，旧凭据不能覆盖新密码', sorted(decisions) == [200, 401])
+        password = competing[decisions.index(200)]
+        token = login(password)
         capabilities = api('modules/', token=token).json()['data']
         check('精简契约关闭全部可选模块', all(not module['enabled'] for module in capabilities['modules']))
         api('system/config/', expected=404, token=token)

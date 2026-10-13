@@ -10,6 +10,7 @@ from rest_framework_simplejwt.utils import get_md5_hash_password
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 User = get_user_model()
 
@@ -49,6 +50,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'username': self.user.username,
             'email': self.user.email,
             'avatar': self.user.avatar,
+            'must_change_password': self.user.must_change_password,
         }
         return data
 
@@ -58,12 +60,14 @@ class UserSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
 
     def get_permissions(self, user) -> list[str]:
+        if user.must_change_password:
+            return []
         from apps.permissions.permissions import permission_codes
         return permission_codes(user)
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'is_staff', 'is_superuser', 'permissions', 'created_at', 'updated_at')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'is_staff', 'is_superuser', 'permissions', 'must_change_password', 'created_at', 'updated_at')
         read_only_fields = ('id', 'created_at', 'updated_at')
 
 
@@ -90,12 +94,18 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     """修改密码序列化器"""
     old_password = serializers.CharField(write_only=True, required=True)
-    new_password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
+    new_password = serializers.CharField(write_only=True, required=True)
     new_password2 = serializers.CharField(write_only=True, required=True)
 
     def validate(self, attrs):
         if attrs['new_password'] != attrs['new_password2']:
             raise serializers.ValidationError({'new_password': '两次输入的密码不一致'})
+        if attrs['new_password'] == attrs['old_password']:
+            raise serializers.ValidationError({'new_password': '新密码不能与当前密码相同'})
+        try:
+            validate_password(attrs['new_password'], self.context.get('user'))
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({'new_password': exc.messages}) from exc
         return attrs
 
 

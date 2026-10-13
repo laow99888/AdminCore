@@ -31,6 +31,7 @@ class LoginRequestSerializer(serializers.Serializer):
 
 class ResetPasswordRequestSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
+    must_change_password = serializers.BooleanField(default=True)
 
     def validate_password(self, value):
         from django.contrib.auth.password_validation import validate_password

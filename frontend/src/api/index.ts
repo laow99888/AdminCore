@@ -46,11 +46,11 @@ export interface UserDetail extends UserRow {
 export const usersApi = {
   list: (params?: ListParams) => getPaged<UserRow>('/users/', params),
   detail: async (id: string): Promise<UserDetail> => (await request.get<ApiResponse<UserDetail>>(`/users/${id}/`)).data.data,
-  create: (data: Partial<UserRow> & { password: string; role_ids?: string[] }) => request.post('/users/', data),
+  create: (data: Partial<UserRow> & { password: string; role_ids?: string[]; must_change_password?: boolean }) => request.post('/users/', data),
   update: (id: string, data: Partial<UserRow> & { role_ids?: string[] }) => request.patch(`/users/${id}/`, data),
   remove: (id: string) => request.delete(`/users/${id}/`),
-  resetPassword: (id: string, password: string) =>
-    request.post(`/users/${id}/reset_password/`, { password }),
+  resetPassword: (id: string, password: string, mustChangePassword = true) =>
+    request.post(`/users/${id}/reset_password/`, { password, must_change_password: mustChangePassword }),
   bulkAction: (action: string, userIds: string[]) =>
     request.post('/users/bulk_action/', { action, user_ids: userIds }),
 }

@@ -11,6 +11,15 @@ from django.http import JsonResponse
 logger = logging.getLogger(__name__)
 
 
+class PasswordChangeSessionMiddleware(MiddlewareMixin):
+    """同时保护 Django 管理后台的会话认证，避免绕过 JWT 限制。"""
+    def process_view(self, request, view_func, view_args, view_kwargs):
+        if (request.user.is_authenticated and request.user.must_change_password
+                and request.resolver_match.view_name != 'admin:logout'):
+            return JsonResponse({'code': 403, 'message': '请通过系统登录页修改初始密码',
+                                 'data': {'reason': 'password_change_required'}}, status=403)
+
+
 class RequestTrackingMiddleware(MiddlewareMixin):
     """请求追踪中间件 - 为每个请求添加唯一 ID"""
 

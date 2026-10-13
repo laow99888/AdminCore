@@ -30,7 +30,16 @@ async function refreshAccess() {
   if (refreshing || document.hidden || !localStorage.getItem('token') || !router.currentRoute.value.meta.requiresAuth) return
   refreshing = true
   try {
-    await Promise.all([auth.fetchUser(true), modules.load(true)])
+    await auth.fetchUser(true)
+    if (!auth.user) {
+      await router.replace(localStorage.getItem('token') ? '/unavailable' : '/login')
+      return
+    }
+    if (auth.user.must_change_password) {
+      if (router.currentRoute.value.path !== '/change-password') await router.replace('/change-password')
+      return
+    }
+    await modules.load(true)
     window.dispatchEvent(new Event('admincore:menus-updated'))
     const path = router.currentRoute.value.path
     if (!auth.user) await router.replace(localStorage.getItem('token') ? '/unavailable' : '/login')

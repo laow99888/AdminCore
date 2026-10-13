@@ -14,6 +14,7 @@ export interface CurrentUser {
   is_staff?: boolean
   is_superuser?: boolean
   permissions?: string[]
+  must_change_password?: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {

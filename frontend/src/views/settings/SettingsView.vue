@@ -26,20 +26,7 @@
             <template #header>
               <div class="card-header-title">{{ uiText("修改密码") }}</div>
             </template>
-            <el-form :model="pwdForm" label-width="90px" class="pwd-form">
-              <el-form-item :label="uiText('当前密码')" required>
-                <el-input v-model="pwdForm.old" type="password" show-password />
-              </el-form-item>
-              <el-form-item :label="uiText('新密码')" required>
-                <el-input v-model="pwdForm.new1" type="password" show-password :placeholder="uiText('至少 8 位')" />
-              </el-form-item>
-              <el-form-item :label="uiText('确认新密码')" required>
-                <el-input v-model="pwdForm.new2" type="password" show-password />
-              </el-form-item>
-              <el-form-item>
-                <BaseButton variant="primary" :loading="saving" @click="handleChangePassword">{{ uiText("保存修改") }}</BaseButton>
-              </el-form-item>
-            </el-form>
+            <ChangePasswordForm />
           </BaseCard>
         </el-col>
 
@@ -82,59 +69,25 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { onMounted, reactive, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { UserRound } from 'lucide-vue-next'
 import AppLayout from '../../components/layout/AppLayout.vue'
-import { BaseCard, BaseButton } from '@/components'
+import { BaseCard } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
-import authApi from '@/api/auth'
+import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
 const { locale } = useI18n()
-const saving = ref(false)
 
 const currentLocale = ref(locale.value)
-
-const pwdForm = reactive({
-  old: '',
-  new1: '',
-  new2: '',
-})
 
 const switchLanguage = (value: string) => {
   locale.value = value
   currentLocale.value = value
   localStorage.setItem('language', value)
-}
-
-const handleChangePassword = async () => {
-  if (!pwdForm.old || !pwdForm.new1) {
-    ElMessage.warning(uiText("请填写当前密码和新密码"))
-    return
-  }
-  if (pwdForm.new1 !== pwdForm.new2) {
-    ElMessage.warning(uiText("两次输入的新密码不一致"))
-    return
-  }
-  if (pwdForm.new1.length < 8) {
-    ElMessage.warning(uiText("新密码至少 8 位"))
-    return
-  }
-  saving.value = true
-  try {
-    await authApi.changePassword(pwdForm.old, pwdForm.new1, pwdForm.new2)
-    ElMessage.success(uiText("密码修改成功，请使用新密码重新登录"))
-    authStore.clearSession()
-    window.location.href = '/login'
-  } catch {
-    // 拦截器已提示
-  } finally {
-    saving.value = false
-  }
 }
 
 onMounted(() => {
@@ -179,10 +132,6 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-top: var(--spacing-xs);
-}
-
-.pwd-form {
-  max-width: 420px;
 }
 
 .setting-row {

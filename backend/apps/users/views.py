@@ -156,20 +156,24 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         }, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def reset_password(self, request, pk=None):
         """重置用户密码"""
         user = self.get_object()
+        user = User.objects.select_for_update().get(pk=user.pk)
         serializer = ResetPasswordRequestSerializer(data=request.data, context={'user': user})
         serializer.is_valid(raise_exception=True)
         user.set_password(serializer.validated_data['password'])
-        user.save()
+        user.must_change_password = serializer.validated_data['must_change_password']
+        user.session_version += 1
+        user.save(update_fields=['password', 'must_change_password', 'session_version', 'updated_at'])
 
         OperationLog.objects.create(
             user=request.user,
             action='update',
             resource='user',
             resource_id=str(user.id),
-            description=f'Reset password for {user.username}',
+            description=f'Reset password for {user.username}; must_change_password={user.must_change_password}',
             ip_address=request.META.get('REMOTE_ADDR', ''),
         )
 

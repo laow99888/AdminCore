@@ -110,6 +110,10 @@ request.interceptors.response.use(
         return handle401(error)
       }
       const { data } = error.response
+      if (status === 403 && data?.data?.reason === 'password_change_required') {
+        if (router.currentRoute.value.path !== '/change-password') router.replace('/change-password')
+        return Promise.reject(error)
+      }
       // 后端统一错误格式 {code, message, data}
       const message = (data && data.message) || uiText("请求失败（{p0}）", { p0: status })
       ElMessage.error(status === 403 ? uiText("没有执行此操作的权限") : message)
