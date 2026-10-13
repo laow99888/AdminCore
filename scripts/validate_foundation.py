@@ -371,9 +371,13 @@ def main():
             result = run(command + ['exec', '-T', '-e', key + '=' + value, 'backend', 'python', '-c',
                                     'from django.conf import settings; print(settings.ADMINCORE_MODULES)'], allowed_failure=True)
             check(label, result.returncode != 0 and 'ImproperlyConfigured' in result.stderr)
+        # 精简 Compose 的 profiles 可能把已停止的 worker 视为 orphan。
+        # 移除仅限本次随机 PROJECT，不能留下占用媒体/日志卷的测试容器。
+        compose('standard', '--profile', '*', 'down', '--volumes', '--remove-orphans')
+        check('本次隔离容器全部清理', not run(['docker', 'ps', '-aq', '--filter', 'label=com.docker.compose.project=' + PROJECT]).stdout.strip())
+        check('本次隔离测试卷全部清理', not run(['docker', 'volume', 'ls', '-q', '--filter', 'label=com.docker.compose.project=' + PROJECT]).stdout.strip())
         report = {'project': PROJECT, 'checks': CHECKS, 'passed': True, 'ports': [18420, 18421], 'postgres': '18.6', 'finished_at': time.strftime('%Y-%m-%d %H:%M:%S')}
         (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-        compose('standard', 'down', '--volumes')
         env_file.unlink()
         print('独立验收完成，容器和测试卷已清理；报告：' + str(FOLDER / 'report.json'))
     except Exception as exc:
