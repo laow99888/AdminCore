@@ -109,3 +109,13 @@ test('暗色菜单编辑、取消和窄屏页面边界', async ({ page }) => {
   await expect(dialog).not.toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
+
+test('切换语言后侧栏立即更新，无需刷新', async ({ page }, testInfo) => {
+  await setup(page)
+  await page.goto('/menus')
+  await page.getByRole('button', { name: '切换语言', exact: true }).click()
+  await page.getByText('English', { exact: true }).click()
+  if (testInfo.project.name === 'mobile') await page.getByRole('button', { name: 'Open Menu', exact: true }).click()
+  await expect(page.getByRole('link', { name: 'Menu Management', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'User Management', exact: true })).toBeVisible()
+})

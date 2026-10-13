@@ -29,8 +29,8 @@
         <span class="menu-icon">
           <component :is="item.icon" :size="18" :stroke-width="1.75" />
         </span>
-        <span v-if="!isCollapsed" class="menu-label">{{ item.label }}</span>
-        <el-tooltip v-else :content="item.label" placement="right">
+        <span v-if="!isCollapsed" class="menu-label">{{ uiText(item.label) }}</span>
+        <el-tooltip v-else :content="uiText(item.label)" placement="right">
           <span></span>
         </el-tooltip>
       </router-link>
@@ -83,12 +83,12 @@ const loadNavigation = async () => {
   if (!auth.user?.permissions) await auth.fetchUser()
   try {
     const flatten = (items: Awaited<ReturnType<typeof menusApi.myMenu>>): MenuItem[] =>
-      items.flatMap((item) => [{ path: item.path, label: uiText(item.name), icon: menuIcons[item.icon] || menuIcons['list-tree'] }, ...flatten(item.children || [])])
+      items.flatMap((item) => [{ path: item.path, label: item.name, icon: menuIcons[item.icon] || menuIcons['list-tree'] }, ...flatten(item.children || [])])
     menuItems.value = flatten(await menusApi.myMenu())
   } catch {
     menuItems.value = [
-      { path: '/', label: uiText('仪表盘'), icon: menuIcons['layout-dashboard'] },
-      { path: '/settings', label: uiText('系统设置'), icon: menuIcons.settings },
+      { path: '/', label: '仪表盘', icon: menuIcons['layout-dashboard'] },
+      { path: '/settings', label: '系统设置', icon: menuIcons.settings },
     ]
   }
 }
