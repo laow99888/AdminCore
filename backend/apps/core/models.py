@@ -27,6 +27,70 @@ class BaseModel(models.Model):
         return f"{self.__class__.__name__}({self.id})"
 
 
+class LifecycleConflict(Exception):
+    """状态、唯一字段或关联条件不允许本次生命周期操作。"""
+
+
+class SoftDeleteModel(BaseModel):
+    """可选择接入的软删除模型；查询可见性和关联恢复策略由资源明确实现。"""
+    is_deleted = models.BooleanField(default=False, verbose_name='是否删除（软删除）')
+    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name='删除时间')
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='%(app_label)s_%(class)s_deleted', verbose_name='删除操作者',
+    )
+    lifecycle_version = models.PositiveIntegerField(default=1, verbose_name='生命周期版本')
+
+    class Meta(BaseModel.Meta):
+        abstract = True
+
+    def check_lifecycle_version(self, expected_version):
+        if expected_version != self.lifecycle_version:
+            raise LifecycleConflict('记录已变化，请刷新后重试')
+
+    def soft_delete(self, actor=None, expected_version=None):
+        from django.db import transaction
+        from django.utils import timezone
+        with transaction.atomic():
+            row = type(self)._base_manager.select_for_update().get(pk=self.pk)
+            row.check_lifecycle_version(self.lifecycle_version if expected_version is None else expected_version)
+            if not row.is_deleted:
+                row.is_deleted = True
+                row.deleted_at = timezone.now()
+                row.deleted_by = actor
+                row.lifecycle_version += 1
+                row.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version', 'updated_at'])
+            self.__dict__.update(row.__dict__)
+        return self
+
+    def validate_restore(self):
+        """扩展点：关联模型禁止自动复活；资源可在此检查其关联生命周期。"""
+        pass
+
+    def restore(self, expected_version):
+        from django.core.exceptions import ValidationError
+        from django.db import IntegrityError, transaction
+        try:
+            with transaction.atomic():
+                row = type(self)._base_manager.select_for_update().get(pk=self.pk)
+                row.check_lifecycle_version(expected_version)
+                if not row.is_deleted:
+                    raise LifecycleConflict('记录已恢复，请刷新后重试')
+                row.validate_restore()
+                row.is_deleted = False
+                # 包括以 is_deleted=False 为条件的唯一约束；不对历史记录补做字段格式校验。
+                row.validate_unique()
+                row.validate_constraints()
+                row.deleted_at = None
+                row.deleted_by = None
+                row.lifecycle_version += 1
+                row.save(update_fields=['is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version', 'updated_at'])
+                self.__dict__.update(row.__dict__)
+        except (ValidationError, IntegrityError) as exc:
+            raise LifecycleConflict('恢复条件冲突，请检查唯一字段和关联记录') from exc
+        return self
+
+
 class SystemConfig(BaseModel):
     """只保存显式登记参数的覆盖值；部署密钥不进入此表。"""
     key = models.CharField(max_length=100, unique=True)

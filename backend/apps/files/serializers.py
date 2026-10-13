@@ -22,7 +22,7 @@ class FileSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'original_name', 'file', 'file_type', 'size', 'size_display',
             'content_type', 'md5', 'description', 'uploader', 'uploader_name',
-            'download_count', 'created_at',
+            'download_count', 'created_at', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version',
         ]
         read_only_fields = fields
 
@@ -40,6 +40,51 @@ class FileSerializer(serializers.ModelSerializer):
                 return f'{size:.0f} B' if unit == 'B' else f'{size:.1f} {unit}'
             size /= 1024
         return f'{size:.1f} TB'
+
+
+class RestoreSerializer(serializers.Serializer):
+    lifecycle_version = serializers.IntegerField(min_value=1)
+
+
+class RecyclePolicySerializer(serializers.Serializer):
+    retention_days = serializers.IntegerField()
+    cleanup_enabled = serializers.BooleanField()
+
+
+class RecycleItemSerializer(RestoreSerializer):
+    id = serializers.UUIDField()
+
+
+class RecycleActionSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(choices=['restore', 'purge'])
+    items = RecycleItemSerializer(many=True, allow_empty=False, max_length=100)
+    dry_run = serializers.BooleanField(default=False)
+    confirmation = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        ids = [item['id'] for item in attrs['items']]
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError('不能重复选择同一文件')
+        if attrs['action'] == 'restore' and attrs['dry_run']:
+            raise serializers.ValidationError('恢复不支持删除影响预览')
+        if attrs['action'] == 'purge' and not attrs['dry_run'] and attrs.get('confirmation') != 'DELETE':
+            raise serializers.ValidationError('彻底删除必须输入 DELETE 确认')
+        return attrs
+
+
+class RecycleResultItemSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    status = serializers.IntegerField()
+    message = serializers.CharField()
+    original_name = serializers.CharField(required=False)
+    size = serializers.IntegerField(required=False)
+
+
+class RecycleResultSerializer(serializers.Serializer):
+    results = RecycleResultItemSerializer(many=True)
+    dry_run = serializers.BooleanField()
+    succeeded = serializers.IntegerField()
+    failed = serializers.IntegerField()
 
 
 class FileUploadSerializer(serializers.ModelSerializer):

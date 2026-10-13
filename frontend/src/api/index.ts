@@ -67,10 +67,28 @@ export interface FileRow {
   uploader_name?: string
   download_count: number
   created_at: string
+  is_deleted: boolean
+  deleted_at: string | null
+  lifecycle_version: number
+}
+
+export interface RecycleResult {
+  results: Array<{ id: string; status: number; message: string; original_name?: string; size?: number }>
+  dry_run: boolean
+  succeeded: number
+  failed: number
 }
 
 export const filesApi = {
   list: (params?: ListParams) => getPaged<FileRow>('/files/', params),
+  recycle: (params?: ListParams) => getPaged<FileRow>('/files/recycle/', params),
+  recyclePolicy: async (): Promise<{ retention_days: number; cleanup_enabled: boolean }> =>
+    (await request.get<ApiResponse<{ retention_days: number; cleanup_enabled: boolean }>>('/files/recycle_policy/')).data.data,
+  recycleAction: async (action: 'restore' | 'purge', rows: FileRow[], dryRun = false, confirmation = ''): Promise<RecycleResult> =>
+    (await request.post<ApiResponse<RecycleResult>>('/files/recycle_action/', {
+      action, items: rows.map(row => ({ id: row.id, lifecycle_version: row.lifecycle_version })),
+      dry_run: dryRun, confirmation,
+    })).data.data,
   upload: (file: File, description?: string) => {
     const form = new FormData()
     form.append('file', file)

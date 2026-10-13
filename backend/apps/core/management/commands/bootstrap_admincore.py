@@ -31,6 +31,9 @@ PERMISSIONS = [
     ('role', 'update', '修改角色', 'role:update'),
     ('file', 'upload', '上传文件', 'file:upload'),
     ('file', 'download', '下载文件', 'file:download'),
+    ('file', 'recycle', '查看文件回收站', 'file:recycle'),
+    ('file', 'restore', '恢复文件', 'file:restore'),
+    ('file', 'purge', '彻底删除文件', 'file:purge'),
     ('approval', 'read', '查看审批', 'approval:read'),
     ('approval', 'decide', '审批处理', 'approval:decide'),
     ('log', 'read', '查看日志', 'log:read'),
@@ -50,7 +53,7 @@ PERMISSIONS = [
 # 角色与权限码
 ROLES = {
     '系统管理员': ('全部权限', [code for *_, code in PERMISSIONS]),
-    '运营编辑': ('内容与用户管理', ['user:read', 'user:create', 'file:upload', 'file:download', 'approval:read']),
+    '运营编辑': ('内容与用户管理', ['user:read', 'user:create', 'file:upload', 'file:download', 'file:recycle', 'file:restore', 'approval:read']),
     '只读访客': ('仅查看', ['user:read', 'role:read', 'approval:read', 'log:read']),
 }
 
@@ -70,6 +73,7 @@ MENUS = [
     ('数据字典', '/system/dictionaries', 'list-tree', 12, None, 'dictionary:read'),
     ('组织与数据权限', '/organization', 'users', 13, None, None),
     ('可靠事件', '/reliability/events', 'list-checks', 14, None, None),
+    ('文件回收站', '/files/recycle', 'trash-2', 15, None, 'file:recycle'),
 ]
 
 
@@ -149,7 +153,8 @@ class Command(BaseCommand):
             role, role_created = Role.objects.get_or_create(name=role_name, defaults={'description': desc})
             role_map[role_name] = role
             for code in codes:
-                if role_created or code in new_permission_codes:
+                # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
+                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -183,6 +188,14 @@ class Command(BaseCommand):
             _, first_events_init = BootstrapState.objects.get_or_create(key='reliability_menu_v1')
             if first_events_init:
                 Menu.objects.get_or_create(path='/reliability/events', defaults={'name': '可靠事件', 'icon': 'list-checks', 'order': 14})
+
+        with transaction.atomic():
+            _, first_recycle_init = BootstrapState.objects.get_or_create(key='files_recycle_menu_v1')
+            if first_recycle_init:
+                Menu.objects.get_or_create(path='/files/recycle', defaults={
+                    'name': '文件回收站', 'icon': 'trash-2', 'order': 15,
+                    'permission': permission_map['file:recycle'],
+                })
 
         Notification.push(
             recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),

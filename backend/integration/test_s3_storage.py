@@ -104,12 +104,51 @@ def test_real_s3_upload_authorization_cleanup_backup_restore(s3_storage, admin_c
     storage.save(record.file.name, ContentFile(b'actual-s3-file'))
     assert admin_client.delete(f'/api/v1/files/{record.pk}/').status_code == 204
     record.refresh_from_db()
+    key = record.file.name
+    assert admin_client.post(f'/api/v1/files/{record.pk}/restore/', {
+        'lifecycle_version': record.lifecycle_version,
+    }, format='json').status_code == 200
+    record.refresh_from_db()
+    assert not record.is_deleted and record.file.name == key
+    assert storage.open(key).read() == b'actual-s3-file'
+    assert member_client.get(download).status_code == 404
+    assert admin_client.delete(f'/api/v1/files/{record.pk}/').status_code == 204
+    record.refresh_from_db()
+    assert cleanup_soft_deleted_files_preview(admin_client, record)['succeeded'] == 1
     record.deleted_at = timezone.now() - timezone.timedelta(days=100)
     record.save(update_fields=['deleted_at'])
     from apps.tasks.tasks import cleanup_soft_deleted_files
     cleanup_soft_deleted_files()
     assert not FileModel.objects.filter(pk=record.pk).exists()
     assert not storage.exists(record.file.name)
+
+
+def cleanup_soft_deleted_files_preview(client, record):
+    result = client.post('/api/v1/files/recycle_action/', {
+        'action': 'purge', 'dry_run': True,
+        'items': [{'id': str(record.pk), 'lifecycle_version': record.lifecycle_version}],
+    }, format='json')
+    assert result.status_code == 200
+    return result.json()['data']
+
+
+def test_real_s3_recycle_missing_file_and_permanent_delete(s3_storage, admin_client):
+    upload = io.BytesIO(b'recycle-fixture')
+    upload.name = 'trash.txt'
+    uploaded = admin_client.post('/api/v1/files/', {'file': upload}, format='multipart').json()
+    record = FileModel.objects.get(pk=uploaded['id'])
+    admin_client.delete(f'/api/v1/files/{record.pk}/')
+    record.refresh_from_db()
+    key = record.file.name
+    s3_storage.delete(key)
+    assert admin_client.post(f'/api/v1/files/{record.pk}/restore/', {'lifecycle_version': 2}, format='json').status_code == 409
+    s3_storage.save(key, ContentFile(b'recycle-fixture'))
+    result = admin_client.post('/api/v1/files/recycle_action/', {
+        'action': 'purge', 'confirmation': 'DELETE',
+        'items': [{'id': str(record.pk), 'lifecycle_version': 2}],
+    }, format='json')
+    assert result.json()['data']['succeeded'] == 1
+    assert not FileModel.objects.filter(pk=record.pk).exists() and not s3_storage.exists(key)
 
 
 def test_real_s3_import_and_copy_command(s3_storage, admin_client, tmp_path, monkeypatch):

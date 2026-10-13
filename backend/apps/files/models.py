@@ -8,9 +8,14 @@ import uuid
 from django.db import models
 from django.contrib.auth import get_user_model
 
-from apps.core.models import BaseModel
+from django.db import transaction
+from apps.core.models import SoftDeleteModel, LifecycleConflict
 
 User = get_user_model()
+
+
+class FileStorageError(OSError):
+    """向调用方提供不含存储地址、签名或凭据的失败信息。"""
 
 
 def upload_to(instance, filename):
@@ -19,7 +24,7 @@ def upload_to(instance, filename):
     return f'uploads/{instance.created_at:%Y/%m/%d}/{uuid.uuid4().hex}{ext}'
 
 
-class FileModel(BaseModel):
+class FileModel(SoftDeleteModel):
     """文件记录"""
     original_name = models.CharField(max_length=255, verbose_name='原始文件名')
     file = models.FileField(upload_to=upload_to, verbose_name='文件')
@@ -30,8 +35,6 @@ class FileModel(BaseModel):
     description = models.CharField(max_length=255, blank=True, verbose_name='描述')
     uploader = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='files', verbose_name='上传者')
     download_count = models.IntegerField(default=0, verbose_name='下载次数')
-    is_deleted = models.BooleanField(default=False, verbose_name='是否删除（软删除）')
-    deleted_at = models.DateTimeField(null=True, blank=True, verbose_name='删除时间')
 
     class Meta:
         verbose_name = '文件'
@@ -40,20 +43,38 @@ class FileModel(BaseModel):
             models.Index(fields=['uploader', 'is_deleted']),
             models.Index(fields=['file_type']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['is_deleted', 'deleted_at'], name='files_deleted_cutoff_idx'),
         ]
 
     def __str__(self):
         return self.original_name
 
-    def soft_delete(self):
-        """软删除：标记状态并保留物理文件，等待清理任务处理"""
-        from django.utils import timezone
-        self.is_deleted = True
-        self.deleted_at = timezone.now()
-        self.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
+    def validate_restore(self):
+        try:
+            exists = self.file and self.file.storage.exists(self.file.name)
+        except Exception as exc:
+            raise FileStorageError('存储暂时不可用，请稍后重试') from exc
+        if not exists:
+            raise LifecycleConflict('存储中的文件已不存在，无法恢复')
 
-    def hard_delete(self):
-        """物理删除：删除磁盘文件后删除记录"""
-        if self.file:
-            self.file.delete(save=False)
-        self.delete()
+    def hard_delete(self, *, expected_version=None, deleted_before=None, audit=None):
+        """行锁与恢复共用；清理任务持锁后复核状态和截止时间。存储失败保留记录。"""
+        with transaction.atomic():
+            row = type(self).objects.select_for_update().filter(pk=self.pk).first()
+            if row is None:
+                return False
+            if expected_version is not None:
+                row.check_lifecycle_version(expected_version)
+            if deleted_before is not None and (
+                not row.is_deleted or not row.deleted_at or row.deleted_at >= deleted_before
+            ):
+                return False
+            if audit:
+                audit(row)
+            if row.file:
+                try:
+                    row.file.delete(save=False)
+                except Exception as exc:
+                    raise FileStorageError('存储暂时不可用，请稍后重试') from exc
+            row.delete()
+        return True

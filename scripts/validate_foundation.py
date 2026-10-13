@@ -178,11 +178,39 @@ def main():
                 "assert OutboxEvent.objects.count()==2 and OutboxEvent.objects.filter(status='succeeded').count()==2; "
                 "assert Notification.objects.count()==2")
         check('PostgreSQL 四个派发器并发消费两条事件无重复通知', True)
+        import base64
+        source = (ROOT / 'scripts/recycle_concurrency.py').read_bytes()
+        encoded = base64.b64encode(source).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL 回收站行锁、版本冲突与恢复/清理竞争', True)
+        upload = requests.post(BASE + 'files/', files={'file': ('recycle-live.txt', b'live-fixture', 'text/plain')},
+                               headers={'Authorization': 'Bearer ' + token}, timeout=20)
+        check('真实 HTTP 文件上传', upload.status_code == 201)
+        # 上传保留已有非分页响应格式，分页接口使用统一 data 包装。
+        uploaded = upload.json()
+        file_id = uploaded['id']
+        api(f'files/{file_id}/', 'DELETE', expected=204, token=token)
+        trashed = api('files/recycle/', token=token).json()['data']['items'][0]
+        check('真实 HTTP 回收站保留删除操作者和版本', trashed['deleted_by'] == admin_id and trashed['lifecycle_version'] == 2)
+        policy = api('files/recycle_policy/', token=token).json()['data']
+        check('真实 HTTP 保留期跟随配置且定时计划已启用', policy['retention_days'] == retained and policy['cleanup_enabled'])
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(lambda _: api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 2}, None, token), range(2)))
+        check('真实 HTTP 同版本恢复仅一次成功', sorted(response.status_code for response in responses) == [200, 409])
+        downloaded = api(f'files/{file_id}/download/', token=token)
+        check('恢复后鉴权下载字节不变', downloaded.content == b'live-fixture')
+        api(f'files/{file_id}/', 'DELETE', expected=204, token=token)
+        preview = api('files/recycle_action/', 'POST', {'action': 'purge', 'dry_run': True,
+                      'items': [{'id': file_id, 'lifecycle_version': 4}]}, token=token).json()['data']
+        check('真实 HTTP 删除预览不删除回收站文件', preview['succeeded'] == 1 and preview['dry_run'])
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)
         api('organization/departments/', expected=404, token=token)
         api('system/dictionaries/', expected=404, token=token)
+        api('files/recycle/', expected=404, token=token)
+        api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 4}, 404, token)
         compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "from apps.core.modules import task_enabled; assert not task_enabled('data_io.run_data_import'); from apps.core.models import DataDictionary; assert DataDictionary.objects.filter(code='integration').exists()")
         compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
@@ -190,6 +218,7 @@ def main():
         token = login(password)
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
+        check('文件模块关闭/重新启用保留回收站记录', api('files/recycle/', token=token).json()['data']['items'][0]['id'] == file_id)
         check('当前迁移无遗漏', compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'makemigrations', '--check', '--dry-run').returncode == 0)
         command = ['docker', 'compose', '-p', PROJECT, '--env-file', str(env_file), '-f', 'docker-compose.yml',
                    '-f', 'compose.minimal.yml', '-f', str(FOLDER / 'override.yml'), '-f', str(FOLDER / 'standard.yml')]

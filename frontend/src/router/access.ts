@@ -4,6 +4,7 @@ const permissions: Record<string, string> = {
   '/users': 'user:read', '/roles': 'role:read', '/menus': 'menu:read',
   '/tasks': 'task:read', '/logs': 'log:read',
   '/system/config': 'config:read', '/system/dictionaries': 'dictionary:read',
+  '/files/recycle': 'file:recycle',
 }
 export function canAccessPage(path: string, user: CurrentUser | null) {
   if (!user) return false

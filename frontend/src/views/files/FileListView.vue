@@ -5,7 +5,8 @@
         <template #header>
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("文件列表") }}</div>
-            <div>
+            <div class="file-header-actions">
+              <BaseButton v-if="auth.can('file:recycle')" variant="ghost" @click="router.push('/files/recycle')">{{ uiText('文件回收站') }}</BaseButton>
               <input ref="uploadInput" type="file" class="hidden-input" @change="handleUpload" />
               <BaseButton variant="primary" :loading="uploading" @click="triggerUpload">{{ uiText("上传文件") }}</BaseButton>
             </div>
@@ -36,12 +37,16 @@
 import { uiText } from "@/i18n/uiText"
 
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
 
 const loading = ref(false)
+const router = useRouter()
+const auth = useAuthStore()
 const uploading = ref(false)
 const uploadInput = ref<HTMLInputElement>()
 const tableData = ref<FileRow[]>([])
@@ -102,7 +107,7 @@ const handleDelete = (row: FileRow) => {
   ElMessageBox.confirm(uiText("确定删除文件 {p0} 吗？", { p0: row.original_name }), uiText("提示"), { type: 'warning' })
     .then(async () => {
       await filesApi.remove(row.id)
-      ElMessage.success(uiText("已移入回收（软删除，30 天后自动清理）"))
+      ElMessage.success(uiText('已移入回收站'))
       loadFiles()
     })
     .catch(() => {})
@@ -131,7 +136,11 @@ loadFiles()
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
+
+.file-header-actions { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
 
 .card-header-title {
   font-weight: var(--font-weight-semibold);
