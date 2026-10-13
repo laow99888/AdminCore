@@ -32,9 +32,18 @@ class LoginRequestSerializer(serializers.Serializer):
 class ResetPasswordRequestSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
+    def validate_password(self, value):
+        from django.contrib.auth.password_validation import validate_password
+        from django.core.exceptions import ValidationError
+        try:
+            validate_password(value, self.context.get('user'))
+        except ValidationError as exc:
+            raise serializers.ValidationError(exc.messages) from exc
+        return value
+
 
 class CleanupRequestSerializer(serializers.Serializer):
-    days = serializers.IntegerField(default=30)
+    days = serializers.IntegerField(default=30, min_value=1, max_value=3650)
 
 
 class DashboardTotalsSerializer(serializers.Serializer):

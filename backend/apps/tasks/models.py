@@ -44,6 +44,7 @@ class TaskRecord(BaseModel):
         verbose_name = '任务记录'
         verbose_name_plural = '任务记录'
         indexes = [
+            models.Index(fields=['created_at']),
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['task_type']),
         ]

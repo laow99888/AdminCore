@@ -77,7 +77,9 @@ npm run dev
 
 ## 项目状态
 
-阶段三（功能集成）已完成，阶段四（部署与文档）基本完成。详见 [功能清单](./功能清单.md)。
+通用基础版与本轮工程改进已实现；邮件、在线预览、多级审批仍为扩展项。当前范围见 [功能清单](./功能清单.md)，实测结果见 [工程改进验收](./docs/工程改进验收-2026-10-13.md)。
+
+前端已提供 `npm run test:typecheck`、`npm run test:coverage`、`npm run test:e2e` 和构建后的 `npm run check:bundle`；CI 执行这些检查。后端大数据基准脚本在 `backend/benchmarks/list_api.py`，只允许使用独立的指定测试数据库，运行说明见验收报告。
 
 ## 许可证
 

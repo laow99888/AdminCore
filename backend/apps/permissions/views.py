@@ -9,6 +9,7 @@ from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
+from django.db import transaction
 from apps.core.mixins import EnvelopeResponseMixin
 from .models import Role, Permission, Menu
 from .serializers import RoleSerializer, PermissionSerializer, MenuSerializer
@@ -52,21 +53,28 @@ class PermissionViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
 
 @extend_schema_view(
     retrieve=extend_schema(responses=envelope('MenuDetailResponse', MenuSerializer())),
+    create=extend_schema(responses={201: envelope('MenuCreatedResponse', MenuSerializer())}),
+    update=extend_schema(responses=envelope('MenuUpdatedResponse', MenuSerializer())),
+    partial_update=extend_schema(responses=envelope('MenuPatchedResponse', MenuSerializer())),
+    destroy=extend_schema(responses={200: MessageResponse}),
     my_menu=extend_schema(responses=envelope('MyMenuResponse', MenuSerializer(many=True)), filters=False),
 )
-class MenuViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
-    """菜单管理（只读）"""
+class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
+    """菜单维护及按权限过滤的导航树。"""
     queryset = Menu.objects.filter(is_visible=True, parent=None)
     serializer_class = MenuSerializer
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
         if self.action != 'my_menu':
-            self.required_permission = 'menu:read'
+            self.required_permission = 'menu:update' if self.action in ('create', 'update', 'partial_update', 'destroy') else 'menu:read'
             return [IsAuthenticated(), HasPermission()]
         return super().get_permissions()
 
     def get_queryset(self):
+        if self.action != 'my_menu':
+            queryset = Menu.objects.all()
+            return queryset.filter(parent=None) if self.action == 'list' else queryset
         user = self.request.user
         # 根据用户权限过滤菜单
         if user.is_superuser or user.is_staff:
@@ -90,8 +98,36 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context['allowed_menu_ids'] = self.allowed_menu_ids()
+        context['manage_menus'] = self.action != 'my_menu'
+        if self.action == 'my_menu':
+            context['allowed_menu_ids'] = self.allowed_menu_ids()
         return context
+
+    @transaction.atomic
+    def perform_create(self, serializer):
+        from .services import save_menu
+        self.audit_menu(save_menu(serializer), 'create')
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        from .services import save_menu
+        self.audit_menu(save_menu(serializer), 'update')
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        from .services import delete_menu
+        menu_id, name = str(instance.id), instance.name
+        delete_menu(instance)
+        self.audit_menu_values(menu_id, name, 'delete')
+
+    def audit_menu(self, menu, action):
+        self.audit_menu_values(str(menu.id), menu.name, action)
+
+    def audit_menu_values(self, menu_id, name, action):
+        from apps.logs.models import OperationLog
+        OperationLog.objects.create(user=self.request.user, action=action, resource='menu',
+                                    resource_id=menu_id, description=f'{action} menu {name}',
+                                    ip_address=self.request.META.get('REMOTE_ADDR', ''))
 
     @action(detail=False, methods=['get'])
     def my_menu(self, request):

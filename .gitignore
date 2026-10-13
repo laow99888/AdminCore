@@ -61,3 +61,8 @@ htmlcov/
 .venv/
 *.key
 *.pem
+
+# 前端自动化验收产物
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/

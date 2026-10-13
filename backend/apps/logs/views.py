@@ -11,7 +11,7 @@ from apps.permissions.permissions import HasPermission
 
 class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     """操作日志查看"""
-    queryset = OperationLog.objects.all()
+    queryset = OperationLog.objects.select_related('user').all()
     serializer_class = OperationLogSerializer
     permission_classes = [IsAuthenticated, HasPermission]
     required_permission = 'log:read'
@@ -33,7 +33,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 class ExceptionLogViewSet(viewsets.ReadOnlyModelViewSet):
     """异常日志查看"""
-    queryset = ExceptionLog.objects.all()
+    queryset = ExceptionLog.objects.select_related('user').all()
     serializer_class = ExceptionLogSerializer
     permission_classes = [IsAuthenticated, HasPermission]
     required_permission = 'log:read'

@@ -53,17 +53,14 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { menusApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import type { Component } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSidebar } from '../../composables/useSidebar'
-import {
-  LayoutDashboard, Users, ShieldCheck, ListTree, FolderOpen,
-  ListChecks, ClipboardCheck, FileText, Bell, Settings,
-  ChevronsLeft, ChevronsRight,
-} from 'lucide-vue-next'
+import { ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
+import { menuIcons } from './menuIcons'
 
 const route = useRoute()
 const { isCollapsed, isMobile, toggle: toggleCollapse, close } = useSidebar()
@@ -80,31 +77,26 @@ interface MenuItem {
 }
 
 // 菜单项（Lucide 线性图标，24px 网格）
-const configuredMenuItems: MenuItem[] = [
-  { path: '/', label: uiText("仪表盘"), icon: LayoutDashboard },
-  { path: '/users', label: uiText("用户管理"), icon: Users },
-  { path: '/roles', label: uiText("角色权限"), icon: ShieldCheck },
-  { path: '/menus', label: uiText("菜单管理"), icon: ListTree },
-  { path: '/files', label: uiText("文件管理"), icon: FolderOpen },
-  { path: '/tasks', label: uiText("任务中心"), icon: ListChecks },
-  { path: '/approvals', label: uiText("审批工作流"), icon: ClipboardCheck },
-  { path: '/logs', label: uiText("操作日志"), icon: FileText },
-  { path: '/notifications', label: uiText("通知中心"), icon: Bell },
-  { path: '/settings', label: uiText("系统设置"), icon: Settings },
-]
 const auth = useAuthStore()
-const allowedPaths = ref<string[]>([])
-const menuItems = computed(() => configuredMenuItems.filter((item) => allowedPaths.value.includes(item.path)))
-onMounted(async () => {
+const menuItems = ref<MenuItem[]>([])
+const loadNavigation = async () => {
   if (!auth.user?.permissions) await auth.fetchUser()
   try {
-    const flatten = (items: Awaited<ReturnType<typeof menusApi.myMenu>>): string[] =>
-      items.flatMap((item) => [item.path, ...flatten(item.children || [])])
-    allowedPaths.value = flatten(await menusApi.myMenu())
+    const flatten = (items: Awaited<ReturnType<typeof menusApi.myMenu>>): MenuItem[] =>
+      items.flatMap((item) => [{ path: item.path, label: uiText(item.name), icon: menuIcons[item.icon] || menuIcons['list-tree'] }, ...flatten(item.children || [])])
+    menuItems.value = flatten(await menusApi.myMenu())
   } catch {
-    allowedPaths.value = ['/', '/settings']
+    menuItems.value = [
+      { path: '/', label: uiText('仪表盘'), icon: menuIcons['layout-dashboard'] },
+      { path: '/settings', label: uiText('系统设置'), icon: menuIcons.settings },
+    ]
   }
+}
+onMounted(() => {
+  loadNavigation()
+  window.addEventListener('admincore:menus-updated', loadNavigation)
 })
+onBeforeUnmount(() => window.removeEventListener('admincore:menus-updated', loadNavigation))
 
 // 判断当前菜单项是否为活跃
 const isActive = (path: string) => {

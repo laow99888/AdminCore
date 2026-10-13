@@ -1,6 +1,4 @@
 import { createApp } from 'vue'
-import ElementPlus from 'element-plus'
-import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
 
 import App from './App.vue'
@@ -24,10 +22,7 @@ if (isDark) {
   document.documentElement.classList.add('dark')
 }
 
-// 注册 Element Plus
-app.use(ElementPlus, {
-  locale: zhCn,
-})
+// Element Plus 组件及指令由构建插件按需导入，语言由 App 的配置提供器控制。
 
 // 注册 Pinia
 app.use(createPinia())

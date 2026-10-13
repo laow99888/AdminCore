@@ -1,4 +1,9 @@
 export const uiMessages: Record<string, string> = {
+  '角色': 'Roles', '选择用户角色': 'Select user roles', '角色加载失败，请重新打开编辑窗口': 'Could not load roles. Reopen the editor.',
+  '菜单结构': 'Menu Structure', '新增菜单': 'Add Menu', '编辑菜单': 'Edit Menu', '父菜单': 'Parent Menu', '所需权限': 'Required Permission',
+  '暂无菜单数据': 'No menus', '菜单加载失败，请点击刷新重试': 'Could not load menus. Refresh to retry.', '请输入菜单名': 'Enter a menu name', '请输入以 / 开头的站内路由': 'Enter an internal route starting with /',
+  '权限加载失败，请重新打开编辑窗口': 'Could not load permissions. Reopen the editor.', '保存失败，请重试': 'Could not save. Please retry.', '确定删除菜单 {p0} 吗？': 'Delete menu {p0}?',
+  '菜单指向已有页面；新增菜单不会自动创建业务页面。父菜单有子项时不能直接删除。': 'Menus link to existing pages. Adding a menu does not create a page. Remove or move child menus before deleting a parent.',
   '+ 发起申请': '+ New Request', '+ 新增用户': '+ Add User', '+ 新增角色': '+ Add Role',
   '{p0}申请「{p1}」': '{p0} request “{p1}”', '— 欢迎回到 AdminCore 管理系统': '— Welcome back to AdminCore',
   '上传': 'Upload', '上传成功': 'Uploaded successfully', '上传文件': 'Upload File', '上传时间': 'Uploaded At', '上传者': 'Uploaded By',

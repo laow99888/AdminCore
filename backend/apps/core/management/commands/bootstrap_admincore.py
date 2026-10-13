@@ -7,8 +7,10 @@
 
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand, CommandError
+from django.core.management import call_command
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db import transaction
 import os
 
 User = get_user_model()
@@ -35,6 +37,7 @@ PERMISSIONS = [
     ('data_io', 'import', '数据导入', 'data_io:import'),
     ('data_io', 'export', '数据导出', 'data_io:export'),
     ('menu', 'read', '查看菜单配置', 'menu:read'),
+    ('menu', 'update', '维护菜单配置', 'menu:update'),
     ('task', 'read', '查看任务', 'task:read'),
     ('task', 'cancel', '取消任务', 'task:cancel'),
     ('task', 'delete', '清理任务历史', 'task:delete'),
@@ -97,6 +100,7 @@ class Command(BaseCommand):
             username=username,
             defaults={'email': os.getenv('ADMINCORE_ADMIN_EMAIL', 'admin@example.com'), 'is_staff': True, 'is_superuser': True},
         )
+        admin_created = created
         if created:
             admin.set_password(password)
             admin.save()
@@ -106,8 +110,10 @@ class Command(BaseCommand):
 
         # 2. 演示用户
         demo = None
+        demo_created = False
         if demo_mode:
             demo, created = User.objects.get_or_create(username=DEMO_USERNAME, defaults={'email': 'demo@example.com'})
+            demo_created = created
             if created:
                 demo.set_password(DEMO_PASSWORD)
                 demo.save()
@@ -115,44 +121,48 @@ class Command(BaseCommand):
 
         # 3. 权限
         permission_map = {}
+        new_permission_codes = set()
         for resource, action, name, code in PERMISSIONS:
-            perm, _ = Permission.objects.get_or_create(
+            perm, permission_created = Permission.objects.get_or_create(
                 resource=resource, action=action,
                 defaults={'name': name, 'code': code},
             )
             permission_map[code] = perm
+            if permission_created:
+                new_permission_codes.add(code)
         self.stdout.write(f'  权限就绪：{len(permission_map)} 项')
 
         # 4. 角色 + 角色权限
         from apps.permissions.models import UserRole
         role_map = {}
         for role_name, (desc, codes) in ROLES.items():
-            role, _ = Role.objects.get_or_create(name=role_name, defaults={'description': desc})
+            role, role_created = Role.objects.get_or_create(name=role_name, defaults={'description': desc})
             role_map[role_name] = role
             for code in codes:
-                RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
+                if role_created or code in new_permission_codes:
+                    RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
         self.stdout.write(f'  角色就绪：{len(role_map)} 个（演示用户已绑定「只读访客」）')
 
         # 5. 菜单
-        for name, path, icon, order, parent, perm_code in MENUS:
-            Menu.objects.update_or_create(
-                path=path,
-                defaults={
-                    'name': name, 'icon': icon, 'order': order,
-                    'permission': permission_map.get(perm_code) if perm_code else None,
-                    'is_visible': True,
-                },
-            )
-        self.stdout.write(f'  菜单就绪：{len(MENUS)} 项')
+        from apps.core.models import BootstrapState
+        with transaction.atomic():
+            _, first_menu_init = BootstrapState.objects.get_or_create(key='default_menus_v1')
+            # 已有数据库直接接纳现有菜单；新库只初始化一次，之后允许修改和删除。
+            if first_menu_init and not Menu.objects.exists():
+                for name, path, icon, order, parent, perm_code in MENUS:
+                    Menu.objects.create(name=name, path=path, icon=icon, order=order,
+                                        permission=permission_map.get(perm_code) if perm_code else None)
+        self.stdout.write(f'  菜单就绪：{Menu.objects.count()} 项')
 
         # 6. 欢迎通知
         Notification.push(
-            recipient_ids=[admin.id] + ([demo.id] if demo else []),
+            recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),
             title='欢迎使用 AdminCore',
             content='系统基础数据已初始化，请妥善保管账户凭据。',
             notification_type='system',
             link='/',
         )
+        call_command('configure_maintenance', stdout=self.stdout)
         self.stdout.write(self.style.SUCCESS('初始化完成 ✔'))

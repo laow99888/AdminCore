@@ -52,6 +52,7 @@
           :total="total"
           :current-page="currentPage"
           :page-size="pageSize"
+          action-width="220"
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         >
@@ -64,7 +65,7 @@
       </BaseCard>
 
       <!-- 用户编辑对话框 -->
-      <BaseDialog v-model="dialogVisible" :title="dialogTitle" :loading="saving" @confirm="handleSaveUser">
+      <BaseDialog v-model="dialogVisible" :title="dialogTitle" :loading="saving || rolesLoading" :confirm-disabled="rolesFailed" @confirm="handleSaveUser">
         <el-form :model="formData" label-width="100px">
           <el-form-item :label="uiText('用户名')" required>
             <el-input v-model="formData.username" :disabled="!!formData.id" />
@@ -83,6 +84,12 @@
           </el-form-item>
           <el-form-item v-if="!formData.id" :label="uiText('密码')" required>
             <el-input v-model="formData.password" type="password" show-password :placeholder="uiText('初始密码')" />
+          </el-form-item>
+          <el-form-item v-if="auth.user?.is_staff || auth.user?.is_superuser" :label="uiText('角色')">
+            <el-select v-model="formData.role_ids" multiple :loading="rolesLoading" :disabled="rolesLoading || rolesFailed" :placeholder="uiText('选择用户角色')" style="width: 100%">
+              <el-option v-for="role in roleOptions" :key="role.id" :label="role.name" :value="role.id" :disabled="!role.is_active && !formData.role_ids.includes(role.id)" />
+            </el-select>
+            <el-alert v-if="rolesFailed" :title="uiText('角色加载失败，请重新打开编辑窗口')" type="error" :closable="false" />
           </el-form-item>
         </el-form>
       </BaseDialog>
@@ -113,13 +120,37 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
-import { usersApi, dataIoApi, downloadFile, type UserRow } from '@/api'
+import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type RoleRow } from '@/api'
 
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
 const importResultVisible = ref(false)
 const auth = useAuthStore()
+const roleOptions = ref<RoleRow[]>([])
+const rolesLoading = ref(false)
+const rolesFailed = ref(false)
+const loadRoleOptions = async () => {
+  if (!(auth.user?.is_staff || auth.user?.is_superuser)) return
+  rolesLoading.value = true
+  rolesFailed.value = false
+  try {
+    const rows: RoleRow[] = []
+    let page = 1
+    let totalPages = 1
+    do {
+      const data = await rolesApi.list({ page, page_size: 100 })
+      rows.push(...data.items)
+      totalPages = data.pagination.total_pages
+      page += 1
+    } while (page <= totalPages)
+    roleOptions.value = rows
+  } catch {
+    rolesFailed.value = true
+  } finally {
+    rolesLoading.value = false
+  }
+}
 const importError = ref('')
 const importResult = ref<{ created: number; failed: number; errors?: Array<{ row: number; message: string }> } | null>(null)
 const importInput = ref<HTMLInputElement>()
@@ -141,6 +172,7 @@ const formData = reactive({
   last_name: '',
   is_active: true,
   password: '',
+  role_ids: [] as string[],
 })
 
 const tableColumns = [
@@ -192,22 +224,26 @@ const handleReset = () => {
 
 const handleCreate = () => {
   Object.assign(formData, {
-    id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '',
+    id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '', role_ids: [],
   })
   dialogVisible.value = true
+  loadRoleOptions()
 }
 
 const handleEdit = async (row: UserRow) => {
   try {
     const detail = await usersApi.detail(row.id)
     Object.assign(formData, { id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '' }, detail)
+    formData.role_ids = detail.roles.map((role) => role.role__id)
     dialogVisible.value = true
+    loadRoleOptions()
   } catch {
     // 请求拦截器显示错误。
   }
 }
 
 const handleSaveUser = async () => {
+  if (rolesLoading.value || rolesFailed.value) return
   if (!formData.username || !formData.email || (!formData.id && !formData.password)) {
     ElMessage.warning(uiText("请填写必填项（用户名、邮箱、初始密码）"))
     return
@@ -220,6 +256,7 @@ const handleSaveUser = async () => {
         first_name: formData.first_name,
         last_name: formData.last_name,
         is_active: formData.is_active,
+        ...((auth.user?.is_staff || auth.user?.is_superuser) ? { role_ids: formData.role_ids } : {}),
       })
       ElMessage.success(uiText("修改成功"))
     } else {
@@ -230,6 +267,7 @@ const handleSaveUser = async () => {
         last_name: formData.last_name,
         is_active: formData.is_active,
         password: formData.password,
+        ...((auth.user?.is_staff || auth.user?.is_superuser) ? { role_ids: formData.role_ids } : {}),
       })
       ElMessage.success(uiText("创建成功"))
     }
@@ -330,15 +368,18 @@ loadUsers()
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-md);
+  flex-wrap: wrap;
 }
 
 .header-actions {
   display: flex;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
 }
 
 .card-header-title {
   font-weight: var(--font-weight-semibold);
+  flex-shrink: 0;
 }
 
 .hidden-input {

@@ -88,10 +88,17 @@ class MenuSerializer(serializers.ModelSerializer):
         model = Menu
         fields = ('id', 'name', 'path', 'icon', 'order', 'parent', 'permission', 'is_visible', 'children')
 
+    def validate_path(self, value):
+        if not value.startswith('/') or value.startswith('//') or any(char in value for char in ('?', '#', '\\')):
+            raise serializers.ValidationError('请填写以 / 开头的站内路由路径')
+        return value
+
     @extend_schema_field(lazy_serializer('apps.permissions.serializers.MenuSerializer')(many=True))
     def get_children(self, obj):
         """递归获取子菜单"""
-        children = obj.children.filter(is_visible=True)
+        children = obj.children.all()
+        if not self.context.get('manage_menus'):
+            children = children.filter(is_visible=True)
         allowed_ids = self.context.get('allowed_menu_ids')
         if allowed_ids is not None:
             children = children.filter(id__in=allowed_ids)

@@ -5,11 +5,14 @@
 <script setup lang="ts">
 
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import * as echarts from 'echarts'
+import { init, use, type ECharts, type EChartsCoreOption } from 'echarts/core'
+import { LineChart, PieChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { useThemeStore } from '../../stores/theme'
 
 interface Props {
-  option: echarts.EChartsOption
+  option: EChartsCoreOption
   height?: number
 }
 
@@ -18,13 +21,14 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const chartRef = ref<HTMLDivElement>()
+use([LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 const themeStore = useThemeStore()
-let chart: echarts.ECharts | null = null
+let chart: ECharts | null = null
 
 const render = () => {
   if (!chartRef.value) return
   if (!chart) {
-    chart = echarts.init(chartRef.value)
+    chart = init(chartRef.value)
   }
   chart.setOption(props.option, true)
 }

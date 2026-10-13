@@ -50,7 +50,8 @@ import { uiText } from "@/i18n/uiText"
 
 import { computed, onMounted, ref } from 'vue'
 import type { EChartsOption } from 'echarts'
-import { AppLayout, BaseChart } from '@/components'
+import { AppLayout } from '@/components'
+import BaseChart from '@/components/common/BaseChart.vue'
 import { dashboardApi, type DashboardStats } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'

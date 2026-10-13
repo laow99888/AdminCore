@@ -72,7 +72,9 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
         from datetime import timedelta
         from django.utils import timezone
 
-        days = int(request.data.get('days', 30))
+        serializer = CleanupRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        days = serializer.validated_data['days']
         cutoff = timezone.now() - timedelta(days=days)
         deleted, _ = TaskRecord.objects.filter(
             status__in=['success', 'failed', 'cancelled'],

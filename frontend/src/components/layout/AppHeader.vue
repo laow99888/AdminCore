@@ -76,8 +76,7 @@
             <el-dropdown-menu>
               <el-dropdown-item command="profile">{{ uiText("个人中心") }}</el-dropdown-item>
               <el-dropdown-item command="settings">{{ uiText("账户设置") }}</el-dropdown-item>
-              <el-dropdown-divider></el-dropdown-divider>
-              <el-dropdown-item command="logout">{{ uiText("退出登录") }}</el-dropdown-item>
+              <el-dropdown-item command="logout" divided>{{ uiText("退出登录") }}</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

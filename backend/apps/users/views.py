@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.db import transaction
+import logging
 from .serializers import (
     UserDetailSerializer, UserListSerializer, UserCreateSerializer,
     UserUpdateSerializer, BulkUserActionSerializer
@@ -21,6 +22,7 @@ from apps.logs.models import OperationLog
 from apps.core.mixins import EnvelopeResponseMixin
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 @extend_schema_view(
@@ -44,7 +46,9 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = User.objects.select_related('profile').all()
+        queryset = User.objects.all()
+        if self.action != 'list':
+            queryset = queryset.select_related('profile')
         if self.action not in ('list', 'retrieve') and not (self.request.user.is_staff or self.request.user.is_superuser):
             queryset = queryset.filter(is_staff=False, is_superuser=False)
         return queryset
@@ -81,6 +85,14 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
             ip_address=self.request.META.get('REMOTE_ADDR', ''),
         )
         instance.delete()
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        user = serializer.save()
+        OperationLog.objects.create(user=self.request.user, action='update', resource='user',
+                                    resource_id=str(user.id),
+                                    description=f'Updated user {user.username}' + (' and role assignments' if 'role_ids' in self.request.data else ''),
+                                    ip_address=self.request.META.get('REMOTE_ADDR', ''))
 
     @action(detail=False, methods=['post'])
     def bulk_action(self, request):
@@ -122,10 +134,11 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         'message': f'{action} success',
                         'data': None,
                     })
-            except Exception as e:
+            except Exception:
+                logger.exception('批量用户操作失败')
                 return Response({
                     'code': 500,
-                    'message': str(e),
+                    'message': '批量操作失败，请查看服务器日志',
                     'data': None,
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -139,16 +152,9 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def reset_password(self, request, pk=None):
         """重置用户密码"""
         user = self.get_object()
-        new_password = request.data.get('password')
-
-        if not new_password:
-            return Response({
-                'code': 400,
-                'message': 'Password required',
-                'data': None,
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        user.set_password(new_password)
+        serializer = ResetPasswordRequestSerializer(data=request.data, context={'user': user})
+        serializer.is_valid(raise_exception=True)
+        user.set_password(serializer.validated_data['password'])
         user.save()
 
         OperationLog.objects.create(

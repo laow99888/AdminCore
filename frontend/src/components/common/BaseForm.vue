@@ -3,6 +3,8 @@
     ref="formRef"
     :model="modelValue"
     :rules="rules"
+    :disabled="loading"
+    :aria-busy="loading"
     label-width="auto"
     class="base-form"
     :class="{ 'is-loading': loading }"
@@ -114,10 +116,10 @@
 
     <!-- 操作按钮 -->
     <div class="form-actions">
-      <el-button type="primary" native-type="submit" :loading="loading">
+      <el-button type="primary" native-type="submit" :loading="loading" :disabled="loading">
         {{ submitText || uiText('提交') }}
       </el-button>
-      <el-button @click="handleReset">{{ resetText || uiText('重置') }}</el-button>
+      <el-button :disabled="loading" @click="handleReset">{{ resetText || uiText('重置') }}</el-button>
       <slot name="actions"></slot>
     </div>
   </el-form>
@@ -126,7 +128,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref, defineEmits } from 'vue'
+import { ref, toRaw } from 'vue'
 import type { FormInstance } from 'element-plus'
 
 type FieldType = 'text' | 'email' | 'password' | 'number' | 'select' | 'multiselect' | 'date' | 'datetime' | 'switch' | 'checkbox' | 'textarea'
@@ -165,6 +167,7 @@ const emit = defineEmits<{
 }>()
 
 const formRef = ref<FormInstance>()
+const initialValues = structuredClone(toRaw(props.modelValue))
 const formModel = new Proxy({} as Record<string, any>, {
   get: (_target, key: string) => props.modelValue[key],
   set: (_target, key: string, value) => {
@@ -174,12 +177,19 @@ const formModel = new Proxy({} as Record<string, any>, {
 })
 
 const handleSubmit = async () => {
-  await formRef.value?.validate()
-  emit('submit', props.modelValue)
+  if (props.loading) return
+  try {
+    const valid = await formRef.value?.validate()
+    if (valid !== false) emit('submit', props.modelValue)
+  } catch {
+    // Element Plus 在字段旁显示校验错误；不要提交或制造未处理 Promise。
+  }
 }
 
 const handleReset = () => {
-  formRef.value?.resetFields()
+  if (props.loading) return
+  emit('update:modelValue', structuredClone(initialValues))
+  formRef.value?.clearValidate()
 }
 </script>
 

@@ -31,11 +31,15 @@ export interface UserRow {
   created_at: string
 }
 
+export interface UserDetail extends UserRow {
+  roles: Array<{ role__id: string; role__name: string }>
+}
+
 export const usersApi = {
   list: (params?: ListParams) => getPaged<UserRow>('/users/', params),
-  detail: async (id: string): Promise<UserRow> => (await request.get<ApiResponse<UserRow>>(`/users/${id}/`)).data.data,
-  create: (data: Partial<UserRow> & { password: string }) => request.post('/users/', data),
-  update: (id: string, data: Partial<UserRow>) => request.patch(`/users/${id}/`, data),
+  detail: async (id: string): Promise<UserDetail> => (await request.get<ApiResponse<UserDetail>>(`/users/${id}/`)).data.data,
+  create: (data: Partial<UserRow> & { password: string; role_ids?: string[] }) => request.post('/users/', data),
+  update: (id: string, data: Partial<UserRow> & { role_ids?: string[] }) => request.patch(`/users/${id}/`, data),
   remove: (id: string) => request.delete(`/users/${id}/`),
   resetPassword: (id: string, password: string) =>
     request.post(`/users/${id}/reset_password/`, { password }),
@@ -175,6 +179,8 @@ export interface MenuRow {
   icon: string
   order: number
   is_visible: boolean
+  parent?: string | null
+  permission?: string | null
   children?: MenuRow[]
 }
 
@@ -192,13 +198,24 @@ export const permissionsApi = {
 }
 
 export const menusApi = {
+  create: (data: Partial<MenuRow>) => request.post('/permissions/menus/', data),
+  update: (id: string, data: Partial<MenuRow>) => request.patch(`/permissions/menus/${id}/`, data),
+  remove: (id: string) => request.delete(`/permissions/menus/${id}/`),
   myMenu: async (): Promise<MenuRow[]> => {
     const res = await request.get<ApiResponse<MenuRow[]>>('/permissions/menus/my_menu/')
     return res.data.data
   },
   list: async (): Promise<MenuRow[]> => {
-    const res = await request.get<ApiResponse<PagedData<MenuRow>>>('/permissions/menus/')
-    return res.data.data.items
+    const menus: MenuRow[] = []
+    let page = 1
+    let totalPages = 1
+    do {
+      const res = await request.get<ApiResponse<PagedData<MenuRow>>>('/permissions/menus/', { params: { page, page_size: 100 } })
+      menus.push(...res.data.data.items)
+      totalPages = res.data.data.pagination.total_pages
+      page += 1
+    } while (page <= totalPages)
+    return menus
   },
 }
 

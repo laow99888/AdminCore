@@ -17,7 +17,7 @@
       <div class="dialog-footer">
         <slot name="footer">
           <el-button v-if="showCancel" @click="handleCancel">{{ uiText("取消") }}</el-button>
-          <el-button type="primary" :loading="loading" @click="handleConfirm">
+          <el-button type="primary" :loading="loading" :disabled="loading || confirmDisabled" @click="handleConfirm">
             {{ confirmText || uiText('确认') }}
           </el-button>
         </slot>
@@ -37,6 +37,7 @@ interface Props {
   title?: string
   width?: string | number
   loading?: boolean
+  confirmDisabled?: boolean
   confirmText?: string
   showCancel?: boolean
 }
@@ -45,6 +46,7 @@ const props = withDefaults(defineProps<Props>(), {
   title: '',
   width: '50%',
   loading: false,
+  confirmDisabled: false,
   confirmText: '',
   showCancel: true,
 })
@@ -64,6 +66,7 @@ const isVisible = computed({
 })
 
 const handleConfirm = () => {
+  if (props.loading || props.confirmDisabled) return
   emit('confirm')
 }
 
