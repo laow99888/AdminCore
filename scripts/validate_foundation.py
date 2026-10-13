@@ -202,6 +202,35 @@ def main():
         statuses = concurrent_patch('organization/scopes/' + grant['id'] + '/',
                                     [{'scope': scope, 'departments': [], 'version': 1} for scope in ['all', 'department']], token)
         check('PostgreSQL 数据范围编辑冲突不覆盖', statuses == [200, 409])
+        post = api('organization/posts/', 'POST', {'code': 'integration_post', 'name': '验收岗位', 'version': 0}, 201, token).json()['data']
+        post_url = 'organization/posts/' + post['id'] + '/'
+        statuses = concurrent_patch(post_url, [{'name': name, 'version': 1} for name in ['岗位甲', '岗位乙']], token)
+        check('PostgreSQL 岗位同版本并发只有一次成功', statuses == [200, 409])
+        assignment_payload = {'user': admin_id, 'post': post['id'], 'version': 0}
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            assignments = list(pool.map(lambda _: api('organization/user-posts/', 'POST', assignment_payload, None, token), range(2)))
+        check('PostgreSQL 重复任职并发返回一次成功和字段错误', sorted(response.status_code for response in assignments) == [201, 400])
+        assignment_id = next(response.json()['data']['id'] for response in assignments if response.status_code == 201)
+        api(post_url + '?version=2', 'DELETE', expected=400, token=token)
+        api(post_url, 'PATCH', {'is_active': False, 'version': 2}, token=token)
+        check('停用岗位保留任职且不再出现在可选岗位',
+              api('organization/user-posts/', token=token).json()['data']['pagination']['total'] == 1
+              and not api('organization/posts/choices/', token=token).json()['data'])
+        api('organization/user-posts/', 'POST', assignment_payload, 400, token)
+        people = api('approvals/assignees/?search=admin', token=token)
+        check('真实 HTTP 目录最小字段且禁止缓存', people.headers['Cache-Control'] == 'private, no-store'
+              and set(people.json()['data']['items'][0]) == {'id', 'username', 'display_name', 'department', 'department_name'})
+        api('organization/people/', expected=401)
+        picker_password = secrets.token_urlsafe(40)
+        api('users/', 'POST', {'username': 'picker_member', 'password': picker_password, 'must_change_password': False,
+                              'role_ids': [role['id']]}, 201, token)
+        api('organization/scopes/' + grant['id'] + '/', 'PATCH', {'scope': 'self', 'departments': [], 'version': 2}, token=token)
+        picker_token = api('auth/login/', 'POST', {'username': 'picker_member', 'password': picker_password}).json()['access']
+        scoped_people = api('approvals/assignees/', token=picker_token).json()['data']['items']
+        check('真实 HTTP user 范围限制人员目录', [item['username'] for item in scoped_people] == ['picker_member'])
+        api('approvals/', 'POST', {'title': '范围越权', 'content': '拒绝', 'request_type': 'other', 'assignee_id': admin_id}, 400, picker_token)
+        api('organization/posts/', expected=403, token=picker_token)
+        api('organization/user-posts/' + assignment_id + '/?version=2', 'DELETE', expected=409, token=token)
         payload = {'title': '并发幂等申请', 'request_type': 'other', 'content': '只执行一次', 'assignee_id': admin_id}
         headers = {'Idempotency-Key': 'postgres-concurrent-create'}
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -347,6 +376,8 @@ def main():
         ready()
         token = login(password)
         api('organization/departments/', expected=404, token=token)
+        api('organization/posts/', expected=404, token=token)
+        api('organization/people/', expected=404, token=token)
         api('system/dictionaries/', expected=404, token=token)
         api('system/information/', expected=404, token=token)
         api('system/monitor/', expected=404, token=token)
@@ -361,6 +392,9 @@ def main():
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         check('关闭并重新启用系统诊断恢复只读入口', api('system/information/', token=token).json()['data']['environment'] == 'production')
+        check('关闭并重新启用岗位保留停用状态和历史任职',
+              not api(post_url, token=token).json()['data']['is_active']
+              and api('organization/user-posts/', token=token).json()['data']['items'][0]['id'] == assignment_id)
         check('文件模块关闭/重新启用保留回收站记录', api('files/recycle/', token=token).json()['data']['items'][0]['id'] == file_id)
         entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')
         check('任务模块关闭/重新启用保留计划启停和预览参数', not entry['enabled'] and entry['options']['dry_run'])

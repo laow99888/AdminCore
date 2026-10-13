@@ -9,6 +9,8 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
+from django.contrib.auth import get_user_model
 from django.db import transaction
 
 from apps.logs.models import OperationLog
@@ -17,6 +19,7 @@ from apps.core.idempotency import with_idempotency
 
 from .models import ApprovalRequest
 from .serializers import ApprovalCreateSerializer, ApprovalDecisionSerializer, ApprovalRequestSerializer
+from apps.core.personnel import candidates, people_response, picker_departments, PeoplePageSerializer, PickerDepartmentsSerializer, PeopleQuerySerializer
 
 
 @extend_schema_view(
@@ -59,6 +62,17 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
             return ApprovalCreateSerializer
         return ApprovalRequestSerializer
 
+    @extend_schema(parameters=[PeopleQuerySerializer], responses=envelope('ApprovalAssigneesResponse', PeoplePageSerializer()), filters=False)
+    @action(detail=False, methods=['get'], url_path='assignees')
+    def assignees(self, request):
+        return people_response(request, self)
+
+    @extend_schema(parameters=[], responses=envelope('ApprovalPickerDepartmentsResponse', PickerDepartmentsSerializer()), filters=False)
+    @action(detail=False, methods=['get'], url_path='assignee-departments')
+    def assignee_departments(self, request):
+        return Response({'code': 200, 'message': 'success', 'data': picker_departments(request.user)},
+                        headers={'Cache-Control': 'private, no-store'})
+
     def _log(self, request, action, instance, description):
         OperationLog.objects.create(
             user=request.user,
@@ -74,6 +88,10 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
             serializer = self.get_serializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             with transaction.atomic():
+                assignee = get_user_model().objects.select_for_update().filter(pk=serializer.validated_data['assignee'].pk, is_active=True).first()
+                if assignee is None or not candidates(request.user).filter(pk=assignee.pk).exists():
+                    raise ValidationError({'assignee_id': '审批人不在可选范围内，请重新选择'})
+                serializer.validated_data['assignee'] = assignee
                 application = ApprovalRequest.objects.create(applicant=request.user, **serializer.validated_data)
                 enqueue_event(
                     topic='notification.created', event_key=f'approval:{application.id}:submitted',

@@ -52,7 +52,8 @@
       </BaseDialog>
       <!-- 发起申请 -->
       <BaseDialog v-model="createVisible" :title="uiText('发起审批申请')" :loading="saving" @confirm="handleSubmit">
-        <el-form :model="createForm" label-width="90px">
+        <el-alert v-if="submitError" :title="uiText('提交失败，输入已保留；请重新选择审批人后重试')" type="error" :closable="false" />
+        <el-form :model="createForm" label-width="90px" :disabled="saving">
           <el-form-item :label="uiText('标题')" required>
             <el-input v-model="createForm.title" :placeholder="uiText('申请标题')" />
           </el-form-item>
@@ -65,7 +66,7 @@
             </el-select>
           </el-form-item>
           <el-form-item :label="uiText('审批人')" required>
-            <el-input v-model="createForm.assignee" :placeholder="uiText('审批人用户名')" />
+            <PersonPicker v-model="assignee" purpose="approval" :disabled="saving || !createVisible" />
           </el-form-item>
           <el-form-item :label="uiText('内容')" required>
             <el-input v-model="createForm.content" type="textarea" :rows="4" :placeholder="uiText('申请说明')" />
@@ -79,7 +80,10 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import PersonPicker from '@/components/common/PersonPicker.vue'
+import type { Person } from '@/api/personnel'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
@@ -87,7 +91,10 @@ import { approvalsApi, newIdempotencyKey, type ApprovalRow, type ApprovalBox } f
 
 const loading = ref(false)
 const saving = ref(false)
-const createVisible = ref(false)
+const dialogOpen = ref(false)
+const createVisible = computed({ get: () => dialogOpen.value, set: value => { if (!saving.value) dialogOpen.value = value } })
+const assignee = ref<Person | null>(null)
+const submitError = ref(false)
 const detailVisible = ref(false)
 const currentApproval = ref<ApprovalRow | null>(null)
 const activeBox = ref<ApprovalBox>('todo')
@@ -112,7 +119,6 @@ const TYPE_LABELS: Record<string, string> = {
 const createForm = reactive({
   title: '',
   request_type: 'other',
-  assignee: '',
   content: '',
 })
 
@@ -151,7 +157,9 @@ const handleBoxChange = () => {
 
 const handleCreate = () => {
   submission = undefined
-  Object.assign(createForm, { title: '', request_type: 'other', assignee: '', content: '' })
+  assignee.value = null
+  submitError.value = false
+  Object.assign(createForm, { title: '', request_type: 'other', content: '' })
   createVisible.value = true
 }
 
@@ -159,16 +167,17 @@ let submission: { fingerprint: string; key: string } | undefined
 
 const handleSubmit = async () => {
   if (saving.value) return
-  if (!createForm.title || !createForm.content || !createForm.assignee) {
+  if (!createForm.title.trim() || !createForm.content.trim() || !assignee.value) {
     ElMessage.warning(uiText("请填写标题、审批人和申请内容"))
     return
   }
   saving.value = true
+  submitError.value = false
   const payload = {
     title: createForm.title,
     request_type: createForm.request_type,
     content: createForm.content,
-    assignee_username: createForm.assignee.trim(),
+    assignee_id: assignee.value.id,
   }
   const fingerprint = JSON.stringify(payload)
   if (submission?.fingerprint !== fingerprint) {
@@ -178,9 +187,11 @@ const handleSubmit = async () => {
     await approvalsApi.create(payload, submission.key)
     submission = undefined
     ElMessage.success(uiText("申请已提交"))
-    createVisible.value = false
+    dialogOpen.value = false
     activeBox.value = 'sent'
     loadList()
+  } catch {
+    submitError.value = true
   } finally {
     saving.value = false
   }
@@ -226,6 +237,7 @@ const handlePageSizeChange = (size: number) => {
   loadList()
 }
 
+onBeforeRouteLeave(() => !saving.value)
 loadList()
 </script>
 

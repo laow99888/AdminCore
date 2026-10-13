@@ -187,7 +187,7 @@ export type ApprovalBox = 'todo' | 'done' | 'sent'
 export const approvalsApi = {
   list: (box: ApprovalBox | undefined, params?: ListParams) =>
     getPaged<ApprovalRow>('/approvals/', { ...(box ? { box } : {}), ...params }),
-  create: (data: { title: string; request_type: string; content: string; assignee_username: string }, key = newIdempotencyKey('approval-create')) =>
+  create: (data: { title: string; request_type: string; content: string } & ({ assignee_id: string; assignee_username?: never } | { assignee_username: string; assignee_id?: never }), key = newIdempotencyKey('approval-create')) =>
     request.post('/approvals/', data, { headers: { 'Idempotency-Key': key } }),
   approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
   reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),

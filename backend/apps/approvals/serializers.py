@@ -48,6 +48,10 @@ class ApprovalCreateSerializer(serializers.Serializer):
             attrs['assignee'] = assignee
         if 'assignee' not in attrs:
             raise serializers.ValidationError({'assignee_username': '请选择审批人'})
+        from apps.core.personnel import candidates
+        request = self.context.get('request')
+        if request and not candidates(request.user).filter(pk=attrs['assignee'].pk).exists():
+            raise serializers.ValidationError({'assignee_id': '审批人不在可选范围内，请重新选择'})
         return attrs
 
 

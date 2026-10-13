@@ -125,6 +125,28 @@ class OrganizationMembership(BaseModel):
     version = models.PositiveIntegerField(default=1)
 
 
+class Post(BaseModel):
+    """任职信息，不参与角色授权或数据范围计算。"""
+    code = models.CharField(max_length=64, unique=True)
+    name = models.CharField(max_length=100)
+    description = models.CharField(max_length=500, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['order', 'name', 'id']
+
+
+class UserPost(BaseModel):
+    user = models.ForeignKey('auth_app.User', on_delete=models.CASCADE, related_name='post_assignments')
+    post = models.ForeignKey(Post, on_delete=models.PROTECT, related_name='assignments')
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'post'], name='unique_user_post')]
+
+
 class DataScopeGrant(BaseModel):
     RESOURCE_CHOICES = [(key, label) for key, label in [('user', '用户'), ('file', '文件'), ('task', '任务'), ('log', '日志')]]
     SCOPE_CHOICES = [(key, label) for key, label in [('self', '本人'), ('department', '本部门'),

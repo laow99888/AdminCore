@@ -53,6 +53,8 @@ PERMISSIONS = [
     ('config', 'update', '修改系统参数', 'config:update'),
     ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
     ('dictionary', 'update', '维护数据字典', 'dictionary:update'),
+    ('post', 'read', '查看岗位与任职', 'post:read'),
+    ('post', 'update', '维护岗位与任职', 'post:update'),
 ]
 
 # 角色与权限码
@@ -82,6 +84,7 @@ MENUS = [
     ('定时维护', '/tasks/schedules', 'clock', 16, None, 'schedule:read'),
     ('系统信息', '/system/information', 'info', 17, None, 'diagnostics:read'),
     ('服务监控', '/system/monitor', 'activity', 18, None, 'monitor:read'),
+    ('岗位与任职', '/organization/posts', 'briefcase-business', 19, None, 'post:read'),
 ]
 
 
@@ -163,7 +166,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read'}):
+                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -217,10 +220,18 @@ class Command(BaseCommand):
         with transaction.atomic():
             _, first_diagnostics_init = BootstrapState.objects.get_or_create(key='diagnostics_menus_v1')
             if first_diagnostics_init:
-                for name, path, icon, order, parent, perm_code in MENUS[-2:]:
+                for name, path, icon, order, parent, perm_code in MENUS[16:18]:
                     Menu.objects.get_or_create(path=path, defaults={
                         'name': name, 'icon': icon, 'order': order, 'permission': permission_map[perm_code],
                     })
+
+        with transaction.atomic():
+            _, first_post_init = BootstrapState.objects.get_or_create(key='post_menu_v1')
+            if first_post_init:
+                Menu.objects.get_or_create(path='/organization/posts', defaults={
+                    'name': '岗位与任职', 'icon': 'briefcase-business', 'order': 19,
+                    'permission': permission_map['post:read'],
+                })
 
         Notification.push(
             recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),

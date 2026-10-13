@@ -22,6 +22,7 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/organization/posts', component: () => import('../views/system/PostManagementView.vue'), meta: { title: uiText('岗位与任职'), requiresAuth: true, preserveOnLocaleChange: true } },
   { path: '/system/information', component: () => import('../views/system/SystemDiagnosticsView.vue'), meta: { title: uiText('系统信息'), requiresAuth: true, preserveOnLocaleChange: true } },
   { path: '/system/monitor', component: () => import('../views/system/SystemDiagnosticsView.vue'), props: { monitor: true }, meta: { title: uiText('服务监控'), requiresAuth: true, preserveOnLocaleChange: true } },
   { path: '/tasks/schedules', component: () => import('../views/tasks/MaintenanceScheduleView.vue'), meta: { title: uiText('定时维护'), requiresAuth: true, preserveOnLocaleChange: true } },
