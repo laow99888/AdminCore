@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
+from config.storage import storage_settings
 
 # 加载环境变量
 load_dotenv()
@@ -134,6 +135,8 @@ STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+ADMINCORE_STORAGE_BACKEND = os.getenv('ADMINCORE_STORAGE_BACKEND', 'local')
+STORAGES = storage_settings(os.environ)
 
 # ===== 文件上传配置 =====
 # 单文件大小上限（默认 50MB）

@@ -87,4 +87,4 @@ if [ -n "$RUNNING" ]; then docker compose start $RUNNING; fi
 STOPPED=0
 bash scripts/health_check.sh "${FRONTEND_URL:-http://localhost}"
 COMPLETED=1
-echo "恢复完成；旧库 $ROLLBACK、旧媒体 /app/media/.admincore-restore-$TOKEN/old 保留，确认业务验收后人工清理。"
+echo "恢复完成；旧库 $ROLLBACK 保留；本地模式的旧媒体在 /app/media/.admincore-restore-$TOKEN/old，对象模式在配置的媒体前缀下 .admincore-restore-$TOKEN/old。确认业务验收后人工清理。"

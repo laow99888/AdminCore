@@ -5,7 +5,7 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
 from apps.core.schema import MessageResponse
 
-from django.core.files.storage import default_storage
+from django.db.models import F
 from django.http import FileResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -77,10 +77,10 @@ class FileViewSet(viewsets.ModelViewSet):
     def download(self, request, pk=None):
         """下载文件（记录下载次数）"""
         file_obj = self.get_object()
-        if not file_obj.file or not default_storage.exists(file_obj.file.name):
+        if not file_obj.file or not file_obj.file.storage.exists(file_obj.file.name):
             return Response({'code': 404, 'message': '文件不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
 
-        FileModel.objects.filter(id=file_obj.id).update(download_count=file_obj.download_count + 1)
+        FileModel.objects.filter(id=file_obj.id).update(download_count=F('download_count') + 1)
         self._log('download', file_obj, f'Downloaded file {file_obj.original_name}')
 
         response = FileResponse(file_obj.file.open('rb'), as_attachment=True, filename=file_obj.original_name)

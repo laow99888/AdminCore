@@ -16,7 +16,7 @@ User = get_user_model()
 def upload_to(instance, filename):
     """按日期分目录存储，使用 UUID 避免重名覆盖"""
     ext = os.path.splitext(filename)[1].lower()
-    return os.path.join('uploads', instance.created_at.strftime('%Y/%m/%d'), f'{uuid.uuid4().hex}{ext}')
+    return f'uploads/{instance.created_at:%Y/%m/%d}/{uuid.uuid4().hex}{ext}'
 
 
 class FileModel(BaseModel):

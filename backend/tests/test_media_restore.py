@@ -29,7 +29,8 @@ def archive(entries):
 
 
 @pytest.mark.parametrize('name,content', [('../escape', b'bad'), ('/absolute', b'bad'),
-    ('media/../escape', b'bad'), ('media/link', None), ('media/.admincore-restore-owned/state.json', b'bad')])
+    ('media/../escape', b'bad'), ('media/link', None), ('media/.admincore-restore-owned/state.json', b'bad'),
+    ('media/file:stream', b'bad'), ('media/back\\slash', b'bad')])
 def test_unsafe_archive_keeps_existing_media(monkeypatch, tmp_path, name, content):
     root = tmp_path / 'media'
     root.mkdir()
@@ -54,6 +55,7 @@ def test_media_commit_and_rollback_preserve_mount_root(monkeypatch, tmp_path):
     media_restore.main('commit', token)
     assert root.is_dir() and (root / 'restored.txt').read_bytes() == b'backup'
     assert not (root / 'current.txt').exists()
+    media_restore.main('rollback', token)
     media_restore.main('rollback', token)
     assert (root / 'current.txt').read_bytes() == b'current'
     assert not (root / 'restored.txt').exists()

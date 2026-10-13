@@ -33,8 +33,8 @@ docker compose exec -T db sh -c \
   'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB"' > "$DB_FILE.partial"
 
 echo ">>> 备份媒体文件 -> $MEDIA_FILE"
-docker compose run --rm --no-deps -T --entrypoint sh backend -c \
-  'tar --exclude="media/.admincore-restore-*" -czf - -C /app media' > "$MEDIA_FILE.partial"
+docker compose run --rm --no-deps -T --entrypoint python backend \
+  /app/docker/media_backup.py > "$MEDIA_FILE.partial"
 mv "$DB_FILE.partial" "$DB_FILE"
 mv "$MEDIA_FILE.partial" "$MEDIA_FILE"
 sha256sum "$DB_FILE" "$MEDIA_FILE" > "$MANIFEST.partial"

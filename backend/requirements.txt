@@ -21,6 +21,8 @@ django-redis==7.0.0
 pillow==12.3.0
 openpyxl==3.1.5
 pandas==3.0.6
+django-storages==1.14.6
+boto3==1.43.112
 
 # 工具库
 python-dotenv==1.2.4

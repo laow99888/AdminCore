@@ -37,7 +37,6 @@ def run_data_import(self, task_record_id):
     from apps.core.modules import require_task
     require_task(self.name)
     import pandas as pd
-    from django.core.files.storage import default_storage
 
     from apps.files.models import FileModel
     from apps.tasks.models import TaskRecord
@@ -76,7 +75,7 @@ def run_data_import(self, task_record_id):
             record.mark_failed(error='导入文件不存在或已被删除')
             return
 
-        with default_storage.open(file_record.file.name) as f:
+        with file_record.file.open('rb') as f:
             if file_record.file.name.lower().endswith('.csv'):
                 df = pd.read_csv(f, dtype=str).fillna('')
             else:

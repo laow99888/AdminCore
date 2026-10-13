@@ -21,6 +21,10 @@ DATABASES = {
 
 # 媒体文件写入临时目录，避免测试产物污染仓库
 MEDIA_ROOT = tempfile.mkdtemp(prefix='admincore-test-media-')
+# 单元测试绝不连接部署环境中的对象存储。
+ADMINCORE_STORAGE_BACKEND = 'local'
+STORAGES = {'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
+            'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'}}
 
 # 缓存使用进程内实现：避免测试把限流计数写进真实 Redis，影响开发环境
 CACHES = {
