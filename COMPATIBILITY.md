@@ -10,6 +10,8 @@
 
 ## 已验证环境
 
+第二批当前代码的补充验收：184 项后端回归、23 项 Vitest、52 项桌面/手机浏览器 fixture 测试通过；幂等与 outbox 的 PostgreSQL 真并发已验证。实现提交 `e50a36a` 三条远端 CI 全部通过，运行态升级及边界见 [第二批验收](docs/第二批幂等与可靠事件验收-2026-10-13.md)。
+
 - Windows x64：Python 3.13.15、Node 24.21.0、npm 11.19.0。
 - Docker Desktop / WSL2：Python 3.13.15-slim、Node 24.21.0-slim、Nginx 1.29.8-alpine、PostgreSQL 18.6、Redis 8.10.2。
 - 六服务在独立 Compose 项目中验收，API 入口 18082，后端入口 18083。未修改原有 admincore 服务或数据。

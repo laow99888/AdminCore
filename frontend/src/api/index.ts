@@ -104,6 +104,26 @@ export const tasksApi = {
 }
 
 // ===== 通知中心 =====
+export interface OutboxEventRow {
+  id: string
+  topic: string
+  status: 'pending' | 'failed' | 'succeeded'
+  attempts: number
+  available_at: string
+  last_error: string
+  request_id: string
+  published_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const reliableEventsApi = {
+  list: (params?: ListParams) => getPaged<OutboxEventRow>('/reliability/events/', params),
+  detail: async (id: string): Promise<OutboxEventRow> =>
+    (await request.get<ApiResponse<OutboxEventRow>>(`/reliability/events/${id}/`)).data.data,
+  retry: (id: string) => request.post(`/reliability/events/${id}/retry/`),
+}
+
 export interface NotificationRow {
   id: string
   title: string

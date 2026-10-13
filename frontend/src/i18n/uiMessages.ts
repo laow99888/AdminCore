@@ -1,4 +1,9 @@
 export const uiMessages: Record<string, string> = {
+  '可靠事件': 'Reliable Events', '事件主题': 'Event Topic', '尝试次数': 'Attempts', '下次执行时间': 'Next Attempt',
+  '已投递': 'Delivered', '事件详情': 'Event Details', '请求标识': 'Request ID', '投递时间': 'Delivered At',
+  '重新派发': 'Retry Delivery', '已提交重试': 'Retry submitted', '事件记录加载失败，请重试': 'Could not load events. Retry.',
+  '事件详情加载失败，请重试': 'Could not load event details. Retry.', '重试提交失败，请刷新状态后重试': 'Retry could not be submitted. Refresh the status and try again.',
+  '重新派发此失败事件？': 'Retry this failed event?', '失败事件会自动重试；修复原因后可手动重新派发。': 'Failed events retry automatically. After resolving the cause, you can retry delivery manually.',
   '组织与数据权限': 'Organization & Data Access', '系统参数': 'System Parameters', '数据字典': 'Data Dictionaries',
   '新增': 'Add', '保存': 'Save', '保存成功': 'Saved successfully', '启用': 'Enabled',
   '编码': 'Code', '名称': 'Name', '值': 'Value', '字典项': 'Dictionary Item',

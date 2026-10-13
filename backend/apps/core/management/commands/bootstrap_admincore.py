@@ -69,6 +69,7 @@ MENUS = [
     ('系统参数', '/system/config', 'settings', 11, None, 'config:read'),
     ('数据字典', '/system/dictionaries', 'list-tree', 12, None, 'dictionary:read'),
     ('组织与数据权限', '/organization', 'users', 13, None, None),
+    ('可靠事件', '/reliability/events', 'list-checks', 14, None, None),
 ]
 
 
@@ -178,6 +179,11 @@ class Command(BaseCommand):
                 Menu.objects.get_or_create(path='/organization', defaults={'name': '组织与数据权限', 'icon': 'users', 'order': 13})
 
         # 6. 欢迎通知
+        with transaction.atomic():
+            _, first_events_init = BootstrapState.objects.get_or_create(key='reliability_menu_v1')
+            if first_events_init:
+                Menu.objects.get_or_create(path='/reliability/events', defaults={'name': '可靠事件', 'icon': 'list-checks', 'order': 14})
+
         Notification.push(
             recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),
             title='欢迎使用 AdminCore',

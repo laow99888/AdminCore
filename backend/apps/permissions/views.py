@@ -93,7 +93,8 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         from apps.core.modules import path_enabled
         menus = [menu for menu in menus if path_enabled(menu.path)]
         if not (self.request.user.is_staff or self.request.user.is_superuser):
-            menus = [menu for menu in menus if menu.path != '/organization' and not menu.path.startswith('/organization/')]
+            menus = [menu for menu in menus if not any(menu.path == base or menu.path.startswith(base + '/')
+                                                      for base in ('/organization', '/reliability'))]
         if '*' in codes:
             return {menu.id for menu in menus}
         by_id = {menu.id: menu for menu in menus}

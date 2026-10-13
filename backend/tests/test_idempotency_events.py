@@ -124,6 +124,24 @@ def test_replay_requires_current_approval_assignee(member_client, admin_client, 
     assert admin_client.post(url, {'comment': ''}, format='json', HTTP_IDEMPOTENCY_KEY='decision').status_code == 404
 
 
+def test_event_menu_visible_only_to_admin_and_operator_removal_preserved(admin_client, admin_user, member_client, monkeypatch):
+    from django.core.management import call_command
+    from apps.permissions.models import Menu
+    from io import StringIO
+    monkeypatch.setenv('ADMINCORE_ADMIN_PASSWORD', 'PrivateReview#87392')
+    admin_user.set_password('PrivateReview#87392')
+    admin_user.save(update_fields=['password'])
+    tokens = admin_client.post('/api/v1/auth/login/', {'username': admin_user.username, 'password': 'PrivateReview#87392'}, format='json').json()
+    admin_client.credentials(HTTP_AUTHORIZATION='Bearer ' + tokens['access'])
+    call_command('bootstrap_admincore', stdout=StringIO())
+    menu = Menu.objects.get(path='/reliability/events')
+    assert str(menu.pk) in {item['id'] for item in admin_client.get('/api/v1/permissions/menus/my_menu/').json()['data']}
+    assert str(menu.pk) not in {item['id'] for item in member_client.get('/api/v1/permissions/menus/my_menu/').json()['data']}
+    menu.delete()
+    call_command('bootstrap_admincore', stdout=StringIO())
+    assert not Menu.objects.filter(path='/reliability/events').exists()
+
+
 def test_notification_replay_requires_current_admin_permission(admin_client, admin_user, member_user):
     payload = {'recipient_ids': [str(member_user.pk)], 'title': '权限重放'}
     first = admin_client.post('/api/v1/notifications/', payload, format='json', HTTP_IDEMPOTENCY_KEY='send')

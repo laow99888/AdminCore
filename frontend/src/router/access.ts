@@ -7,6 +7,6 @@ const permissions: Record<string, string> = {
 }
 export function canAccessPage(path: string, user: CurrentUser | null) {
   if (!user) return false
-  if (path === '/organization' && !(user.is_staff || user.is_superuser)) return false
+  if ((path === '/organization' || path === '/reliability/events') && !(user.is_staff || user.is_superuser)) return false
   return !permissions[path] || !!user.permissions?.some(code => code === '*' || code === permissions[path])
 }
