@@ -22,6 +22,8 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/system/information', component: () => import('../views/system/SystemDiagnosticsView.vue'), meta: { title: uiText('系统信息'), requiresAuth: true, preserveOnLocaleChange: true } },
+  { path: '/system/monitor', component: () => import('../views/system/SystemDiagnosticsView.vue'), props: { monitor: true }, meta: { title: uiText('服务监控'), requiresAuth: true, preserveOnLocaleChange: true } },
   { path: '/tasks/schedules', component: () => import('../views/tasks/MaintenanceScheduleView.vue'), meta: { title: uiText('定时维护'), requiresAuth: true, preserveOnLocaleChange: true } },
   { path: '/change-password', component: () => import('../views/auth/ChangePasswordView.vue'), meta: { requiresAuth: true } },
   { path: '/files/recycle', component: () => import('../views/files/RecycleBinView.vue'), meta: { title: uiText('文件回收站'), requiresAuth: true } },

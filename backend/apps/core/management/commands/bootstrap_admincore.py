@@ -47,6 +47,8 @@ PERMISSIONS = [
     ('schedule', 'read', '查看维护计划', 'schedule:read'),
     ('schedule', 'update', '修改维护计划', 'schedule:update'),
     ('schedule', 'run', '手动执行维护任务', 'schedule:run'),
+    ('diagnostics', 'read', '查看系统信息', 'diagnostics:read'),
+    ('monitor', 'read', '查看服务监控', 'monitor:read'),
     ('config', 'read', '查看系统参数', 'config:read'),
     ('config', 'update', '修改系统参数', 'config:update'),
     ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
@@ -78,6 +80,8 @@ MENUS = [
     ('可靠事件', '/reliability/events', 'list-checks', 14, None, None),
     ('文件回收站', '/files/recycle', 'trash-2', 15, None, 'file:recycle'),
     ('定时维护', '/tasks/schedules', 'clock', 16, None, 'schedule:read'),
+    ('系统信息', '/system/information', 'info', 17, None, 'diagnostics:read'),
+    ('服务监控', '/system/monitor', 'activity', 18, None, 'monitor:read'),
 ]
 
 
@@ -159,7 +163,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run'}):
+                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -209,6 +213,14 @@ class Command(BaseCommand):
                     'name': '定时维护', 'icon': 'clock', 'order': 16,
                     'permission': permission_map['schedule:read'],
                 })
+
+        with transaction.atomic():
+            _, first_diagnostics_init = BootstrapState.objects.get_or_create(key='diagnostics_menus_v1')
+            if first_diagnostics_init:
+                for name, path, icon, order, parent, perm_code in MENUS[-2:]:
+                    Menu.objects.get_or_create(path=path, defaults={
+                        'name': name, 'icon': icon, 'order': order, 'permission': permission_map[perm_code],
+                    })
 
         Notification.push(
             recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),

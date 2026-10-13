@@ -152,6 +152,30 @@ def main():
         ready()
         token = login(password)
         check('精简库重新启用模块保留历史配置', api('brand/').json()['data']['name'] == '迁移保留品牌')
+        info = api('system/information/', token=token)
+        details = info.json()['data']
+        check('诊断显示容器实际 Python、PostgreSQL、Redis 版本', details['python'] == '3.13.15'
+              and details['environment'] == 'production'
+              and next(item for item in details['services'] if item['name'] == 'database')['version'].startswith('18.6')
+              and next(item for item in details['services'] if item['name'] == 'cache')['version'] == '8.10.2')
+        check('诊断 HTTP 响应不缓存', info.headers['Cache-Control'] == 'private, no-store')
+        snapshot = api('system/monitor/', token=token).json()['data']
+        check('真实 Linux 容器 CPU、内存和进程采集', snapshot['scope'] == 'container'
+              and 0 <= snapshot['cpu']['percent'] <= 100 and snapshot['memory']['used_bytes'] > 0
+              and snapshot['processes_supported'] and len(snapshot['processes']) > 0
+              and all(set(item) == {'pid', 'kind', 'state', 'cpu_seconds', 'rss_bytes', 'uptime_seconds'} for item in snapshot['processes']))
+        api('system/information/', expected=401)
+        api('system/monitor/', 'POST', {}, 405, token)
+        compose('standard', 'stop', 'redis')
+        try:
+            started = time.monotonic()
+            degraded = api('system/information/', token=token).json()['data']
+            check('Redis 停机诊断仍返回数据库正常及缓存/代理不可用',
+                  [item['status'] for item in degraded['services']] == ['ok', 'unavailable', 'unavailable'])
+            check('本地 Redis 拒绝连接时诊断在 3 秒内退化', time.monotonic() - started < 3)
+        finally:
+            compose('standard', 'start', 'redis')
+            ready()
         version = api('auth/profile/', token=token).json()['data']['profile_version']
         statuses = concurrent_patch('auth/profile/', [{'profile_version': version, 'bio': name} for name in ['窗口甲', '窗口乙']], token)
         check('PostgreSQL 本人资料同版本并发仅一次成功', statuses == [200, 409])
@@ -324,6 +348,8 @@ def main():
         token = login(password)
         api('organization/departments/', expected=404, token=token)
         api('system/dictionaries/', expected=404, token=token)
+        api('system/information/', expected=404, token=token)
+        api('system/monitor/', expected=404, token=token)
         api('files/recycle/', expected=404, token=token)
         api('tasks/schedules/', expected=404, token=token)
         api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 4}, 404, token)
@@ -334,6 +360,7 @@ def main():
         token = login(password)
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
+        check('关闭并重新启用系统诊断恢复只读入口', api('system/information/', token=token).json()['data']['environment'] == 'production')
         check('文件模块关闭/重新启用保留回收站记录', api('files/recycle/', token=token).json()['data']['items'][0]['id'] == file_id)
         entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')
         check('任务模块关闭/重新启用保留计划启停和预览参数', not entry['enabled'] and entry['options']['dry_run'])
