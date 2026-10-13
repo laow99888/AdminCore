@@ -6,10 +6,20 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from django.test import override_settings
 
 spec = importlib.util.spec_from_file_location('media_restore', Path(__file__).resolve().parents[1] / 'docker/media_restore.py')
 media_restore = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(media_restore)
+
+
+def test_restore_uses_loaded_settings_even_without_exported_mode(monkeypatch):
+    from django.core.files.storage import default_storage
+    monkeypatch.delenv('ADMINCORE_STORAGE_BACKEND', raising=False)
+    with override_settings(ADMINCORE_STORAGE_BACKEND='s3'):
+        assert media_restore.object_storage() is default_storage
+    with override_settings(ADMINCORE_STORAGE_BACKEND='local'):
+        assert media_restore.object_storage() is None
 
 
 def archive(entries):

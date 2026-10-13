@@ -10,12 +10,13 @@ MEDIA = Path('/app/media')
 
 
 def object_storage():
-    if os.environ.get('ADMINCORE_STORAGE_BACKEND', 'local') != 's3':
-        return None
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
     import django
     django.setup()
+    from django.conf import settings
+    if settings.ADMINCORE_STORAGE_BACKEND != 's3':
+        return None
     from django.core.files.storage import default_storage
     return default_storage
 
