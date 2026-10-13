@@ -212,6 +212,50 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 头像绑定/陈旧删除及删除/上传双向竞争', True)
+        encoded = base64.b64encode((ROOT / 'scripts/maintenance_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL 维护任务会话锁与四次重复领取仅执行一次', True)
+        schedules = api('tasks/schedules/', token=token).json()['data']
+        entry = next(item for item in schedules if item['key'] == 'notifications')
+        edit = {'revision': entry['revision'], 'enabled': False, **entry['cron'], 'options': {'dry_run': True}}
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            statuses = list(pool.map(lambda _: api('tasks/schedules/notifications/', 'PATCH', edit, None, token).status_code, range(2)))
+        check('PostgreSQL 维护计划同版本编辑仅一次成功', sorted(statuses) == [200, 409])
+        compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'worker')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "from apps.notifications.models import Notification; from django.contrib.auth import get_user_model; from django.utils import timezone; from datetime import timedelta; n=Notification.objects.create(recipient=get_user_model().objects.get(username='admin'),title='维护删除隔离夹具',is_read=True); Notification.objects.filter(pk=n.pk).update(read_at=timezone.now()-timedelta(days=200))")
+        entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            responses = list(pool.map(lambda _: api('tasks/schedules/notifications/run/', 'POST',
+                {'revision': entry['revision'], 'options': {'dry_run': True}}, None, token,
+                {'Idempotency-Key': 'postgres-celery-maintenance'}), range(2)))
+        check('真实维护请求并发同键仅登记一次', all(response.status_code == 202 for response in responses)
+              and len({response.json()['data']['id'] for response in responses}) == 1)
+        identifier = responses[0].json()['data']['id']
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            body = api('tasks/' + identifier + '/', token=token).json()
+            result = body.get('data', body)
+            if result['status'] not in ['pending', 'running']:
+                break
+            time.sleep(1)
+        check('真实 Nginx/PostgreSQL/Redis/Celery 可靠事件至预览完成',
+              result['status'] == 'success' and result['result']['dry_run'] is True and result['result']['deleted_notifications'] == 0)
+        check('暂停定时计划仍允许显式手动预览', not entry['enabled'])
+        entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')
+        cleanup = api('tasks/schedules/notifications/run/', 'POST', {'revision': entry['revision'],
+            'options': {'dry_run': False}, 'preview_id': identifier, 'confirmation': '执行清理'}, 202, token,
+            {'Idempotency-Key': 'postgres-maintenance-cleanup'}).json()['data']['id']
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            body = api('tasks/' + cleanup + '/', token=token).json()
+            result = body.get('data', body)
+            if result['status'] not in ['pending', 'running']:
+                break
+            time.sleep(1)
+        check('真实 Celery 确认清理仅删除隔离过期通知', result['status'] == 'success' and result['result']['deleted_notifications'] == 1)
+        compose('standard', 'stop', 'worker')
         # 在真实 Nginx/PostgreSQL/本地存储链路上验收二进制预览及模块 worker MIME。
         import io
         from PIL import Image
@@ -281,6 +325,7 @@ def main():
         api('organization/departments/', expected=404, token=token)
         api('system/dictionaries/', expected=404, token=token)
         api('files/recycle/', expected=404, token=token)
+        api('tasks/schedules/', expected=404, token=token)
         api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 4}, 404, token)
         compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "from apps.core.modules import task_enabled; assert not task_enabled('data_io.run_data_import'); from apps.core.models import DataDictionary; assert DataDictionary.objects.filter(code='integration').exists()")
@@ -290,6 +335,8 @@ def main():
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         check('文件模块关闭/重新启用保留回收站记录', api('files/recycle/', token=token).json()['data']['items'][0]['id'] == file_id)
+        entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')
+        check('任务模块关闭/重新启用保留计划启停和预览参数', not entry['enabled'] and entry['options']['dry_run'])
         check('当前迁移无遗漏', compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'makemigrations', '--check', '--dry-run').returncode == 0)
         command = ['docker', 'compose', '-p', PROJECT, '--env-file', str(env_file), '-f', 'docker-compose.yml',
                    '-f', 'compose.minimal.yml', '-f', str(FOLDER / 'override.yml'), '-f', str(FOLDER / 'standard.yml')]

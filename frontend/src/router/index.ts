@@ -22,6 +22,7 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/tasks/schedules', component: () => import('../views/tasks/MaintenanceScheduleView.vue'), meta: { title: uiText('定时维护'), requiresAuth: true, preserveOnLocaleChange: true } },
   { path: '/change-password', component: () => import('../views/auth/ChangePasswordView.vue'), meta: { requiresAuth: true } },
   { path: '/files/recycle', component: () => import('../views/files/RecycleBinView.vue'), meta: { title: uiText('文件回收站'), requiresAuth: true } },
   { path: '/reliability/events', component: () => import('../views/system/ReliableEventsView.vue'), meta: { title: uiText('可靠事件'), requiresAuth: true } },

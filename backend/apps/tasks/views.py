@@ -44,6 +44,18 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
     def cancel(self, request, pk=None):
         """取消执行中的任务（尽力撤销 Celery 任务并标记记录）"""
         record = self.get_object()
+        if record.related_resource.startswith('maintenance:'):
+            from django.utils import timezone
+            from django.db import transaction
+            from apps.core.system_views import audit
+            with transaction.atomic():
+                changed = TaskRecord.objects.filter(pk=record.pk, status='pending').update(
+                    status='cancelled', completed_at=timezone.now(), updated_at=timezone.now())
+                if not changed:
+                    return Response({'code': 409, 'message': '维护任务已开始或已完成，不能取消已发生的清理', 'data': None}, status=409)
+                record.refresh_from_db()
+                audit(request, 'maintenance_run', record.pk, {'status': 'pending'}, {'status': 'cancelled'})
+            return Response({'code': 200, 'message': '等待执行的维护任务已取消', 'data': TaskRecordSerializer(record).data})
         if record.status not in ('pending', 'running'):
             return Response({'code': 400, 'message': f'任务当前状态为 {record.status}，无法取消', 'data': None},
                             status=status.HTTP_400_BAD_REQUEST)

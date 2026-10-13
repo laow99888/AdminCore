@@ -5,9 +5,10 @@ const permissions: Record<string, string> = {
   '/tasks': 'task:read', '/logs': 'log:read',
   '/system/config': 'config:read', '/system/dictionaries': 'dictionary:read',
   '/files/recycle': 'file:recycle',
+  '/tasks/schedules': 'schedule:read',
 }
 export function canAccessPage(path: string, user: CurrentUser | null) {
   if (!user) return false
-  if ((path === '/organization' || path === '/reliability/events') && !(user.is_staff || user.is_superuser)) return false
+  if ((path === '/organization' || path === '/reliability/events' || path === '/tasks/schedules') && !(user.is_staff || user.is_superuser)) return false
   return !permissions[path] || !!user.permissions?.some(code => code === '*' || code === permissions[path])
 }

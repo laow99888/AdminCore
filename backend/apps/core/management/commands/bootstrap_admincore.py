@@ -44,6 +44,9 @@ PERMISSIONS = [
     ('task', 'read', '查看任务', 'task:read'),
     ('task', 'cancel', '取消任务', 'task:cancel'),
     ('task', 'delete', '清理任务历史', 'task:delete'),
+    ('schedule', 'read', '查看维护计划', 'schedule:read'),
+    ('schedule', 'update', '修改维护计划', 'schedule:update'),
+    ('schedule', 'run', '手动执行维护任务', 'schedule:run'),
     ('config', 'read', '查看系统参数', 'config:read'),
     ('config', 'update', '修改系统参数', 'config:update'),
     ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
@@ -74,6 +77,7 @@ MENUS = [
     ('组织与数据权限', '/organization', 'users', 13, None, None),
     ('可靠事件', '/reliability/events', 'list-checks', 14, None, None),
     ('文件回收站', '/files/recycle', 'trash-2', 15, None, 'file:recycle'),
+    ('定时维护', '/tasks/schedules', 'clock', 16, None, 'schedule:read'),
 ]
 
 
@@ -155,7 +159,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge'}):
+                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -196,6 +200,14 @@ class Command(BaseCommand):
                 Menu.objects.get_or_create(path='/files/recycle', defaults={
                     'name': '文件回收站', 'icon': 'trash-2', 'order': 15,
                     'permission': permission_map['file:recycle'],
+                })
+
+        with transaction.atomic():
+            _, first_schedule_init = BootstrapState.objects.get_or_create(key='maintenance_menu_v1')
+            if first_schedule_init:
+                Menu.objects.get_or_create(path='/tasks/schedules', defaults={
+                    'name': '定时维护', 'icon': 'clock', 'order': 16,
+                    'permission': permission_map['schedule:read'],
                 })
 
         Notification.push(

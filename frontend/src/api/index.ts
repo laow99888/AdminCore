@@ -113,6 +113,7 @@ export interface TaskRow {
   creator_name?: string
   duration?: number | null
   created_at: string
+  related_resource?: string
 }
 
 export const tasksApi = {

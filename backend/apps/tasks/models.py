@@ -86,3 +86,13 @@ class TaskRecord(BaseModel):
             status=self.status, completed_at=self.completed_at, updated_at=timezone.now())
         self.refresh_from_db()
         return bool(changed)
+
+
+class MaintenanceRequest(models.Model):
+    """已提交的维护请求；事务内登记，可靠事件触发执行。"""
+    record = models.OneToOneField(TaskRecord, primary_key=True, on_delete=models.CASCADE, related_name='maintenance_request')
+    key = models.CharField(max_length=40)
+    options = models.JSONField(default=dict)
+    session_version = models.PositiveIntegerField()
+    request_id = models.CharField(max_length=100, blank=True)
+    preview_id = models.UUIDField(null=True, blank=True)

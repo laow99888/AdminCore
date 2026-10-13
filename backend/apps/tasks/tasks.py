@@ -10,12 +10,14 @@ import logging
 from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
+from .maintenance import exclusive
 
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, name='tasks.cleanup_soft_deleted_files')
-def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100):
+@shared_task(bind=True, name='tasks.cleanup_soft_deleted_files', soft_time_limit=270, time_limit=300)
+@exclusive('files')
+def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None, _expected_retention=None):
     """物理删除超过保留期的软删除文件（默认保留 30 天，由 beat 每日调度）"""
     from apps.core.modules import require_task
     require_task(self.name)
@@ -24,12 +26,13 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100):
     from apps.files.models import FileModel
     from apps.tasks.models import TaskRecord
 
-    record = TaskRecord.objects.create(
+    record = _record or TaskRecord.objects.create(
         name='清理软删除文件',
         task_type='cleanup',
         celery_task_id=self.request.id or '',
         status='running',
         started_at=timezone.now(),
+        related_resource='maintenance:files',
     )
     purged = 0
     try:
@@ -37,6 +40,8 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100):
             raise ValueError('dry_run 必须为布尔值，batch_size 必须为 1–100 的整数')
         from apps.core.system_config import config_value
         retention_days = config_value('files.retention_days')
+        if _expected_retention is not None and retention_days != _expected_retention:
+            raise ValueError('preview_policy_changed')
         cutoff = timezone.now() - timedelta(days=retention_days)
         expired = FileModel.objects.filter(is_deleted=True, deleted_at__lt=cutoff)
         if dry_run:
@@ -75,13 +80,14 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100):
     except Exception as exc:
         record.result = {'purged_files': purged}
         record.save(update_fields=['result'])
-        record.mark_failed(error=str(exc))
+        record.mark_failed(error=type(exc).__name__)
         logger.exception('Cleanup soft deleted files failed')
         raise
 
 
-@shared_task(bind=True, name='tasks.cleanup_expired_notifications')
-def cleanup_expired_notifications(self):
+@shared_task(bind=True, name='tasks.cleanup_expired_notifications', soft_time_limit=270, time_limit=300)
+@exclusive('notifications')
+def cleanup_expired_notifications(self, dry_run=False, _record=None, _expected_retention=None):
     """清理超过保留期的已读通知（默认保留 90 天）"""
     from apps.core.modules import require_task
     require_task(self.name)
@@ -90,21 +96,95 @@ def cleanup_expired_notifications(self):
     from apps.notifications.models import Notification
     from apps.tasks.models import TaskRecord
 
-    record = TaskRecord.objects.create(
+    record = _record or TaskRecord.objects.create(
         name='清理过期通知',
         task_type='cleanup',
         celery_task_id=self.request.id or '',
         status='running',
         started_at=timezone.now(),
+        related_resource='maintenance:notifications',
     )
     try:
+        if type(dry_run) is not bool:
+            raise ValueError('dry_run 必须为布尔值')
         from apps.core.system_config import config_value
         retention_days = config_value('notifications.retention_days')
+        if _expected_retention is not None and retention_days != _expected_retention:
+            raise ValueError('preview_policy_changed')
         cutoff = timezone.now() - timedelta(days=retention_days)
-        deleted, _ = Notification.objects.filter(is_read=True, read_at__lt=cutoff).delete()
+        expired = Notification.objects.filter(is_read=True, read_at__lt=cutoff)
+        if dry_run:
+            result = {'deleted_notifications': 0, 'eligible_notifications': expired.count(),
+                      'retention_days': retention_days, 'dry_run': True}
+            record.mark_success(result)
+            return result
+        deleted, _ = expired.delete()
         record.mark_success(result={'deleted_notifications': deleted})
         return {'deleted_notifications': deleted}
     except Exception as exc:
-        record.mark_failed(error=str(exc))
+        record.mark_failed(error=type(exc).__name__)
         logger.exception('Cleanup expired notifications failed')
         raise
+
+
+@shared_task(bind=True, name='tasks.run_maintenance', soft_time_limit=270, time_limit=300,
+             acks_late=True, reject_on_worker_lost=True)
+def run_maintenance(self, record_id):
+    """重复投递只领取一次；执行前重新检查账户、权限、会话和模块。"""
+    from datetime import timedelta
+    from django.db import transaction
+    from apps.core.modules import task_enabled
+    from apps.permissions.permissions import has_permission_code
+    from .maintenance import JOBS, maintenance_lock, validate_options, valid_preview
+    from .models import MaintenanceRequest, TaskRecord
+
+    request = MaintenanceRequest.objects.select_related('record__creator').filter(pk=record_id).first()
+    if not request or request.record.status != 'pending':
+        return {'skipped': True, 'reason': 'already_claimed'}
+    with transaction.atomic():
+        record = TaskRecord.objects.select_for_update().get(pk=record_id)
+        if record.status != 'pending':
+            return {'skipped': True, 'reason': 'already_claimed'}
+        user = record.creator
+        if (not user or not user.is_active or user.must_change_password
+                or not (user.is_staff or user.is_superuser)
+                or user.session_version != request.session_version
+                or not has_permission_code(user, 'schedule:run')
+                or not task_enabled(JOBS[request.key]['task'])):
+            record.mark_failed('execution_not_authorized')
+            return {'rejected': True}
+        if record.created_at < timezone.now() - timedelta(hours=24):
+            record.mark_failed('request_expired')
+            return {'rejected': True}
+        if (not request.options.get('dry_run')
+                and not valid_preview(request.key, request.preview_id, record.creator_id)):
+            record.mark_failed('preview_expired_or_policy_changed')
+            return {'rejected': True}
+        record.celery_task_id = self.request.id or str(record.pk)
+        record.save(update_fields=['celery_task_id', 'updated_at'])
+        record.mark_started()
+    with maintenance_lock(request.key) as acquired:
+        if not acquired:
+            result = {'skipped': True, 'reason': 'overlap'}
+            record.mark_success(result)
+            return result
+        function = cleanup_soft_deleted_files if request.key == 'files' else cleanup_expired_notifications
+        try:
+            expected = TaskRecord.objects.get(pk=request.preview_id).result['retention_days'] if not request.options.get('dry_run') else None
+            return function(_record=record, _expected_retention=expected, **validate_options(request.key, request.options))
+        except Exception as exc:
+            record.mark_failed(type(exc).__name__)
+            raise
+
+
+def recover_lost_maintenance():
+    """硬超时/进程中断的结果记为未知，不自动重放删除。"""
+    from datetime import timedelta
+    from .maintenance import JOBS, maintenance_lock
+    from .models import TaskRecord
+    for key in JOBS:
+        with maintenance_lock(key) as acquired:
+            if acquired:
+                TaskRecord.objects.filter(related_resource='maintenance:' + key, status='running',
+                    started_at__lt=timezone.now() - timedelta(minutes=10)).update(
+                    status='failed', error='worker_lost_result_unknown', completed_at=timezone.now(), updated_at=timezone.now())

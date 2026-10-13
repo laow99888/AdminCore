@@ -26,7 +26,7 @@
         >
           <template #actions="{ row }">
             <el-button
-              v-if="auth.can('task:cancel') && (row.status === 'pending' || row.status === 'running')"
+              v-if="auth.can('task:cancel') && (row.status === 'pending' || (row.status === 'running' && !row.related_resource?.startsWith('maintenance:')))"
               link
               type="danger"
               size="small"
