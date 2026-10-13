@@ -103,6 +103,7 @@ async function handle401(error: any): Promise<any> {
 request.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error)
     if (error.response) {
       const { status } = error.response
       if (status === 401) {

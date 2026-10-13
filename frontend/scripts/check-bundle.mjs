@@ -16,13 +16,15 @@ visit(entry)
 visit(login)
 const initial = [...visited].map(key => manifest[key].file).filter(file => file.endsWith('.js'))
 assert(initial.every(file => !file.includes('charts')), '登录首屏不可加载图表依赖')
+const pdfRenderer = Object.keys(manifest).find(key => /pdf-preview~pdf-/.test(key))
+assert(pdfRenderer && !visited.has(pdfRenderer), '登录首屏不可加载 PDF 渲染器')
 const sizes = readdirSync('dist/assets').filter(file => file.endsWith('.js')).map(file => ({ file, bytes: statSync(`dist/assets/${file}`).size }))
 const largest = sizes.reduce((previous, current) => current.bytes > previous.bytes ? current : previous)
 const initialGzip = initial.reduce((sum, file) => sum + gzipSync(readFileSync(`dist/${file}`)).length, 0)
 // 图表单独懒加载并保持内部执行顺序；其他块仍使用更严格预算。
 for (const chunk of sizes) {
-  const budget = chunk.file.startsWith('charts-') ? 600 * 1024 : 350 * 1024
+  const budget = /^(charts-|pdf-preview~pdf-)/.test(chunk.file) ? 600 * 1024 : 350 * 1024
   assert(chunk.bytes <= budget, `JS chunk 超出预算: ${chunk.file}, ${chunk.bytes}`)
 }
 assert(initialGzip <= 180 * 1024, `登录首屏 JS gzip 超出 180 KiB: ${initialGzip}`)
-console.log(JSON.stringify({ jsChunks: sizes.length, largestChunk: largest, loginInitialJsChunks: initial.length, loginInitialJsGzipBytes: initialGzip, chartsExcludedFromLogin: true }, null, 2))
+console.log(JSON.stringify({ jsChunks: sizes.length, largestChunk: largest, loginInitialJsChunks: initial.length, loginInitialJsGzipBytes: initialGzip, chartsExcludedFromLogin: true, pdfExcludedFromLogin: true }, null, 2))

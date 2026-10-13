@@ -20,15 +20,21 @@
           :total="total"
           :current-page="currentPage"
           :page-size="pageSize"
+          :action-width="190"
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         >
           <template #actions="{ row }">
+            <div class="file-row-actions">
+            <el-button link type="primary" size="small" :disabled="!canPreview(row.file_type) || row.size > 10 * 1024 * 1024"
+              :title="uiText('支持 10 MiB 内的图片和 PDF 预览')" @click="previewFile = row">{{ uiText('预览') }}</el-button>
             <el-button link type="primary" size="small" @click="handleDownload(row)">{{ uiText("下载") }}</el-button>
             <el-button link type="danger" size="small" @click="handleDelete(row)">{{ uiText("删除") }}</el-button>
+            </div>
           </template>
         </BaseTable>
       </BaseCard>
+      <FilePreviewDialog :file="previewFile" @close="previewFile = null" />
     </div>
   </AppLayout>
 </template>
@@ -43,8 +49,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
+import FilePreviewDialog from '@/components/files/FilePreviewDialog.vue'
+import { canPreview } from '@/api/filePreview'
 
 const loading = ref(false)
+const previewFile = ref<FileRow | null>(null)
 const router = useRouter()
 const auth = useAuthStore()
 const uploading = ref(false)
@@ -141,6 +150,8 @@ loadFiles()
 }
 
 .file-header-actions { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+.file-row-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--spacing-sm); width: 100%; }
+.file-row-actions .el-button { margin-left: 0; }
 
 .card-header-title {
   font-weight: var(--font-weight-semibold);

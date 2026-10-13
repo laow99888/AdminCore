@@ -24,6 +24,21 @@ pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
 
 
+def test_real_s3_authenticated_image_and_pdf_preview(s3_storage, admin_client, member_client):
+    from tests.test_file_preview import image_bytes, pdf_bytes, upload, preview
+    for name, content, mime in [('private.png', image_bytes(), 'image/png'),
+                                ('private.pdf', pdf_bytes(), 'application/pdf')]:
+        id = upload(admin_client, name, content)
+        result = preview(admin_client, id)
+        assert result.status_code == 200 and result['Content-Type'] == mime
+        assert result['Cache-Control'] == 'private, no-store'
+        assert preview(member_client, id).status_code == 404
+        assert admin_client.delete(f'/api/v1/files/{id}/').status_code == 204
+        assert preview(admin_client, id).status_code == 404
+        assert admin_client.post(f'/api/v1/files/{id}/restore/', {'lifecycle_version': 2}, format='json').status_code == 200
+        assert preview(admin_client, id).status_code == 200
+
+
 @pytest.fixture
 def s3_storage():
     endpoint = os.environ['STORAGE_CONTRACT_ENDPOINT']

@@ -10,7 +10,7 @@ import json
 from django.db import transaction
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -56,6 +56,25 @@ class FileViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return FileUploadSerializer
         return FileSerializer
+
+    @extend_schema(responses={(200, 'image/png'): OpenApiTypes.BINARY,
+                              (200, 'application/pdf'): OpenApiTypes.BINARY,
+                              413: MessageResponse, 415: MessageResponse, 422: MessageResponse})
+    @action(detail=True, methods=['get'])
+    def preview(self, request, pk=None):
+        from .preview import preview_content
+        instance = self.get_object()
+        content, content_type = preview_content(instance)
+        self._log('read', instance, f'Preview file {instance.original_name}')
+        response = HttpResponse(content, content_type=content_type)
+        # 不把用户文件名插入头；前端通过认证请求读取，PDF 仅绘制到 canvas。
+        response['Content-Disposition'] = 'inline; filename="preview.pdf"' if content_type == 'application/pdf' else 'inline; filename="preview.png"'
+        response['Content-Length'] = str(len(content))
+        response['Cache-Control'] = 'private, no-store'
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['Content-Security-Policy'] = "sandbox; default-src 'none'; frame-ancestors 'none'"
+        response['X-Frame-Options'] = 'DENY'
+        return response
 
     def _log(self, action, instance, description=''):
         OperationLog.objects.create(

@@ -141,6 +141,10 @@ STORAGES = storage_settings(os.environ)
 # ===== 文件上传配置 =====
 # 单文件大小上限（默认 50MB）
 FILE_UPLOAD_MAX_SIZE = int(os.getenv('FILE_UPLOAD_MAX_SIZE', str(50 * 1024 * 1024)))
+# 预览比下载更严格：限制输入、解码像素和 PDF 页数。
+FILE_PREVIEW_MAX_SIZE = 10 * 1024 * 1024
+FILE_PREVIEW_MAX_PIXELS = 16_000_000
+FILE_PREVIEW_MAX_PDF_PAGES = 100
 # 允许的文件扩展名白名单（不含点，统一小写比较）
 FILE_UPLOAD_ALLOWED_EXTENSIONS = [
     # 图片

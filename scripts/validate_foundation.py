@@ -184,6 +184,35 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 回收站行锁、版本冲突与恢复/清理竞争', True)
+        # 在真实 Nginx/PostgreSQL/本地存储链路上验收二进制预览及模块 worker MIME。
+        import io
+        from PIL import Image
+        from pypdf import PdfWriter
+        png = io.BytesIO()
+        Image.new('RGB', (16, 16), 'blue').save(png, format='PNG')
+        pdf = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=200, height=300)
+        writer.write(pdf)
+        for name, content, mime in [('private.png', png.getvalue(), 'image/png'), ('private.pdf', pdf.getvalue(), 'application/pdf')]:
+            response = requests.post(BASE + 'files/', files={'file': (name, content, mime)},
+                                     headers={'Authorization': 'Bearer ' + token}, timeout=20)
+            check('真实 HTTP 上传预览夹具 ' + name, response.status_code == 201)
+            preview_path = f"files/{response.json()['id']}/preview/"
+            preview = api(preview_path, token=token)
+            check('预览内容类型/私有无缓存/安全响应头 ' + name,
+                  preview.headers['Content-Type'] == mime and preview.headers['Cache-Control'] == 'private, no-store'
+                  and preview.headers['X-Content-Type-Options'] == 'nosniff'
+                  and 'sandbox' in preview.headers['Content-Security-Policy'] and len(preview.content) > 0)
+            api(preview_path, expected=401)
+        origin = BASE.removesuffix('/api/v1/')
+        manifest = requests.get(origin + '/.vite/manifest.json', timeout=10).json()
+        worker = manifest['node_modules/pdfjs-dist/build/pdf.worker.min.mjs']['file']
+        worker_response = requests.get(origin + '/' + worker, timeout=10)
+        check('真实 Nginx 模块 worker 使用 JavaScript MIME', worker_response.status_code == 200
+              and worker_response.headers['Content-Type'].startswith('application/javascript'))
+        check('生产 CSP 允许同源 worker 且禁止 eval', "worker-src 'self'" in worker_response.headers['Content-Security-Policy']
+              and "'unsafe-eval'" not in worker_response.headers['Content-Security-Policy'])
         upload = requests.post(BASE + 'files/', files={'file': ('recycle-live.txt', b'live-fixture', 'text/plain')},
                                headers={'Authorization': 'Bearer ' + token}, timeout=20)
         check('真实 HTTP 文件上传', upload.status_code == 201)

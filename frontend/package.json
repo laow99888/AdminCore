@@ -23,6 +23,7 @@
     "echarts": "6.1.0",
     "element-plus": "2.14.7",
     "lucide-vue-next": "1.0.0",
+    "pdfjs-dist": "6.4.299",
     "pinia": "3.0.4",
     "vue": "3.5.43",
     "vue-i18n": "11.4.14",
