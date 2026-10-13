@@ -18,8 +18,9 @@ class RequestTrackingMiddleware(MiddlewareMixin):
         # 生成请求追踪 ID
         request.request_id = str(uuid.uuid4())
         # 可选：从请求头获取或生成
-        if 'X-Request-ID' in request.headers:
-            request.request_id = request.headers['X-Request-ID']
+        incoming = request.headers.get('X-Request-ID', '')
+        if 0 < len(incoming) <= 100 and all(char.isascii() and (char.isalnum() or char in '-_.') for char in incoming):
+            request.request_id = incoming
         return None
 
     def process_response(self, request, response):

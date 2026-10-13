@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.permissions.permissions import IsAdmin
+from apps.core.idempotency import with_idempotency
 
 from .models import Notification
 from .serializers import NotificationCreateSerializer, NotificationSerializer
@@ -58,13 +59,12 @@ class NotificationViewSet(mixins.ListModelMixin,
 
     def create(self, request, *args, **kwargs):
         """发送通知（仅管理员）"""
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        result = serializer.save()
-        return Response(
-            {'code': 200, 'message': '发送成功', 'data': result},
-            status=status.HTTP_201_CREATED,
-        )
+        def action():
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            result = serializer.save()
+            return Response({'code': 200, 'message': '发送成功', 'data': result}, status=status.HTTP_201_CREATED)
+        return with_idempotency(request, 'notifications:create', action)
 
     def retrieve(self, request, *args, **kwargs):
         """查看详情时自动标记为已读"""

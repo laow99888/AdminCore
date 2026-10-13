@@ -156,11 +156,12 @@ def test_revoked_import_permission_blocks_retry_and_worker(admin_user, admin_cli
     assert not User.objects.filter(username='review_import').exists()
 
 
-def test_approval_stale_snapshot_cannot_overwrite(admin_user, member_user):
+def test_approval_stale_snapshot_cannot_overwrite(admin_user, member_user, django_capture_on_commit_callbacks):
     application = ApprovalRequest.objects.create(title='Request', content='Full content', applicant=member_user, assignee=admin_user)
     first = ApprovalRequest.objects.get(pk=application.pk)
     second = ApprovalRequest.objects.get(pk=application.pk)
-    assert first.decide(admin_user, True, 'Approved') is True
+    with django_capture_on_commit_callbacks(execute=True):
+        assert first.decide(admin_user, True, 'Approved') is True
     assert second.decide(admin_user, False, 'Rejected') is False
     application.refresh_from_db()
     assert application.status == 'approved'

@@ -50,10 +50,10 @@ class ApprovalRequest(BaseModel):
         return f'{self.applicant.username} - {self.title} [{self.status}]'
 
     @transaction.atomic
-    def decide(self, user, approved, comment=''):
+    def decide(self, user, approved, comment='', request=None):
         """执行审批决策并通知申请人"""
         from django.utils import timezone
-        from apps.notifications.models import Notification
+        from apps.core.events import enqueue_event
 
         self.status = 'approved' if approved else 'rejected'
         self.decided_by = user
@@ -66,12 +66,17 @@ class ApprovalRequest(BaseModel):
             self.refresh_from_db()
             return False
 
-        Notification.push(
-            recipient_ids=[self.applicant_id],
-            title=f'您的申请「{self.title}」已{"通过" if approved else "驳回"}',
-            content=comment,
-            notification_type='approval',
-            link='/approvals',
-            data={'request_id': str(self.id), 'status': self.status},
+        enqueue_event(
+            topic='notification.created',
+            event_key=f'approval:{self.id}:decision:{self.status}',
+            payload={
+                'recipient_ids': [str(self.applicant_id)],
+                'title': f'您的申请「{self.title}」已{"通过" if approved else "驳回"}',
+                'content': comment,
+                'notification_type': 'approval',
+                'link': '/approvals',
+                'data': {'request_id': str(self.id), 'status': self.status},
+            },
+            request=request,
         )
         return True

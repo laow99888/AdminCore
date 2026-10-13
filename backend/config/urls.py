@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/v1/users/', include('apps.users.urls')),
     path('api/v1/permissions/', include('apps.permissions.urls')),
     path('api/v1/logs/', include('apps.logs.urls')),
+    path('api/v1/reliability/', include('apps.core.event_urls')),
     path('api/v1/modules/', ModuleCapabilitiesView.as_view(), name='module-capabilities'),
     path('api/v1/brand/', BrandView.as_view(), name='brand'),
 

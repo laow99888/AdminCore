@@ -49,9 +49,11 @@ def check(label, condition):
     print('通过：' + label, flush=True)
 
 
-def api(path, method='GET', data=None, expected=200, token=None):
+def api(path, method='GET', data=None, expected=200, token=None, headers=None):
+    request_headers = {'Authorization': 'Bearer ' + token} if token else {}
+    request_headers.update(headers or {})
     response = requests.request(method, BASE + path, json=data,
-                                headers={'Authorization': 'Bearer ' + token} if token else {}, timeout=40)
+                                headers=request_headers, timeout=40)
     if expected is not None:
         check(method + ' ' + path + ' → ' + str(expected), response.status_code == expected)
     return response
@@ -152,6 +154,30 @@ def main():
         statuses = concurrent_patch('organization/scopes/' + grant['id'] + '/',
                                     [{'scope': scope, 'departments': [], 'version': 1} for scope in ['all', 'department']], token)
         check('PostgreSQL 数据范围编辑冲突不覆盖', statuses == [200, 409])
+        payload = {'title': '并发幂等申请', 'request_type': 'other', 'content': '只执行一次', 'assignee_id': admin_id}
+        headers = {'Idempotency-Key': 'postgres-concurrent-create'}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            responses = list(pool.map(lambda _: api('approvals/', 'POST', payload, None, token, headers), range(4)))
+        check('PostgreSQL 同键并发四次只创建一份申请',
+              all(response.status_code == 201 for response in responses)
+              and len({response.json()['data']['id'] for response in responses}) == 1
+              and sum(response.headers.get('Idempotency-Replayed') == 'true' for response in responses) == 3)
+        api('approvals/', 'POST', {**payload, 'title': '不同内容'}, 409, token, headers)
+        approval_id = responses[0].json()['data']['id']
+        decision_headers = {'Idempotency-Key': 'postgres-concurrent-decision'}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            decisions = list(pool.map(lambda _: api(f'approvals/{approval_id}/approve/', 'POST', {'comment': ''}, None, token, decision_headers), range(4)))
+        check('PostgreSQL 同键审批决策并发全部重放且只执行一次',
+              all(response.status_code == 200 for response in decisions)
+              and sum(response.headers.get('Idempotency-Replayed') == 'true' for response in decisions) == 3)
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "from concurrent.futures import ThreadPoolExecutor; from django.db import connections; from apps.core.tasks import dispatch_outbox; from apps.core.models import OutboxEvent; from apps.approvals.models import ApprovalRequest; from apps.notifications.models import Notification; "
+                "exec('def drain(_):\\n try:\\n  return dispatch_outbox()\\n finally:\\n  connections.close_all()'); "
+                "pool=ThreadPoolExecutor(max_workers=4); list(pool.map(drain, range(4))); pool.shutdown(); "
+                "assert ApprovalRequest.objects.filter(title='并发幂等申请').count()==1; "
+                "assert OutboxEvent.objects.count()==2 and OutboxEvent.objects.filter(status='succeeded').count()==2; "
+                "assert Notification.objects.count()==2")
+        check('PostgreSQL 四个派发器并发消费两条事件无重复通知', True)
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)

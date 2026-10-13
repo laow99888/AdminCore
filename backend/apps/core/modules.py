@@ -30,6 +30,8 @@ CORE_MODULES = ('core', 'auth_app', 'users', 'permissions', 'logs')
 MAINTENANCE_TASKS = {
     'tasks.cleanup_soft_deleted_files': ('tasks', 'files'),
     'tasks.cleanup_expired_notifications': ('tasks', 'notifications'),
+    'core.dispatch_outbox': (),
+    'core.cleanup_expired_idempotency': (),
 }
 
 

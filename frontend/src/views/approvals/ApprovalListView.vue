@@ -83,7 +83,7 @@ import { reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
-import { approvalsApi, type ApprovalRow, type ApprovalBox } from '@/api'
+import { approvalsApi, newIdempotencyKey, type ApprovalRow, type ApprovalBox } from '@/api'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -150,23 +150,33 @@ const handleBoxChange = () => {
 }
 
 const handleCreate = () => {
+  submission = undefined
   Object.assign(createForm, { title: '', request_type: 'other', assignee: '', content: '' })
   createVisible.value = true
 }
 
+let submission: { fingerprint: string; key: string } | undefined
+
 const handleSubmit = async () => {
+  if (saving.value) return
   if (!createForm.title || !createForm.content || !createForm.assignee) {
     ElMessage.warning(uiText("请填写标题、审批人和申请内容"))
     return
   }
   saving.value = true
+  const payload = {
+    title: createForm.title,
+    request_type: createForm.request_type,
+    content: createForm.content,
+    assignee_username: createForm.assignee.trim(),
+  }
+  const fingerprint = JSON.stringify(payload)
+  if (submission?.fingerprint !== fingerprint) {
+    submission = { fingerprint, key: newIdempotencyKey('approval-create') }
+  }
   try {
-    await approvalsApi.create({
-      title: createForm.title,
-      request_type: createForm.request_type,
-      content: createForm.content,
-      assignee_username: createForm.assignee.trim(),
-    })
+    await approvalsApi.create(payload, submission.key)
+    submission = undefined
     ElMessage.success(uiText("申请已提交"))
     createVisible.value = false
     activeBox.value = 'sent'

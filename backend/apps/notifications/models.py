@@ -4,6 +4,8 @@
 
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.db import transaction
+import hashlib
 
 from apps.core.models import BaseModel
 
@@ -28,6 +30,7 @@ class Notification(BaseModel):
     link = models.CharField(max_length=255, blank=True, verbose_name='跳转链接（前端路由）')
     data = models.JSONField(null=True, blank=True, verbose_name='附加数据')
     sender = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='sent_notifications', verbose_name='发送者（系统通知为空）')
+    dedupe_key = models.CharField(max_length=180, unique=True, null=True, blank=True, verbose_name='事件去重键')
 
     class Meta:
         verbose_name = '通知'
@@ -49,17 +52,26 @@ class Notification(BaseModel):
             self.save(update_fields=['is_read', 'read_at', 'updated_at'])
 
     @classmethod
-    def push(cls, recipient_ids, title, content='', notification_type='system', link='', data=None, sender=None):
+    def push(cls, recipient_ids, title, content='', notification_type='system', link='', data=None, sender=None,
+             dedupe_key=None):
         """批量创建站内通知的统一入口"""
         from apps.core.modules import module_enabled
         if not module_enabled('notifications') or not recipient_ids:
             return 0
         User = get_user_model()
         users = User.objects.filter(id__in=recipient_ids)
-        objs = [
-            cls(recipient=user, title=title, content=content, notification_type=notification_type,
-                link=link, data=data, sender=sender)
-            for user in users
-        ]
+        if dedupe_key:
+            count = 0
+            with transaction.atomic():
+                for user in users:
+                    key = hashlib.sha256(f'{dedupe_key}:{user.id}'.encode()).hexdigest()
+                    _, created = cls.objects.get_or_create(dedupe_key=key, defaults={
+                        'recipient': user, 'title': title, 'content': content,
+                        'notification_type': notification_type, 'link': link, 'data': data, 'sender': sender,
+                    })
+                    count += int(created)
+            return count
+        objs = [cls(recipient=user, title=title, content=content, notification_type=notification_type,
+                    link=link, data=data, sender=sender) for user in users]
         cls.objects.bulk_create(objs)
         return len(objs)

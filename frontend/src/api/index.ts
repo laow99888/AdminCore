@@ -5,6 +5,14 @@
 
 import request, { type ApiResponse, type PagedData } from './request'
 
+/** 为一次用户写操作生成稳定的幂等键；Axios 的 401 重放会复用同一份配置。 */
+export function newIdempotencyKey(prefix = 'ui') {
+  const suffix = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${suffix}`
+}
+
 // ===== 通用查询参数 =====
 export interface ListParams {
   page?: number
@@ -116,8 +124,8 @@ export const notificationsApi = {
   },
   markRead: (id: string) => request.post(`/notifications/${id}/mark_read/`),
   markAllRead: () => request.post('/notifications/mark_all_read/'),
-  send: (data: { recipient_ids: string[]; title: string; content?: string; notification_type?: string }) =>
-    request.post('/notifications/', data),
+  send: (data: { recipient_ids: string[]; title: string; content?: string; notification_type?: string }, key = newIdempotencyKey('notification')) =>
+    request.post('/notifications/', data, { headers: { 'Idempotency-Key': key } }),
 }
 
 // ===== 审批流程 =====
@@ -140,10 +148,10 @@ export type ApprovalBox = 'todo' | 'done' | 'sent'
 export const approvalsApi = {
   list: (box: ApprovalBox | undefined, params?: ListParams) =>
     getPaged<ApprovalRow>('/approvals/', { ...(box ? { box } : {}), ...params }),
-  create: (data: { title: string; request_type: string; content: string; assignee_username: string }) =>
-    request.post('/approvals/', data),
-  approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }),
-  reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }),
+  create: (data: { title: string; request_type: string; content: string; assignee_username: string }, key = newIdempotencyKey('approval-create')) =>
+    request.post('/approvals/', data, { headers: { 'Idempotency-Key': key } }),
+  approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
+  reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),
   cancel: (id: string) => request.post(`/approvals/${id}/cancel/`),
 }
 

@@ -9,9 +9,11 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.db import transaction
 
 from apps.logs.models import OperationLog
-from apps.notifications.models import Notification
+from apps.core.events import enqueue_event
+from apps.core.idempotency import with_idempotency
 
 from .models import ApprovalRequest
 from .serializers import ApprovalCreateSerializer, ApprovalDecisionSerializer, ApprovalRequestSerializer
@@ -68,23 +70,22 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
         )
 
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        application = ApprovalRequest.objects.create(applicant=request.user, **serializer.validated_data)
-
-        Notification.push(
-            recipient_ids=[application.assignee_id],
-            title=f'{request.user.username} 提交了审批申请「{application.title}」',
-            content=application.content[:200],
-            notification_type='approval',
-            link='/approvals',
-            data={'request_id': str(application.id)},
-        )
-        self._log(request, 'create', application, f'Submit approval request: {application.title}')
-        return Response(
-            {'code': 200, 'message': '申请已提交', 'data': ApprovalRequestSerializer(application).data},
-            status=status.HTTP_201_CREATED,
-        )
+        def action():
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            with transaction.atomic():
+                application = ApprovalRequest.objects.create(applicant=request.user, **serializer.validated_data)
+                enqueue_event(
+                    topic='notification.created', event_key=f'approval:{application.id}:submitted',
+                    payload={'recipient_ids': [str(application.assignee_id)],
+                             'title': f'{request.user.username} 提交了审批申请「{application.title}」',
+                             'content': application.content[:200], 'notification_type': 'approval',
+                             'link': '/approvals', 'data': {'request_id': str(application.id)}}, request=request,
+                )
+                self._log(request, 'create', application, f'Submit approval request: {application.title}')
+            return Response({'code': 200, 'message': '申请已提交', 'data': ApprovalRequestSerializer(application).data},
+                            status=status.HTTP_201_CREATED)
+        return with_idempotency(request, 'approvals:create', action)
 
     def _decide(self, request, approved):
         application = self.get_object()
@@ -97,7 +98,7 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
 
         comment_serializer = ApprovalDecisionSerializer(data=request.data)
         comment_serializer.is_valid(raise_exception=True)
-        if not application.decide(request.user, approved, comment_serializer.validated_data['comment']):
+        if not application.decide(request.user, approved, comment_serializer.validated_data['comment'], request=request):
             return Response({'code': 400, 'message': '申请已由其他请求处理', 'data': None}, status=400)
 
         self._log(request, 'update', application,
@@ -108,12 +109,16 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         """通过申请"""
-        return self._decide(request, approved=True)
+        if self.get_object().assignee_id != request.user.id:
+            return Response({'code': 403, 'message': '只有当前审批人可以处理该申请', 'data': None}, status=403)
+        return with_idempotency(request, f'approvals:{pk}:approve', lambda: self._decide(request, approved=True))
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         """驳回申请"""
-        return self._decide(request, approved=False)
+        if self.get_object().assignee_id != request.user.id:
+            return Response({'code': 403, 'message': '只有当前审批人可以处理该申请', 'data': None}, status=403)
+        return with_idempotency(request, f'approvals:{pk}:reject', lambda: self._decide(request, approved=False))
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):

@@ -15,8 +15,9 @@ def submit(client, admin_user, title='测试申请', **extra):
 
 
 class TestSubmit:
-    def test_create_and_notify_assignee(self, member_client, admin_user):
-        res = submit(member_client, admin_user)
+    def test_create_and_notify_assignee(self, member_client, admin_user, django_capture_on_commit_callbacks):
+        with django_capture_on_commit_callbacks(execute=True):
+            res = submit(member_client, admin_user)
         assert res.status_code == 201
         assert res.json()['data']['status'] == 'pending'
         # 审批人收到通知
@@ -37,9 +38,10 @@ class TestDecide:
         assert res.status_code == 403
 
     def test_approve_updates_status_and_notifies_applicant(self, member_client, admin_client,
-                                                           admin_user, member_user):
+                                                           admin_user, member_user, django_capture_on_commit_callbacks):
         req_id = submit(member_client, admin_user, title='采购显示器').json()['data']['id']
-        res = admin_client.post(f'/api/v1/approvals/{req_id}/approve/', {'comment': '同意'}, format='json')
+        with django_capture_on_commit_callbacks(execute=True):
+            res = admin_client.post(f'/api/v1/approvals/{req_id}/approve/', {'comment': '同意'}, format='json')
         assert res.status_code == 200
         assert res.json()['data']['status'] == 'approved'
         # 申请人收到通过通知

@@ -4,6 +4,7 @@
 
 from django.db import models
 import uuid
+from django.conf import settings
 
 
 class BootstrapState(models.Model):
@@ -72,3 +73,42 @@ class DataScopeGrant(BaseModel):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['role', 'resource'], name='unique_role_resource_scope')]
+
+
+class IdempotencyRecord(BaseModel):
+    """记录带 Idempotency-Key 的写请求，避免客户端重试产生重复副作用。"""
+    STATUS_CHOICES = [('pending', '处理中'), ('succeeded', '已完成')]
+
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+                              related_name='idempotency_records')
+    scope = models.CharField(max_length=120)
+    key = models.CharField(max_length=128)
+    request_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    response_status = models.PositiveSmallIntegerField(null=True, blank=True)
+    response_data = models.JSONField(null=True, blank=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['actor', 'scope', 'key'], name='unique_idempotency_actor_scope_key')]
+        indexes = [models.Index(fields=['status', 'expires_at'])]
+        ordering = ['-created_at']
+
+
+class OutboxEvent(BaseModel):
+    """事务内写入、事务外派发的可靠事件。"""
+    STATUS_CHOICES = [('pending', '待派发'), ('succeeded', '已完成'), ('failed', '失败')]
+
+    topic = models.CharField(max_length=120)
+    event_key = models.CharField(max_length=180, unique=True)
+    payload = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    attempts = models.PositiveIntegerField(default=0)
+    available_at = models.DateTimeField()
+    last_error = models.TextField(blank=True)
+    request_id = models.CharField(max_length=100, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['status', 'available_at']), models.Index(fields=['topic', 'created_at'])]
+        ordering = ['-created_at']

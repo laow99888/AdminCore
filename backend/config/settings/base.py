@@ -215,6 +215,9 @@ CORS_ALLOWED_ORIGINS = os.getenv(
 ).split(',')
 
 CORS_ALLOW_CREDENTIALS = True
+from corsheaders.defaults import default_headers
+CORS_ALLOW_HEADERS = (*default_headers, 'idempotency-key', 'x-request-id')
+CORS_EXPOSE_HEADERS = ['X-Request-ID', 'Idempotency-Replayed']
 
 # ===== Redis 配置 =====
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
