@@ -27,7 +27,7 @@ class UserDetailSerializer(serializers.ModelSerializer):
                   'is_active', 'login_count', 'created_at', 'profile', 'roles')
         read_only_fields = ('id', 'created_at', 'login_count')
 
-    def get_roles(self, obj):
+    def get_roles(self, obj) -> list[dict]:
         """获取用户角色"""
         from apps.permissions.models import UserRole
         roles = UserRole.objects.filter(user=obj).values('role__id', 'role__name')

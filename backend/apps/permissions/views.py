@@ -2,6 +2,9 @@
 权限系统视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from apps.core.schema import envelope, MessageResponse
+
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -12,6 +15,13 @@ from .serializers import RoleSerializer, PermissionSerializer, MenuSerializer
 from .permissions import HasPermission, permission_codes
 
 
+@extend_schema_view(
+    retrieve=extend_schema(responses=envelope('RoleDetailResponse', RoleSerializer())),
+    create=extend_schema(responses={201: envelope('RoleCreatedResponse', RoleSerializer())}),
+    update=extend_schema(responses=envelope('RoleUpdatedResponse', RoleSerializer())),
+    partial_update=extend_schema(responses=envelope('RolePatchedResponse', RoleSerializer())),
+    destroy=extend_schema(responses={200: MessageResponse}),
+)
 class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     """角色管理"""
     queryset = Role.objects.all()
@@ -27,6 +37,9 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         return Role.objects.prefetch_related('permissions').all()
 
 
+@extend_schema_view(
+    retrieve=extend_schema(responses=envelope('PermissionDetailResponse', PermissionSerializer())),
+)
 class PermissionViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
     """权限管理（只读）"""
     queryset = Permission.objects.all()
@@ -37,6 +50,10 @@ class PermissionViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
     ordering = ['code']
 
 
+@extend_schema_view(
+    retrieve=extend_schema(responses=envelope('MenuDetailResponse', MenuSerializer())),
+    my_menu=extend_schema(responses=envelope('MyMenuResponse', MenuSerializer(many=True)), filters=False),
+)
 class MenuViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
     """菜单管理（只读）"""
     queryset = Menu.objects.filter(is_visible=True, parent=None)

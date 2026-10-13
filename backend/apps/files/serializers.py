@@ -26,13 +26,13 @@ class FileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_file(self, obj):
+    def get_file(self, obj) -> str:
         from django.urls import reverse
         path = reverse('file-download', args=[obj.pk])
         request = self.context.get('request')
         return request.build_absolute_uri(path) if request else path
 
-    def get_size_display(self, obj):
+    def get_size_display(self, obj) -> str:
         """人类可读的文件大小"""
         size = float(obj.size)
         for unit in ('B', 'KB', 'MB', 'GB'):

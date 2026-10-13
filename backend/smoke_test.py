@@ -8,6 +8,7 @@
 import io
 import os
 import sys
+from unittest.mock import patch
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.testing')
 
@@ -266,7 +267,9 @@ try:
 
     # ========== 仪表盘统计 ==========
     # 健康检查端点（必须返回合法 JSON 响应，不能是裸 dict）
-    res = client.get('/api/v1/health/')
+    # SQLite 冒烟不连接在用 Redis；真实依赖就绪由部署健康检查验证。
+    with patch('django_redis.get_redis_connection'):
+        res = client.get('/api/v1/health/')
     check('健康检查端点', res.status_code == 200 and res.json().get('status') == 'ok',
           f'status={res.status_code}')
 

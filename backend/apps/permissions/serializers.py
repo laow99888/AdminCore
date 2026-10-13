@@ -3,6 +3,8 @@
 """
 
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.helpers import lazy_serializer
 from django.db import transaction
 from .models import Role, Permission, Menu, UserRole
 
@@ -42,6 +44,7 @@ class RoleSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'description', 'is_active', 'permissions', 'permission_ids', 'created_at')
         read_only_fields = ('id', 'created_at')
 
+    @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, role):
         return PermissionSerializer(
             Permission.objects.filter(rolepermission__role=role), many=True
@@ -85,6 +88,7 @@ class MenuSerializer(serializers.ModelSerializer):
         model = Menu
         fields = ('id', 'name', 'path', 'icon', 'order', 'parent', 'permission', 'is_visible', 'children')
 
+    @extend_schema_field(lazy_serializer('apps.permissions.serializers.MenuSerializer')(many=True))
     def get_children(self, obj):
         """递归获取子菜单"""
         children = obj.children.filter(is_visible=True)

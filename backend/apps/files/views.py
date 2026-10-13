@@ -2,6 +2,9 @@
 文件管理视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes
+from apps.core.schema import MessageResponse
+
 from django.core.files.storage import default_storage
 from django.http import FileResponse
 from rest_framework import status, viewsets
@@ -16,6 +19,11 @@ from .models import FileModel
 from .serializers import FileSerializer, FileUploadSerializer
 
 
+@extend_schema_view(
+    create=extend_schema(responses={201: FileSerializer}),
+    download=extend_schema(responses={(200, 'application/octet-stream'): OpenApiTypes.BINARY}),
+    purge=extend_schema(responses=MessageResponse),
+)
 class FileViewSet(viewsets.ModelViewSet):
     """文件管理：上传 / 列表 / 下载 / 软删除"""
     permission_classes = [IsAuthenticated]
@@ -25,6 +33,8 @@ class FileViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return FileModel.objects.none()
         queryset = FileModel.objects.filter(is_deleted=False).select_related('uploader')
         # 非管理员只能看到自己上传的文件
         if not self.request.user.is_staff:

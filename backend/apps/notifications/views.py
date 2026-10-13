@@ -2,6 +2,10 @@
 通知中心视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
+from rest_framework import serializers
+from apps.core.schema import envelope
+
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -14,6 +18,13 @@ from .models import Notification
 from .serializers import NotificationCreateSerializer, NotificationSerializer
 
 
+@extend_schema_view(
+    create=extend_schema(responses={201: envelope('NotificationSentResponse', inline_serializer('SentCount',fields={'sent_count':serializers.IntegerField()}))}),
+    retrieve=extend_schema(responses=envelope('NotificationDetailResponse', NotificationSerializer())),
+    mark_read=extend_schema(request=None, responses=envelope('NotificationReadResponse', NotificationSerializer())),
+    mark_all_read=extend_schema(request=None, responses=envelope('NotificationsReadResponse', inline_serializer('UpdatedCount',fields={'updated':serializers.IntegerField()}))),
+    unread_count=extend_schema(responses=envelope('UnreadCountResponse', inline_serializer('UnreadCount',fields={'count':serializers.IntegerField()}))),
+)
 class NotificationViewSet(mixins.ListModelMixin,
                           mixins.RetrieveModelMixin,
                           mixins.CreateModelMixin,
@@ -26,6 +37,8 @@ class NotificationViewSet(mixins.ListModelMixin,
     ordering = ['-created_at']
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Notification.objects.none()
         # 普通用户只能看到自己的通知；管理员可查全部（?scope=all）
         queryset = Notification.objects.select_related('recipient', 'sender')
         if not (self.request.user.is_staff and self.request.query_params.get('scope') == 'all'):

@@ -2,6 +2,10 @@
 用户管理视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from apps.core.schema import envelope, MessageResponse
+from apps.core.schema import ResetPasswordRequestSerializer
+
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -19,6 +23,15 @@ from apps.core.mixins import EnvelopeResponseMixin
 User = get_user_model()
 
 
+@extend_schema_view(
+    retrieve=extend_schema(responses=envelope('UserDetailResponse', UserDetailSerializer())),
+    create=extend_schema(responses={201: envelope('UserCreatedResponse', UserCreateSerializer())}),
+    update=extend_schema(responses=envelope('UserUpdatedResponse', UserUpdateSerializer())),
+    partial_update=extend_schema(responses=envelope('UserPatchedResponse', UserUpdateSerializer())),
+    destroy=extend_schema(responses={200: MessageResponse}),
+    bulk_action=extend_schema(request=BulkUserActionSerializer, responses=MessageResponse),
+    reset_password=extend_schema(request=ResetPasswordRequestSerializer, responses=MessageResponse),
+)
 class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     """用户管理"""
     permission_classes = [IsAuthenticated, HasPermission]

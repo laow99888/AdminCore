@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir --require-hashes -r requirements.lock
 COPY . .
 
 # 构建期收集静态文件（不依赖数据库；production settings 要求显式 key）
-RUN DJANGO_SECRET_KEY=build-time-key python manage.py collectstatic --noinput
+RUN python -c "import os, secrets; os.environ['DJANGO_SECRET_KEY'] = secrets.token_urlsafe(64); os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'; from django.core.management import execute_from_command_line; execute_from_command_line(['manage.py', 'collectstatic', '--noinput'])"
 
 EXPOSE 8000
 

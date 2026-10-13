@@ -2,6 +2,11 @@
 认证视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
+from rest_framework import serializers
+from apps.core.schema import envelope, MessageResponse
+from apps.core.schema import TokenPairSerializer, LoginRequestSerializer
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,7 +14,9 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import TokenError
 from .authentication import revoke_user_sessions
+from .throttling import LoginRateThrottle
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from .serializers import (
     CustomTokenObtainPairSerializer,
     UserSerializer,
@@ -21,9 +28,13 @@ from .serializers import (
 User = get_user_model()
 
 
+@extend_schema_view(
+    post=extend_schema(request=LoginRequestSerializer, responses=inline_serializer('LoginResponse', fields={'access': serializers.CharField(), 'refresh': serializers.CharField(), 'user': inline_serializer('LoginUser', fields={name: serializers.CharField() for name in ['id', 'username', 'email', 'avatar']})})),
+)
 class CustomTokenObtainPairView(TokenObtainPairView):
     """自定义登录视图"""
     serializer_class = CustomTokenObtainPairSerializer
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request, *args, **kwargs):
         try:
@@ -41,6 +52,13 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             raise
 
 
+@extend_schema_view(
+    register=extend_schema(request=UserRegistrationSerializer, responses={201: envelope('RegisterResponse', inline_serializer('RegisteredSession', fields={'access': serializers.CharField(), 'refresh': serializers.CharField(), 'user': UserSerializer()}))}),
+    refresh=extend_schema(request=inline_serializer('RefreshRequest', fields={'refresh': serializers.CharField()}), responses=envelope('RefreshResponse', TokenPairSerializer())),
+    logout=extend_schema(request=None, responses=MessageResponse),
+    me=extend_schema(responses=envelope('CurrentUserResponse', UserSerializer())),
+    change_password=extend_schema(request=ChangePasswordSerializer, responses=MessageResponse),
+)
 class AuthViewSet(viewsets.ViewSet):
     """认证相关端点"""
     permission_classes = [AllowAny]
@@ -48,6 +66,8 @@ class AuthViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'])
     def register(self, request):
         """用户注册"""
+        if not settings.ALLOW_PUBLIC_REGISTRATION:
+            return Response({'code': 403, 'message': '当前环境未开放注册', 'data': None}, status=403)
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()

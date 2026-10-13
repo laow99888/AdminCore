@@ -8,6 +8,8 @@ from .base import *
 
 DEBUG = True
 TESTING = True
+SECRET_KEY = 'test-only-ABCDEFGHIJKLMNOPQRSTUVWXYZ-abcdefghijklmnopqrstuvwxyz-0123456789'
+ALLOW_PUBLIC_REGISTRATION = True
 
 # 使用内存数据库加快测试
 DATABASES = {

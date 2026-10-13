@@ -57,7 +57,7 @@ class UserSerializer(serializers.ModelSerializer):
     """用户序列化器"""
     permissions = serializers.SerializerMethodField()
 
-    def get_permissions(self, user):
+    def get_permissions(self, user) -> list[str]:
         from apps.permissions.permissions import permission_codes
         return permission_codes(user)
 

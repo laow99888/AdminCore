@@ -16,5 +16,7 @@ FROM nginx:1.29.8-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 ENV TRUSTED_PROXY_IP=127.0.0.1
 COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY security-headers.conf /etc/nginx/security-headers.conf
+COPY spa-csp.conf /etc/nginx/spa-csp.conf
 
 EXPOSE 80

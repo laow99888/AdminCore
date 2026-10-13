@@ -21,7 +21,7 @@ class TaskRecordSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_duration(self, obj):
+    def get_duration(self, obj) -> float | None:
         """执行耗时（秒），未完成任务返回 None"""
         if obj.started_at and obj.completed_at:
             return round((obj.completed_at - obj.started_at).total_seconds(), 2)

@@ -13,6 +13,15 @@ from rest_framework.test import APIClient
 User = get_user_model()
 
 
+@pytest.fixture(autouse=True)
+def isolated_rate_counters():
+    """每个用例隔离限流计数；同一用例内仍检查真实限流行为。"""
+    from django.core.cache import cache
+    cache.clear()
+    yield
+    cache.clear()
+
+
 @pytest.fixture(scope='session', autouse=True)
 def cleanup_test_media(request):
     """只清理本次测试创建的媒体目录；失败时保留证据。"""

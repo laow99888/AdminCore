@@ -17,6 +17,7 @@ PROJECT_ROOT = BASE_DIR.parent
 # 安全配置
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
+ALLOW_PUBLIC_REGISTRATION = os.getenv('ALLOW_PUBLIC_REGISTRATION', 'False').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
 
 # 应用配置
@@ -172,9 +173,19 @@ REST_FRAMEWORK = {
         'anon': '100/hour',
         'user': '1000/hour',
     },
+    # 默认直连只信任 REMOTE_ADDR；Compose 通过覆盖转发头的 Nginx 使用单层代理。
+    'NUM_PROXIES': int(os.getenv('DRF_NUM_PROXIES', '0')),
     # 其他
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'AdminCore API',
+    'VERSION': '1.0.0',
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
+    'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},
 }
 
 # ===== JWT 配置 =====
@@ -276,7 +287,4 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = USE_TLS
     if USE_TLS:
         SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_SECURITY_POLICY = {
-        'default-src': ("'self'",),
-    }
+    SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0')) if USE_TLS else 0

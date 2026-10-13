@@ -2,6 +2,9 @@
 审批流程视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from apps.core.schema import envelope
+
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -14,6 +17,12 @@ from .models import ApprovalRequest
 from .serializers import ApprovalCreateSerializer, ApprovalDecisionSerializer, ApprovalRequestSerializer
 
 
+@extend_schema_view(
+    create=extend_schema(responses={201: envelope('ApprovalCreatedResponse', ApprovalRequestSerializer())}),
+    approve=extend_schema(request=ApprovalDecisionSerializer, responses=envelope('ApprovalApprovedResponse', ApprovalRequestSerializer())),
+    reject=extend_schema(request=ApprovalDecisionSerializer, responses=envelope('ApprovalRejectedResponse', ApprovalRequestSerializer())),
+    cancel=extend_schema(request=None, responses=envelope('ApprovalCancelledResponse', ApprovalRequestSerializer())),
+)
 class ApprovalRequestViewSet(viewsets.GenericViewSet,
                              viewsets.mixins.ListModelMixin,
                              viewsets.mixins.RetrieveModelMixin,
@@ -26,6 +35,8 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
     ordering = ['-created_at']
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return ApprovalRequest.objects.none()
         queryset = ApprovalRequest.objects.select_related('applicant', 'assignee', 'decided_by')
         box = self.request.query_params.get('box')
         if box == 'todo':

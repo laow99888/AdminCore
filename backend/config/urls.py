@@ -3,13 +3,12 @@ AdminCore 主 URL 配置
 """
 
 from django.contrib import admin
-from django.http import JsonResponse
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
-from apps.core.views import DashboardStatsView
+from apps.core.views import DashboardStatsView, health_check
 
 urlpatterns = [
     # 管理后台
@@ -35,7 +34,7 @@ urlpatterns = [
     path('api/v1/dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
 
     # 健康检查
-    path('api/v1/health/', lambda request: JsonResponse({'status': 'ok'}), name='health-check'),
+    path('api/v1/health/', health_check, name='health-check'),
 ]
 
 # 静态文件和媒体文件服务

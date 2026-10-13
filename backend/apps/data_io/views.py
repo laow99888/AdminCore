@@ -6,6 +6,9 @@ import csv
 import io
 import os
 
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
+from apps.core.schema import envelope
+
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -46,6 +49,9 @@ def _log(request, action, description, resource_id=''):
     )
 
 
+@extend_schema_view(
+    post=extend_schema(request=DataImportSerializer, responses=envelope('ImportResponse', TaskRecordSerializer())),
+)
 class DataImportView(APIView):
     """上传导入文件，创建导入任务"""
     permission_classes = [IsAuthenticated, HasPermission]
@@ -94,6 +100,10 @@ class DataImportView(APIView):
         })
 
 
+@extend_schema_view(
+    get=extend_schema(responses=envelope('ImportStatusResponse', TaskRecordSerializer())),
+    post=extend_schema(operation_id='data_io_import_retry', request=None, responses=envelope('ImportRetryResponse', TaskRecordSerializer())),
+)
 class DataImportTaskView(APIView):
     """查看自己发起的导入任务结果"""
     permission_classes = [IsAuthenticated]
@@ -136,6 +146,9 @@ class DataImportTaskView(APIView):
         })
 
 
+@extend_schema_view(
+    get=extend_schema(parameters=[OpenApiParameter('resource', str)], responses={(200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY}),
+)
 class ImportTemplateView(APIView):
     """下载导入模板（xlsx，含表头与示例行）"""
     permission_classes = [IsAuthenticated, HasPermission]
@@ -170,6 +183,9 @@ class ImportTemplateView(APIView):
         return response
 
 
+@extend_schema_view(
+    get=extend_schema(parameters=[OpenApiParameter('resource', str), OpenApiParameter('export_format', str, enum=['csv', 'xlsx'])], responses={(200, 'text/csv'): OpenApiTypes.BINARY, (200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY}),
+)
 class DataExportView(APIView):
     """导出数据（csv / xlsx）"""
     permission_classes = [IsAuthenticated, HasPermission]

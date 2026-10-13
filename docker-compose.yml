@@ -39,6 +39,7 @@ services:
     environment:
       DJANGO_ENV: production
       DJANGO_DEBUG: "False"
+      DRF_NUM_PROXIES: "1"
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
@@ -48,7 +49,7 @@ services:
       - staticfiles:/app/staticfiles
       - logs:/app/logs
     ports:
-      - "${BACKEND_PORT:-8000}:8000"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_PORT:-8000}:8000"
     depends_on:
       db:
         condition: service_healthy
@@ -68,6 +69,7 @@ services:
     environment:
       DJANGO_ENV: production
       DJANGO_DEBUG: "False"
+      DRF_NUM_PROXIES: "1"
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1
@@ -87,6 +89,7 @@ services:
     environment:
       DJANGO_ENV: production
       DJANGO_DEBUG: "False"
+      DRF_NUM_PROXIES: "1"
       DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/1

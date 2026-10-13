@@ -2,6 +2,10 @@
 核心视图
 """
 
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from apps.core.schema import envelope
+from apps.core.schema import DashboardSerializer
+
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
@@ -10,10 +14,28 @@ from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from django.http import JsonResponse
 
 User = get_user_model()
 
 
+def health_check(request):
+    """就绪检查覆盖 DB/Redis；worker 由独立检查监控，避免启动循环。"""
+    from django.db import connection
+    from django_redis import get_redis_connection
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT 1')
+            cursor.fetchone()
+        get_redis_connection('default').ping()
+    except Exception:
+        return JsonResponse({'status': 'unavailable'}, status=503)
+    return JsonResponse({'status': 'ok'})
+
+
+@extend_schema_view(
+    get=extend_schema(responses=envelope('DashboardResponse', DashboardSerializer())),
+)
 class DashboardStatsView(APIView):
     """仪表盘统计：总量指标 + 7 日登录趋势 + 任务状态分布"""
     permission_classes = [IsAuthenticated]
