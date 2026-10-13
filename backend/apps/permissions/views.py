@@ -13,7 +13,7 @@ from django.db import transaction
 from apps.core.mixins import EnvelopeResponseMixin
 from .models import Role, Permission, Menu
 from .serializers import RoleSerializer, PermissionSerializer, MenuSerializer
-from .permissions import HasPermission, permission_codes
+from .permissions import HasPermission, IsAdmin, permission_codes
 
 
 @extend_schema_view(
@@ -33,6 +33,12 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     filterset_fields = ['is_active']
     search_fields = ['name']
     ordering_fields = ['created_at', 'name']
+
+    def get_permissions(self):
+        permissions = super().get_permissions()
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            permissions.append(IsAdmin())
+        return permissions
 
     def get_queryset(self):
         return Role.objects.prefetch_related('permissions').all()
@@ -78,12 +84,16 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         user = self.request.user
         # 根据用户权限过滤菜单
         if user.is_superuser or user.is_staff:
-            return Menu.objects.filter(is_visible=True, parent=None)
+            return Menu.objects.filter(is_visible=True, parent=None, id__in=self.allowed_menu_ids())
         return Menu.objects.filter(is_visible=True, parent=None, id__in=self.allowed_menu_ids())
 
     def allowed_menu_ids(self):
         codes = permission_codes(self.request.user)
         menus = list(Menu.objects.filter(is_visible=True).select_related('permission'))
+        from apps.core.modules import path_enabled
+        menus = [menu for menu in menus if path_enabled(menu.path)]
+        if not (self.request.user.is_staff or self.request.user.is_superuser):
+            menus = [menu for menu in menus if menu.path != '/organization' and not menu.path.startswith('/organization/')]
         if '*' in codes:
             return {menu.id for menu in menus}
         by_id = {menu.id: menu for menu in menus}

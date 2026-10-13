@@ -7,9 +7,15 @@ from rest_framework.permissions import IsAuthenticated
 from .models import OperationLog, LoginLog, ExceptionLog
 from .serializers import OperationLogSerializer, LoginLogSerializer, ExceptionLogSerializer
 from apps.permissions.permissions import HasPermission
+from apps.core.data_scope import scope_queryset
 
 
-class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
+class ScopedLogViewSet(viewsets.ReadOnlyModelViewSet):
+    def get_queryset(self):
+        return scope_queryset(super().get_queryset(), self.request.user, 'log', 'user_id')
+
+
+class OperationLogViewSet(ScopedLogViewSet):
     """操作日志查看"""
     queryset = OperationLog.objects.select_related('user').all()
     serializer_class = OperationLogSerializer
@@ -20,7 +26,7 @@ class OperationLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
 
-class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
+class LoginLogViewSet(ScopedLogViewSet):
     """登录日志查看"""
     queryset = LoginLog.objects.all()
     serializer_class = LoginLogSerializer
@@ -31,7 +37,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
 
-class ExceptionLogViewSet(viewsets.ReadOnlyModelViewSet):
+class ExceptionLogViewSet(ScopedLogViewSet):
     """异常日志查看"""
     queryset = ExceptionLog.objects.select_related('user').all()
     serializer_class = ExceptionLogSerializer

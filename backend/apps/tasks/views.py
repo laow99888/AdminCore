@@ -37,7 +37,8 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return TaskRecord.objects.select_related('creator').all()
+        from apps.core.data_scope import scope_queryset
+        return scope_queryset(TaskRecord.objects.select_related('creator').all(), self.request.user, 'task', 'creator_id')
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
@@ -76,7 +77,7 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
         days = serializer.validated_data['days']
         cutoff = timezone.now() - timedelta(days=days)
-        deleted, _ = TaskRecord.objects.filter(
+        deleted, _ = self.get_queryset().filter(
             status__in=['success', 'failed', 'cancelled'],
             created_at__lt=cutoff,
         ).delete()

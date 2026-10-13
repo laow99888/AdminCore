@@ -99,9 +99,11 @@ class MenuSerializer(serializers.ModelSerializer):
         children = obj.children.all()
         if not self.context.get('manage_menus'):
             children = children.filter(is_visible=True)
+            from apps.core.modules import path_enabled
+            children = [child for child in children if path_enabled(child.path)]
         allowed_ids = self.context.get('allowed_menu_ids')
         if allowed_ids is not None:
-            children = children.filter(id__in=allowed_ids)
+            children = [child for child in children if child.id in allowed_ids]
         return MenuSerializer(children, many=True, context=self.context).data
 
 

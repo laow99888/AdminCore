@@ -10,6 +10,12 @@ from dotenv import load_dotenv
 # 加载环境变量
 load_dotenv()
 
+from apps.core.modules import resolve_modules
+
+ADMINCORE_PRESET = os.getenv('ADMINCORE_PRESET', 'standard')
+ADMINCORE_MODULES = resolve_modules(ADMINCORE_PRESET, os.getenv('ADMINCORE_MODULES'),
+                                  production=os.getenv('DJANGO_ENV') == 'production')
+
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 PROJECT_ROOT = BASE_DIR.parent
@@ -66,6 +72,7 @@ MIDDLEWARE = [
     # 自定义中间件
     'apps.core.middleware.RequestTrackingMiddleware',
     'apps.core.middleware.ErrorHandlingMiddleware',
+    'apps.core.module_middleware.ModuleGateMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -220,7 +227,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 # 定时任务调度器（django-celery-beat，任务计划存数据库）
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+CELERY_BEAT_SCHEDULER = 'apps.core.module_scheduler.ModuleScheduler'
 
 # ===== 缓存配置 =====
 CACHES = {
@@ -234,6 +241,10 @@ CACHES = {
 }
 
 # ===== 日志配置 =====
+# 精简部署无需 Redis/worker；单进程限流使用本地缓存。
+if not ADMINCORE_MODULES:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+
 # RotatingFileHandler 不会自动创建目录，这里显式保证日志目录存在
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)

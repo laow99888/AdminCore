@@ -5,7 +5,7 @@
         <template #header>
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("角色列表") }}</div>
-            <BaseButton v-if="auth.can('role:update')" variant="primary" @click="handleCreate">{{ uiText("+ 新增角色") }}</BaseButton>
+            <BaseButton v-if="auth.can('role:update') && (auth.user?.is_staff || auth.user?.is_superuser)" variant="primary" @click="handleCreate">{{ uiText("+ 新增角色") }}</BaseButton>
           </div>
         </template>
 
@@ -22,8 +22,8 @@
         >
           <template #actions="{ row }">
             <el-button link type="primary" size="small" @click="handleViewPermissions(row)">{{ uiText("查看权限") }}</el-button>
-            <el-button v-if="auth.can('role:update')" link type="primary" size="small" @click="handleEdit(row)">{{ uiText("编辑") }}</el-button>
-            <el-button v-if="auth.can('role:update')" link type="danger" size="small" @click="handleDelete(row)">{{ uiText("删除") }}</el-button>
+            <el-button v-if="auth.can('role:update') && (auth.user?.is_staff || auth.user?.is_superuser)" link type="primary" size="small" @click="handleEdit(row)">{{ uiText("编辑") }}</el-button>
+            <el-button v-if="auth.can('role:update') && (auth.user?.is_staff || auth.user?.is_superuser)" link type="danger" size="small" @click="handleDelete(row)">{{ uiText("删除") }}</el-button>
           </template>
         </BaseTable>
       </BaseCard>

@@ -51,7 +51,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
             queryset = queryset.select_related('profile')
         if self.action not in ('list', 'retrieve') and not (self.request.user.is_staff or self.request.user.is_superuser):
             queryset = queryset.filter(is_staff=False, is_superuser=False)
-        return queryset
+        from apps.core.data_scope import scope_queryset
+        return scope_queryset(queryset, self.request.user, 'user', 'pk')
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -63,6 +64,10 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         return UserDetailSerializer
 
     def perform_create(self, serializer):
+        from apps.core.data_scope import unrestricted_user_creation
+        from rest_framework.exceptions import PermissionDenied
+        if not unrestricted_user_creation(self.request.user):
+            raise PermissionDenied('受限数据范围不能创建未分配部门的用户，请由管理员创建并分配')
         user = serializer.save()
         # 记录操作日志
         OperationLog.objects.create(
@@ -108,6 +113,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
             try:
                 with transaction.atomic():
                     users = self.get_queryset().filter(id__in=user_ids)
+                    if len(set(user_ids)) != len(user_ids) or users.count() != len(user_ids):
+                        return Response({'code': 403, 'message': '批量请求包含重复、不可访问或不存在的用户，未执行变更', 'data': None}, status=403)
 
                     if action == 'activate':
                         users.update(is_active=True)

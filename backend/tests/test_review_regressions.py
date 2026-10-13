@@ -223,6 +223,6 @@ def test_user_manager_cannot_modify_privileged_account(member_client, member_use
     assert member_client.patch(f'/api/v1/users/{admin_user.pk}/', {'is_active': False}, format='json').status_code == 404
     assert member_client.post('/api/v1/users/bulk_action/', {
         'action': 'deactivate', 'user_ids': [str(admin_user.pk)],
-    }, format='json').status_code == 200
+    }, format='json').status_code == 403
     admin_user.refresh_from_db()
     assert admin_user.is_active

@@ -37,9 +37,8 @@ class FileViewSet(viewsets.ModelViewSet):
             return FileModel.objects.none()
         queryset = FileModel.objects.filter(is_deleted=False).select_related('uploader')
         # 非管理员只能看到自己上传的文件
-        if not self.request.user.is_staff:
-            queryset = queryset.filter(uploader=self.request.user)
-        return queryset
+        from apps.core.data_scope import scope_queryset
+        return scope_queryset(queryset, self.request.user, 'file', 'uploader_id', fallback='self')
 
     def get_serializer_class(self):
         if self.action == 'create':

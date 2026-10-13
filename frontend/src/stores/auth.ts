@@ -20,34 +20,46 @@ export const useAuthStore = defineStore('auth', () => {
   const token = ref<string>(localStorage.getItem('token') || '')
   const refreshToken = ref<string>(localStorage.getItem('refreshToken') || '')
   const user = ref<CurrentUser | null>(null)
+  let fetchedAt = 0
+  let fetching: Promise<CurrentUser | null> | undefined
+  let sessionGeneration = 0
 
   const isAuthenticated = computed(() => !!token.value)
 
   async function login(username: string, password: string) {
+    sessionGeneration++
     const data = await authApi.login(username, password)
     token.value = data.access
     refreshToken.value = data.refresh
     localStorage.setItem('token', data.access)
     localStorage.setItem('refreshToken', data.refresh)
     user.value = await authApi.me()
+    fetchedAt = Date.now()
     return data.user
   }
 
-  async function fetchUser() {
+  async function fetchUser(force = false) {
     if (!token.value) return null
-    try {
-      user.value = await authApi.me()
-    } catch {
-      // 拦截器已处理 401 跳转，这里仅吞掉异常
-      user.value = null
+    if (!force && user.value && Date.now() - fetchedAt < 30000) return user.value
+    if (!fetching) {
+      const generation = sessionGeneration
+      const active = authApi.me().then(value => {
+        if (generation !== sessionGeneration) return user.value
+        user.value = value; fetchedAt = Date.now(); return value
+      }).catch(() => { if (generation === sessionGeneration) user.value = null; return null })
+        .finally(() => { if (fetching === active) fetching = undefined })
+      fetching = active
     }
-    return user.value
+    return fetching
   }
 
   function clearSession() {
+    sessionGeneration++
+    fetching = undefined
     token.value = ''
     refreshToken.value = ''
     user.value = null
+    fetchedAt = 0
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
   }

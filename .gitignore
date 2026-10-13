@@ -45,6 +45,7 @@ Thumbs.db
 # 各目录的本地环境配置（仅提交示例配置）
 .env.*
 !.env.example
+!.env.modules.example
 
 # Python 缓存、测试报告和本地数据库
 *.py[cod]

@@ -41,6 +41,10 @@ PERMISSIONS = [
     ('task', 'read', '查看任务', 'task:read'),
     ('task', 'cancel', '取消任务', 'task:cancel'),
     ('task', 'delete', '清理任务历史', 'task:delete'),
+    ('config', 'read', '查看系统参数', 'config:read'),
+    ('config', 'update', '修改系统参数', 'config:update'),
+    ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
+    ('dictionary', 'update', '维护数据字典', 'dictionary:update'),
 ]
 
 # 角色与权限码
@@ -62,6 +66,9 @@ MENUS = [
     ('任务中心', '/tasks', 'list-checks', 8, None, 'task:read'),
     ('操作日志', '/logs', 'file-text', 9, None, 'log:read'),
     ('系统设置', '/settings', 'settings', 10, None, None),
+    ('系统参数', '/system/config', 'settings', 11, None, 'config:read'),
+    ('数据字典', '/system/dictionaries', 'list-tree', 12, None, 'dictionary:read'),
+    ('组织与数据权限', '/organization', 'users', 13, None, None),
 ]
 
 
@@ -76,6 +83,8 @@ class Command(BaseCommand):
         from apps.permissions.models import Menu, Permission, Role, RolePermission
 
         demo_mode = options['demo']
+        from django.conf import settings
+        demo_mode = demo_mode or settings.ADMINCORE_PRESET == 'demo'
         if demo_mode and os.getenv('DJANGO_ENV') == 'production':
             raise CommandError('生产环境禁止 --demo')
         username = ADMIN_USERNAME if demo_mode else os.getenv('ADMINCORE_ADMIN_USERNAME', 'admin')
@@ -155,6 +164,18 @@ class Command(BaseCommand):
                     Menu.objects.create(name=name, path=path, icon=icon, order=order,
                                         permission=permission_map.get(perm_code) if perm_code else None)
         self.stdout.write(f'  菜单就绪：{Menu.objects.count()} 项')
+
+        # 新模块菜单仅补录一次，之后保留管理员修改/删除。
+        with transaction.atomic():
+            _, first_system_init = BootstrapState.objects.get_or_create(key='system_menus_v1')
+            if first_system_init:
+                for name, path, icon, order, parent, perm_code in MENUS[10:12]:
+                    Menu.objects.get_or_create(path=path, defaults={'name': name, 'icon': icon, 'order': order,
+                                              'permission': permission_map[perm_code]})
+        with transaction.atomic():
+            _, first_org_init = BootstrapState.objects.get_or_create(key='organization_menu_v1')
+            if first_org_init:
+                Menu.objects.get_or_create(path='/organization', defaults={'name': '组织与数据权限', 'icon': 'users', 'order': 13})
 
         # 6. 欢迎通知
         Notification.push(

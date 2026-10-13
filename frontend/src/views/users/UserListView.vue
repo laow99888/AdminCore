@@ -8,9 +8,9 @@
             <div class="card-header-title">{{ uiText("用户查询") }}</div>
             <div class="header-actions">
               <input ref="importInput" type="file" accept=".xlsx,.csv" class="hidden-input" @change="handleImport" />
-              <BaseButton v-if="auth.can('data_io:import')" variant="ghost" @click="triggerImport">{{ uiText("导入") }}</BaseButton>
-              <BaseButton v-if="auth.can('data_io:import')" variant="ghost" @click="downloadTemplate">{{ uiText("导入模板") }}</BaseButton>
-              <BaseButton v-if="auth.can('data_io:export')" variant="ghost" @click="handleExport">{{ uiText("导出") }}</BaseButton>
+              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import')" variant="ghost" @click="triggerImport">{{ uiText("导入") }}</BaseButton>
+              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import')" variant="ghost" @click="downloadTemplate">{{ uiText("导入模板") }}</BaseButton>
+              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:export')" variant="ghost" @click="handleExport">{{ uiText("导出") }}</BaseButton>
             </div>
           </div>
         </template>
@@ -120,6 +120,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
+import { useModuleStore } from '@/stores/modules'
 import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type RoleRow } from '@/api'
 
 const loading = ref(false)
@@ -127,6 +128,7 @@ const saving = ref(false)
 const dialogVisible = ref(false)
 const importResultVisible = ref(false)
 const auth = useAuthStore()
+const modules = useModuleStore()
 const roleOptions = ref<RoleRow[]>([])
 const rolesLoading = ref(false)
 const rolesFailed = ref(false)

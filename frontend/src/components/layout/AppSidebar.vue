@@ -11,8 +11,9 @@
     <!-- Logo 区域 -->
     <div class="sidebar-logo">
       <div class="logo-icon">
-        <span v-if="!isCollapsed">AdminCore</span>
-        <span v-else>AC</span>
+        <img v-if="brand.logo" :src="brand.logo" :alt="brand.name" style="width: 32px; height: 32px; object-fit: contain; flex-shrink: 0" />
+        <span v-if="!isCollapsed" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{ brand.name }}</span>
+        <span v-else-if="!brand.logo">{{ brand.name.slice(0, 2) }}</span>
       </div>
     </div>
 
@@ -53,7 +54,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { menusApi } from '../../api'
 import { useAuthStore } from '../../stores/auth'
 import type { Component } from 'vue'
@@ -61,6 +62,8 @@ import { useRoute } from 'vue-router'
 import { useSidebar } from '../../composables/useSidebar'
 import { ChevronsLeft, ChevronsRight } from 'lucide-vue-next'
 import { menuIcons } from './menuIcons'
+import { useModuleStore } from '@/stores/modules'
+import { useBrandStore } from '@/stores/brand'
 
 const route = useRoute()
 const { isCollapsed, isMobile, toggle: toggleCollapse, close } = useSidebar()
@@ -78,13 +81,15 @@ interface MenuItem {
 
 // 菜单项（Lucide 线性图标，24px 网格）
 const auth = useAuthStore()
+const modules = useModuleStore()
+const brand = useBrandStore()
 const menuItems = ref<MenuItem[]>([])
 const loadNavigation = async () => {
   if (!auth.user?.permissions) await auth.fetchUser()
   try {
     const flatten = (items: Awaited<ReturnType<typeof menusApi.myMenu>>): MenuItem[] =>
       items.flatMap((item) => [{ path: item.path, label: item.name, icon: menuIcons[item.icon] || menuIcons['list-tree'] }, ...flatten(item.children || [])])
-    menuItems.value = flatten(await menusApi.myMenu())
+    menuItems.value = flatten(await menusApi.myMenu()).filter(item => modules.pathEnabled(item.path))
   } catch {
     menuItems.value = [
       { path: '/', label: '仪表盘', icon: menuIcons['layout-dashboard'] },
@@ -92,6 +97,7 @@ const loadNavigation = async () => {
     ]
   }
 }
+watch(() => JSON.stringify([auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, modules.config]), loadNavigation)
 onMounted(() => {
   loadNavigation()
   window.addEventListener('admincore:menus-updated', loadNavigation)

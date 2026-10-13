@@ -1,0 +1,17 @@
+# 精简预设：保持原文件不变，通过额外文件明确选择。
+# docker compose -f docker-compose.yml -f compose.minimal.yml up -d --build db backend frontend
+services:
+  redis:
+    profiles: [optional]
+  worker:
+    profiles: [optional]
+  beat:
+    profiles: [optional]
+  backend:
+    command: gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 1 --threads 4 --timeout 60
+    environment:
+      ADMINCORE_PRESET: minimal
+      ADMINCORE_MODULES: ""
+    depends_on: !override
+      db:
+        condition: service_healthy

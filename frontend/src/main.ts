@@ -4,6 +4,7 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { i18n } from './i18n'
+import { useBrandStore } from './stores/brand'
 
 // Element Plus 基础样式与暗色变量（必须先于全局覆盖引入）
 import 'element-plus/dist/index.css'
@@ -26,6 +27,7 @@ if (isDark) {
 
 // 注册 Pinia
 app.use(createPinia())
+useBrandStore().load()
 
 // 注册路由
 app.use(router)

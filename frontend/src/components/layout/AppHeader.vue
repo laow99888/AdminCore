@@ -27,7 +27,7 @@
       </div>
 
       <!-- 通知 -->
-      <div class="header-action">
+      <div v-if="modules.enabled('notifications')" class="header-action">
         <el-badge :value="notificationCount" :hidden="notificationCount === 0" class="notification-badge">
           <button class="action-btn" :title="uiText('通知中心')" :aria-label="uiText('通知中心')" @click="router.push('/notifications')">
             <Bell :size="17" :stroke-width="1.75" />
@@ -96,11 +96,13 @@ import { notificationsApi } from '../../api'
 import { useI18n } from 'vue-i18n'
 import { Search, Bell, Sun, Moon, Languages, User, Menu } from 'lucide-vue-next'
 import { useSidebar } from '../../composables/useSidebar'
+import { useModuleStore } from '@/stores/modules'
 
 const route = useRoute()
 const router = useRouter()
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
+const modules = useModuleStore()
 const { locale } = useI18n()
 const { isCollapsed, toggle: toggleSidebar } = useSidebar()
 
@@ -120,8 +122,10 @@ const refreshUnread = async () => {
   }
 }
 onMounted(() => {
-  refreshUnread()
-  pollTimer = window.setInterval(refreshUnread, 60000)
+  if (modules.enabled('notifications')) {
+    refreshUnread()
+    pollTimer = window.setInterval(refreshUnread, 60000)
+  }
 })
 onUnmounted(() => window.clearInterval(pollTimer))
 
@@ -138,6 +142,9 @@ const currentPageTitle = computed(() => {
     '/logs': uiText("操作日志"),
     '/notifications': uiText("通知中心"),
     '/settings': uiText("系统设置"),
+    '/system/config': uiText('系统参数'),
+    '/system/dictionaries': uiText('数据字典'),
+    '/organization': uiText('组织与数据权限'),
   }
   return titles[route.path] || 'AdminCore'
 })

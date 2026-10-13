@@ -9,6 +9,9 @@ from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
 from apps.core.views import DashboardStatsView, health_check
+from apps.core.views import ModuleCapabilitiesView
+from apps.core.modules import MODULES, module_enabled
+from apps.core.system_views import BrandView
 
 urlpatterns = [
     # 管理后台
@@ -18,12 +21,9 @@ urlpatterns = [
     path('api/v1/auth/', include('apps.auth_app.urls')),
     path('api/v1/users/', include('apps.users.urls')),
     path('api/v1/permissions/', include('apps.permissions.urls')),
-    path('api/v1/files/', include('apps.files.urls')),
-    path('api/v1/tasks/', include('apps.tasks.urls')),
     path('api/v1/logs/', include('apps.logs.urls')),
-    path('api/v1/notifications/', include('apps.notifications.urls')),
-    path('api/v1/data-io/', include('apps.data_io.urls')),
-    path('api/v1/approvals/', include('apps.approvals.urls')),
+    path('api/v1/modules/', ModuleCapabilitiesView.as_view(), name='module-capabilities'),
+    path('api/v1/brand/', BrandView.as_view(), name='brand'),
 
     # API 文档
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
@@ -38,5 +38,8 @@ urlpatterns = [
 ]
 
 # 静态文件和媒体文件服务
+urlpatterns += [path(f'api/v1/{module.api_prefix}/', include(module.urls))
+                for module in MODULES if module_enabled(module.key)]
+
 if settings.DEBUG:
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

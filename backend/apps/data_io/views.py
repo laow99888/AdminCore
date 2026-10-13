@@ -58,6 +58,9 @@ class DataImportView(APIView):
     required_permission = 'data_io:import'
 
     def post(self, request):
+        from apps.core.data_scope import unrestricted_user_creation
+        if not unrestricted_user_creation(request.user):
+            return Response({'code': 403, 'message': '受限用户数据范围不能批量创建未分配部门的用户', 'data': None}, status=403)
         serializer = DataImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         uploaded = serializer.validated_data['file']
@@ -205,6 +208,8 @@ class DataExportView(APIView):
 
         fields = config['fields']
         queryset = config['export_queryset']()
+        from apps.core.data_scope import scope_queryset
+        queryset = scope_queryset(queryset, request.user, 'user', 'pk')
         count = queryset.count()
         _log(request, 'export', f'Export {resource_name} ({export_format}, {count} rows)')
 

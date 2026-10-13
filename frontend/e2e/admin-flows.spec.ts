@@ -10,6 +10,7 @@ async function setup(page: Page, admin = true, permissionsFail = false) {
   await page.addInitScript(() => { localStorage.setItem('token', 'isolated-browser-fixture'); localStorage.setItem('locale', 'zh-CN') })
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: ['files', 'tasks', 'notifications', 'data_io', 'approvals'].map(key => ({ key, enabled: true, paths: key === 'data_io' ? [] : [`/${key}`], dependencies: [] })) }) })
     if (path.endsWith('/auth/me/')) return route.fulfill({ json: envelope({ id: 'a1', username: admin ? 'admin' : 'editor', is_staff: admin, is_superuser: admin, permissions: admin ? ['*'] : ['user:read', 'user:update', 'menu:read'] }) })
     if (path.endsWith('/menus/my_menu/')) return route.fulfill({ json: envelope(menus) })
     if (path.endsWith('/notifications/unread_count/')) return route.fulfill({ json: envelope({ count: 0 }) })

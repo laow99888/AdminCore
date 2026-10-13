@@ -30,7 +30,7 @@
               <el-skeleton v-else :rows="5" animated />
             </el-card>
           </el-col>
-          <el-col :xs="24" :lg="10">
+          <el-col v-if="modules.enabled('tasks')" :xs="24" :lg="10">
             <el-card shadow="never" class="chart-card">
               <template #header>
                 <div class="card-header-title">{{ uiText("任务状态分布") }}</div>
@@ -55,9 +55,11 @@ import BaseChart from '@/components/common/BaseChart.vue'
 import { dashboardApi, type DashboardStats } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
+import { useModuleStore } from '@/stores/modules'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()
+const modules = useModuleStore()
 const stats = ref<DashboardStats | null>(null)
 
 const greeting = computed(() => {
@@ -72,9 +74,9 @@ const statCards = computed(() => {
   const totals = stats.value?.totals
   return [
     { label: uiText("活跃用户"), value: totals?.users ?? '—' },
-    { label: uiText("文件总数"), value: totals?.files ?? '—' },
-    { label: uiText("我的待审批"), value: totals?.pending_approvals ?? '—' },
-    { label: uiText("未读通知"), value: totals?.unread_notifications ?? '—' },
+    ...(modules.enabled('files') ? [{ label: uiText("文件总数"), value: totals?.files ?? '—' }] : []),
+    ...(modules.enabled('approvals') ? [{ label: uiText("我的待审批"), value: totals?.pending_approvals ?? '—' }] : []),
+    ...(modules.enabled('notifications') ? [{ label: uiText("未读通知"), value: totals?.unread_notifications ?? '—' }] : []),
     { label: uiText("今日登录"), value: totals?.today_logins ?? '—' },
     { label: uiText("今日操作"), value: totals?.today_operations ?? '—' },
   ]

@@ -4,8 +4,9 @@
     <div class="login-content flex-center">
       <div class="login-card">
         <div class="card-header text-center">
-          <h1 class="title">AdminCore</h1>
-          <p class="subtitle">{{ uiText("中后台管理系统") }}</p>
+          <img v-if="brand.logo" :src="brand.logo" :alt="brand.name" class="brand-logo" />
+          <h1 class="title">{{ brand.name }}</h1>
+          <p class="subtitle">{{ uiText(brand.tagline) }}</p>
         </div>
         <el-form ref="formRef" :model="form" @keyup.enter="handleLogin" class="login-form">
           <el-form-item prop="username">
@@ -58,9 +59,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from 'lucide-vue-next'
 import { useAuthStore } from '../../stores/auth'
+import { useBrandStore } from '@/stores/brand'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const brand = useBrandStore()
 const loading = ref(false)
 const focusedField = ref('')
 
@@ -168,6 +171,7 @@ const handleLogin = async () => {
 }
 
 .title {
+  overflow-wrap: anywhere;
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   margin: 0 0 var(--spacing-sm);
@@ -178,6 +182,7 @@ const handleLogin = async () => {
 }
 
 .subtitle {
+  overflow-wrap: anywhere;
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin: 0;
@@ -186,6 +191,7 @@ const handleLogin = async () => {
 .login-form {
   margin-top: var(--spacing-2xl);
 }
+.brand-logo { width: 64px; height: 64px; object-fit: contain; margin-bottom: var(--spacing-md); }
 
 .input-icon {
   margin-right: var(--spacing-sm);

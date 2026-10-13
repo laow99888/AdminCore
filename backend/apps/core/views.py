@@ -15,6 +15,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import JsonResponse
+from django.conf import settings
+from .modules import module_enabled, capabilities
+from .schema import ModuleCapabilitiesSerializer
+from .data_scope import scope_queryset
 
 User = get_user_model()
 
@@ -27,10 +31,19 @@ def health_check(request):
         with connection.cursor() as cursor:
             cursor.execute('SELECT 1')
             cursor.fetchone()
-        get_redis_connection('default').ping()
+        if settings.CACHES['default']['BACKEND'] == 'django_redis.cache.RedisCache':
+            get_redis_connection('default').ping()
     except Exception:
         return JsonResponse({'status': 'unavailable'}, status=503)
     return JsonResponse({'status': 'ok'})
+
+
+class ModuleCapabilitiesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(responses=envelope('ModuleCapabilitiesResponse', ModuleCapabilitiesSerializer()))
+    def get(self, request):
+        return Response({'code': 200, 'message': 'success', 'data': capabilities()})
 
 
 @extend_schema_view(
@@ -52,7 +65,7 @@ class DashboardStatsView(APIView):
         # 7 日登录趋势（含今天），date() 抽取在 sqlite/PostgreSQL 均可用
         start = today_start - timedelta(days=6)
         trend_rows = (
-            LoginLog.objects.filter(created_at__gte=start)
+            scope_queryset(LoginLog.objects.filter(created_at__gte=start), user, 'log', 'user_id')
             .extra(select={'day': 'date(created_at)'})
             .values('day')
             .annotate(
@@ -73,21 +86,21 @@ class DashboardStatsView(APIView):
 
         task_status = {
             status: count
-            for status, count in TaskRecord.objects
+            for status, count in scope_queryset(TaskRecord.objects.all(), user, 'task', 'creator_id')
             .values_list('status').annotate(count=Count('id')).order_by()
-        }
+        } if module_enabled('tasks') else {}
 
         return Response({
             'code': 200,
             'message': 'success',
             'data': {
                 'totals': {
-                    'users': User.objects.filter(is_active=True).count(),
-                    'files': FileModel.objects.filter(is_deleted=False).count(),
-                    'pending_approvals': ApprovalRequest.objects.filter(assignee=user, status='pending').count(),
-                    'unread_notifications': user.notifications.filter(is_read=False).count(),
-                    'today_logins': LoginLog.objects.filter(created_at__gte=today_start, status='success').count(),
-                    'today_operations': OperationLog.objects.filter(created_at__gte=today_start).count(),
+                    'users': scope_queryset(User.objects.filter(is_active=True), user, 'user', 'pk').count(),
+                    'files': scope_queryset(FileModel.objects.filter(is_deleted=False), user, 'file', 'uploader_id', fallback='self').count() if module_enabled('files') else 0,
+                    'pending_approvals': ApprovalRequest.objects.filter(assignee=user, status='pending').count() if module_enabled('approvals') else 0,
+                    'unread_notifications': user.notifications.filter(is_read=False).count() if module_enabled('notifications') else 0,
+                    'today_logins': scope_queryset(LoginLog.objects.filter(created_at__gte=today_start, status='success'), user, 'log', 'user_id').count(),
+                    'today_operations': scope_queryset(OperationLog.objects.filter(created_at__gte=today_start), user, 'log', 'user_id').count(),
                 },
                 'login_trend': login_trend,
                 'task_status': task_status,

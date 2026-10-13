@@ -3,6 +3,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { ElMessage } from 'element-plus'
+import { useModuleStore } from '@/stores/modules'
+import { canAccessPage } from './access'
 
 // 懒加载视图
 const LoginView = () => import('../views/auth/LoginView.vue')
@@ -17,8 +19,15 @@ const TaskListView = () => import('../views/tasks/TaskListView.vue')
 const OperationLogView = () => import('../views/logs/OperationLogView.vue')
 const SettingsView = () => import('../views/settings/SettingsView.vue')
 const NotFoundView = () => import('../views/errors/NotFoundView.vue')
+const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/organization', component: () => import('../views/system/OrganizationView.vue'), meta: { requiresAuth: true } },
+  { path: '/system/config', component: () => import('../views/system/SystemConfigView.vue'), meta: { requiresAuth: true } },
+  { path: '/system/dictionaries', component: () => import('../views/system/DictionaryListView.vue'), meta: { requiresAuth: true } },
+  { path: '/403', component: ServiceErrorView },
+  { path: '/500', component: ServiceErrorView },
+  { path: '/unavailable', component: ServiceErrorView },
   {
     path: '/login',
     name: 'Login',
@@ -114,15 +123,19 @@ router.beforeEach(async (to, _from, next) => {
   } else {
     if (to.meta.requiresAuth) {
       const auth = useAuthStore()
-      if (!auth.user?.permissions) await auth.fetchUser()
-      if (!auth.user) { next('/login'); return }
-      const required: Record<string, string> = {
-        '/users': 'user:read', '/roles': 'role:read', '/menus': 'menu:read',
-        '/tasks': 'task:read', '/logs': 'log:read',
+      const modules = useModuleStore()
+      await auth.fetchUser()
+      if (!auth.user) { next(localStorage.getItem('token') ? '/unavailable' : '/login'); return }
+      try {
+        await modules.load()
+      } catch {
+        next('/unavailable')
+        return
       }
-      if (required[to.path] && !auth.can(required[to.path])) {
+      if (!modules.pathEnabled(to.path)) { next('/'); return }
+      if (!canAccessPage(to.path, auth.user)) {
         ElMessage.error(uiText("没有访问此页面的权限"))
-        next('/')
+        next('/403')
         return
       }
     }

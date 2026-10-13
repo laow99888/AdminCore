@@ -117,5 +117,5 @@ class UserUpdateSerializer(UserRoleAssignmentMixin, serializers.ModelSerializer)
 
 class BulkUserActionSerializer(serializers.Serializer):
     """批量用户操作序列化器"""
-    user_ids = serializers.ListField(child=serializers.CharField(), required=True)
+    user_ids = serializers.ListField(child=serializers.UUIDField(), required=True, min_length=1, max_length=1000)
     action = serializers.ChoiceField(choices=['activate', 'deactivate', 'delete'], required=True)

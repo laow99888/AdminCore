@@ -51,7 +51,8 @@ class Notification(BaseModel):
     @classmethod
     def push(cls, recipient_ids, title, content='', notification_type='system', link='', data=None, sender=None):
         """批量创建站内通知的统一入口"""
-        if not recipient_ids:
+        from apps.core.modules import module_enabled
+        if not module_enabled('notifications') or not recipient_ids:
             return 0
         User = get_user_model()
         users = User.objects.filter(id__in=recipient_ids)

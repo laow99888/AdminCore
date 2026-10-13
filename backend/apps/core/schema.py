@@ -65,3 +65,17 @@ class DashboardSerializer(serializers.Serializer):
     totals = DashboardTotalsSerializer()
     login_trend = LoginTrendSerializer(many=True)
     task_status = serializers.DictField(child=serializers.IntegerField())
+
+
+class ModuleDescriptorSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    title = serializers.CharField()
+    enabled = serializers.BooleanField()
+    dependencies = serializers.ListField(child=serializers.CharField())
+    paths = serializers.ListField(child=serializers.CharField())
+
+
+class ModuleCapabilitiesSerializer(serializers.Serializer):
+    contract_version = serializers.IntegerField()
+    preset = serializers.CharField()
+    modules = ModuleDescriptorSerializer(many=True)

@@ -34,6 +34,8 @@ def dispatch_task(func, *args):
 @shared_task(bind=True, name='data_io.run_data_import')
 def run_data_import(self, task_record_id):
     """执行数据导入：解析文件 -> 逐行校验并创建 -> 记录行级错误与统计"""
+    from apps.core.modules import require_task
+    require_task(self.name)
     import pandas as pd
     from django.core.files.storage import default_storage
 
@@ -54,7 +56,13 @@ def run_data_import(self, task_record_id):
 
     try:
         from apps.permissions.permissions import has_permission_code
-        if not has_permission_code(record.creator, 'data_io:import'):
+        from apps.core.data_scope import unrestricted_user_creation, scope_queryset
+        from django.contrib.auth import get_user_model
+        actor = get_user_model().objects.filter(pk=record.creator_id, is_active=True).first()
+        if actor is None or not unrestricted_user_creation(actor):
+            record.mark_failed(error='任务发起人的用户数据范围已受限')
+            return
+        if not has_permission_code(actor, 'data_io:import'):
             record.mark_failed(error='任务发起人的导入权限已撤销')
             return
         config = get_resource(record.related_resource)
@@ -62,7 +70,8 @@ def run_data_import(self, task_record_id):
             record.mark_failed(error=f'未注册的导入资源：{record.related_resource}')
             return
 
-        file_record = FileModel.objects.filter(id=record.result.get('file_id') if record.result else None).first()
+        file_record = scope_queryset(FileModel.objects.filter(is_deleted=False), actor, 'file', 'uploader_id', fallback='self').filter(
+            id=record.result.get('file_id') if record.result else None).first()
         if file_record is None or not file_record.file:
             record.mark_failed(error='导入文件不存在或已被删除')
             return
@@ -96,6 +105,12 @@ def run_data_import(self, task_record_id):
             with transaction.atomic():
                 locked = TaskRecord.objects.select_for_update().get(pk=record.pk)
                 if locked.status != 'running':
+                    return
+                actor = get_user_model().objects.filter(pk=record.creator_id, is_active=True).first()
+                if actor is None or not has_permission_code(actor, 'data_io:import') or not unrestricted_user_creation(actor):
+                    record.mark_failed(error='执行权限或数据范围已变更，已完成的导入行保留')
+                    if record.status == 'failed':
+                        TaskRecord.objects.filter(pk=record.pk).update(result={'file_id': str(file_record.pk), 'created': created, 'failed': len(errors), 'errors': errors[:100]})
                     return
                 obj, err = config['create_row'](data)
             if err:
