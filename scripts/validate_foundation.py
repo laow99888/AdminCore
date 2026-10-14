@@ -527,6 +527,36 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 审计事务回滚、并发快照连续和只读边界', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_admin_audit.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL Django admin 并发前值链与批量审计回滚', True)
+        admin_browser = requests.Session()
+        admin_login_url = BASE.removesuffix('/api/v1/') + '/admin/login/'
+        login_page = admin_browser.get(admin_login_url, timeout=20)
+        check('真实 Nginx Django admin 登录页提供 CSRF 校验', login_page.status_code == 200 and 'csrftoken' in admin_browser.cookies)
+        login_response = admin_browser.post(admin_login_url, data={'username': 'admin', 'password': password,
+            'csrfmiddlewaretoken': admin_browser.cookies.get('csrftoken'), 'next': '/admin/'},
+            headers={'Referer': admin_login_url, 'Origin': BASE.removesuffix('/api/v1/')}, allow_redirects=False, timeout=20)
+        check('真实 HTTP 隔离管理员登录', login_response.status_code == 302 and 'sessionid' in admin_browser.cookies)
+        role_add_url = BASE.removesuffix('/api/v1/') + '/admin/permissions/role/add/'
+        role_page = admin_browser.get(role_add_url, timeout=20)
+        check('真实 HTTP Django admin 角色表单可访问', role_page.status_code == 200)
+        role_payload = {'name': 'http-admin-audit-fixture', 'description': '', 'is_active': 'on',
+            '_save': '保存', 'permissions-TOTAL_FORMS': '0', 'permissions-INITIAL_FORMS': '0',
+            'permissions-MIN_NUM_FORMS': '0', 'permissions-MAX_NUM_FORMS': '1000',
+            'csrfmiddlewaretoken': admin_browser.cookies.get('csrftoken')}
+        rejected = admin_browser.post(role_add_url, data=role_payload,
+            headers={'Origin': 'https://untrusted.example.test', 'Referer': role_add_url}, allow_redirects=False, timeout=20)
+        check('真实 HTTP Django admin 拒绝跨源 CSRF 请求', rejected.status_code == 403)
+        response = admin_browser.post(role_add_url, data=role_payload,
+            headers={'Referer': role_add_url, 'Origin': BASE.removesuffix('/api/v1/'), 'X-Request-ID': 'foundation-http-admin-create'}, allow_redirects=False, timeout=20)
+        check('真实 HTTP 带 CSRF 的后台角色创建', response.status_code == 302)
+        logs = api('logs/operation/?request_id=foundation-http-admin-create', token=token).json()['data']['items']
+        detail = api('logs/operation/' + logs[0]['id'] + '/', token=token).json()
+        check('真实 HTTP Django 后台变更关联到统一前后值', len(logs) == 1 and detail['audit_version'] == 1
+              and detail['before_values'] is None and detail['after_values']['name'] == 'http-admin-audit-fixture')
+        admin_browser.close()
         audit = api('logs/operation/', token=token, data=None).json()['data']['items'][0]
         detail = api('logs/operation/' + audit['id'] + '/', token=token)
         check('真实 Nginx 审计详情与请求 ID 返回且禁止缓存',

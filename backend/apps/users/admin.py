@@ -5,11 +5,13 @@
 from django.contrib import admin
 from .models import UserProfile
 from apps.core.sensitive import mask_phone
+from apps.logs.admin_audit import AuditedAdminMixin
 
 
 @admin.register(UserProfile)
-class UserProfileAdmin(admin.ModelAdmin):
+class UserProfileAdmin(AuditedAdminMixin, admin.ModelAdmin):
     """用户资料管理"""
+    audit_resource = 'user_profile'
     list_display = ('user', 'department', 'position', 'created_at')
     search_fields = ('user__username', 'department', 'position')
     list_filter = ('department',)

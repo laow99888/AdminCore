@@ -144,7 +144,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                 with transaction.atomic():
                     from apps.logs.audit import snapshot, write_audit
                     users = self.get_queryset().filter(id__in=user_ids).select_for_update(of=('self',)).order_by('pk')
-                    rows = list(users.prefetch_related('roles'))
+                    rows = list(users.prefetch_related('roles', 'groups', 'user_permissions'))
                     if len(set(user_ids)) != len(user_ids) or len(rows) != len(user_ids):
                         write_audit(request=request, resource='user', action='other', status=403,
                             description='batch_rejected', results=[{'id': identifier, 'status': 403} for identifier in user_ids])

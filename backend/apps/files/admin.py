@@ -5,10 +5,13 @@
 from django.contrib import admin
 
 from .models import FileModel
+from apps.logs.admin_audit import AuditedAdminMixin
 
 
 @admin.register(FileModel)
-class FileModelAdmin(admin.ModelAdmin):
+class FileModelAdmin(AuditedAdminMixin, admin.ModelAdmin):
+    audit_resource = 'file'
+    audit_module = 'files'
     exclude = ['purpose']
     list_display = ['original_name', 'file_type', 'size', 'uploader', 'download_count', 'is_deleted', 'created_at']
     list_filter = ['file_type', 'is_deleted', 'created_at']

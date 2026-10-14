@@ -253,7 +253,9 @@ def test_django_admin_preserves_current_binding_and_bumps_version(member_client,
     assert upload(member_client).status_code == 200
     member_user.refresh_from_db()
     stale.email = 'edited@example.com'
-    UserAdmin(type(stale), admin.site).save_model(None, stale, SimpleNamespace(changed_data=['email']), True)
+    request = SimpleNamespace()
+    UserAdmin(type(stale), admin.site).save_model(request, stale, SimpleNamespace(changed_data=['email']), True)
+    assert request._admin_audit_before[(stale._meta.label, str(stale.pk))]['profile_version'] == 2
     member_user.refresh_from_db()
     assert member_user.avatar_file_id == stale.avatar_file_id and member_user.profile_version == 3
 

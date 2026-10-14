@@ -8,9 +8,14 @@ from django.core.serializers.json import DjangoJSONEncoder
 from .models import OperationLog
 
 FIELDS = {
-    'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids'),
+    'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids', 'group_ids', 'django_permission_ids'),
     'role': ('id', 'name', 'is_active', 'permission_ids'),
     'menu': ('id', 'name', 'path', 'icon', 'order', 'parent_id', 'permission_id', 'is_visible'),
+    'permission': ('id', 'name', 'code', 'resource', 'action'),
+    'user_role': ('id', 'user_id', 'role_id'),
+    'user_profile': ('id', 'user_id', 'department', 'position'),
+    'notification': ('id', 'recipient_id', 'notification_type', 'is_read', 'read_at', 'content_length', 'content_sha256'),
+    'task': ('id', 'task_type', 'status', 'progress', 'creator_id', 'celery_task_id'),
     'department': ('id', 'name', 'parent', 'order', 'is_active', 'version'),
     'membership': ('id', 'user', 'department', 'version'),
     'data_scope': ('id', 'role', 'resource', 'scope', 'departments', 'version'),
@@ -49,11 +54,13 @@ def snapshot(resource, row):
     values = {key: getattr(row, key) for key in FIELDS[resource] if hasattr(row, key)}
     if resource == 'user':
         values['role_ids'] = sorted(str(item.role_id) for item in row.roles.all())
+        values['group_ids'] = sorted(str(item.pk) for item in row.groups.all())
+        values['django_permission_ids'] = sorted(str(item.pk) for item in row.user_permissions.all())
     elif resource == 'role':
         values['permission_ids'] = sorted(str(item.permission_id) for item in row.permissions.all())
     elif resource == 'file':
         values['deleted_by'] = str(row.deleted_by_id) if row.deleted_by_id else None
-    elif resource == 'announcement':
+    elif resource in ('announcement', 'notification'):
         values['content_length'] = len(row.content)
         values['content_sha256'] = hashlib.sha256(row.content.encode()).hexdigest()
     return project(resource, values)
