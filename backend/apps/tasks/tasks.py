@@ -15,6 +15,15 @@ from .maintenance import exclusive
 logger = logging.getLogger(__name__)
 
 
+@shared_task(bind=True, name='tasks.request_backup')
+def request_backup(self, dry_run=False, _record=None):
+    """Celery 仅登记停写备份请求，不取得 Docker 控制权限。"""
+    from apps.core.modules import require_task
+    from .backup import register
+    require_task(self.name)
+    return register(record=_record, dry_run=dry_run, celery_task_id=self.request.id or '')
+
+
 @shared_task(bind=True, name='tasks.cleanup_soft_deleted_files', soft_time_limit=270, time_limit=300)
 @exclusive('files')
 def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None, _expected_retention=None):
@@ -156,12 +165,14 @@ def run_maintenance(self, record_id):
         if record.created_at < timezone.now() - timedelta(hours=24):
             record.mark_failed('request_expired')
             return {'rejected': True}
-        if (not request.options.get('dry_run')
+        if (request.key != 'backup' and not request.options.get('dry_run')
                 and not valid_preview(request.key, request.preview_id, record.creator_id)):
             record.mark_failed('preview_expired_or_policy_changed')
             return {'rejected': True}
         record.celery_task_id = self.request.id or str(record.pk)
         record.save(update_fields=['celery_task_id', 'updated_at'])
+        if request.key == 'backup':
+            return request_backup(_record=record, **validate_options(request.key, request.options))
         record.mark_started()
     with maintenance_lock(request.key) as acquired:
         if not acquired:
@@ -183,6 +194,8 @@ def recover_lost_maintenance():
     from .maintenance import JOBS, maintenance_lock
     from .models import TaskRecord
     for key in JOBS:
+        if key == 'backup':
+            continue
         with maintenance_lock(key) as acquired:
             if acquired:
                 TaskRecord.objects.filter(related_resource='maintenance:' + key, status='running',

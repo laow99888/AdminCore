@@ -8,6 +8,9 @@ from django.db import connection
 from rest_framework.exceptions import ValidationError
 
 JOBS = {
+    'backup': {'task': 'tasks.request_backup', 'name': '数据库与媒体备份',
+               'schedule': 'AdminCore 每日数据库与媒体备份', 'dependencies': ['tasks'],
+               'confirmation': '执行备份', 'requires_preview': False},
     'files': {'task': 'tasks.cleanup_soft_deleted_files', 'name': '清理软删除文件',
               'schedule': 'AdminCore 每日软删除文件清理', 'dependencies': ['tasks', 'files']},
     'notifications': {'task': 'tasks.cleanup_expired_notifications', 'name': '清理过期通知',
@@ -66,7 +69,7 @@ def exclusive(key):
                 if not acquired:
                     from .models import TaskRecord
                     result = {'skipped': True, 'reason': 'overlap'}
-                    record = TaskRecord.objects.create(name=JOBS[key]['name'], task_type='cleanup',
+                    record = TaskRecord.objects.create(name=JOBS[key]['name'], task_type='backup' if key == 'backup' else 'cleanup',
                                                        related_resource='maintenance:' + key)
                     record.mark_success(result)
                     return result
@@ -84,6 +87,12 @@ def valid_preview(key, record_id, user_id):
         pk=record_id, key=key, record__creator_id=user_id, record__status='success',
         record__completed_at__gte=timezone.now() - timedelta(minutes=15), options__dry_run=True,
     ).first()
+    if key == 'backup':
+        from .backup import available, policy
+        result = preview.record.result if preview else None
+        return bool(isinstance(result, dict) and result.get('dry_run') is True
+                    and result.get('enabled') == available()
+                    and all(result.get(name) == value for name, value in policy().items()))
     policy = 'files.retention_days' if key == 'files' else 'notifications.retention_days'
     return bool(preview and isinstance(preview.record.result, dict)
                 and preview.record.result.get('dry_run') is True

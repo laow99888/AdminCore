@@ -52,7 +52,7 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 changed = TaskRecord.objects.filter(pk=record.pk, status='pending').update(
                     status='cancelled', completed_at=timezone.now(), updated_at=timezone.now())
                 if not changed:
-                    return Response({'code': 409, 'message': '维护任务已开始或已完成，不能取消已发生的清理', 'data': None}, status=409)
+                    return Response({'code': 409, 'message': '维护任务已开始或已完成，不能取消已开始的维护操作', 'data': None}, status=409)
                 record.refresh_from_db()
                 audit(request, 'maintenance_run', record.pk, {'status': 'pending'}, {'status': 'cancelled'})
             return Response({'code': 200, 'message': '等待执行的维护任务已取消', 'data': TaskRecordSerializer(record).data})

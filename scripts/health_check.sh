@@ -23,7 +23,7 @@ fi
 
 echo
 echo "== 前端 $FRONTEND_URL =="
-if curl -fsS -o /dev/null "$FRONTEND_URL"; then
+if curl -fsS "$FRONTEND_URL" > /dev/null; then
   echo "OK"
 else
   echo "FAIL：前端页面不可达"

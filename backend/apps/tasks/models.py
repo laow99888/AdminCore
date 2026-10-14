@@ -48,6 +48,9 @@ class TaskRecord(BaseModel):
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['task_type']),
         ]
+        constraints = [models.UniqueConstraint(fields=['related_resource'],
+            condition=models.Q(related_resource='maintenance:backup', status__in=['pending', 'running']),
+            name='one_unfinished_backup')]
 
     def __str__(self):
         return f'{self.name} [{self.status}]'
@@ -96,3 +99,11 @@ class MaintenanceRequest(models.Model):
     session_version = models.PositiveIntegerField()
     request_id = models.CharField(max_length=100, blank=True)
     preview_id = models.UUIDField(null=True, blank=True)
+
+
+class BackupRequest(models.Model):
+    """宿主执行器领取凭证；不含数据库或远端存储凭据。"""
+    record = models.OneToOneField(TaskRecord, primary_key=True, on_delete=models.CASCADE, related_name='backup_request')
+    claim_token = models.UUIDField(null=True, blank=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    options = models.JSONField(default=dict)

@@ -292,6 +292,15 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
 # 定时任务调度器（django-celery-beat，任务计划存数据库）
 CELERY_BEAT_SCHEDULER = 'apps.core.module_scheduler.ModuleScheduler'
+ADMINCORE_BACKUP_ENABLED = os.getenv('ADMINCORE_BACKUP_ENABLED', 'False').lower() == 'true'
+try:
+    ADMINCORE_BACKUP_RETENTION_DAYS = int(os.getenv('ADMINCORE_BACKUP_RETENTION_DAYS', '30'))
+    ADMINCORE_BACKUP_RETENTION_COUNT = int(os.getenv('ADMINCORE_BACKUP_RETENTION_COUNT', '7'))
+    if not (1 <= ADMINCORE_BACKUP_RETENTION_DAYS <= 3650 and 1 <= ADMINCORE_BACKUP_RETENTION_COUNT <= 1000):
+        raise ValueError()
+except ValueError:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('备份保留天数须为 1–3650，最少保留份数须为 1–1000') from None
 
 # ===== 缓存配置 =====
 CACHES = {

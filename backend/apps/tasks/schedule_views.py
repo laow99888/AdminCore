@@ -1,4 +1,4 @@
-"""只管理注册的两项维护计划；核心可靠派发不开放启停。"""
+"""只管理注册维护计划；核心可靠派发不开放启停。"""
 import hashlib
 import json
 import re
@@ -84,6 +84,8 @@ class ScheduleRowSerializer(serializers.Serializer):
     overlap = serializers.CharField()
     time_limit_seconds = serializers.IntegerField()
     preview = serializers.JSONField(allow_null=True)
+    requires_preview = serializers.BooleanField()
+    confirmation = serializers.CharField()
     last_run = TaskRecordSerializer(allow_null=True)
 
 
@@ -122,9 +124,11 @@ def schedule_row(key, user):
     return {'key': key, 'name': job['name'], 'task': job['task'], 'enabled': bool(row and row.enabled),
             'module_enabled': task_enabled(job['task']), 'missing': row is None, 'revision': revision(row),
             'cron': configuration(row)['cron'] if row and row.crontab else {
-                'minute': '0' if key == 'files' else '15', 'hour': '3', 'day_of_week': '*',
+                'minute': '15' if key == 'notifications' else '0', 'hour': '2' if key == 'backup' else '3', 'day_of_week': '*',
                 'day_of_month': '*', 'month_of_year': '*', 'timezone': settings.TIME_ZONE},
-            'options': options, 'supported': supported, 'overlap': 'skip', 'time_limit_seconds': 300,
+            'options': options, 'supported': supported, 'overlap': 'skip', 'time_limit_seconds': 7200 if key == 'backup' else 300,
+            'requires_preview': job.get('requires_preview', True),
+            'confirmation': job.get('confirmation', '执行清理'),
             'preview': preview_data, 'last_run': TaskRecordSerializer(last).data if last else None}
 
 
@@ -149,6 +153,10 @@ class ScheduleView(APIView):
         data = serializer.validated_data
         if not task_enabled(job['task']):
             raise ValidationError('任务依赖模块未启用')
+        if key == 'backup' and data['enabled']:
+            from .backup import available
+            if not available():
+                raise ValidationError('需先启用宿主备份执行器与 ADMINCORE_BACKUP_ENABLED')
         try:
             with transaction.atomic():
                 row = PeriodicTask.objects.select_for_update().filter(name=job['schedule']).first()
@@ -191,6 +199,11 @@ class ScheduleRunView(ScheduleView):
             raise ValidationError('手动执行必须提供 Idempotency-Key')
         if not task_enabled(job['task']):
             raise ValidationError('任务依赖模块未启用')
+        if key == 'backup' and not data['options']['dry_run']:
+            from .backup import available, recover_lost
+            recover_lost()
+            if not available():
+                raise ValidationError('宿主备份未启用')
         if not PeriodicTask.objects.filter(task='core.dispatch_outbox', enabled=True).exists():
             raise ValidationError('可靠事件补偿计划未启用，不能提交维护任务')
         def submit():
@@ -200,10 +213,16 @@ class ScheduleRunView(ScheduleView):
             if not schedule_row(key, request.user)['supported']:
                 raise ValidationError('计划参数与注册定义不一致')
             if not data['options']['dry_run']:
-                if data.get('confirmation') != '执行清理' or not valid_preview(key, data.get('preview_id'), request.user.pk):
+                if data.get('confirmation') != job.get('confirmation', '执行清理'):
+                    raise ValidationError('执行前需要正确的确认文字')
+                if job.get('requires_preview', True) and not valid_preview(key, data.get('preview_id'), request.user.pk):
                     raise ValidationError('执行前需要 15 分钟内的有效预览与确认；策略变化后需重新预览')
-            record = TaskRecord.objects.create(name=job['name'], task_type='cleanup', creator=request.user,
-                                               related_resource='maintenance:' + key)
+            try:
+                with transaction.atomic():
+                    record = TaskRecord.objects.create(name=job['name'], task_type='backup' if key == 'backup' else 'cleanup',
+                        creator=request.user, related_resource='backup:preview' if key == 'backup' and data['options']['dry_run'] else 'maintenance:' + key)
+            except IntegrityError:
+                raise ValidationError('已有等待或执行中的备份任务') from None
             MaintenanceRequest.objects.create(record=record, key=key, options=data['options'],
                 session_version=request.user.session_version, request_id=str(getattr(request, 'request_id', ''))[:100],
                 preview_id=data.get('preview_id'))

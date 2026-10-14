@@ -4,11 +4,19 @@
 
 set -euo pipefail
 
+# Git Bash 调用 docker.exe 时必须保留容器的 /app/... 参数。
+case "${OSTYPE:-}" in
+  msys*|cygwin*) export MSYS_NO_PATHCONV=1 ;;
+esac
+
 cd "$(dirname "$0")/.."
 
 TIMESTAMP="${1:?用法：bash scripts/restore.sh <时间戳>}"
 [[ "$TIMESTAMP" =~ ^[0-9]{8}-[0-9]{6}$ ]] || { echo '时间戳格式无效'; exit 1; }
 BACKUP_DIR="${BACKUP_DIR:-backups}"
+if [ "${ADMINCORE_BACKUP_COORDINATED:-0}" != "1" ]; then
+  exec "${ADMINCORE_PYTHON:-python3}" scripts/backup_runner.py --restore "$TIMESTAMP" --backup-dir "$BACKUP_DIR"
+fi
 DB_FILE="$BACKUP_DIR/admincore-db-$TIMESTAMP.dump"
 MEDIA_FILE="$BACKUP_DIR/admincore-media-$TIMESTAMP.tar.gz"
 MANIFEST="$BACKUP_DIR/admincore-$TIMESTAMP.sha256"
@@ -18,8 +26,12 @@ ROLLBACK="admincore_rollback_${TIMESTAMP//-/_}_$$"
 
 [ -f "$DB_FILE" ] && [ -f "$MEDIA_FILE" ] && [ -f "$MANIFEST" ] || { echo '缺少完整的新格式备份；旧 SQL 备份请按文档在隔离库转换'; exit 1; }
 # 只验证固定的两个文件，不能让清单指定任意读取路径。
-EXPECTED=$(sha256sum "$DB_FILE" "$MEDIA_FILE")
-[ "$EXPECTED" = "$(cat "$MANIFEST")" ] || { echo '备份校验失败'; exit 1; }
+# Git Bash 默认输出二进制标记 *；显式文本格式使清单与 Linux 一致。
+EXPECTED=$(sha256sum --text "$DB_FILE" "$MEDIA_FILE")
+# 自动执行器使用固定 basename，允许独立目录迁移；兼容旧脚本的路径清单。
+PORTABLE=$(cd "$BACKUP_DIR" && sha256sum --text "admincore-db-$TIMESTAMP.dump" "admincore-media-$TIMESTAMP.tar.gz")
+ACTUAL=$(cat "$MANIFEST")
+[ "$EXPECTED" = "$ACTUAL" ] || [ "$PORTABLE" = "$ACTUAL" ] || { echo '备份校验失败'; exit 1; }
 
 echo "!!! 将验证并切换到 $TIMESTAMP 备份；当前数据库和媒体保留为回滚副本。"
 read -r -p "输入 yes 确认：" answer

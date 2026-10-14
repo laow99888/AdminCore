@@ -14,6 +14,8 @@ def dispatch_outbox(limit=100):
         raise ValueError('派发批量范围为 1-1000')
     now = timezone.now()
     from apps.core.modules import module_enabled
+    from apps.tasks.backup import recover_lost
+    recover_lost()
     if module_enabled('tasks'):
         from apps.tasks.tasks import recover_lost_maintenance
         recover_lost_maintenance()

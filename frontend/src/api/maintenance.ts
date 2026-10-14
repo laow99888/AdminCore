@@ -14,18 +14,21 @@ export interface MaintenanceSchedule {
   supported: boolean
   overlap: string
   time_limit_seconds: number
-  preview: { id: string; result: Record<string, number | boolean>; completed_at: string } | null
+  requires_preview: boolean
+  confirmation: string
+  preview: { id: string; result: Record<string, number | boolean | string>; completed_at: string } | null
   last_run: TaskRow | null
 }
 
 export const maintenanceApi = {
   list: async () => (await request.get<ApiResponse<MaintenanceSchedule[]>>('/tasks/schedules/')).data.data,
   save: async (row: MaintenanceSchedule) => (await request.patch<ApiResponse<MaintenanceSchedule>>(`/tasks/schedules/${row.key}/`, {
-    revision: row.revision, enabled: row.enabled, ...row.cron, options: row.options,
+    revision: row.revision, enabled: row.enabled, ...row.cron,
+    options: row.key === 'files' ? { dry_run: row.options.dry_run, batch_size: row.options.batch_size } : { dry_run: row.options.dry_run },
   })).data.data,
   run: async (row: MaintenanceSchedule, dryRun: boolean, confirmation = '', key = newIdempotencyKey('maintenance')) =>
     (await request.post<ApiResponse<TaskRow>>(`/tasks/schedules/${row.key}/run/`, {
-      revision: row.revision, options: { ...row.options, dry_run: dryRun },
-      confirmation, preview_id: dryRun ? null : row.preview?.id,
+      revision: row.revision, options: row.key === 'files' ? { dry_run: dryRun, batch_size: row.options.batch_size } : { dry_run: dryRun },
+      confirmation, preview_id: !dryRun && row.requires_preview ? row.preview?.id : null,
     }, { headers: { 'Idempotency-Key': key } })).data.data,
 }
