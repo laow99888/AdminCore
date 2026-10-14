@@ -7,6 +7,7 @@
             <div class="card-header-title">{{ uiText("系统日志") }}</div>
             <div class="header-actions">
               <DataExportButton :loading="loading || !exportReady" resource="logs" :filters="{ ...exportFilters, log_type: activeTab }" />
+              <LocalExportButton resource="logs" :title="uiText('系统日志')" :rows="printRows" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :owner-key="printOwner" />
               <PrintTableButton :title="uiText('系统日志')" :rows="printRows" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('log:read')" :owner-key="printOwner" />
               <el-input
                 v-model="search"
@@ -91,6 +92,7 @@ import { logsApi, type OperationLogRow } from '@/api'
 import { usePageState } from '@/composables/usePageState'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import LocalExportButton from '@/components/common/LocalExportButton.vue'
 import type { PrintColumn } from '@/utils/printDocument'
 import { useAuthStore } from '@/stores/auth'
 import { useSidebar } from '@/composables/useSidebar'

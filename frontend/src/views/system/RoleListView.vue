@@ -7,6 +7,7 @@
             <div class="card-header-title">{{ uiText("角色列表") }}</div>
             <div class="role-header-actions">
               <DataExportButton :loading="loading || !exportReady" resource="roles" />
+              <LocalExportButton resource="roles" :title="uiText('角色列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :owner-key="printOwner" />
               <PrintTableButton :title="uiText('角色列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('role:read')" :owner-key="printOwner" />
               <BaseButton v-if="auth.can('role:update') && (auth.user?.is_staff || auth.user?.is_superuser)" variant="primary" @click="handleCreate">{{ uiText("+ 新增角色") }}</BaseButton>
             </div>
@@ -90,6 +91,7 @@ import { useAuthStore } from '@/stores/auth'
 import { rolesApi, permissionsApi, type RoleRow } from '@/api'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import LocalExportButton from '@/components/common/LocalExportButton.vue'
 import type { PrintColumn } from '@/utils/printDocument'
 
 const auth = useAuthStore()

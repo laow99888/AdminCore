@@ -316,5 +316,11 @@ export const uiMessages: Record<string, string> = {
   '此类型暂不支持预览，请下载查看': 'This file type cannot be previewed. Download it instead.',
   '图片像素超出预览限制': 'Image dimensions exceed preview limits.', '图片解码结果超出预览限制': 'Decoded image exceeds preview limits.',
   'PDF 结构过于复杂，暂不支持预览': 'PDF structure is too complex to preview.',
+  '本地 Excel 导出': 'Local Excel Export', '本地 Excel（当前页）': 'Local Excel (current page)',
+  '取消本地导出': 'Cancel local export', '数据加载中，暂不能导出': 'Data is loading. Export is unavailable.',
+  '仅本地导出第 {p0} 页，共 {p1} 条记录；最多 100 行': 'Export page {p0} locally, {p1} records; up to 100 rows',
+  '当前页内容超出本地导出限制或含不支持的值，请缩小范围后重试': 'This page exceeds local export limits or contains unsupported values. Reduce its size and retry.',
+  '本地导出超时，已停止处理，请重试': 'Local export timed out and was stopped. Please retry.',
+  '本地导出失败，请重试或使用服务端导出': 'Local export failed. Retry or use server export.',
   '必填字段不能为空': 'Required fields cannot be empty.', '确定删除？': 'Confirm deletion?', '否': 'No',
 }

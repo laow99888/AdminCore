@@ -39,7 +39,7 @@ export function useRealtimeUpdates(topic: keyof RealtimeTopics, refresh: () => P
     window.clearInterval(timer); window.clearTimeout(debounce)
     window.removeEventListener(REALTIME_EVENT, receive)
   }
-  watch(() => [auth.user?.id, auth.token, auth.user?.must_change_password, JSON.stringify(auth.user?.permissions), modules.enabled(topic)], () => {
+  watch([() => auth.user?.id, () => auth.token, () => auth.user?.must_change_password, () => JSON.stringify(auth.user?.permissions), () => modules.enabled(topic)], () => {
     generation++; signature = ''; clear()
     if (allowed()) void load().catch(() => undefined)
   })

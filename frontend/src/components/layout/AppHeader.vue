@@ -162,8 +162,8 @@ function startPolling() {
 onMounted(startPolling)
 onActivated(() => { active = true; startPolling() })
 onDeactivated(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
-watch(() => [modules.enabled('notifications'), modules.enabled('realtime'), authStore.user?.id, authStore.token,
-  authStore.user?.must_change_password, JSON.stringify(authStore.user?.permissions)], startPolling)
+watch([() => modules.enabled('notifications'), () => modules.enabled('realtime'), () => authStore.user?.id, () => authStore.token,
+  () => authStore.user?.must_change_password, () => JSON.stringify(authStore.user?.permissions)], startPolling)
 onUnmounted(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
 
 // 当前页面标题

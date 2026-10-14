@@ -7,6 +7,7 @@
             <div class="card-header-title">{{ uiText("文件列表") }}</div>
             <div class="file-header-actions">
               <DataExportButton :loading="loading || !exportReady" resource="files" />
+              <LocalExportButton resource="files" :title="uiText('文件列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :owner-key="printOwner" />
               <PrintTableButton :title="uiText('文件列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('file:download') && modules.enabled('files')" :owner-key="printOwner" />
               <BaseButton v-if="auth.can('file:recycle')" variant="ghost" @click="router.push('/files/recycle')">{{ uiText('文件回收站') }}</BaseButton>
               <input ref="uploadInput" type="file" class="hidden-input" @change="handleUpload" />
@@ -61,6 +62,7 @@ import ImageProcessingDialog from '@/components/files/ImageProcessingDialog.vue'
 import { canProcessImage, imageProcessingConfig } from '@/api/imageProcessing'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import LocalExportButton from '@/components/common/LocalExportButton.vue'
 import type { PrintColumn } from '@/utils/printDocument'
 import { useModuleStore } from '@/stores/modules'
 

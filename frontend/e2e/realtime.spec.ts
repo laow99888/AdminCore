@@ -47,9 +47,13 @@ test('快照更新通知徽标和任务进度，窄屏深色无溢出', async ({
 })
 
 test('服务不可用继续显示正常列表及轮询回退，不忙重连', async ({ page }) => {
-  await page.clock.install()
+  // install 本身仍随真实时间推进；并发回归的等待会吃掉一分钟边界。
+  // 先在空文档暂停，再显式推进页面初始化与退避时间。
+  await page.clock.install({ time: new Date('2026-10-15T00:00:00Z') })
+  await page.clock.pauseAt(new Date('2026-10-15T00:01:00Z'))
   const state = await setup(page, true, true)
   await page.goto('/tasks')
+  await page.clock.runFor(100)
   await expect(page.getByRole('cell', { name: '范围内任务', exact: true })).toBeVisible()
   await expect.poll(() => state.streams).toBe(1)
   await page.clock.fastForward(59000)

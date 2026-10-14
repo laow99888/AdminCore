@@ -5,6 +5,7 @@ FROM node:24.21.0-slim AS build
 WORKDIR /app
 
 COPY package.json package-lock.json .npmrc ./
+COPY vendor/ ./vendor/
 RUN npm ci
 
 COPY . .
