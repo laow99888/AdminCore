@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ElTable, ElPagination, type TableInstance } from 'element-plus'
 import BaseTable from '../src/components/common/BaseTable.vue'
@@ -62,6 +63,7 @@ describe('BaseForm', () => {
 })
 
 describe('BaseTable', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
   const row = { id: 1, name: '测试行' }
   const props = { data: [row], columns: [{ prop: 'name', label: '姓名' }], total: 21 }
   it('渲染数据和默认操作，向父组件发送正确行', async () => {

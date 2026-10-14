@@ -5,6 +5,7 @@ import App from './App.vue'
 import router from './router'
 import { i18n } from './i18n'
 import { useBrandStore } from './stores/brand'
+import { errorReporter, installErrorReporting } from './utils/errorReporting'
 
 // Element Plus 基础样式与暗色变量（必须先于全局覆盖引入）
 import 'element-plus/dist/index.css'
@@ -30,6 +31,19 @@ app.use(createPinia())
 useBrandStore().load()
 
 // 注册路由
+errorReporter.registerRoutes(router.getRoutes().map(route => route.path))
+let recoveringNavigation = false
+const disposeErrorReporting = installErrorReporting({
+  app, router,
+  onVueError: () => window.dispatchEvent(new Event('admincore:vue-error')),
+  onNavigationError: () => {
+    if (recoveringNavigation || router.currentRoute.value.path === '/500') return
+    recoveringNavigation = true
+    void router.replace('/500').catch(() => {}).finally(() => { recoveringNavigation = false })
+  },
+})
+app.onUnmount(disposeErrorReporting)
+if (import.meta.hot) import.meta.hot.dispose(disposeErrorReporting)
 app.use(router)
 
 // 注册 i18n

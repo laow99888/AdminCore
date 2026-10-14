@@ -51,6 +51,8 @@
                 </div>
               </el-col>
             </el-row>
+            <TableDensitySettings />
+            <WatermarkSettings />
           </BaseCard>
         </el-col>
       </el-row>
@@ -69,6 +71,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
 import ProfileEditor from '@/components/auth/ProfileEditor.vue'
+import TableDensitySettings from '@/components/settings/TableDensitySettings.vue'
+import WatermarkSettings from '@/components/settings/WatermarkSettings.vue'
 
 const authStore = useAuthStore()
 const themeStore = useThemeStore()

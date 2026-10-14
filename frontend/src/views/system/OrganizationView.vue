@@ -10,7 +10,7 @@
         <el-tab-pane :label="uiText('角色数据范围')" name="scopes" />
       </el-tabs>
       <el-tree v-if="section === 'departments' && departments.length" :data="departmentTree" node-key="id" :props="{ label: 'label', children: 'children' }" default-expand-all class="department-tree" />
-      <BaseTable :data="rows" :columns="columns" :loading="loading" :total="total" :current-page="page" :page-size="pageSize" @update:currentPage="changePage" @update:pageSize="changeSize">
+      <BaseTable :key="section" :data="rows" :columns="columns" :loading="loading" :total="total" :current-page="page" :page-size="pageSize" @update:currentPage="changePage" @update:pageSize="changeSize">
         <template #actions="{ row }">
           <el-button link type="primary" :disabled="referencesFailed || referencesLoading" @click="edit(row)">{{ uiText('编辑') }}</el-button>
           <el-button v-if="section !== 'scopes'" link type="danger" @click="remove(row)">{{ uiText('删除') }}</el-button>
@@ -44,7 +44,7 @@
 
 <script setup lang="ts">
 import { usePageState } from '@/composables/usePageState'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { organizationApi, type DepartmentRow, type OrganizationSection } from '@/api/organization'
@@ -97,11 +97,22 @@ const columns = computed(() => section.value === 'departments' ? [
   { prop: 'role_name', label: uiText('角色'), width: 180 }, { prop: 'resource', label: uiText('资源'), width: 100, render: (value: string) => uiText(resources[value] || value) },
   { prop: 'scope', label: uiText('数据范围'), width: 180, render: (value: string) => uiText(scopes[value] || value) },
 ])
+let listVersion = 0
+watch(section, () => {
+  listVersion++
+  rows.value = []; total.value = 0; error.value = ''
+}, { flush: 'sync' })
 async function load() {
+  const version = ++listVersion
+  const requestedSection = section.value
   loading.value = true; error.value = ''
-  try { const data = await organizationApi.list(section.value, { page: page.value, page_size: pageSize.value }); rows.value = data.items; total.value = data.pagination.total }
-  catch { error.value = uiText('组织数据加载失败，请重试') }
-  finally { loading.value = false }
+  try {
+    const data = await organizationApi.list(requestedSection, { page: page.value, page_size: pageSize.value })
+    if (version !== listVersion || requestedSection !== section.value) return
+    rows.value = data.items; total.value = data.pagination.total
+  }
+  catch { if (version === listVersion) error.value = uiText('组织数据加载失败，请重试') }
+  finally { if (version === listVersion) loading.value = false }
 }
 async function loadReferences() {
   referencesLoading.value = true; referencesFailed.value = false
@@ -169,6 +180,7 @@ async function remove(row: any) {
   catch { error.value = uiText('删除失败，请检查关联数据') }
 }
 onMounted(() => { load(); loadReferences() })
+onBeforeUnmount(() => { listVersion++ })
 </script>
 
 <style scoped>

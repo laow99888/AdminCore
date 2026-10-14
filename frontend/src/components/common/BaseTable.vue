@@ -1,5 +1,5 @@
 <template>
-  <div class="base-table">
+  <div class="base-table" :class="`density-${effectiveDensity}`" :data-table-density="effectiveDensity">
     <!-- 表头操作栏 -->
     <div class="table-toolbar" v-if="showToolbar">
       <slot name="toolbar"></slot>
@@ -14,6 +14,7 @@
       style="width: 100%"
       stripe
       highlight-current-row
+      :size="size ?? (tablePreferences.density === 'compact' ? 'small' : 'default')"
       v-bind="$attrs"
       @selection-change="handleSelectionChange"
     >
@@ -84,9 +85,10 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref, defineEmits } from 'vue'
+import { computed, ref, defineEmits } from 'vue'
 import { Inbox } from 'lucide-vue-next'
 import type { TableInstance } from 'element-plus'
+import { useTablePreferencesStore } from '@/stores/tablePreferences'
 
 interface Column<T = any> {
   prop: string
@@ -111,9 +113,10 @@ interface Props<T = any> {
   showToolbar?: boolean
   showPagination?: boolean
   actionWidth?: string | number
+  size?: 'small' | 'default' | 'large'
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   loading: false,
   total: 0,
   currentPage: 1,
@@ -135,6 +138,8 @@ const emit = defineEmits<{
 }>()
 
 const tableRef = ref<TableInstance>()
+const tablePreferences = useTablePreferencesStore()
+const effectiveDensity = computed(() => props.size ? (props.size === 'small' ? 'compact' : 'comfortable') : tablePreferences.density)
 const selectedRows = ref<any[]>([])
 
 // 暴露表格实例和选中行，父组件可调用 clearSelection 等方法
@@ -244,5 +249,19 @@ const handleDelete = (row: any) => {
 
 :deep(.el-table__cell) {
   padding: var(--spacing-md);
+}
+
+.density-compact :deep(.el-table__cell) {
+  padding: var(--spacing-xs) var(--spacing-sm);
+}
+
+/* 密度只压缩内容留白，触屏操作目标仍保持可点击面积。 */
+@media (pointer: coarse), (max-width: 768px) {
+  .action-buttons :deep(button),
+  .table-pagination :deep(button),
+  .table-pagination :deep(.el-pager li) {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 </style>

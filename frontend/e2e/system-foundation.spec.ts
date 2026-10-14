@@ -153,6 +153,83 @@ test('自定义数据范围必须选择角色和部门，提交声明版本', as
   await expect(dialog).not.toBeVisible()
 })
 
+test('组织页切换不同数据结构时立即清理旧行，不触发全局错误边界', async ({ page }) => {
+  await setupOrganization(page)
+  let releaseScopes!: () => void
+  const hold = new Promise<void>(resolve => { releaseScopes = resolve })
+  await page.route('**/api/v1/organization/scopes/**', async route => {
+    await hold
+    await route.fulfill({ json: paged([{ id: 'scope-1', role_name: '业务角色', resource: 'user', scope: 'self' }]) })
+  })
+  await page.goto('/organization')
+  await expect(page.getByRole('row').filter({ hasText: '总部' })).toBeVisible()
+  const requested = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/organization/scopes/'))
+  await page.getByRole('tab', { name: '角色数据范围', exact: true }).click()
+  await requested
+  await expect(page.getByRole('row').filter({ hasText: '总部' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '页面发生错误', exact: true })).toHaveCount(0)
+  releaseScopes()
+  await expect(page.getByRole('row').filter({ hasText: '业务角色' })).toContainText('本人')
+})
+
+test('组织页前一标签迟到的成功响应不能覆盖新标签；最新请求仍可正常显示', async ({ page }) => {
+  await setupOrganization(page)
+  let releaseMemberships!: () => void
+  const hold = new Promise<void>(resolve => { releaseMemberships = resolve })
+  await page.route('**/api/v1/organization/memberships/**', async route => {
+    await hold
+    await route.fulfill({ json: paged([{ id: 'membership-1', username: '迟到人员', department_name: '团队' }]) })
+  })
+  await page.route('**/api/v1/organization/scopes/**', route => route.fulfill({ json: paged([{ id: 'scope-1', role_name: '最新角色', resource: 'file', scope: 'all' }]) }))
+  await page.goto('/organization')
+  await expect(page.getByRole('row').filter({ hasText: '总部' })).toBeVisible()
+  const requested = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/organization/memberships/'))
+  await page.getByRole('tab', { name: '人员归属', exact: true }).click()
+  await requested
+  await page.getByRole('tab', { name: '角色数据范围', exact: true }).click()
+  await expect(page.getByRole('row').filter({ hasText: '最新角色' })).toContainText('全部')
+  const response = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/organization/memberships/'))
+  releaseMemberships()
+  await response
+  // Let the completed request settle through Vue's normal rendering queue before assertions.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+  await expect(page.getByRole('row').filter({ hasText: '最新角色' })).toContainText('全部')
+  await expect(page.getByRole('row').filter({ hasText: '迟到人员' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '页面发生错误', exact: true })).toHaveCount(0)
+})
+
+test('组织页前一标签迟到的失败响应不会清掉新标签加载状态或显示旧错误', async ({ page }) => {
+  await setupOrganization(page)
+  let releaseMemberships!: () => void
+  let releaseScopes!: () => void
+  const membershipsHold = new Promise<void>(resolve => { releaseMemberships = resolve })
+  const scopesHold = new Promise<void>(resolve => { releaseScopes = resolve })
+  await page.route('**/api/v1/organization/memberships/**', async route => {
+    await membershipsHold
+    await route.fulfill({ status: 503, json: envelope(null) })
+  })
+  await page.route('**/api/v1/organization/scopes/**', async route => {
+    await scopesHold
+    await route.fulfill({ json: paged([{ id: 'scope-1', role_name: '等待后角色', resource: 'task', scope: 'department' }]) })
+  })
+  await page.goto('/organization')
+  await expect(page.getByRole('row').filter({ hasText: '总部' })).toBeVisible()
+  const membershipRequested = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/organization/memberships/'))
+  await page.getByRole('tab', { name: '人员归属', exact: true }).click()
+  await membershipRequested
+  const scopeRequested = page.waitForRequest(request => new URL(request.url()).pathname.endsWith('/organization/scopes/'))
+  await page.getByRole('tab', { name: '角色数据范围', exact: true }).click()
+  await scopeRequested
+  const response = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/organization/memberships/'))
+  releaseMemberships()
+  await response
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+  await expect(page.getByRole('alert').filter({ hasText: '组织数据加载失败' })).toHaveCount(0)
+  await expect(page.locator('.base-table .el-loading-mask')).toBeVisible()
+  releaseScopes()
+  await expect(page.getByRole('row').filter({ hasText: '等待后角色' })).toContainText('本部门')
+})
+
 test('组织选项失败禁用编辑；非管理员不能直接访问组织入口', async ({ page }) => {
   await setupOrganization(page, true)
   await page.goto('/organization')
