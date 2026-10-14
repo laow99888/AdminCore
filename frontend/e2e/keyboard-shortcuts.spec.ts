@@ -35,6 +35,12 @@ async function setup(page: Page, options: { enabled?: boolean; english?: boolean
 }
 const helpButton = (page: Page, english = false) => page.getByRole('button', { name: english ? 'Keyboard Shortcuts Help' : '快捷键帮助', exact: true })
 const helpDialog = (page: Page, english = false) => page.getByRole('dialog', { name: english ? 'Keyboard Shortcuts Help' : '快捷键帮助', exact: true })
+async function closeHelp(page: Page) {
+  await page.keyboard.press('Escape')
+  await expect(helpDialog(page)).not.toBeVisible()
+  // Shortcut suppression also covers closing overlays, beyond dialog-content visibility.
+  await expect(page.locator('.el-overlay:visible')).toHaveCount(0)
+}
 async function focusPage(page: Page) { await page.locator('.header-title').click() }
 async function sidebar(page: Page, path: string) {
   if (page.viewportSize()!.width <= 768) await page.getByRole('button', { name: /打开菜单|Open Menu/ }).click()
@@ -53,12 +59,12 @@ test('鼠标发现帮助、默认关闭、Space启用与刷新持久化；关闭
   await expect(enabled).toHaveAttribute('aria-checked', 'false')
   await enabled.focus(); await page.keyboard.press('Space')
   await expect(enabled).toHaveAttribute('aria-checked', 'true')
-  await page.keyboard.press('Escape'); await expect(dialog).not.toBeVisible()
+  await closeHelp(page)
   await focusPage(page); await page.keyboard.press('Alt+Shift+S'); await expect(page).toHaveURL(/\/settings$/)
   await page.reload(); await helpButton(page).click()
   await expect(helpDialog(page).getByRole('switch')).toHaveAttribute('aria-checked', 'true')
   await helpDialog(page).locator('.el-switch').click()
-  await page.keyboard.press('Escape'); await expect(helpDialog(page)).not.toBeVisible()
+  await closeHelp(page)
   await focusPage(page); await page.keyboard.press('Alt+Shift+H'); await expect(page).toHaveURL(/\/settings$/)
   await sidebar(page, '/users'); await expect(page).toHaveURL(/\/users$/)
   expect(await page.evaluate(() => localStorage.getItem('admincore:keyboard-shortcuts'))).toBe('false')
@@ -75,10 +81,10 @@ test('相邻页签切换、关闭清理与首页固定；输入和打开的弹�
   await expect(page).toHaveURL(/\/users$/)
   await page.keyboard.type('?'); await expect(helpDialog(page)).not.toBeVisible()
   await helpButton(page).click(); await page.keyboard.press('Alt+Shift+H'); await expect(page).toHaveURL(/\/users$/)
-  await page.keyboard.press('Escape'); await expect(helpDialog(page)).not.toBeVisible()
+  await closeHelp(page)
   // Slash names the physical key; '/' explicitly requests an unshifted character in Playwright.
   await focusPage(page); await page.keyboard.press('Shift+Slash'); await expect(helpDialog(page)).toBeVisible()
-  await page.keyboard.press('Escape'); await expect(helpDialog(page)).not.toBeVisible()
+  await closeHelp(page)
   await focusPage(page); await page.keyboard.press('Alt+Shift+H'); await expect(page).toHaveURL(/\/$/)
   await page.keyboard.press('Alt+Shift+W'); await expect(page).toHaveURL(/\/$/)
   await expect(page.locator('.navigation-tab[data-path="/"]')).toBeVisible()
@@ -120,6 +126,8 @@ test('权限和模块刷新清除受限页签；公共登录页与强制改密�
 test('英文深色帮助支持窄屏，存储异常提示且本次启用可使用', async ({ page }) => {
   await setup(page, { english: true, storageBlocked: true })
   await page.goto('/users'); await helpButton(page, true).click()
+  // Exercise the interval where the dialog is hidden but its closing overlay still exists.
+  await page.addStyleTag({ content: '.el-overlay.dialog-fade-leave-active { animation-duration: 1s !important; animation-play-state: paused !important; pointer-events: none; } .dialog-fade-leave-active .el-overlay-dialog { visibility: hidden; }' })
   const dialog = helpDialog(page, true)
   await expect(dialog).toContainText('Previous tab')
   await expect(dialog).toContainText('Alt + Shift + W')
@@ -128,5 +136,10 @@ test('英文深色帮助支持窄屏，存储异常提示且本次启用可使�
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: test.info().outputPath('keyboard-help-english-dark.png'), fullPage: true })
   await page.keyboard.press('Escape'); await expect(dialog).not.toBeVisible()
+  const closingOverlay = page.locator('.el-overlay.dialog-fade-leave-active')
+  await expect(closingOverlay).toBeVisible()
+  await focusPage(page); await page.keyboard.press('Alt+Shift+H'); await expect(page).toHaveURL(/\/users$/)
+  await closingOverlay.evaluate(element => (element as HTMLElement).style.setProperty('animation-play-state', 'running', 'important'))
+  await expect(page.locator('.el-overlay:visible')).toHaveCount(0)
   await focusPage(page); await page.keyboard.press('Alt+Shift+H'); await expect(page).toHaveURL(/\/$/)
 })

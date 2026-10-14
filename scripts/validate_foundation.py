@@ -188,13 +188,24 @@ def main():
               and all(set(item) == {'pid', 'kind', 'state', 'cpu_seconds', 'rss_bytes', 'uptime_seconds'} for item in snapshot['processes']))
         api('system/information/', expected=401)
         api('system/monitor/', 'POST', {}, 405, token)
-        compose('standard', 'stop', 'redis')
+        # 保留 DNS/地址，仅冻结服务，测量探针自身的超时而非容器移除后的 DNS 收敛。
+        compose('standard', 'pause', 'redis')
         try:
             started = time.monotonic()
             degraded = api('system/information/', token=token).json()['data']
-            check('Redis 停机诊断仍返回数据库正常及缓存/代理不可用',
+            check('Redis 无响应诊断仍返回数据库正常及缓存/代理不可用',
                   [item['status'] for item in degraded['services']] == ['ok', 'unavailable', 'unavailable'])
-            check('本地 Redis 拒绝连接时诊断在 3 秒内退化', time.monotonic() - started < 3)
+            elapsed = time.monotonic() - started
+            check(f'本地 Redis 无响应时诊断在 3 秒内退化（实测 {elapsed:.3f} 秒）', elapsed < 3)
+        finally:
+            compose('standard', 'unpause', 'redis')
+            ready()
+        # 完整停机仍检查实际降级状态；DNS/网络收敛不算作 socket 探针的响应 SLA。
+        compose('standard', 'stop', 'redis')
+        try:
+            degraded = api('system/information/', token=token).json()['data']
+            check('Redis 容器停机诊断仍返回数据库正常及缓存/代理不可用',
+                  [item['status'] for item in degraded['services']] == ['ok', 'unavailable', 'unavailable'])
         finally:
             compose('standard', 'start', 'redis')
             ready()
