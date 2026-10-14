@@ -77,7 +77,7 @@ test('相邻页签切换、关闭清理与首页固定；输入和打开的弹�
   await focusPage(page); await page.keyboard.press('Alt+Shift+ArrowRight'); await expect(page).toHaveURL(/\/roles$/)
   await focusPage(page); await page.keyboard.press('Alt+Shift+W'); await expect(page).toHaveURL(/\/users$/)
   await expect(page.locator('.navigation-tab[data-path="/roles"]')).toHaveCount(0)
-  await page.getByPlaceholder('搜索用户名 / 邮箱').focus(); await page.keyboard.press('Alt+Shift+H')
+  await page.getByPlaceholder('搜索用户名 / 姓名').focus(); await page.keyboard.press('Alt+Shift+H')
   await expect(page).toHaveURL(/\/users$/)
   await page.keyboard.type('?'); await expect(helpDialog(page)).not.toBeVisible()
   await helpButton(page).click(); await page.keyboard.press('Alt+Shift+H'); await expect(page).toHaveURL(/\/users$/)

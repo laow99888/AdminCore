@@ -56,7 +56,7 @@ test('四个真实列表入口用认证 Blob 导出 CSV/XLSX，下载文件名�
 test('用户导出只带已应用的搜索条件，不把未搜索的输入当筛选结果', async ({ page }) => {
   const state = await setup(page)
   await page.goto('/users')
-  const search = page.getByPlaceholder('搜索用户名 / 邮箱')
+  const search = page.getByPlaceholder('搜索用户名 / 姓名')
   await search.fill('applied-user')
   const loaded = page.waitForResponse(response => response.url().includes('/users/?') && response.url().includes('applied-user'))
   await page.getByRole('button', { name: '搜索', exact: true }).click()

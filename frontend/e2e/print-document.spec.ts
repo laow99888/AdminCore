@@ -36,8 +36,8 @@ async function setup(page: Page, options: { english?: boolean; dark?: boolean; e
     if (path.endsWith('/notifications/unread_count/')) return route.fulfill({ json: envelope({ count: 0 }) })
     if (path.endsWith('/users/')) {
       const current = Number(url.searchParams.get('page') || 1)
-      return route.fulfill({ json: envelope({ items: [{ ...user, id: `user-${current}`, username: `print-user-page-${current}`, email: 'visible@example.test', is_active: true, roles: [], login_count: 0,
-        first_name: malicious, last_name: '中文姓', password: 'private-password-must-not-print', phone: 'private-phone-must-not-print' }], pagination: { total: 21, page: current, page_size: 10, total_pages: 3 } }) })
+      return route.fulfill({ json: envelope({ items: [{ ...user, id: `user-${current}`, username: `print-user-page-${current}`, email: 'v***@example.test', is_active: true, roles: [], login_count: 0,
+        first_name: malicious, last_name: '中文姓', password: 'private-password-must-not-print', phone: '138****3210', private_phone: 'private-phone-must-not-print' }], pagination: { total: 21, page: current, page_size: 10, total_pages: 3 } }) })
     }
     if (path.includes('/logs/')) {
       if (options.delayed) await held
@@ -163,14 +163,16 @@ test('权限刷新撤销访问后关闭已经打开的敏感打印窗口', async
   await expect(page).toHaveURL(/\/403$/)
 })
 
-test('用户列表打印明确白名单，分页后不包含上一页或密码电话', async ({ page }) => {
+test('用户列表打印明确白名单，分页后仅含脱敏联系方式且无上一页或额外私密字段', async ({ page }) => {
   await setup(page)
   await page.goto('/users')
   await expect(printButton(page)).toBeEnabled()
   await page.locator('.el-pager .number').filter({ hasText: /^2$/ }).click()
   await expect(page.getByText('print-user-page-2', { exact: true })).toBeVisible()
   const popup = await openPrint(page)
-  await expect(popup.locator('thead th')).toHaveCount(5)
+  await expect(popup.locator('thead th')).toHaveCount(6)
+  await expect(popup.locator('tbody')).toContainText('v***@example.test')
+  await expect(popup.locator('tbody')).toContainText('138****3210')
   await expect(popup.locator('tbody')).toContainText('print-user-page-2')
   await expect(popup.locator('tbody')).toContainText(malicious)
   await expect(popup.locator('tbody')).not.toContainText('print-user-page-1')

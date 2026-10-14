@@ -150,6 +150,10 @@ def main():
         compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('精简部署无Redis的PostgreSQL跨进程验证码共享、消费与门槛验收', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_sensitive_fields.py').read_bytes()).decode('ascii')
+        compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('精简部署联系方式脱敏、手机号加密转换与撤销竞争验收', True)
         second_login = api('auth/login/', 'POST', {'username': 'admin', 'password': password}).json()
         rotated = api('auth/refresh/', 'POST', {'refresh': second_login['refresh']}).json()['data']
         check('刷新轮换同时返回新 access 与 refresh', bool(rotated['access']) and bool(rotated['refresh'])
@@ -361,6 +365,10 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('标准部署PostgreSQL/Redis验证码跨进程竞态、第二因素与故障关闭验收', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_sensitive_fields.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('标准部署联系方式安全导出、手机号加密转换与撤销竞争验收', True)
         announcement = api('notifications/announcements/manage/', 'POST',
                            {'title': '模块切换保留公告', 'content': '隔离验收正文', 'version': 0}, 201, token).json()['data']
         announcement_id = announcement['id']

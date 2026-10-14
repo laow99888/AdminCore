@@ -32,6 +32,7 @@ export interface UserRow {
   id: string
   username: string
   email: string
+  phone?: string
   first_name: string
   last_name: string
   is_active: boolean
@@ -46,6 +47,8 @@ export interface UserDetail extends UserRow {
 export const usersApi = {
   list: (params?: ListParams) => getPaged<UserRow>('/users/', params),
   detail: async (id: string): Promise<UserDetail> => (await request.get<ApiResponse<UserDetail>>(`/users/${id}/`)).data.data,
+  sensitive: async (id: string, currentPassword: string, signal?: AbortSignal): Promise<{ email: string; phone: string }> =>
+    (await request.post<ApiResponse<{ email: string; phone: string }>>(`/users/${id}/sensitive/`, { current_password: currentPassword }, { signal })).data.data,
   create: (data: Partial<UserRow> & { password: string; role_ids?: string[]; must_change_password?: boolean }) => request.post('/users/', data),
   update: (id: string, data: Partial<UserRow> & { role_ids?: string[] }) => request.patch(`/users/${id}/`, data),
   remove: (id: string) => request.delete(`/users/${id}/`),

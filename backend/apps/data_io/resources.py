@@ -11,18 +11,29 @@
 """
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
+from rest_framework.exceptions import ValidationError as APIValidationError
+from apps.core.sensitive import phone_input_field, validate_contact_email
 
 
 def create_user_row(data):
     User = get_user_model()
     if User.objects.filter(username=data['username']).exists():
         return None, f"用户名 {data['username']} 已存在"
+    # 错误报告只描述字段，不把原始联系方式写入任务记录。
+    try:
+        email = validate_contact_email(data.get('email', '') or '')
+        validate_email(email)
+        phone = phone_input_field().run_validation(data.get('phone', '') or '')
+    except (ValidationError, APIValidationError):
+        return None, '邮箱或手机号格式无效，不能导入脱敏值'
     user = User.objects.create_user(
         username=data['username'],
-        email=data.get('email', '') or '',
+        email=email,
         first_name=data.get('first_name', '') or '',
         last_name=data.get('last_name', '') or '',
-        phone=data.get('phone', '') or '',
+        phone=phone,
         # 未提供密码列时创建不可登录账号，由管理员重置密码
         password=None,
     )
@@ -70,7 +81,7 @@ def export_queryset(resource, user, filters):
     from apps.core.data_scope import scope_queryset
     if resource == 'users':
         queryset = scope_queryset(get_user_model().objects.filter(is_staff=False, is_superuser=False), user, 'user', 'pk')
-        search_fields = ['username', 'email', 'first_name', 'last_name']
+        search_fields = ['username', 'first_name', 'last_name']
     elif resource == 'roles':
         from apps.permissions.models import Role
         queryset = Role.objects.all()

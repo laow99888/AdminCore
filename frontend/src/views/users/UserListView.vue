@@ -19,7 +19,7 @@
           <el-form-item :label="uiText('关键词')">
             <el-input
               v-model="searchForm.search"
-              :placeholder="uiText('搜索用户名 / 邮箱')"
+              :placeholder="uiText('搜索用户名 / 姓名')"
               clearable
               @keyup.enter="handleSearch"
             />
@@ -53,11 +53,12 @@
           :total="total"
           :current-page="currentPage"
           :page-size="pageSize"
-          action-width="220"
+          action-width="300"
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         >
           <template #actions="{ row }">
+            <el-button v-if="auth.can('user:read') && auth.can('user:sensitive_read')" link type="primary" size="small" @click="sensitiveTarget = { id: row.id, username: row.username }">{{ uiText('查看原值') }}</el-button>
             <el-button v-if="auth.can('user:update')" link type="primary" size="small" @click="handleEdit(row)">{{ uiText("编辑") }}</el-button>
             <el-button v-if="auth.can('user:update')" link type="warning" size="small" @click="handleResetPassword(row)">{{ uiText("重置密码") }}</el-button>
             <el-button v-if="auth.can('user:delete')" link type="danger" size="small" @click="handleDelete(row)">{{ uiText("删除") }}</el-button>
@@ -71,8 +72,19 @@
           <el-form-item :label="uiText('用户名')" required>
             <el-input v-model="formData.username" :disabled="!!formData.id" />
           </el-form-item>
-          <el-form-item :label="uiText('邮箱')" required>
-            <el-input v-model="formData.email" type="email" />
+          <el-alert v-if="formData.id" :title="uiText('邮箱和电话已脱敏；留空保持原值，填写新值会替换原值。')" type="info" :closable="false" />
+          <el-form-item :label="uiText('邮箱')" :required="!formData.id">
+            <div class="contact-field">
+              <p v-if="formData.id">{{ uiText('当前脱敏值：{p0}', { p0: maskedContact.email || uiText('未填写') }) }}</p>
+              <el-input v-model="formData.email" type="email" :placeholder="formData.id ? uiText('留空保持原邮箱') : ''" />
+            </div>
+          </el-form-item>
+          <el-form-item :label="uiText('电话')">
+            <div class="contact-field">
+              <p v-if="formData.id">{{ uiText('当前脱敏值：{p0}', { p0: maskedContact.phone || uiText('未填写') }) }}</p>
+              <el-input v-model="formData.phone" type="tel" maxlength="20" :disabled="saving || formData.clear_phone" :placeholder="formData.id ? uiText('留空保持原电话') : ''" />
+              <el-checkbox v-if="formData.id" v-model="formData.clear_phone" @change="formData.phone = ''">{{ uiText('清空已保存电话') }}</el-checkbox>
+            </div>
           </el-form-item>
           <el-form-item :label="uiText('名字')">
             <el-input v-model="formData.first_name" />
@@ -97,6 +109,8 @@
           </el-form-item>
         </el-form>
       </BaseDialog>
+
+      <UserSensitiveDialog v-if="sensitiveTarget" :target="sensitiveTarget" @close="sensitiveTarget = undefined" />
 
       <BaseDialog v-model="resetVisible" :before-close="resetGuard.confirmDiscard" :title="uiText('重置密码')" :loading="resetSaving" @confirm="saveResetPassword">
         <el-form label-position="top" :disabled="resetSaving">
@@ -142,6 +156,8 @@ import { useModuleStore } from '@/stores/modules'
 import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type RoleRow } from '@/api'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import UserSensitiveDialog from '@/components/auth/UserSensitiveDialog.vue'
+import { userContactPatch } from '@/utils/userContactPatch'
 import type { PrintColumn } from '@/utils/printDocument'
 
 const loading = ref(false)
@@ -149,6 +165,8 @@ const saving = ref(false)
 const dialogVisible = ref(false)
 const importResultVisible = ref(false)
 const auth = useAuthStore()
+const sensitiveTarget = ref<{ id: string; username: string }>()
+const maskedContact = reactive({ email: '', phone: '' })
 const modules = useModuleStore()
 const roleOptions = ref<RoleRow[]>([])
 const rolesLoading = ref(false)
@@ -186,6 +204,7 @@ const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, aut
 const printColumns = computed<PrintColumn<UserRow>[]>(() => [
   { label: uiText('用户名'), value: row => row.username },
   { label: uiText('邮箱'), value: row => row.email },
+  { label: uiText('电话'), value: row => row.phone },
   { label: uiText('名字'), value: row => row.first_name },
   { label: uiText('姓氏'), value: row => row.last_name },
   { label: uiText('状态'), value: row => uiText(row.is_active ? '激活' : '禁用') },
@@ -201,6 +220,8 @@ const formData = reactive({
   id: '' as string,
   username: '',
   email: '',
+  phone: '',
+  clear_phone: false,
   first_name: '',
   last_name: '',
   is_active: true,
@@ -209,10 +230,11 @@ const formData = reactive({
   role_ids: [] as string[],
 })
 
-const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can(formData.id ? 'user:update' : 'user:create'), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true }) } })
+const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can(formData.id ? 'user:update' : 'user:create'), clear: () => { dialogVisible.value = false; Object.assign(maskedContact, { email: '', phone: '' }); Object.assign(formData, { id: '', username: '', email: '', phone: '', clear_phone: false, first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true }) } })
 const tableColumns = [
   { prop: 'username', label: uiText("用户名") },
   { prop: 'email', label: uiText("邮箱") },
+  { prop: 'phone', label: uiText("电话") },
   { prop: 'first_name', label: uiText("名字") },
   { prop: 'last_name', label: uiText("姓氏") },
   { prop: 'login_count', label: uiText("登录次数"), width: '100px' },
@@ -267,7 +289,7 @@ const handleReset = () => {
 
 const handleCreate = () => {
   Object.assign(formData, {
-    id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true,
+    id: '', username: '', email: '', phone: '', clear_phone: false, first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true,
   })
   dialogVisible.value = true
   loadRoleOptions()
@@ -279,7 +301,8 @@ const handleEdit = async (row: UserRow) => {
   try {
     const detail = await usersApi.detail(row.id)
     if (auth.user?.id !== owner || !auth.can('user:update') || !formGuard.isSessionCurrent()) return
-    Object.assign(formData, { id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '' }, detail)
+    Object.assign(maskedContact, { email: detail.email, phone: detail.phone || '' })
+    Object.assign(formData, { id: detail.id, username: detail.username, email: '', phone: '', clear_phone: false, first_name: detail.first_name, last_name: detail.last_name, is_active: detail.is_active, password: '' })
     formData.role_ids = detail.roles.map((role) => role.role__id)
     dialogVisible.value = true
     loadRoleOptions()
@@ -290,15 +313,18 @@ const handleEdit = async (row: UserRow) => {
 
 const handleSaveUser = async () => {
   if (saving.value || rolesLoading.value || rolesFailed.value || !auth.can(formData.id ? 'user:update' : 'user:create')) return
-  if (!formData.username || !formData.email || (!formData.id && !formData.password)) {
+  if (!formData.username || (!formData.id && (!formData.email.trim() || !formData.password))) {
     ElMessage.warning(uiText("请填写必填项（用户名、邮箱、初始密码）"))
     return
   }
+  let contacts: { email?: string; phone?: string }
+  try { contacts = userContactPatch(formData.email, formData.phone, formData.clear_phone) }
+  catch { ElMessage.warning(uiText('请输入完整的新邮箱或电话，不能提交脱敏值。')); return }
   saving.value = true
   try {
     if (formData.id) {
       await usersApi.update(formData.id, {
-        email: formData.email,
+        ...contacts,
         first_name: formData.first_name,
         last_name: formData.last_name,
         is_active: formData.is_active,
@@ -308,7 +334,7 @@ const handleSaveUser = async () => {
     } else {
       await usersApi.create({
         username: formData.username,
-        email: formData.email,
+        ...contacts,
         first_name: formData.first_name,
         last_name: formData.last_name,
         is_active: formData.is_active,
@@ -437,6 +463,10 @@ loadUsers()
 .hidden-input {
   display: none;
 }
+
+.contact-field { min-width: 0; width: 100%; }
+.contact-field p { color: var(--color-text-secondary); overflow-wrap: anywhere; margin-top: 0; }
+.contact-field :deep(.el-input) { width: 100%; }
 
 :deep(.el-form-item) {
   margin-bottom: var(--spacing-lg);

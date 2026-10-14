@@ -234,7 +234,13 @@ class DataExportView(DataModuleView):
             if index >= EXPORT_MAX_ROWS:
                 raise APIError('导出超过 5000 行，请缩小筛选范围；未生成部分文件', status_code=413)
             row = []
-            for value in values:
+            for field, value in zip(fields, values):
+                if resource_name == 'users':
+                    from apps.core.sensitive import mask_email, mask_phone
+                    if field == 'email':
+                        value = mask_email(value)
+                    elif field == 'phone':
+                        value = mask_phone(value)
                 value = spreadsheet_text(value.isoformat() if hasattr(value, 'isoformat') else value)
                 if len(value) > 32767 or any(ord(character) < 32 and character not in '\t\r\n' for character in value):
                     raise APIError('导出包含超长或无效单元格，请调整数据后重试', status_code=400)

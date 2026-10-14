@@ -47,7 +47,7 @@ test('真实设置入口切换密度；列表即时生效、查询保留，刷�
   const table = page.locator('.base-table')
   await expect(table).toHaveAttribute('data-table-density', 'comfortable')
   const comfortablePadding = await table.locator('.el-table__body td').first().evaluate(cell => getComputedStyle(cell).paddingTop)
-  const filter = page.getByPlaceholder('搜索用户名 / 邮箱')
+  const filter = page.getByPlaceholder('搜索用户名 / 姓名')
   await filter.fill('density')
   await page.getByRole('button', { name: '搜索', exact: true }).click()
   await page.locator('.el-pager .number').filter({ hasText: /^3$/ }).click()

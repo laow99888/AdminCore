@@ -1,5 +1,5 @@
 <template>
-  <BaseDialog v-model="visible" :title="uiText('密码二次确认')" width="480px" :loading="busy" :confirm-disabled="!password || disabled" :confirm-text="uiText('确认下线')" @confirm="submit" @close="clear">
+  <BaseDialog v-model="visible" :title="uiText('密码二次确认')" width="480px" :loading="busy" :confirm-disabled="!password || disabled" :confirm-text="confirmText || uiText('确认下线')" @confirm="submit" @close="clear">
     <p class="confirmation-description">{{ description }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" show-icon role="alert" />
     <el-form @submit.prevent="submit">
@@ -17,7 +17,7 @@ import { onBeforeRouteLeave } from 'vue-router'
 import { BaseDialog } from '@/components'
 import { uiText } from '@/i18n/uiText'
 
-const props = defineProps<{ modelValue: boolean; description: string; execute: (password: string) => Promise<void>; disabled?: boolean }>()
+const props = defineProps<{ modelValue: boolean; description: string; execute: (password: string) => Promise<void>; disabled?: boolean; confirmText?: string; errorText?: string; allowRouteLeave?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; 'busy': [value: boolean] }>()
 const password = ref(''), busy = ref(false), error = ref('')
 let alive = true
@@ -32,12 +32,12 @@ async function submit() {
     await props.execute(suppliedPassword)
     if (alive) emit('update:modelValue', false)
   } catch {
-    if (alive) error.value = uiText('下线未确认，请检查密码与权限后重新输入并重试。')
+    if (alive && props.modelValue) error.value = props.errorText || uiText('下线未确认，请检查密码与权限后重新输入并重试。')
   } finally {
     if (alive) { busy.value = false; emit('busy', false) }
   }
 }
-onBeforeRouteLeave(() => !busy.value || !localStorage.getItem('token'))
+onBeforeRouteLeave(() => props.allowRouteLeave || !busy.value || !localStorage.getItem('token'))
 onBeforeUnmount(() => { alive = false; clear() })
 </script>
 

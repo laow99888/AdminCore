@@ -25,6 +25,16 @@ PROJECT_ROOT = BASE_DIR.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
 ALLOW_PUBLIC_REGISTRATION = os.getenv('ALLOW_PUBLIC_REGISTRATION', 'False').lower() == 'true'
+# key 存在即加密手机号写入；ENABLED 用于要求部署必须配置有效密钥。
+ADMINCORE_FIELD_ENCRYPTION_ENABLED = os.getenv('ADMINCORE_FIELD_ENCRYPTION_ENABLED', 'False').lower() == 'true'
+ADMINCORE_FIELD_ENCRYPTION_KEY = os.getenv('ADMINCORE_FIELD_ENCRYPTION_KEY', '')
+if ADMINCORE_FIELD_ENCRYPTION_ENABLED or ADMINCORE_FIELD_ENCRYPTION_KEY:
+    from cryptography.fernet import Fernet
+    from django.core.exceptions import ImproperlyConfigured
+    try:
+        Fernet(ADMINCORE_FIELD_ENCRYPTION_KEY.encode('ascii'))
+    except (ValueError, UnicodeEncodeError):
+        raise ImproperlyConfigured('手机号加密要求有效的 ADMINCORE_FIELD_ENCRYPTION_KEY') from None
 # 独立于 JWT 签名密钥；缺失时不允许绑定，已有设备认证保持失败关闭。
 AUTH_TOTP_ENCRYPTION_KEY = os.getenv('AUTH_TOTP_ENCRYPTION_KEY', '')
 if AUTH_TOTP_ENCRYPTION_KEY:

@@ -10,18 +10,19 @@ from django.db import transaction
 from rest_framework.exceptions import PermissionDenied
 from apps.permissions.models import Role, UserRole
 from .models import UserProfile
+from apps.core.sensitive import MaskedContactSerializerMixin, phone_input_field
 
 User = get_user_model()
 
 
-class UserProfileSerializer(serializers.ModelSerializer):
+class UserProfileSerializer(MaskedContactSerializerMixin, serializers.ModelSerializer):
     """用户资料序列化器"""
     class Meta:
         model = UserProfile
         fields = ('bio', 'phone', 'department', 'position')
 
 
-class UserDetailSerializer(serializers.ModelSerializer):
+class UserDetailSerializer(MaskedContactSerializerMixin, serializers.ModelSerializer):
     """用户详细序列化器"""
     profile = UserProfileSerializer(read_only=True)
     roles = serializers.SerializerMethodField()
@@ -39,11 +40,11 @@ class UserDetailSerializer(serializers.ModelSerializer):
         return list(roles)
 
 
-class UserListSerializer(serializers.ModelSerializer):
+class UserListSerializer(MaskedContactSerializerMixin, serializers.ModelSerializer):
     """用户列表序列化器"""
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_active', 'login_count', 'created_at')
+        fields = ('id', 'username', 'email', 'phone', 'first_name', 'last_name', 'is_active', 'login_count', 'created_at')
         read_only_fields = ('id', 'created_at')
 
 
@@ -69,15 +70,16 @@ class UserRoleAssignmentMixin:
             UserRole.objects.bulk_create([UserRole(user=user, role=role) for role in roles])
 
 
-class UserCreateSerializer(UserRoleAssignmentMixin, serializers.ModelSerializer):
+class UserCreateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin, serializers.ModelSerializer):
     """用户创建序列化器"""
     password = serializers.CharField(write_only=True, required=True)
+    phone = phone_input_field()
     role_ids = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(),
                                                   many=True, required=False, write_only=True, source='assigned_roles')
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password', 'first_name', 'last_name', 'is_active', 'role_ids', 'must_change_password')
+        fields = ('username', 'email', 'phone', 'password', 'first_name', 'last_name', 'is_active', 'role_ids', 'must_change_password')
         extra_kwargs = {'must_change_password': {'default': True}}
 
     def validate(self, attrs):
@@ -98,8 +100,9 @@ class UserCreateSerializer(UserRoleAssignmentMixin, serializers.ModelSerializer)
         return user
 
 
-class UserUpdateSerializer(UserRoleAssignmentMixin, serializers.ModelSerializer):
+class UserUpdateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin, serializers.ModelSerializer):
     """用户修改序列化器"""
+    phone = phone_input_field()
     role_ids = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(),
                                                   many=True, required=False, write_only=True, source='assigned_roles')
 
@@ -122,3 +125,17 @@ class BulkUserActionSerializer(serializers.Serializer):
     """批量用户操作序列化器"""
     user_ids = serializers.ListField(child=serializers.UUIDField(), required=True, min_length=1, max_length=1000)
     action = serializers.ChoiceField(choices=['activate', 'deactivate', 'delete'], required=True)
+
+
+class SensitiveContactRequestSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
+
+    def to_internal_value(self, data):
+        if not isinstance(data, dict) or set(data) - {'current_password'}:
+            raise serializers.ValidationError({'non_field_errors': ['仅接受本次操作的当前密码']})
+        return super().to_internal_value(data)
+
+
+class SensitiveContactSerializer(serializers.Serializer):
+    email = serializers.EmailField(allow_blank=True, read_only=True)
+    phone = serializers.CharField(allow_blank=True, read_only=True)

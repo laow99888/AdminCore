@@ -40,7 +40,7 @@ async function openFromSidebar(page: Page, path: string) {
 test('切换页签和浏览器返回恢复用户筛选、页码并重新取数', async ({ page }) => {
   await setup(page)
   await page.goto('/users')
-  const input = page.getByPlaceholder('搜索用户名 / 邮箱')
+  const input = page.getByPlaceholder('搜索用户名 / 姓名')
   await input.fill('member')
   await page.getByRole('button', { name: '搜索', exact: true }).click()
   await page.locator('.el-pagination__sizes .el-select__wrapper').click()
@@ -65,12 +65,12 @@ test('关闭当前页签跳到相邻页，重新打开清除查询；首页固�
   await setup(page)
   await page.goto('/roles')
   await openFromSidebar(page, '/users')
-  await page.getByPlaceholder('搜索用户名 / 邮箱').fill('private-filter')
+  await page.getByPlaceholder('搜索用户名 / 姓名').fill('private-filter')
   await page.getByRole('button', { name: '关闭页签 用户管理', exact: true }).click()
   await expect(page).toHaveURL(/\/roles$/)
   await expect(page.locator('.navigation-tab[data-path="/users"]')).toHaveCount(0)
   await openFromSidebar(page, '/users')
-  await expect(page.getByPlaceholder('搜索用户名 / 邮箱')).toHaveValue('')
+  await expect(page.getByPlaceholder('搜索用户名 / 姓名')).toHaveValue('')
   await expect(page.getByRole('button', { name: '关闭页签 仪表盘' })).toHaveCount(0)
 })
 
@@ -153,7 +153,7 @@ test('后台页签撤权/模块关闭立即清除，旧入口不能重新打开'
 test('列表请求失败可重试，导航不丢查询；退出清会话与页签', async ({ page }) => {
   const state = await setup(page)
   await page.goto('/users')
-  await page.getByPlaceholder('搜索用户名 / 邮箱').fill('retained')
+  await page.getByPlaceholder('搜索用户名 / 姓名').fill('retained')
   state.failUsers = true
   await page.getByRole('button', { name: '搜索', exact: true }).click()
   await expect(page.getByText('fixture unavailable', { exact: true })).toBeVisible()
@@ -170,13 +170,13 @@ test('列表请求失败可重试，导航不丢查询；退出清会话与页�
 test('同浏览器账号改变后清空上一账号查询和缓存', async ({ page }) => {
   const state = await setup(page)
   await page.goto('/users')
-  await page.getByPlaceholder('搜索用户名 / 邮箱').fill('previous-account')
+  await page.getByPlaceholder('搜索用户名 / 姓名').fill('previous-account')
   await openFromSidebar(page, '/roles')
   state.userId = 'another-account'
   await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   await expect(page.locator('.navigation-tab[data-path="/users"]')).toHaveCount(0)
   await openFromSidebar(page, '/users')
-  await expect(page.getByPlaceholder('搜索用户名 / 邮箱')).toHaveValue('')
+  await expect(page.getByPlaceholder('搜索用户名 / 姓名')).toHaveValue('')
 })
 
 test('英文深色、横向页签与语言切换，桌面及375px无页面溢出', async ({ page }, info) => {

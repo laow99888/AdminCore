@@ -9,6 +9,7 @@ from django.contrib.admin.forms import AdminAuthenticationForm
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from .models import User
+from apps.core.sensitive import mask_email, mask_phone
 
 
 class MFAAdminAuthenticationForm(AdminAuthenticationForm):
@@ -38,13 +39,28 @@ class RequiredPasswordChangeForm(AdminPasswordChangeForm):
 class UserAdmin(BaseUserAdmin):
     """用户管理后台"""
     change_password_form = RequiredPasswordChangeForm
-    readonly_fields = ('must_change_password', 'avatar_file', 'profile_version', 'verified_email')
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ('额外信息', {'fields': ('avatar', 'phone', 'last_login_ip', 'login_count', 'must_change_password', 'avatar_file', 'profile_version', 'verified_email')}),
+    readonly_fields = ('must_change_password', 'avatar_file', 'profile_version',
+                       'masked_email', 'masked_phone', 'contact_verified')
+    fieldsets = tuple((title, {**options, 'fields': tuple(field for field in options['fields'] if field != 'email')})
+                      for title, options in BaseUserAdmin.fieldsets) + (
+        ('联系方式（原值请在系统用户管理中确认密码查看）', {'fields': ('masked_email', 'masked_phone', 'contact_verified')}),
+        ('额外信息', {'fields': ('avatar', 'last_login_ip', 'login_count', 'must_change_password', 'avatar_file', 'profile_version')}),
     )
-    list_display = ('username', 'email', 'is_active', 'login_count', 'created_at')
-    search_fields = ('username', 'email', 'phone')
+    list_display = ('username', 'masked_email', 'is_active', 'login_count', 'created_at')
+    search_fields = ('username', 'first_name', 'last_name')
     list_filter = ('is_active', 'created_at')
+
+    @admin.display(description='邮箱')
+    def masked_email(self, obj):
+        return mask_email(obj.email)
+
+    @admin.display(description='手机号')
+    def masked_phone(self, obj):
+        return mask_phone(obj.phone)
+
+    @admin.display(description='邮箱已验证', boolean=True)
+    def contact_verified(self, obj):
+        return obj.email_verified
 
     @transaction.atomic
     def save_model(self, request, obj, form, change):

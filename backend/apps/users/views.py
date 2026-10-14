@@ -12,12 +12,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.shortcuts import get_object_or_404
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 import logging
 from .serializers import (
     UserDetailSerializer, UserListSerializer, UserCreateSerializer,
-    UserUpdateSerializer, BulkUserActionSerializer
+    UserUpdateSerializer, BulkUserActionSerializer,
+    SensitiveContactRequestSerializer, SensitiveContactSerializer
 )
-from apps.permissions.permissions import HasPermission
+from apps.permissions.permissions import HasPermission, has_permission_code
 from apps.logs.models import OperationLog
 from apps.core.mixins import EnvelopeResponseMixin
 
@@ -33,15 +36,18 @@ logger = logging.getLogger(__name__)
     destroy=extend_schema(responses={200: MessageResponse}),
     bulk_action=extend_schema(request=BulkUserActionSerializer, responses=MessageResponse),
     reset_password=extend_schema(request=ResetPasswordRequestSerializer, responses=MessageResponse),
+    sensitive=extend_schema(request=SensitiveContactRequestSerializer,
+                           responses=envelope('SensitiveContactResponse', SensitiveContactSerializer())),
 )
 class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     """用户管理"""
     permission_classes = [IsAuthenticated, HasPermission]
     permission_map = {'list': 'user:read', 'retrieve': 'user:read', 'create': 'user:create',
                       'update': 'user:update', 'partial_update': 'user:update', 'destroy': 'user:delete',
-                      'reset_password': 'user:update', 'bulk_action': 'user:update'}
+                      'reset_password': 'user:update', 'bulk_action': 'user:update',
+                      'sensitive': 'user:sensitive_read'}
     filterset_fields = ['is_active']
-    search_fields = ['username', 'email', 'first_name', 'last_name']
+    search_fields = ['username', 'first_name', 'last_name']
     ordering_fields = ['created_at', 'username', 'login_count']
     ordering = ['-created_at']
 
@@ -49,7 +55,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         queryset = User.objects.all()
         if self.action != 'list':
             queryset = queryset.select_related('profile')
-        if self.action not in ('list', 'retrieve') and not (self.request.user.is_staff or self.request.user.is_superuser):
+        if self.action not in ('list', 'retrieve', 'sensitive') and not (self.request.user.is_staff or self.request.user.is_superuser):
             queryset = queryset.filter(is_staff=False, is_superuser=False)
         from apps.core.data_scope import scope_queryset
         return scope_queryset(queryset, self.request.user, 'user', 'pk')
@@ -62,6 +68,38 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         elif self.action in ['update', 'partial_update']:
             return UserUpdateSerializer
         return UserDetailSerializer
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+    @action(detail=True, methods=['post'])
+    @transaction.atomic
+    def sensitive(self, request, pk=None):
+        """单次查看联系方式：权限、数据范围、会话与密码共同约束。"""
+        from apps.core.data_scope import scope_queryset
+        from apps.auth_app.reauthentication import require_recent_password
+        serializer = SensitiveContactRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        # 固定用户锁顺序，避免两个管理员互相查看造成死锁。
+        visible = scope_queryset(User.objects.all(), request.user, 'user', 'pk')
+        target_id = get_object_or_404(visible, pk=pk).pk
+        locked = list(User.objects.select_for_update().filter(
+            pk__in=[request.user.pk, target_id]).order_by('pk'))
+        actor = next((user for user in locked if user.pk == request.user.pk), None)
+        if actor is None:
+            raise AuthenticationFailed('登录凭据已撤销，请重新登录')
+        if not all(has_permission_code(actor, code) for code in ('user:read', 'user:sensitive_read')):
+            raise PermissionDenied('没有查看用户联系方式原值的权限')
+        require_recent_password(request, actor, 'user:sensitive-read')
+        # 锁内重新计算有效角色与范围，不沿用旧请求对象的授权状态。
+        target = get_object_or_404(scope_queryset(User.objects.all(), actor, 'user', 'pk'), pk=target_id)
+        OperationLog.objects.create(user=actor, action='read_sensitive', resource='user',
+                                    resource_id=str(target.pk), description='查看用户邮箱与手机号原值',
+                                    ip_address=request.META.get('REMOTE_ADDR', ''))
+        return Response({'code': 200, 'message': '原值仅供本次查看',
+                         'data': SensitiveContactSerializer(target).data})
 
     def perform_create(self, serializer):
         from apps.core.data_scope import unrestricted_user_creation

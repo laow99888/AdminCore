@@ -11,7 +11,8 @@ from rest_framework.exceptions import APIException, AuthenticationFailed, Permis
 from .sessions import locked_request_session
 
 PASSWORD_CONFIRMATION_SCOPES = frozenset({'session:revoke', 'session:revoke-others', 'session:admin-revoke-all', 'email:verify',
-                                         'totp:setup', 'totp:enable', 'totp:disable', 'totp:recovery-codes'})
+                                         'totp:setup', 'totp:enable', 'totp:disable', 'totp:recovery-codes',
+                                         'user:sensitive-read'})
 
 
 class PasswordConfirmationUnavailable(APIException):

@@ -5,6 +5,7 @@
 from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
 from apps.core.models import BaseModel
+from apps.core.fields import EncryptedPhoneField
 import uuid
 
 
@@ -14,7 +15,7 @@ class User(AbstractUser):
 
     # 额外字段
     avatar = models.URLField(blank=True, verbose_name='头像')
-    phone = models.CharField(max_length=20, blank=True, verbose_name='电话')
+    phone = EncryptedPhoneField(max_length=20, blank=True, verbose_name='电话')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
     last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='最后登录 IP')
     login_count = models.IntegerField(default=0, verbose_name='登录次数')

@@ -221,7 +221,10 @@ def test_email_verification_requires_password_then_returns_profile(member_user, 
     assert member_user.verified_email == member_user.email
     assert member_client.post(BASE + 'email-verification/confirm/', {'code': code}, format='json').status_code == 400
     assert member_client.get(BASE + 'me/').data['data']['email_verified'] is True
-    assert 'verified_email' in admin.site._registry[User].readonly_fields
+    # 管理后台仅显示验证状态，不能经 readonly 原始地址绕过联系方式脱敏。
+    user_admin = admin.site._registry[User]
+    assert 'contact_verified' in user_admin.readonly_fields
+    assert 'verified_email' not in str(user_admin.fieldsets)
 
 
 @pytest.mark.django_db
