@@ -10,6 +10,7 @@ from apps.core.idempotency import with_idempotency
 from .models import Announcement
 from .announcement_serializers import AnnouncementSerializer, AnnouncementWriteSerializer, AnnouncementTransitionSerializer
 from .announcement_services import authorize, create_announcement, mutate_announcement
+from .announcement_content import prepare_content
 
 
 @extend_schema_view(retrieve=extend_schema(responses=envelope('AnnouncementDetailResponse', AnnouncementSerializer())))
@@ -61,7 +62,13 @@ class AnnouncementManageViewSet(AnnouncementPublicViewSet):
             def callback():
                 row = create_announcement(request, actor, serializer.validated_data) if operation == 'create' else mutate_announcement(request, actor, pk, serializer.validated_data, operation)
                 return Response({'code': 200, 'message': 'success', 'data': AnnouncementSerializer(row).data}, status=201 if operation == 'create' else 200)
-            return with_idempotency(request, f'announcements:{pk or "new"}:{operation}', callback)
+            response = with_idempotency(request, f'announcements:{pk or "new"}:{operation}', callback)
+            # 旧幂等缓存可能早于本次消毒策略；鉴权后同样防御处理返回正文。
+            data = dict(response.data['data'])
+            data.setdefault('content_format', 'plain')
+            data['content'] = prepare_content(data['content'], data['content_format'], validate=False)
+            response.data = {**response.data, 'data': data}
+            return response
 
     def create(self, request):
         return self._write(request, 'create')

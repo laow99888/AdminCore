@@ -80,8 +80,10 @@ class Notification(BaseModel):
 class Announcement(BaseModel):
     """全员公告的共享发布记录，不为每位用户复制个人通知。"""
     STATUS_CHOICES = [('draft', '草稿'), ('published', '已发布'), ('withdrawn', '已撤回')]
+    CONTENT_FORMAT_CHOICES = [('plain', '纯文本'), ('html', 'HTML')]
     title = models.CharField(max_length=200)
     content = models.TextField()
+    content_format = models.CharField(max_length=5, choices=CONTENT_FORMAT_CHOICES, default='plain')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
     version = models.PositiveIntegerField(default=1)
     published_at = models.DateTimeField(null=True, blank=True)
@@ -91,4 +93,5 @@ class Announcement(BaseModel):
     class Meta:
         ordering = ['-created_at', '-id']
         indexes = [models.Index(fields=['status', '-published_at', '-id'], name='announcement_public_order')]
-        constraints = [models.CheckConstraint(condition=models.Q(status__in=['draft', 'published', 'withdrawn']), name='announcement_valid_status')]
+        constraints = [models.CheckConstraint(condition=models.Q(status__in=['draft', 'published', 'withdrawn']), name='announcement_valid_status'),
+                       models.CheckConstraint(condition=models.Q(content_format__in=['plain', 'html']), name='announcement_valid_format')]

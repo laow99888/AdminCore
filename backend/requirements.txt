@@ -30,6 +30,7 @@ boto3==1.43.112
 python-dotenv==1.2.4
 python-dateutil==2.9.0.post0
 requests==2.34.2
+nh3==0.3.7
 
 # API 文档
 drf-spectacular==0.30.0

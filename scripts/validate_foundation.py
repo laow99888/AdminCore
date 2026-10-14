@@ -376,6 +376,35 @@ def main():
             {'version': announcement['version']}, token=token)
         check('真实 HTTP 已发布公告可读',
               api(f'notifications/announcements/{announcement_id}/', token=token).json()['data']['content'] == '隔离验收正文')
+        rich_payload = {'title': '富文本隔离验收', 'content_format': 'html', 'version': 0,
+                        'content': '<h2>通知</h2><p><strong>安全正文</strong><img src="https://invalid.test/pixel" onerror="alert(1)"></p>'
+                                   '<script>alert(2)</script><a href="javascript:alert(3)">危险链接</a>'
+                                   '<a href="https://example.test/help">帮助</a>'}
+        rich_key = 'foundation-richtext-' + uuid.uuid4().hex
+        rich_created = api('notifications/announcements/manage/', 'POST', rich_payload, 201, token,
+                           {'Idempotency-Key': rich_key}).json()['data']
+        rich_id = rich_created['id']
+        check('真实 HTTP 富文本白名单保留排版并移除图片脚本和危险协议',
+              rich_created['content_format'] == 'html' and '<strong>安全正文</strong>' in rich_created['content']
+              and '<h2>通知</h2>' in rich_created['content'] and 'https://example.test/help' in rich_created['content']
+              and all(value not in rich_created['content'].lower() for value in ('<img', '<script', 'onerror', 'javascript:', 'alert('))
+              and all(value in rich_created['content'] for value in ('noopener', 'noreferrer', 'nofollow')))
+        rich_replay = api('notifications/announcements/manage/', 'POST', rich_payload, 201, token,
+                          {'Idempotency-Key': rich_key}).json()['data']
+        check('真实 HTTP 富文本幂等重放返回相同安全正文与版本', rich_replay == rich_created)
+        api('notifications/announcements/manage/', 'POST', {**rich_payload, 'content': '<p><br></p>'}, 400, token)
+        api('notifications/announcements/manage/', 'POST', {**rich_payload, 'content_format': 'markdown'}, 400, token)
+        rich_published = api(f'notifications/announcements/manage/{rich_id}/publish/', 'POST',
+                             {'version': rich_created['version']}, token=token).json()['data']
+        rich_public = api(f'notifications/announcements/{rich_id}/', token=token)
+        check('真实 HTTP 发布富文本安全读取且禁止缓存',
+              rich_public.headers['Cache-Control'] == 'private, no-store'
+              and rich_public.json()['data']['content'] == rich_published['content'] == rich_created['content'])
+        plain_markup = '<img src=x onerror=alert(1)>历史纯文本'
+        legacy = api('notifications/announcements/manage/', 'POST',
+                     {'title': '纯文本兼容', 'content': plain_markup, 'version': 0}, 201, token).json()['data']
+        check('真实 HTTP 未指定格式的旧客户端保持纯文本和原始字面标签',
+              legacy['content_format'] == 'plain' and legacy['content'] == plain_markup)
         for resource in ('users', 'roles', 'logs', 'files'):
             exported = api(f'data-io/export/?resource={resource}&export_format=csv', token=token)
             check('真实 HTTP 安全导出资源 ' + resource,
@@ -505,6 +534,8 @@ def main():
         token = login(password)
         check('通知模块关闭/重新启用保留已发布公告',
               api(f'notifications/announcements/{announcement_id}/', token=token).json()['data']['status'] == 'published')
+        check('通知模块关闭/重新启用保留富文本格式和消毒结果',
+              api(f'notifications/announcements/{rich_id}/', token=token).json()['data'] == rich_published)
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         check('关闭并重新启用系统诊断恢复只读入口', api('system/information/', token=token).json()['data']['environment'] == 'production')

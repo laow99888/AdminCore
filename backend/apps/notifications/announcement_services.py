@@ -10,6 +10,7 @@ from apps.core.modules import module_enabled
 from apps.permissions.permissions import has_permission_code
 from apps.logs.models import OperationLog
 from .models import Announcement
+from .announcement_content import prepare_content
 
 
 class AnnouncementConflict(APIException):
@@ -43,14 +44,17 @@ def audit(request, actor, row, action, before_version=None):
     OperationLog.objects.create(user=actor, action='create' if action == 'create' else 'update',
         resource='announcement', resource_id=str(row.id), ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1',
         description=json.dumps({'operation': action, 'before_version': before_version, 'version': row.version,
-            'status': row.status, 'content_length': len(row.content),
+            'status': row.status, 'content_format': row.content_format, 'content_length': len(row.content),
             'content_sha256': hashlib.sha256(row.content.encode()).hexdigest()}, ensure_ascii=False))
 
 
 def create_announcement(request, actor, data):
     if data['version'] != 0:
         raise AnnouncementConflict('新建公告版本必须为 0')
-    row = Announcement.objects.create(title=data['title'], content=data['content'], created_by=actor, updated_by=actor)
+    content_format = data.get('content_format', 'plain')
+    content = prepare_content(data['content'], content_format)
+    row = Announcement.objects.create(title=data['title'], content=content, content_format=content_format,
+                                      created_by=actor, updated_by=actor)
     audit(request, actor, row, 'create')
     return row
 
@@ -68,11 +72,13 @@ def mutate_announcement(request, actor, pk, data, operation):
     before = row.version
     values = {'version': before + 1, 'updated_by': actor, 'updated_at': timezone.now()}
     if operation == 'edit':
-        values.update(title=data['title'], content=data['content'])
+        content_format = data.get('content_format', row.content_format)
+        values.update(title=data['title'], content=prepare_content(data['content'], content_format), content_format=content_format)
     elif operation == 'publish':
-        values.update(status='published', published_at=timezone.now())
+        values.update(status='published', published_at=timezone.now(), content=prepare_content(row.content, row.content_format))
     else:
-        values.update(status='withdrawn')
+        # 撤回也净化持久正文，但不因遗留空正文阻止管理员停止公开。
+        values.update(status='withdrawn', content=prepare_content(row.content, row.content_format, validate=False))
     # CAS also protects databases whose select_for_update is a no-op.
     if Announcement.objects.filter(pk=pk, version=before, status=row.status).update(**values) != 1:
         raise AnnouncementConflict()

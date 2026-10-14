@@ -15,6 +15,7 @@ export default defineConfig({
       mkdirSync(target, { recursive: true })
       for (const directory of ['cmaps', 'standard_fonts', 'wasm']) cpSync(path.join(source, directory), path.join(target, directory), { recursive: true })
       cpSync(path.join(source, 'LICENSE'), path.join(target, 'LICENSE'))
+      cpSync(path.resolve(import.meta.dirname, 'third-party/richtext'), path.resolve(import.meta.dirname, 'dist/third-party/richtext'), { recursive: true })
     },
   }],
   resolve: {

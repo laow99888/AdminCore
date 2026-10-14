@@ -18,8 +18,12 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
+    "@tiptap/vue-3": "3.32.0",
     "axios": "1.20.0",
     "dayjs": "1.11.23",
+    "dompurify": "3.4.17",
     "echarts": "6.1.0",
     "element-plus": "2.14.7",
     "lucide-vue-next": "1.0.0",

@@ -1,7 +1,8 @@
 import request, { type ApiResponse, type PagedData } from './request'
 import { newIdempotencyKey } from './index'
-export interface AnnouncementRow { id: string; title: string; content: string; status: 'draft' | 'published' | 'withdrawn'; version: number; published_at: string | null; created_at: string; updated_at: string }
-export interface AnnouncementDraft { title: string; content: string; version: number }
+export type AnnouncementContentFormat = 'plain' | 'html'
+export interface AnnouncementRow { id: string; title: string; content: string; content_format?: AnnouncementContentFormat; status: 'draft' | 'published' | 'withdrawn'; version: number; published_at: string | null; created_at: string; updated_at: string }
+export interface AnnouncementDraft { title: string; content: string; content_format?: AnnouncementContentFormat; version: number }
 const base = '/notifications/announcements/'
 export const announcementsApi = {
   list: async (manage: boolean, params: { page: number; page_size: number; search: string; status?: string }, signal?: AbortSignal) =>

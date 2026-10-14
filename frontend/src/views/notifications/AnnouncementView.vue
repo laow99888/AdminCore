@@ -20,17 +20,21 @@
         </template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="visible" :title="uiText(form.id ? '编辑公告' : '新增公告')" :before-close="guard.confirmDiscard" :loading="saving" :confirm-disabled="!canUpdate" @confirm="save">
+    <BaseDialog v-model="visible" :title="uiText(form.id ? '编辑公告' : '新增公告')" :before-close="guard.confirmDiscard" :loading="saving || formatSwitching" :confirm-disabled="!canUpdate || (form.content_format === 'html' && (!richReady || !!editorError))" @confirm="save">
       <div v-if="formError" ref="errorSummary" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" /></div>
       <el-form label-position="top" :disabled="saving" @submit.prevent="save">
         <el-form-item :label="uiText('标题')" required><el-input v-model="form.title" maxlength="200" show-word-limit /></el-form-item>
-        <el-form-item :label="uiText('公告正文')" required><el-input v-model="form.content" type="textarea" :rows="8" maxlength="20000" show-word-limit /></el-form-item>
+        <el-form-item :label="uiText('正文格式')"><el-radio-group :model-value="form.content_format" :aria-label="uiText('正文格式')" :disabled="saving || formatSwitching" @change="switchFormat"><el-radio-button value="plain">{{ uiText('纯文本') }}</el-radio-button><el-radio-button value="html">{{ uiText('富文本') }}</el-radio-button></el-radio-group></el-form-item>
+        <el-form-item v-if="form.content_format === 'plain'" :label="uiText('公告正文')" required><el-input v-model="form.content" type="textarea" :rows="8" maxlength="20000" show-word-limit /></el-form-item>
+        <el-form-item v-else :label="uiText('公告正文')" required><BaseRichTextEditor v-if="visible" v-model="form.content" :label="uiText('公告富文本正文')" :disabled="saving || !canUpdate" @ready="richReady = $event" @invalid="editorError = $event" /></el-form-item>
+        <el-button :disabled="saving" :aria-expanded="previewVisible" @click="previewVisible = !previewVisible">{{ uiText('预览正文') }}</el-button>
+        <SafeRichText v-if="previewVisible" class="body-preview" :content="form.content" :format="form.content_format" :label="uiText('正文预览')" />
       </el-form>
       <p class="notice">{{ uiText('保存为草稿后，需单独发布才能供全员阅读；已发布内容须先撤回才能编辑。') }}</p>
     </BaseDialog>
     <BaseDialog v-model="detailVisible" :title="selected?.title || uiText('公告详情')" :show-cancel="false" :confirm-text="uiText('关闭')" @confirm="detailVisible = false">
       <p v-if="selected" class="notice">{{ label(selected.status) }} · {{ selected.published_at || selected.created_at }}</p>
-      <div class="body-text">{{ selected?.content }}</div>
+      <SafeRichText :content="selected?.content" :format="selected?.content_format || 'plain'" :label="uiText('公告内容')" />
     </BaseDialog>
   </AppLayout>
 </template>
@@ -43,7 +47,10 @@ import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useErrorSummary } from '@/composables/useErrorSummary'
-import { announcementsApi, type AnnouncementRow } from '@/api/announcements'
+import { announcementsApi, type AnnouncementContentFormat, type AnnouncementRow } from '@/api/announcements'
+import BaseRichTextEditor from '@/components/common/BaseRichTextEditor.vue'
+import SafeRichText from '@/components/common/SafeRichText.vue'
+import { plainTextToRich, richTextToPlain, richTextHasContent, sanitizeRichText, RICH_TEXT_LIMIT } from '@/utils/richText'
 import { newIdempotencyKey } from '@/api'
 import { uiText } from '@/i18n/uiText'
 
@@ -58,12 +65,14 @@ const manage = ref(false), loading = ref(false), saving = ref(false), visible = 
 const rows = ref<AnnouncementRow[]>([]), selected = ref<AnnouncementRow>(), total = ref(0), page = ref(1), pageSize = ref(20), keyword = ref(''), status = ref(''), error = ref(''), formError = ref('')
 const detailLoadingId = ref('')
 useErrorSummary(formError)
-const form = reactive({ id: '', title: '', content: '', version: 0 })
+const form = reactive({ id: '', title: '', content: '', content_format: 'plain' as AnnouncementContentFormat, version: 0 })
+const richReady = ref(false), editorError = ref(''), previewVisible = ref(false), formatSwitching = ref(false)
+let formatGeneration = 0, ownsModeConfirmation = false
 const states = ['draft', 'published', 'withdrawn'] as const
 const label = (value: string) => uiText(({ draft: '草稿', published: '已发布', withdrawn: '已撤回' } as Record<string, string>)[value] || value)
 const columns = computed(() => [{ prop: 'title', label: uiText('标题') }, { prop: 'status', label: uiText('状态'), width: 100, render: label }, { prop: 'published_at', label: uiText('发布时间'), width: 190 }])
-const guard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value, canEdit: () => canUpdate.value,
-  clear: () => { visible.value = false; Object.assign(form, { id: '', title: '', content: '', version: 0 }); formError.value = '' } })
+const guard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || formatSwitching.value, canEdit: () => canUpdate.value,
+  clear: () => { formatGeneration++; if (ownsModeConfirmation) ElMessageBox.close(); visible.value = false; Object.assign(form, { id: '', title: '', content: '', content_format: 'plain', version: 0 }); formError.value = ''; previewVisible.value = false; richReady.value = false; editorError.value = '' } })
 let generation = 0, listRequest: AbortController | undefined, detailRequest: AbortController | undefined
 let saveKey = '', saveBody = ''
 async function load() {
@@ -82,15 +91,36 @@ function changePage(value: number) { page.value = value; void load() }
 function changeSize(value: number) { pageSize.value = value; resetList() }
 function edit(row?: AnnouncementRow) {
   if (!canUpdate.value || saving.value) return
-  Object.assign(form, row ? { id: row.id, title: row.title, content: row.content, version: row.version } : { id: '', title: '', content: '', version: 0 })
+  formatGeneration++; previewVisible.value = false; richReady.value = false; editorError.value = ''
+  Object.assign(form, row ? { id: row.id, title: row.title, content: row.content, content_format: row.content_format || 'plain', version: row.version } : { id: '', title: '', content: '', content_format: 'plain', version: 0 })
   saveKey = ''; saveBody = ''; formError.value = ''; visible.value = true
 }
+async function switchFormat(value: unknown) {
+  if ((value !== 'plain' && value !== 'html') || value === form.content_format || saving.value || formatSwitching.value || !guard.isCurrent()) return
+  const current = ++formatGeneration, original = form.content
+  formatSwitching.value = true
+  try {
+    if (original.trim()) {
+      ownsModeConfirmation = true
+      await ElMessageBox.confirm(uiText(value === 'html' ? '将纯文本安全转换为富文本，原有文字会保留。确定切换吗？' : '切换为纯文本会移除排版和链接，仅保留文字。确定切换吗？'), uiText('提示'), { type: 'warning', confirmButtonText: uiText('确定'), cancelButtonText: uiText('取消'), closeOnClickModal: false })
+    }
+    if (current !== formatGeneration || !guard.isCurrent()) return
+    const converted = value === 'html' ? plainTextToRich(original) : richTextToPlain(original)
+    form.content = converted; form.content_format = value; richReady.value = false; editorError.value = ''; previewVisible.value = false
+  } catch (exception) { if (current === formatGeneration && guard.isCurrent() && exception instanceof Error) formError.value = uiText('正文原文或清洗后的 HTML 超过 20000 字符，请缩短内容。') }
+  finally { ownsModeConfirmation = false; formatSwitching.value = false }
+}
 async function save() {
-  if (saving.value || !visible.value || !guard.isCurrent()) return
+  if (saving.value || formatSwitching.value || !visible.value || !guard.isCurrent() || (form.content_format === 'html' && (!richReady.value || !!editorError.value))) return
   saving.value = true; formError.value = ''
   try {
-    if (!form.title.trim() || !form.content.trim()) { formError.value = uiText('请填写公告标题和正文'); return }
-    const data = { title: form.title.trim(), content: form.content.trim(), version: form.version }
+    if (form.content.length > RICH_TEXT_LIMIT) { formError.value = uiText('正文原文或清洗后的 HTML 超过 20000 字符，请缩短内容。'); return }
+    let content = form.content.trim()
+    if (form.content_format === 'html') {
+      try { content = sanitizeRichText(form.content) } catch { formError.value = uiText('正文原文或清洗后的 HTML 超过 20000 字符，请缩短内容。'); return }
+    }
+    if (!form.title.trim() || !(form.content_format === 'html' ? richTextHasContent(content) : content.replace(/[\s\p{C}]/gu, ''))) { formError.value = uiText('请填写公告标题和正文'); return }
+    const data = { title: form.title.trim(), content, content_format: form.content_format, version: form.version }
     const body = JSON.stringify(data)
     if (body !== saveBody || !saveKey) { saveKey = newIdempotencyKey('announcement-save'); saveBody = body }
     await announcementsApi.save(form.id, data, saveKey)
@@ -130,6 +160,8 @@ async function transition(row: AnnouncementRow) {
 }
 function clearSensitive() {
   if (ownsConfirmation) ElMessageBox.close()
+  if (ownsModeConfirmation) ElMessageBox.close()
+  formatGeneration++
   generation++; detailGeneration++; listRequest?.abort(); detailRequest?.abort(); loading.value = false; detailLoadingId.value = ''; rows.value = []; selected.value = undefined; detailVisible.value = false; total.value = 0
 }
 watch(canPublish, allowed => { if (!allowed && ownsConfirmation) ElMessageBox.close() }, { flush: 'sync' })
@@ -148,6 +180,7 @@ h2 { margin: 0; font-size: var(--font-size-lg); }
 .filters { margin-top: var(--spacing-lg); }
 .status-filter { width: 130px; }
 .body-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
+.body-preview { margin-top: var(--spacing-md); padding: var(--spacing-md); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 :deep(.action-buttons .el-button) { min-height: 44px; min-width: 44px; }
 @media (max-width: 640px) { .filters :deep(.el-form-item) { display: flex; margin-right: 0; } }
 </style>
