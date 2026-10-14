@@ -18,7 +18,18 @@ try {
       await page.goto('/login')
       await page.getByPlaceholder('用户名', { exact: true }).fill('admin')
       await page.getByPlaceholder('密码', { exact: true }).fill(password)
+      const login = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/login/') && response.request().method() === 'POST')
       await page.getByRole('button', { name: '登录', exact: true }).click()
+      const response = await login
+      if (response.status() === 429) {
+        // 六个独立浏览器上下文在快机器上会触发五次/分钟限制；遵守服务器退避，不清缓存或降低正式限流。
+        const seconds = Number(response.headers()['retry-after'])
+        expect(Number.isFinite(seconds) && seconds > 0 && seconds <= 65).toBe(true)
+        await page.waitForTimeout(Math.ceil(seconds * 1000) + 100)
+        const retried = page.waitForResponse(value => value.url().endsWith('/api/v1/auth/login/') && value.request().method() === 'POST')
+        await page.getByRole('button', { name: '登录', exact: true }).click()
+        expect((await retried).status()).toBe(200)
+      } else expect(response.status()).toBe(200)
       await expect(page).toHaveURL('http://127.0.0.1:18471/')
       let exports = 0
       page.on('request', request => { if (request.url().includes('/data-io/export/')) exports++ })
