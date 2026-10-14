@@ -320,7 +320,7 @@ CACHES = {
 
 # ===== 日志配置 =====
 # 精简部署无需 Redis/worker；单进程限流使用本地缓存。
-if not ADMINCORE_MODULES:
+if set(ADMINCORE_MODULES) <= {'realtime'}:
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # 默认只输出控制台，由部署平台有界轮转，避免多个 worker 竞争同一文件。

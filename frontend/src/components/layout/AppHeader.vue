@@ -107,6 +107,7 @@ import { confirmPendingForms } from '@/composables/useUnsavedChanges'
 import PrivateAvatar from '@/components/auth/PrivateAvatar.vue'
 import { useSidebar } from '../../composables/useSidebar'
 import { useModuleStore } from '@/stores/modules'
+import { REALTIME_EVENT, startRealtimeClient } from '@/utils/realtime'
 
 const route = useRoute()
 const router = useRouter()
@@ -126,26 +127,44 @@ const displayName = computed(() => authStore.user?.username || 'Admin')
 // 未读通知数轮询
 let pollTimer: number | undefined
 let active = true
+let unreadGeneration = 0
+let stopRealtime: (() => void) | undefined
 const refreshUnread = async () => {
-  if (!active || !modules.enabled('notifications')) return
+  if (!active || !authStore.user || !modules.enabled('notifications')) return
+  const generation = ++unreadGeneration
+  const owner = authStore.user.id
   try {
-    notificationCount.value = await notificationsApi.unreadCount()
+    const count = await notificationsApi.unreadCount()
+    if (active && generation === unreadGeneration && owner === authStore.user?.id && modules.enabled('notifications')) notificationCount.value = count
   } catch {
     // 静默失败，下一轮再试
   }
 }
 function startPolling() {
   window.clearInterval(pollTimer)
+  stopRealtime?.(); stopRealtime = undefined
+  unreadGeneration++
+  notificationCount.value = 0
   if (active && modules.enabled('notifications')) {
     refreshUnread()
     pollTimer = window.setInterval(refreshUnread, 60000)
   }
+  if (active && authStore.user && !authStore.user.must_change_password && modules.enabled('realtime')) {
+    stopRealtime = startRealtimeClient({ enabled: () => active && modules.enabled('realtime') && !!authStore.user && !authStore.user.must_change_password,
+      onAuthExpired: () => authStore.fetchUser(true),
+      onSnapshot: topics => {
+        unreadGeneration++
+        notificationCount.value = topics.notifications?.unread_count ?? 0
+        window.dispatchEvent(new CustomEvent(REALTIME_EVENT, { detail: topics }))
+      } })
+  }
 }
 onMounted(startPolling)
 onActivated(() => { active = true; startPolling() })
-onDeactivated(() => { active = false; window.clearInterval(pollTimer) })
-watch(() => modules.enabled('notifications'), startPolling)
-onUnmounted(() => window.clearInterval(pollTimer))
+onDeactivated(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
+watch(() => [modules.enabled('notifications'), modules.enabled('realtime'), authStore.user?.id, authStore.token,
+  authStore.user?.must_change_password, JSON.stringify(authStore.user?.permissions)], startPolling)
+onUnmounted(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
 
 // 当前页面标题
 const currentPageTitle = computed(() => {

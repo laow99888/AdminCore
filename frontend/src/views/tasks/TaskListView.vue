@@ -62,6 +62,7 @@ import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { tasksApi, type TaskRow } from '@/api'
+import { useRealtimeUpdates } from '@/composables/useRealtimeUpdates'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -94,6 +95,7 @@ const tableColumns = [
   { prop: 'name', label: uiText("任务名称") },
   { prop: 'task_type', label: uiText("类型"), width: '90px', render: (v: string) => TYPE_LABELS[v] || v },
   { prop: 'status', label: uiText("状态"), width: '100px', render: (v: string) => STATUS_LABELS[v] || v },
+  { prop: 'progress', label: uiText('进度'), width: '90px', render: (value: number) => `${Math.max(0, Math.min(100, Number.isFinite(value) ? value : 0))}%` },
   { prop: 'creator_name', label: uiText("发起人"), width: '110px' },
   {
     prop: 'duration',
@@ -105,6 +107,7 @@ const tableColumns = [
 ]
 
 const loadTasks = async () => {
+  const current = beginRead()
   loading.value = true
   try {
     const data = await tasksApi.list({
@@ -112,10 +115,9 @@ const loadTasks = async () => {
       page_size: pageSize.value,
       ...(statusFilter.value ? { status: statusFilter.value } : {}),
     })
-    tableData.value = data.items
-    total.value = data.pagination.total
+    if (current()) { tableData.value = data.items; total.value = data.pagination.total }
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 
@@ -150,6 +152,7 @@ const handlePageSizeChange = (size: number) => {
   loadTasks()
 }
 
+const beginRead = useRealtimeUpdates('tasks', loadTasks, () => { tableData.value = []; total.value = 0; loading.value = false; currentTask.value = null; resultVisible.value = false })
 loadTasks()
 </script>
 
@@ -190,5 +193,11 @@ loadTasks()
   background: var(--color-bg-elevated);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
+}
+
+@media (max-width: 768px) {
+  .card-header-row { flex-direction: column; align-items: stretch; gap: var(--spacing-sm); }
+  .card-header-title { white-space: normal; overflow-wrap: anywhere; }
+  .header-actions { justify-content: flex-end; }
 }
 </style>

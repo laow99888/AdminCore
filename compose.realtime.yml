@@ -1,0 +1,49 @@
+# 可选 SSE 服务：docker compose -f docker-compose.yml -f compose.realtime.yml up -d --build
+# 若 .env 已显式设置 ADMINCORE_MODULES，需手动在允许的列表中加入 realtime。
+# 精简部署也可按顺序叠加 compose.minimal.yml 和本文件，不需要 Redis/worker/beat。
+x-realtime-modules: &realtime-modules
+  ADMINCORE_MODULES: ${ADMINCORE_MODULES:-files,tasks,notifications,data_io,approvals,system,organization,realtime}
+
+services:
+  backend:
+    environment:
+      <<: *realtime-modules
+  worker:
+    environment:
+      <<: *realtime-modules
+  beat:
+    environment:
+      <<: *realtime-modules
+  frontend:
+    environment:
+      REALTIME_UPSTREAM: realtime:8000
+  realtime:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      <<: *realtime-modules
+      DJANGO_ENV: production
+      DJANGO_DEBUG: "False"
+      DRF_NUM_PROXIES: "1"
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    # 后端已完成迁移/初始化；本服务只读业务快照和写短期租约。
+    entrypoint: ["gunicorn"]
+    command: ["config.realtime_asgi:application", "--worker-class", "asgi", "--bind", "0.0.0.0:8000", "--workers", "1", "--worker-connections", "128", "--timeout", "40", "--graceful-timeout", "35"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

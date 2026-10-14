@@ -1,0 +1,273 @@
+"""隔离 PostgreSQL/Gunicorn 原生 ASGI/Nginx 的实际 SSE 验收，无正式凭据/数据。
+
+需要 Docker Compose 和 requests。成功关闭本项目/卷及清理临时凭据，失败保留证据。
+"""
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+import json
+import secrets
+import socket
+import subprocess
+import time
+import uuid
+
+import requests
+
+ROOT = Path(__file__).resolve().parents[1]
+PROJECT = 'admincore-realtime-' + uuid.uuid4().hex[:8]
+FOLDER = ROOT / '.codex-validation' / PROJECT
+PORTS = [18430, 18431]
+BASE = 'http://127.0.0.1:18431/api/v1/'
+CHECKS = []
+STREAMS = []
+
+
+def run(arguments, *, input=None, allowed_failure=False):
+    result = subprocess.run(arguments, cwd=ROOT, capture_output=True, text=True, input=input,
+                            encoding='utf-8', errors='replace', timeout=360)
+    with (FOLDER / 'docker.log').open('a', encoding='utf-8') as log:
+        log.write(result.stdout + result.stderr)
+    if result.returncode and not allowed_failure:
+        raise RuntimeError('隔离命令失败，见 docker.log')
+    return result
+
+
+def compose(mode, *arguments, input=None, allowed_failure=False):
+    files = ['docker-compose.yml', 'compose.minimal.yml', 'compose.realtime.yml', str(FOLDER / 'override.yml')]
+    if mode == 'channels': files.append(str(FOLDER / 'channels.yml'))
+    if mode == 'off': files.append(str(FOLDER / 'off.yml'))
+    command = ['docker', 'compose', '-p', PROJECT, '--env-file', str(FOLDER / 'fixture.env')]
+    for file in files: command += ['-f', file]
+    return run(command + list(arguments), input=input, allowed_failure=allowed_failure)
+
+
+def check(label, condition):
+    if not condition: raise AssertionError(label)
+    CHECKS.append(label)
+    print('通过：' + label, flush=True)
+
+
+def snippet(code, mode='channels'):
+    prefix = "import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','config.settings'); import django; django.setup(); from django.conf import settings; assert settings.DATABASES['default']['NAME']=='realtime_fixture'\n"
+    return compose(mode, 'exec', '-T', 'backend', 'python', '-c', 'import sys; exec(sys.stdin.read())', input=prefix + code).stdout.strip()
+
+
+def api(path, *, token=None, method='GET', data=None, expected=200):
+    response = requests.request(method, BASE + path, json=data,
+        headers={'Authorization': 'Bearer ' + token} if token else {}, timeout=15)
+    check(method + ' ' + path + ' → ' + str(expected), response.status_code == expected)
+    return response
+
+
+def login(username, password):
+    return api('auth/login/', method='POST', data={'username': username, 'password': password}).json()['access']
+
+
+def ready():
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            if requests.get(BASE + 'health/', timeout=2).status_code == 200: return
+        except requests.RequestException:
+            pass
+        time.sleep(0.2)
+    raise RuntimeError('隔离 Nginx 入口未恢复就绪')
+
+
+def stream(token, *, expected=200, headers=None, suffix=''):
+    response = requests.get(BASE + 'realtime/events/' + suffix,
+        headers={'Authorization': 'Bearer ' + token, **(headers or {})}, stream=True, timeout=(5, 10))
+    check('真实 SSE HTTP 状态 ' + str(expected) + '（实际 ' + str(response.status_code) + '）', response.status_code == expected)
+    STREAMS.append(response)
+    return response
+
+
+def frame(response):
+    event, data = '', []
+    # 保留同一读取生成器；销毁 urllib3 的 chunked 生成器会关闭连接。
+    if not hasattr(response, '_realtime_lines'):
+        response._realtime_lines = response.iter_lines(chunk_size=1, decode_unicode=True)
+    for line in response._realtime_lines:
+        if line.startswith('event:'): event = line[6:].strip()
+        if line.startswith('data:'): data.append(line[5:].strip())
+        if not line and data: return event, json.loads('\n'.join(data))
+    raise AssertionError('SSE 在返回帧之前结束')
+
+
+def wait_leases(count, mode='channels'):
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        value = snippet("from apps.core.models import RealtimeLease; print(RealtimeLease.objects.count())", mode)
+        if value == str(count): return True
+        time.sleep(0.2)
+    return False
+
+
+def close_streams():
+    for response in STREAMS: response.close()
+    STREAMS.clear()
+
+
+def main():
+    for port in PORTS:
+        with socket.socket() as listener: listener.bind(('127.0.0.1', port))
+    FOLDER.mkdir(parents=True)
+    password, member_password = secrets.token_urlsafe(40), secrets.token_urlsafe(40)
+    env_file = FOLDER / 'fixture.env'
+    environment = {'DJANGO_SECRET_KEY': secrets.token_urlsafe(60), 'DB_PASSWORD': secrets.token_urlsafe(40),
+        'DB_NAME': 'realtime_fixture', 'DB_USER': 'postgres', 'ADMINCORE_ADMIN_PASSWORD': password,
+        'DJANGO_ALLOWED_HOSTS': 'localhost,127.0.0.1,backend', 'DJANGO_ENV': 'production',
+        'DJANGO_DEBUG': 'False', 'BACKEND_PORT': '18430', 'FRONTEND_PORT': '18431',
+        'ADMINCORE_MODULES': 'realtime', 'AUTH_LOGIN_CAPTCHA_ENABLED': 'False', 'USE_TLS': 'False'}
+    env_file.write_text(''.join(key + '=' + value + '\n' for key, value in environment.items()), encoding='utf-8')
+    override = 'services:\n'
+    for service in ['backend', 'worker', 'beat', 'realtime']:
+        override += f'  {service}:\n    env_file: !override\n      - "{env_file.as_posix()}"\n    image: {PROJECT}-backend\n'
+    override += f'  frontend:\n    image: {PROJECT}-frontend\n    ports: !override\n      - "127.0.0.1:18431:80"\n'
+    (FOLDER / 'override.yml').write_text(override, encoding='utf-8')
+    (FOLDER / 'channels.yml').write_text('''services:
+  redis:
+    profiles: !reset []
+  backend:
+    environment:
+      ADMINCORE_MODULES: notifications,tasks,approvals,realtime
+    depends_on: !override
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  realtime:
+    environment:
+      ADMINCORE_MODULES: notifications,tasks,approvals,realtime
+''', encoding='utf-8')
+    (FOLDER / 'off.yml').write_text('''services:
+  backend:
+    environment:
+      ADMINCORE_MODULES: ""
+  realtime:
+    environment:
+      ADMINCORE_MODULES: ""
+  frontend:
+    environment:
+      REALTIME_UPSTREAM: backend:8000
+''', encoding='utf-8')
+    report = {'passed': False, 'project': PROJECT, 'ports': PORTS}
+    try:
+        compose('minimal', 'build', 'backend', 'frontend')
+        compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'backend', 'frontend', 'realtime')
+        ready()
+        services = compose('minimal', 'ps', '--status', 'running', '--services').stdout.split()
+        check('精简 SSE 四服务无需 Redis/worker/beat', set(services) == {'db', 'backend', 'frontend', 'realtime'})
+        token = login('admin', password)
+        api('auth/change_password/', token=token, method='POST', data={'old_password': password, 'new_password': member_password, 'new_password2': member_password})
+        token = login('admin', member_password)
+        response = stream(token)
+        check('Nginx 实际即时流式返回与安全头', response.headers['Content-Type'].startswith('text/event-stream')
+            and response.headers['Cache-Control'] == 'private, no-store' and response.headers['X-Content-Type-Options'] == 'nosniff')
+        event, value = frame(response)
+        check('仅 realtime 模块不读取/广播业务频道', event == 'snapshot' and value['topics'] == {})
+        response.close()
+        check('真实断线立即释放短期租约', wait_leases(0, 'minimal'))
+        compose('channels', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'redis', 'backend', 'frontend', 'realtime')
+        ready()
+        seed = f'''from django.contrib.auth import get_user_model
+from apps.permissions.models import Role, Permission, RolePermission, UserRole
+from apps.core.models import DataScopeGrant
+from apps.notifications.models import Notification
+from apps.tasks.models import TaskRecord
+from apps.approvals.models import ApprovalRequest
+User=get_user_model()
+member=User.objects.create_user('stream_member','member@example.test',{member_password!r},must_change_password=False)
+other=User.objects.create_user('stream_other','other@example.test',{member_password!r},must_change_password=False)
+role=Role.objects.create(name='SSE self')
+UserRole.objects.create(user=member,role=role)
+RolePermission.objects.create(role=role,permission=Permission.objects.get(code='task:read'))
+DataScopeGrant.objects.create(role=role,resource='task',scope='self')
+Notification.objects.create(recipient=member,title='PRIVATE_MEMBER_BODY')
+Notification.objects.create(recipient=other,title='PRIVATE_OTHER_BODY')
+TaskRecord.objects.create(creator=member,name='PRIVATE_TASK_NAME',status='running',progress=37,error='PRIVATE_TASK_ERROR')
+TaskRecord.objects.create(creator=other,name='PRIVATE_OTHER_TASK',status='running')
+ApprovalRequest.objects.create(applicant=other,assignee=member,title='PRIVATE_APPROVAL_TITLE')
+ApprovalRequest.objects.create(applicant=other,assignee=other,title='PRIVATE_OTHER_APPROVAL')
+print('seeded')
+'''
+        snippet(seed)
+        member_token = login('stream_member', member_password)
+        response = stream(member_token, headers={'Origin': 'http://127.0.0.1:18431', 'X-Request-ID': 'realtime-fixture'})
+        first, value = frame(response)
+        topics = value['topics']
+        check('真实 PostgreSQL 按收件人/参与人/任务数据范围返回', topics['notifications']['total'] == topics['notifications']['unread_count'] == 1
+            and topics['approvals']['total'] == topics['approvals']['todo_count'] == 1
+            and topics['tasks']['total'] == 1 and topics['tasks']['active'][0]['progress'] == 37)
+        check('真实流无正文/结果/凭据并串联安全请求 ID', value['request_id'] == 'realtime-fixture' and 'PRIVATE_' not in json.dumps(value)
+            and member_token not in json.dumps(value))
+        started = time.monotonic()
+        api('health/')
+        check('保持 SSE 时普通同步 API 不被连接占用', time.monotonic() - started < 3)
+        stream(member_token, expected=429).close()
+        stream(member_token, expected=400, suffix='?token=forbidden').close()
+        stream(member_token, expected=400, headers={'Origin': 'https://forged.example'}).close()
+        snippet("from apps.permissions.models import Role; Role.objects.filter(name='SSE self').update(is_active=False)")
+        event, updated = frame(response)
+        check('保持连接的下一帧复核角色撤权', event == 'snapshot' and 'tasks' not in updated['topics'])
+        api('auth/logout/', token=member_token, method='POST', data={})
+        event, updated = frame(response)
+        check('保持连接的下一帧拒绝设备撤销', event == 'access_revoked' and set(updated) == {'request_id'})
+        response.close()
+        check('撤销连接释放租约', wait_leases(0))
+        tokens = [login('stream_other', member_password) for _ in range(4)]
+        for credential in tokens[:3]: frame(stream(credential))
+        stream(tokens[3], expected=429).close()
+        check('真实 SQL 跨设备同用户三连接上限', snippet("from apps.core.models import RealtimeLease; print(RealtimeLease.objects.count())") == '3')
+        close_streams()
+        check('关闭各设备连接后额度恢复', wait_leases(0))
+        concurrent_token = login('stream_other', member_password)
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            responses = list(pool.map(lambda _: requests.get(BASE + 'realtime/events/', headers={'Authorization': 'Bearer ' + concurrent_token}, stream=True, timeout=(5, 10)), range(8)))
+        STREAMS.extend(responses)
+        check('真实 PostgreSQL 八并发同设备唯一领取且无死锁', sorted(row.status_code for row in responses) == [200] + [429]*7)
+        close_streams()
+        check('并发断线恢复额度', wait_leases(0))
+        # 正式 SQL global cap 用隔离租约填充；不冒充百连接容量压测。
+        snippet('''from datetime import timedelta
+from django.utils import timezone
+from apps.auth_app.models import AuthSession
+from apps.core.models import RealtimeLease
+from django.contrib.auth import get_user_model
+u=get_user_model().objects.get(username='stream_other')
+for index in range(100):
+    session=AuthSession.objects.create(user=u,session_version=u.session_version,password_hash='fixture',refresh_jti='fixture-'+str(index),created_at=timezone.now(),expires_at=timezone.now()+timedelta(hours=1),last_seen_at=timezone.now())
+    RealtimeLease.objects.create(session=session,expires_at=timezone.now()+timedelta(minutes=1))
+print('filled')
+''')
+        stream(token, expected=429).close()
+        check('全局一百有效租约上限独立于请求用户', snippet("from apps.core.models import RealtimeLease; print(RealtimeLease.objects.count())") == '100')
+        snippet("from apps.core.models import RealtimeLease; from django.utils import timezone; from datetime import timedelta; RealtimeLease.objects.update(expires_at=timezone.now()-timedelta(seconds=1))")
+        recovered = stream(token)
+        frame(recovered); recovered.close()
+        check('崩溃/过期租约不阻塞新用户连接', True)
+        retained = snippet("from apps.notifications.models import Notification; from apps.tasks.models import TaskRecord; from apps.approvals.models import ApprovalRequest; print((Notification.objects.count(),TaskRecord.objects.count(),ApprovalRequest.objects.count()))")
+        compose('off', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
+        ready()
+        stream(token, expected=404).close()
+        check('关闭模块保留既有业务数据', retained == snippet("from apps.notifications.models import Notification; from apps.tasks.models import TaskRecord; from apps.approvals.models import ApprovalRequest; print((Notification.objects.count(),TaskRecord.objects.count(),ApprovalRequest.objects.count()))", 'off'))
+        compose('channels', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend', 'realtime')
+        ready()
+        event, value = frame(stream(token))
+        check('模块关闭期间升级及重新启用恢复', event == 'snapshot' and 'tasks' in value['topics'])
+        close_streams()
+        report['passed'] = True
+    finally:
+        close_streams()
+        report['checks'] = CHECKS
+        if report['passed']:
+            compose('channels', 'down', '-v', '--remove-orphans')
+            env_file.unlink()
+            report['cleaned'] = ['isolated containers and volumes', str(env_file)]
+        else:
+            compose('channels', 'logs', '--no-color', allowed_failure=True)
+        (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        print(json.dumps({'evidence': str(FOLDER), **report}, ensure_ascii=False), flush=True)
+
+
+if __name__ == '__main__': main()

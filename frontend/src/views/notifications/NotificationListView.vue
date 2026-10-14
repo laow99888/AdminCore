@@ -61,6 +61,7 @@ import { useRouter } from 'vue-router'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton } from '@/components'
 import { notificationsApi, type NotificationRow } from '@/api'
+import { useRealtimeUpdates } from '@/composables/useRealtimeUpdates'
 
 const router = useRouter()
 const loading = ref(false)
@@ -82,6 +83,7 @@ const typeTag = (type: string) =>
   ({ system: 'info', approval: 'warning', task: 'success', announcement: 'primary' }[type] || 'info')
 
 const loadList = async () => {
+  const current = beginRead()
   loading.value = true
   try {
     const data = await notificationsApi.list({
@@ -89,10 +91,9 @@ const loadList = async () => {
       page_size: pageSize.value,
       ...(filterRead.value === 'unread' ? { is_read: 'False' } : {}),
     })
-    tableData.value = data.items
-    total.value = data.pagination.total
+    if (current()) { tableData.value = data.items; total.value = data.pagination.total }
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 
@@ -124,6 +125,7 @@ const handlePageChange = (page: number) => {
   loadList()
 }
 
+const beginRead = useRealtimeUpdates('notifications', loadList, () => { tableData.value = []; total.value = 0; loading.value = false })
 loadList()
 </script>
 

@@ -14,6 +14,7 @@ class Module:
     paths: tuple[str, ...]
     dependencies: tuple[str, ...] = ()
     tasks: tuple[str, ...] = ()
+    default_enabled: bool = True
 
 
 MODULES = (
@@ -24,8 +25,10 @@ MODULES = (
     Module('approvals', '单级审批', 'approvals', 'apps.approvals.urls', ('/approvals',), ('notifications',)),
     Module('system', '系统管理', 'system', 'apps.core.system_urls', ('/system/config', '/system/dictionaries', '/system/information', '/system/monitor', '/system/cache')),
     Module('organization', '组织与数据权限', 'organization', 'apps.core.organization_urls', ('/organization',)),
+    Module('realtime', '实时通道', 'realtime', 'apps.core.realtime_urls', (), default_enabled=False),
 )
-PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES), 'demo': tuple(m.key for m in MODULES)}
+PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES if m.default_enabled),
+           'demo': tuple(m.key for m in MODULES if m.default_enabled)}
 CORE_MODULES = ('core', 'auth_app', 'users', 'permissions', 'logs')
 MAINTENANCE_TASKS = {
     'tasks.cleanup_lifecycle': ('tasks',),

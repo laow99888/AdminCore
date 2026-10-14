@@ -1,4 +1,5 @@
 export const uiMessages: Record<string, string> = {
+  '进度': 'Progress',
   '通知模板': 'Notification Templates', '新增模板': 'New Template', '编辑模板': 'Edit Template',
   '模板管理': 'Manage Templates', '投递记录': 'Delivery Records', '模板编码': 'Template Code', '模板名称': 'Template Name',
   '标题模板': 'Subject Template', '正文模板': 'Body Template', '变量名（逗号分隔）': 'Variables (comma separated)',

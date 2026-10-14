@@ -89,6 +89,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { approvalsApi, newIdempotencyKey, type ApprovalRow, type ApprovalBox } from '@/api'
+import { useRealtimeUpdates } from '@/composables/useRealtimeUpdates'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -140,16 +141,16 @@ const tableColumns = [
 ]
 
 const loadList = async () => {
+  const current = beginRead()
   loading.value = true
   try {
     const data = await approvalsApi.list(activeBox.value, {
       page: currentPage.value,
       page_size: pageSize.value,
     })
-    tableData.value = data.items
-    total.value = data.pagination.total
+    if (current()) { tableData.value = data.items; total.value = data.pagination.total }
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 
@@ -240,6 +241,7 @@ const handlePageSizeChange = (size: number) => {
   loadList()
 }
 
+const beginRead = useRealtimeUpdates('approvals', loadList, () => { tableData.value = []; total.value = 0; loading.value = false; currentApproval.value = null; detailVisible.value = false })
 loadList()
 </script>
 

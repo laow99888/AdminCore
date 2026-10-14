@@ -198,3 +198,15 @@ class OutboxEvent(BaseModel):
     class Meta:
         indexes = [models.Index(fields=['status', 'available_at']), models.Index(fields=['topic', 'created_at'])]
         ordering = ['-created_at']
+
+
+class RealtimeBudget(models.Model):
+    """跨 ASGI worker 的连接准入锁；没有业务数据。"""
+    key = models.PositiveSmallIntegerField(primary_key=True, default=1)
+
+
+class RealtimeLease(models.Model):
+    """每个设备会话最多一个连接；崩溃后的租约在 35 秒后不再占额度。"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    session = models.OneToOneField('auth_app.AuthSession', on_delete=models.CASCADE, related_name='realtime_lease')
+    expires_at = models.DateTimeField(db_index=True)
