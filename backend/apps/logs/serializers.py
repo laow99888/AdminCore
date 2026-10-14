@@ -12,8 +12,18 @@ class OperationLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OperationLog
-        fields = ('id', 'username', 'action', 'resource', 'resource_id', 'description', 'ip_address', 'status', 'created_at')
-        read_only_fields = ('id', 'created_at')
+        fields = ('id', 'username', 'action', 'resource', 'resource_id', 'description', 'ip_address', 'status', 'created_at',
+                  'actor_identifier', 'request_id', 'task_id', 'task_record_id', 'audit_version',
+                  'before_values', 'after_values', 'batch_results')
+        read_only_fields = fields
+
+
+class OperationLogListSerializer(OperationLogSerializer):
+    """结构化大字段按需在详情读取，避免分页响应重复携带。"""
+    class Meta(OperationLogSerializer.Meta):
+        fields = tuple(field for field in OperationLogSerializer.Meta.fields
+                       if field not in ('before_values', 'after_values', 'batch_results'))
+        read_only_fields = fields
 
 
 class LoginLogSerializer(serializers.ModelSerializer):

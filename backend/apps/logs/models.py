@@ -33,6 +33,14 @@ class OperationLog(BaseModel):
     ip_address = models.GenericIPAddressField(verbose_name='IP 地址')
     user_agent = models.TextField(blank=True, verbose_name='用户代理')
     status = models.IntegerField(default=200, verbose_name='状态码')
+    actor_identifier = models.CharField(max_length=100, blank=True, editable=False)
+    request_id = models.CharField(max_length=100, blank=True, db_index=True, editable=False)
+    task_id = models.CharField(max_length=100, blank=True, db_index=True, editable=False)
+    task_record_id = models.UUIDField(null=True, blank=True, db_index=True, editable=False)
+    audit_version = models.PositiveSmallIntegerField(default=0, editable=False)
+    before_values = models.JSONField(null=True, blank=True, editable=False)
+    after_values = models.JSONField(null=True, blank=True, editable=False)
+    batch_results = models.JSONField(default=list, blank=True, editable=False)
 
     class Meta:
         verbose_name = '操作日志'
@@ -45,6 +53,15 @@ class OperationLog(BaseModel):
 
     def __str__(self):
         return f"{self.user.username if self.user else 'Unknown'} - {self.action} - {self.resource}"
+
+    def save(self, *args, **kwargs):
+        if self._state.adding:
+            from .context import request_id
+            from celery import current_task
+            self.actor_identifier = self.actor_identifier or str(self.user_id or '')
+            self.request_id = self.request_id or request_id.get()
+            self.task_id = self.task_id or str(getattr(getattr(current_task, 'request', None), 'id', '') or '')
+        return super().save(*args, **kwargs)
 
 
 class LoginLog(BaseModel):

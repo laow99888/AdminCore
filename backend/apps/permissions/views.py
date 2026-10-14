@@ -43,6 +43,27 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def get_queryset(self):
         return Role.objects.prefetch_related('permissions').all()
 
+    @transaction.atomic
+    def perform_create(self, serializer):
+        from apps.logs.audit import snapshot, write_audit
+        row = serializer.save()
+        write_audit(request=self.request, resource='role', identifier=row.pk, action='create', after=snapshot('role', row))
+
+    @transaction.atomic
+    def perform_update(self, serializer):
+        from apps.logs.audit import snapshot, write_audit
+        serializer.instance = Role.objects.select_for_update().get(pk=serializer.instance.pk)
+        before = snapshot('role', serializer.instance)
+        row = serializer.save()
+        write_audit(request=self.request, resource='role', identifier=row.pk, before=before, after=snapshot('role', row))
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        from apps.logs.audit import snapshot, write_audit
+        row = Role.objects.select_for_update().get(pk=instance.pk)
+        write_audit(request=self.request, resource='role', identifier=row.pk, action='delete', before=snapshot('role', row))
+        row.delete()
+
 
 @extend_schema_view(
     retrieve=extend_schema(responses=envelope('PermissionDetailResponse', PermissionSerializer())),
@@ -117,28 +138,30 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         from .services import save_menu
-        self.audit_menu(save_menu(serializer), 'create')
+        from apps.logs.audit import snapshot, write_audit
+        row = save_menu(serializer)
+        write_audit(request=self.request, resource='menu', identifier=row.pk, action='create', after=snapshot('menu', row))
 
     @transaction.atomic
     def perform_update(self, serializer):
         from .services import save_menu
-        self.audit_menu(save_menu(serializer), 'update')
+        from apps.logs.audit import snapshot, write_audit
+        # 与菜单服务统一锁顺序，避免并发树修改/审计快照不一致。
+        list(Menu.objects.select_for_update().order_by('id'))
+        serializer.instance.refresh_from_db()
+        before = snapshot('menu', serializer.instance)
+        row = save_menu(serializer)
+        write_audit(request=self.request, resource='menu', identifier=row.pk, before=before, after=snapshot('menu', row))
 
     @transaction.atomic
     def perform_destroy(self, instance):
         from .services import delete_menu
-        menu_id, name = str(instance.id), instance.name
+        from apps.logs.audit import snapshot, write_audit
+        list(Menu.objects.select_for_update().order_by('id'))
+        instance.refresh_from_db()
+        before, identifier = snapshot('menu', instance), instance.pk
         delete_menu(instance)
-        self.audit_menu_values(menu_id, name, 'delete')
-
-    def audit_menu(self, menu, action):
-        self.audit_menu_values(str(menu.id), menu.name, action)
-
-    def audit_menu_values(self, menu_id, name, action):
-        from apps.logs.models import OperationLog
-        OperationLog.objects.create(user=self.request.user, action=action, resource='menu',
-                                    resource_id=menu_id, description=f'{action} menu {name}',
-                                    ip_address=self.request.META.get('REMOTE_ADDR', ''))
+        write_audit(request=self.request, resource='menu', identifier=identifier, action='delete', before=before)
 
     @action(detail=False, methods=['get'])
     def my_menu(self, request):

@@ -118,7 +118,10 @@ class FileViewSet(viewsets.ModelViewSet):
                 'lifecycle_version': instance.lifecycle_version}
 
     def _lifecycle_log(self, instance, operation, before):
-        self._log('update' if operation == 'restore' else 'delete', instance, json.dumps({
+        from apps.logs.audit import write_audit
+        write_audit(request=self.request, resource='file', identifier=instance.pk,
+                    action='update' if operation == 'restore' else 'delete', before=before,
+                    after=None if operation == 'purge' else self._snapshot(instance), description=json.dumps({
             'operation': operation, 'original_name': instance.original_name,
             'request_id': getattr(self.request, 'request_id', ''),
             'before': before, 'after': None if operation == 'purge' else self._snapshot(instance),
@@ -204,9 +207,8 @@ class FileViewSet(viewsets.ModelViewSet):
             results.append(result)
         succeeded = sum(item['status'] == 200 for item in results)
         if not data['dry_run']:
-            OperationLog.objects.create(
-                user=request.user, action='other', resource='file', resource_id='',
-                ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1',
+            from apps.logs.audit import write_audit
+            write_audit(request=request, action='other', resource='file', results=results,
                 description=json.dumps({'operation': 'batch_' + operation,
                                        'request_id': getattr(request, 'request_id', ''),
                                        'results': results, 'succeeded': succeeded,

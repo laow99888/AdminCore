@@ -8,7 +8,6 @@ from rest_framework_simplejwt.utils import get_md5_hash_password
 from rest_framework.generics import get_object_or_404
 from apps.core.modules import module_enabled
 from apps.permissions.permissions import has_permission_code
-from apps.logs.models import OperationLog
 from .models import Announcement
 from .announcement_content import prepare_content
 
@@ -39,10 +38,11 @@ def authorize(request, code=None, lock=False):
     return user
 
 
-def audit(request, actor, row, action, before_version=None):
+def audit(request, actor, row, action, before_version=None, before=None):
     # 正文可能包含内部信息；审计只记录长度/摘要和转换，不复制内容。
-    OperationLog.objects.create(user=actor, action='create' if action == 'create' else 'update',
-        resource='announcement', resource_id=str(row.id), ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1',
+    from apps.logs.audit import snapshot, write_audit
+    write_audit(request=request, actor=actor, action='create' if action == 'create' else 'update',
+        resource='announcement', identifier=row.pk, before=before, after=snapshot('announcement', row),
         description=json.dumps({'operation': action, 'before_version': before_version, 'version': row.version,
             'status': row.status, 'content_format': row.content_format, 'content_length': len(row.content),
             'content_sha256': hashlib.sha256(row.content.encode()).hexdigest()}, ensure_ascii=False))
@@ -70,6 +70,8 @@ def mutate_announcement(request, actor, pk, data, operation):
     if operation == 'withdraw' and row.status != 'published':
         raise AnnouncementConflict('只能撤回已发布公告')
     before = row.version
+    from apps.logs.audit import snapshot
+    before_values = snapshot('announcement', row)
     values = {'version': before + 1, 'updated_by': actor, 'updated_at': timezone.now()}
     if operation == 'edit':
         content_format = data.get('content_format', row.content_format)
@@ -83,5 +85,5 @@ def mutate_announcement(request, actor, pk, data, operation):
     if Announcement.objects.filter(pk=pk, version=before, status=row.status).update(**values) != 1:
         raise AnnouncementConflict()
     row.refresh_from_db()
-    audit(request, actor, row, operation, before)
+    audit(request, actor, row, operation, before, before_values)
     return row

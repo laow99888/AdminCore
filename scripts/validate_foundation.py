@@ -523,6 +523,15 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 历史清理、本地对象及导入重试双向竞争验收', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_change_audit.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 审计事务回滚、并发快照连续和只读边界', True)
+        audit = api('logs/operation/', token=token, data=None).json()['data']['items'][0]
+        detail = api('logs/operation/' + audit['id'] + '/', token=token)
+        check('真实 Nginx 审计详情与请求 ID 返回且禁止缓存',
+              detail.headers['Cache-Control'] == 'private, no-store' and bool(detail.headers.get('X-Request-ID'))
+              and detail.json()['audit_version'] in (0, 1))
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)

@@ -311,10 +311,19 @@ export interface OperationLogRow {
   description: string
   status: number
   created_at: string
+  actor_identifier?: string
+  request_id?: string
+  task_id?: string
+  task_record_id?: string | null
+  audit_version?: number
+  before_values?: Record<string, unknown> | null
+  after_values?: Record<string, unknown> | null
+  batch_results?: Array<{ id: string; status: number }>
 }
 
 export const logsApi = {
   operation: (params?: ListParams) => getPaged<OperationLogRow>('/logs/operation/', params),
+  operationDetail: async (id: string) => (await request.get<OperationLogRow>(`/logs/operation/${id}/`)).data,
   login: (params?: ListParams) => getPaged<any>('/logs/login/', params),
   exception: (params?: ListParams) => getPaged<any>('/logs/exception/', params),
 }

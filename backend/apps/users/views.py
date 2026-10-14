@@ -101,41 +101,33 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         return Response({'code': 200, 'message': '原值仅供本次查看',
                          'data': SensitiveContactSerializer(target).data})
 
+    @transaction.atomic
     def perform_create(self, serializer):
         from apps.core.data_scope import unrestricted_user_creation
         from rest_framework.exceptions import PermissionDenied
         if not unrestricted_user_creation(self.request.user):
             raise PermissionDenied('受限数据范围不能创建未分配部门的用户，请由管理员创建并分配')
         user = serializer.save()
-        # 记录操作日志
-        OperationLog.objects.create(
-            user=self.request.user,
-            action='create',
-            resource='user',
-            resource_id=str(user.id),
-            description=f'Created user {user.username}',
-            ip_address=self.request.META.get('REMOTE_ADDR', ''),
-        )
+        from apps.logs.audit import snapshot, write_audit
+        write_audit(request=self.request, resource='user', identifier=user.pk, action='create',
+                    after=snapshot('user', user))
 
+    @transaction.atomic
     def perform_destroy(self, instance):
-        # 记录操作日志
-        OperationLog.objects.create(
-            user=self.request.user,
-            action='delete',
-            resource='user',
-            resource_id=str(instance.id),
-            description=f'Deleted user {instance.username}',
-            ip_address=self.request.META.get('REMOTE_ADDR', ''),
-        )
+        from apps.logs.audit import snapshot, write_audit
+        instance = User.objects.select_for_update().get(pk=instance.pk)
+        write_audit(request=self.request, resource='user', identifier=instance.pk, action='delete',
+                    before=snapshot('user', instance))
         instance.delete()
 
     @transaction.atomic
     def perform_update(self, serializer):
+        from apps.logs.audit import snapshot, write_audit
+        serializer.instance = User.objects.select_for_update().get(pk=serializer.instance.pk)
+        before = snapshot('user', serializer.instance)
         user = serializer.save()
-        OperationLog.objects.create(user=self.request.user, action='update', resource='user',
-                                    resource_id=str(user.id),
-                                    description=f'Updated user {user.username}' + (' and role assignments' if 'role_ids' in self.request.data else ''),
-                                    ip_address=self.request.META.get('REMOTE_ADDR', ''))
+        write_audit(request=self.request, resource='user', identifier=user.pk,
+                    before=before, after=snapshot('user', user))
 
     @action(detail=False, methods=['post'])
     def bulk_action(self, request):
@@ -150,9 +142,15 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
 
             try:
                 with transaction.atomic():
-                    users = self.get_queryset().filter(id__in=user_ids)
-                    if len(set(user_ids)) != len(user_ids) or users.count() != len(user_ids):
+                    from apps.logs.audit import snapshot, write_audit
+                    users = self.get_queryset().filter(id__in=user_ids).select_for_update(of=('self',)).order_by('pk')
+                    rows = list(users.prefetch_related('roles'))
+                    if len(set(user_ids)) != len(user_ids) or len(rows) != len(user_ids):
+                        write_audit(request=request, resource='user', action='other', status=403,
+                            description='batch_rejected', results=[{'id': identifier, 'status': 403} for identifier in user_ids])
                         return Response({'code': 403, 'message': '批量请求包含重复、不可访问或不存在的用户，未执行变更', 'data': None}, status=403)
+
+                    before = {row.pk: snapshot('user', row) for row in rows}
 
                     if action == 'activate':
                         users.update(is_active=True)
@@ -165,14 +163,13 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         users.delete()
                         desc = f'Deleted {count} users'
 
-                    # 记录操作日志
-                    OperationLog.objects.create(
-                        user=request.user,
-                        action=action,
-                        resource='user',
-                        description=f'{desc}: {len(user_ids)} users',
-                        ip_address=request.META.get('REMOTE_ADDR', ''),
-                    )
+                    for row in rows:
+                        after = {**before[row.pk], 'is_active': action == 'activate'} if action != 'delete' else None
+                        write_audit(request=request, resource='user', identifier=row.pk, action=action,
+                                    before=before[row.pk], after=after)
+                    write_audit(request=request, resource='user', action=action,
+                                description=f'{desc}: {len(user_ids)} users',
+                                results=[{'id': identifier, 'status': 200} for identifier in user_ids])
 
                     return Response({
                         'code': 200,
@@ -199,6 +196,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         """重置用户密码"""
         user = self.get_object()
         user = User.objects.select_for_update().get(pk=user.pk)
+        from apps.logs.audit import snapshot, write_audit
+        before = snapshot('user', user)
         serializer = ResetPasswordRequestSerializer(data=request.data, context={'user': user})
         serializer.is_valid(raise_exception=True)
         user.set_password(serializer.validated_data['password'])
@@ -206,14 +205,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         user.session_version += 1
         user.save(update_fields=['password', 'must_change_password', 'session_version', 'updated_at'])
 
-        OperationLog.objects.create(
-            user=request.user,
-            action='update',
-            resource='user',
-            resource_id=str(user.id),
-            description=f'Reset password for {user.username}; must_change_password={user.must_change_password}',
-            ip_address=request.META.get('REMOTE_ADDR', ''),
-        )
+        write_audit(request=request, resource='user', identifier=user.pk,
+                    before=before, after=snapshot('user', user), description='reset_password')
 
         return Response({
             'code': 200,

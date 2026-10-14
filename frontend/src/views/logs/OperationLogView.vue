@@ -34,10 +34,12 @@
           :total="total"
           :current-page="currentPage"
           :page-size="pageSize"
-          :show-actions="false"
+          :show-actions="true"
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
-        />
+        >
+          <template #actions="{ row }"><el-button link type="primary" @click="openAudit(row.id)">{{ uiText('审计详情') }}</el-button></template>
+        </BaseTable>
 
         <BaseTable
           v-else-if="activeTab === 'login'"
@@ -65,6 +67,16 @@
           @update:pageSize="handlePageSizeChange"
         />
       </BaseCard>
+      <el-dialog :model-value="auditOpen" :title="uiText('审计详情')" :width="isMobile ? 'calc(100vw - 24px)' : '680px'" @close="closeAudit">
+        <el-skeleton v-if="auditLoading" :rows="5" animated />
+        <div v-else-if="auditError" role="alert"><p>{{ uiText('审计详情加载失败，请重试') }}</p><el-button @click="openAudit(auditId)">{{ uiText('重试') }}</el-button></div>
+        <div v-else-if="auditRow" class="audit-details">
+          <dl><dt>{{ uiText('操作者标识') }}</dt><dd>{{ auditRow.actor_identifier || uiText('未记录') }}</dd><dt>{{ uiText('请求关联 ID') }}</dt><dd>{{ auditRow.request_id || uiText('未记录') }}</dd><dt>{{ uiText('任务关联 ID') }}</dt><dd>{{ auditRow.task_record_id || auditRow.task_id || uiText('未记录') }}</dd></dl>
+          <el-alert v-if="!auditRow.audit_version" :title="uiText('此记录未登记结构化前后值，以下内容为原日志描述。')" type="info" :closable="false" />
+          <template v-else><h3>{{ uiText('变更前') }}</h3><pre>{{ JSON.stringify(auditRow.before_values, null, 2) }}</pre><h3>{{ uiText('变更后') }}</h3><pre>{{ JSON.stringify(auditRow.after_values, null, 2) }}</pre><h3 v-if="auditRow.batch_results?.length">{{ uiText('逐项结果') }}</h3><pre v-if="auditRow.batch_results?.length">{{ JSON.stringify(auditRow.batch_results, null, 2) }}</pre></template>
+          <p>{{ auditRow.description }}</p>
+        </div>
+      </el-dialog>
     </div>
   </AppLayout>
 </template>
@@ -72,7 +84,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { computed, ref, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { logsApi, type OperationLogRow } from '@/api'
@@ -81,6 +93,7 @@ import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
 import type { PrintColumn } from '@/utils/printDocument'
 import { useAuthStore } from '@/stores/auth'
+import { useSidebar } from '@/composables/useSidebar'
 
 defineOptions({ name: 'OperationLogView' })
 
@@ -91,8 +104,28 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const auth = useAuthStore()
+const { isMobile } = useSidebar()
+const auditOpen = ref(false), auditLoading = ref(false), auditError = ref(false), auditId = ref('')
+const auditRow = ref<OperationLogRow | null>(null)
+let auditGeneration = 0
+function closeAudit() { auditGeneration++; auditOpen.value = false; auditRow.value = null; auditId.value = ''; auditLoading.value = false; auditError.value = false }
+async function openAudit(id: string) {
+  if (!active || !auth.can('log:read') || !id) return
+  const current = ++auditGeneration
+  auditOpen.value = true; auditId.value = id; auditRow.value = null; auditLoading.value = true; auditError.value = false
+  try {
+    const row = await logsApi.operationDetail(id)
+    if (current === auditGeneration && active && auth.can('log:read')) auditRow.value = row
+  } catch { if (current === auditGeneration && active) auditError.value = true }
+  finally { if (current === auditGeneration) auditLoading.value = false }
+}
 const exportFilters = ref<{ search?: string }>({})
 const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
+watch(printOwner, () => {
+  closeAudit(); generation++; loading.value = false; exportReady.value = false
+  operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0
+  if (active && auth.can('log:read')) void loadLogs()
+}, { flush: 'sync' })
 usePageState({ activeTab, search, currentPage, pageSize })
 
 const operationLogs = ref<OperationLogRow[]>([])
@@ -189,6 +222,7 @@ const loadLogs = async () => {
 }
 
 const handleTabChange = () => {
+  closeAudit()
   currentPage.value = 1
   loadLogs()
 }
@@ -211,8 +245,8 @@ const handlePageSizeChange = (size: number) => {
 
 onMounted(() => { void loadLogs() })
 onActivated(() => { active = true; if (!loading.value) void loadLogs() })
-onDeactivated(() => { active = false; generation++; loading.value = false; exportReady.value = false; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
-onBeforeUnmount(() => { active = false; generation++ })
+onDeactivated(() => { closeAudit(); active = false; generation++; loading.value = false; exportReady.value = false; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
+onBeforeUnmount(() => { closeAudit(); active = false; generation++ })
 </script>
 
 <style scoped>
@@ -240,4 +274,7 @@ onBeforeUnmount(() => { active = false; generation++ })
 .card-header-title {
   font-weight: var(--font-weight-semibold);
 }
+.audit-details { overflow-wrap: anywhere; }
+.audit-details dd { margin: 0 0 var(--spacing-sm); }
+.audit-details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; background: var(--bg-secondary); padding: var(--spacing-sm); }
 </style>

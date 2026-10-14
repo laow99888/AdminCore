@@ -1,6 +1,5 @@
 """显式登记的历史数据保留策略；不扫描文件系统或猜测旧文件用途。"""
 from datetime import timedelta
-import json
 import time
 
 from django.db import transaction
@@ -45,11 +44,9 @@ def unprotected_imports(query, cutoff):
 
 
 def audit(record, category, identifiers):
-    OperationLog.objects.create(user_id=record.creator_id, action='delete', resource='lifecycle',
-        resource_id=str(record.pk), ip_address='127.0.0.1',
-        description=json.dumps({'operation': 'retention_purge', 'task_record_id': str(record.pk),
-                                'category': category, 'ids': [str(pk) for pk in identifiers],
-                                'count': len(identifiers)}, ensure_ascii=False))
+    from apps.logs.audit import write_audit
+    write_audit(actor=record.creator, action='delete', resource='lifecycle', identifier=record.pk, record=record,
+                before={'category': category, 'ids': [str(pk) for pk in identifiers], 'count': len(identifiers)})
 
 
 def clean(*, dry_run=False, record=None, expected_policy=None, celery_task_id=''):

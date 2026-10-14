@@ -5,6 +5,7 @@
 import uuid
 import json
 import logging
+from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
 
@@ -26,22 +27,49 @@ class PasswordChangeSessionMiddleware(MiddlewareMixin):
                                  'data': {'reason': 'password_change_required'}}, status=403)
 
 
-class RequestTrackingMiddleware(MiddlewareMixin):
+class RequestTrackingMiddleware:
     """请求追踪中间件 - 为每个请求添加唯一 ID"""
 
-    def process_request(self, request):
+    sync_capable = True
+    async_capable = True
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+        self.is_async = iscoroutinefunction(get_response)
+        if self.is_async:
+            markcoroutinefunction(self)
+
+    def prepare(self, request):
         # 生成请求追踪 ID
         request.request_id = str(uuid.uuid4())
         # 可选：从请求头获取或生成
         incoming = request.headers.get('X-Request-ID', '')
         if 0 < len(incoming) <= 100 and all(char.isascii() and (char.isalnum() or char in '-_.') for char in incoming):
             request.request_id = incoming
-        return None
+        from apps.logs.context import request_id
+        return request_id.set(request.request_id)
 
-    def process_response(self, request, response):
-        # 在响应头中添加请求 ID
-        response['X-Request-ID'] = getattr(request, 'request_id', '')
-        return response
+    def __call__(self, request):
+        if self.is_async:
+            return self.async_call(request)
+        from apps.logs.context import request_id
+        token = self.prepare(request)
+        try:
+            response = self.get_response(request)
+            response['X-Request-ID'] = request.request_id
+            return response
+        finally:
+            request_id.reset(token)
+
+    async def async_call(self, request):
+        from apps.logs.context import request_id
+        token = self.prepare(request)
+        try:
+            response = await self.get_response(request)
+            response['X-Request-ID'] = request.request_id
+            return response
+        finally:
+            request_id.reset(token)
 
 
 class ErrorHandlingMiddleware(MiddlewareMixin):

@@ -217,6 +217,7 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'AdminCore API',
     'VERSION': '1.0.0',
     'COMPONENT_SPLIT_REQUEST': True,
+    'ENUM_NAME_OVERRIDES': {'OperationActionEnum': 'apps.logs.models.OperationLog.ACTION_CHOICES'},
     'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
     'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},
 }

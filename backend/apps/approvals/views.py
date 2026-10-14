@@ -13,7 +13,6 @@ from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
-from apps.logs.models import OperationLog
 from apps.core.events import enqueue_event
 from apps.core.idempotency import with_idempotency
 
@@ -73,15 +72,10 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
         return Response({'code': 200, 'message': 'success', 'data': picker_departments(request.user)},
                         headers={'Cache-Control': 'private, no-store'})
 
-    def _log(self, request, action, instance, description):
-        OperationLog.objects.create(
-            user=request.user,
-            action=action,
-            resource='approval',
-            resource_id=str(instance.id),
-            description=description,
-            ip_address=request.META.get('REMOTE_ADDR', ''),
-        )
+    def _log(self, request, action, instance, description='', before=None):
+        from apps.logs.audit import snapshot, write_audit
+        write_audit(request=request, resource='approval', identifier=instance.pk, action=action,
+                    before=before, after=snapshot('approval', instance))
 
     def create(self, request, *args, **kwargs):
         def action():
@@ -105,8 +99,10 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
                             status=status.HTTP_201_CREATED)
         return with_idempotency(request, 'approvals:create', action)
 
+    @transaction.atomic
     def _decide(self, request, approved):
         application = self.get_object()
+        application = ApprovalRequest.objects.select_for_update().get(pk=application.pk)
         if application.status != 'pending':
             return Response({'code': 400, 'message': f'该申请当前状态为 {application.get_status_display()}，无法处理',
                              'data': None}, status=status.HTTP_400_BAD_REQUEST)
@@ -116,11 +112,13 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
 
         comment_serializer = ApprovalDecisionSerializer(data=request.data)
         comment_serializer.is_valid(raise_exception=True)
+        from apps.logs.audit import snapshot
+        before = snapshot('approval', application)
         if not application.decide(request.user, approved, comment_serializer.validated_data['comment'], request=request):
             return Response({'code': 400, 'message': '申请已由其他请求处理', 'data': None}, status=400)
 
         self._log(request, 'update', application,
-                  f'{"Approve" if approved else "Reject"} request: {application.title}')
+                  before=before)
         return Response({'code': 200, 'message': '已通过' if approved else '已驳回',
                          'data': ApprovalRequestSerializer(application).data})
 
@@ -139,9 +137,11 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
         return with_idempotency(request, f'approvals:{pk}:reject', lambda: self._decide(request, approved=False))
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def cancel(self, request, pk=None):
         """撤回自己的待审批申请"""
         application = self.get_object()
+        application = ApprovalRequest.objects.select_for_update().get(pk=application.pk)
         if application.applicant_id != request.user.id:
             return Response({'code': 403, 'message': '只能撤回自己发起的申请', 'data': None},
                             status=status.HTTP_403_FORBIDDEN)
@@ -150,12 +150,14 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
                             status=status.HTTP_400_BAD_REQUEST)
 
         from django.utils import timezone
+        from apps.logs.audit import snapshot
+        before = snapshot('approval', application)
         application.status = 'cancelled'
         application.decided_at = timezone.now()
         changed = ApprovalRequest.objects.filter(pk=application.pk, status='pending', applicant=request.user).update(
             status='cancelled', decided_at=application.decided_at, updated_at=timezone.now())
         if not changed:
             return Response({'code': 400, 'message': '申请已处理，无法撤回', 'data': None}, status=400)
-        self._log(request, 'delete', application, f'Cancel approval request: {application.title}')
+        self._log(request, 'delete', application, before=before)
         return Response({'code': 200, 'message': '申请已撤回',
                          'data': ApprovalRequestSerializer(application).data})

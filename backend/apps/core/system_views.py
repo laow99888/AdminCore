@@ -1,7 +1,5 @@
-import json
 from django.core.cache import cache
 from django.db import transaction, IntegrityError
-from django.core.serializers.json import DjangoJSONEncoder
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import APIException, NotFound, ValidationError
@@ -10,7 +8,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from apps.permissions.permissions import HasPermission
-from apps.logs.models import OperationLog
 from .mixins import EnvelopeResponseMixin
 from .schema import envelope
 from .models import SystemConfig, DataDictionary
@@ -25,13 +22,19 @@ class VersionConflict(APIException):
 
 
 def audit(request, resource, identifier, before, after):
+    record = None
+    if resource == 'maintenance_run':
+        from apps.tasks.models import TaskRecord
+        record = TaskRecord.objects.get(pk=identifier)
     if resource == 'system_config' and identifier == 'brand.logo':
         import hashlib
         before, after = [hashlib.sha256(value.encode()).hexdigest() if value else None for value in (before, after)]
     action = 'create' if before is None else 'delete' if after is None else 'update'
-    OperationLog.objects.create(user=request.user, action=action, resource=resource, resource_id=str(identifier),
-                               description=json.dumps({'before': before, 'after': after}, ensure_ascii=False, cls=DjangoJSONEncoder),
-                               ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1')
+    from apps.logs.audit import write_audit
+    if resource == 'system_config':
+        before, after = {'value': before}, {'value': after}
+    write_audit(request=request, action=action, resource=resource, identifier=identifier,
+                before=before, after=after, record=record)
 
 
 class SystemConfigView(APIView):
