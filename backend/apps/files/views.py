@@ -8,6 +8,8 @@ from apps.core.schema import MessageResponse, envelope
 import json
 
 from django.db import transaction
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F
 from django.http import FileResponse, HttpResponse
@@ -23,7 +25,8 @@ from apps.core.exceptions import APIError
 
 from .models import FileModel
 from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerializer,
-                          RecycleActionSerializer, RecycleResultSerializer, RecyclePolicySerializer)
+                          RecycleActionSerializer, RecycleResultSerializer, RecyclePolicySerializer,
+                          ImageTransformSerializer, ImageProcessingConfigSerializer)
 
 
 @extend_schema_view(
@@ -38,7 +41,8 @@ class FileViewSet(viewsets.ModelViewSet):
     search_fields = ['original_name', 'description']
     ordering_fields = ['created_at', 'size', 'download_count']
     ordering = ['-created_at']
-    permission_map = {'recycle': 'file:recycle', 'recycle_policy': 'file:recycle', 'restore': 'file:restore'}
+    permission_map = {'recycle': 'file:recycle', 'recycle_policy': 'file:recycle', 'restore': 'file:restore',
+                      'transform': 'file:process', 'processing_config': 'file:process'}
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -86,6 +90,76 @@ class FileViewSet(viewsets.ModelViewSet):
             description=description or instance.original_name,
             ip_address=self.request.META.get('REMOTE_ADDR', ''),
         )
+
+    @extend_schema(responses=envelope('ImageProcessingConfigResponse', ImageProcessingConfigSerializer()))
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated, HasPermission])
+    def processing_config(self, request):
+        from .image_processing import processing_config
+        response = Response({'code': 200, 'message': 'success', 'data': processing_config()})
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+    @extend_schema(request=ImageTransformSerializer, responses={
+        (200, 'image/png'): OpenApiTypes.BINARY, (200, 'image/jpeg'): OpenApiTypes.BINARY,
+        (200, 'image/webp'): OpenApiTypes.BINARY, 409: MessageResponse,
+        413: MessageResponse, 415: MessageResponse, 422: MessageResponse})
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, HasPermission])
+    def transform(self, request, pk=None):
+        from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, NotFound
+        from apps.auth_app.sessions import locked_request_session
+        from apps.core.data_scope import scope_queryset
+        from apps.core.modules import module_enabled
+        from apps.logs.audit import write_audit
+        from .image_processing import transform_content
+        if not settings.ADMINCORE_IMAGE_PROCESSING_ENABLED:
+            raise NotFound()
+        serializer = ImageTransformSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            # 用户 → 原设备 → 文件。锁等待后使用新身份、范围和版本，不能沿用 get_object 的旧快照。
+            actor = get_user_model().objects.select_for_update().filter(pk=request.user.pk, is_active=True).first()
+            if actor is None:
+                raise AuthenticationFailed('登录凭据已撤销')
+            if request.auth is not None:
+                locked_request_session(request, actor)
+            if (actor.must_change_password or not has_permission_code(actor, 'file:process')
+                    or not has_permission_code(actor, 'file:download')):
+                raise PermissionDenied('没有操作权限')
+            if not settings.ADMINCORE_IMAGE_PROCESSING_ENABLED or not module_enabled('files'):
+                raise NotFound()
+            queryset = scope_queryset(FileModel.objects.filter(purpose='general', is_deleted=False),
+                                      actor, 'file', 'uploader_id', fallback='self')
+            try:
+                instance = queryset.select_for_update().filter(pk=pk).first()
+            except DjangoValidationError as exc:
+                raise NotFound() from exc
+            if instance is None:
+                raise NotFound()
+            try:
+                instance.check_lifecycle_version(serializer.validated_data['lifecycle_version'])
+            except LifecycleConflict as exc:
+                raise APIError(str(exc), status_code=409) from exc
+            content, content_type, projection = transform_content(instance, serializer.validated_data)
+            if request.auth is not None:
+                locked_request_session(request, actor)
+            # 角色/范围可独立更新；编码后、审计和公开结果前再读一次授权。
+            if not all(has_permission_code(actor, code) for code in ('file:process', 'file:download')):
+                raise PermissionDenied('没有操作权限')
+            if not scope_queryset(FileModel.objects.filter(pk=instance.pk, purpose='general', is_deleted=False),
+                                  actor, 'file', 'uploader_id', fallback='self').exists():
+                raise NotFound()
+            if not settings.ADMINCORE_IMAGE_PROCESSING_ENABLED or not module_enabled('files'):
+                raise NotFound()
+            write_audit(request=request, actor=actor, resource='file_transform', identifier=instance.pk,
+                        action='download', after=projection)
+        response = HttpResponse(content, content_type=content_type)
+        response['Content-Disposition'] = f'attachment; filename="processed.{serializer.validated_data["format"]}"'
+        response['Content-Length'] = str(len(content))
+        response['Cache-Control'] = 'private, no-store'
+        response['X-Content-Type-Options'] = 'nosniff'
+        response['Content-Security-Policy'] = "sandbox; default-src 'none'; frame-ancestors 'none'"
+        response['X-Frame-Options'] = 'DENY'
+        return response
 
     def create(self, request, *args, **kwargs):
         """上传文件后返回完整的文件信息（上传序列化器仅接收写入字段）"""

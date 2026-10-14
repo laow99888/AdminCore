@@ -30,6 +30,8 @@ FIELDS = {
     'approval': ('id', 'status', 'request_type', 'applicant_id', 'assignee_id', 'decided_by_id', 'decided_at'),
     'announcement': ('id', 'version', 'status', 'content_format', 'content_length', 'content_sha256'),
     'file': ('id', 'purpose', 'size', 'file_type', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version'),
+    'file_transform': ('id', 'lifecycle_version', 'source_sha256', 'width', 'height', 'format', 'quality',
+                       'watermark_sha256', 'opacity', 'position', 'output_sha256', 'size'),
     'lifecycle': ('category', 'count', 'ids'),
 }
 

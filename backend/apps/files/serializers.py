@@ -4,6 +4,7 @@
 
 import hashlib
 import os
+from collections.abc import Mapping
 
 from django.conf import settings
 from rest_framework import serializers
@@ -44,6 +45,40 @@ class FileSerializer(serializers.ModelSerializer):
 
 class RestoreSerializer(serializers.Serializer):
     lifecycle_version = serializers.IntegerField(min_value=1)
+
+
+class ImageProcessingConfigSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()
+    max_bytes = serializers.IntegerField()
+    max_pixels = serializers.IntegerField()
+    max_dimension = serializers.IntegerField()
+    watermark_max_bytes = serializers.IntegerField()
+    formats = serializers.ListField(child=serializers.CharField())
+
+
+class ImageTransformSerializer(RestoreSerializer):
+    width = serializers.IntegerField(min_value=1, max_value=4096, default=1280)
+    height = serializers.IntegerField(min_value=1, max_value=4096, default=1280)
+    format = serializers.ChoiceField(choices=['png', 'jpeg', 'webp'], default='webp')
+    quality = serializers.IntegerField(min_value=40, max_value=95, default=80)
+    watermark = serializers.FileField(required=False)
+    opacity = serializers.IntegerField(min_value=10, max_value=100, default=60)
+    position = serializers.ChoiceField(choices=['bottom-right', 'center'], default='bottom-right')
+
+    def to_internal_value(self, data):
+        if not isinstance(data, Mapping):
+            raise serializers.ValidationError({'non_field_errors': ['处理参数必须是对象']})
+        if set(data) - set(self.fields):
+            raise serializers.ValidationError({'non_field_errors': ['存在未登记的处理参数']})
+        if hasattr(data, 'getlist') and any(len(data.getlist(key)) != 1 for key in data):
+            raise serializers.ValidationError({'non_field_errors': ['处理参数不能重复']})
+        return super().to_internal_value(data)
+
+    def validate_watermark(self, value):
+        from .image_processing import MAX_WATERMARK_BYTES
+        if value.size > MAX_WATERMARK_BYTES:
+            raise serializers.ValidationError('水印图片最大 512 KiB')
+        return value
 
 
 class RecyclePolicySerializer(serializers.Serializer):

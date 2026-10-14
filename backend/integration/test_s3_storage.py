@@ -24,6 +24,30 @@ pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
 
 
+def test_real_s3_bounded_image_transformation(s3_storage, admin_client, member_client):
+    from tests.test_image_processing import upload, picture, process, stream
+    from PIL import Image
+    original = picture(metadata=True)
+    with override_settings(ADMINCORE_IMAGE_PROCESSING_ENABLED=True):
+        row = upload(admin_client, original)
+        keys = list(media_keys(s3_storage))
+        for format in ['png', 'jpeg', 'webp']:
+            response = process(admin_client, row, width=80, height=80, format=format,
+                               watermark=stream(picture((20, 20), color='red')))
+            assert response.status_code == 200 and response['Content-Type'] == 'image/' + format
+            with Image.open(io.BytesIO(response.content)) as image:
+                assert image.size == (80, 53) and not image.getexif()
+            assert response['Cache-Control'] == 'private, no-store'
+        assert list(media_keys(s3_storage)) == keys
+        with row.file.open('rb') as source:
+            assert source.read() == original
+        assert process(member_client, row).status_code == 403
+        unsigned = s3_storage.url(row.file.name).split('?')[0]
+        with pytest.raises(urllib.error.HTTPError) as private:
+            urllib.request.urlopen(unsigned)
+        assert private.value.code == 403
+
+
 def test_real_s3_import_source_retention(s3_storage, admin_user):
     from datetime import timedelta
     from apps.tasks.lifecycle import clean

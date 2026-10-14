@@ -23,6 +23,7 @@ def definition():
 @pytest.mark.parametrize('change', [
     {'module': 'users'}, {'module': 'core'}, {'module': 'auth_app'}, {'module': 'permissions'},
     {'module': 'logs'}, {'module': 'example'}, {'module': 'files'}, {'module': '../unsafe'},
+    {'module': 'file_transform'}, {'module': 'message_template'}, {'module': 'department'},
     {'module': 'con'}, {'module': 'class'}, {'module': 'x' * 21}, {'model': 'bad;import os'},
     {'model': 'None'}, {'fields': []}, {'fields': [{}]}, {'fields': [{'name': 'password', 'label': '密码', 'kind': 'string'}]},
     {'fields': [{'name': 'clean_fields', 'label': '字段', 'kind': 'string'}]},

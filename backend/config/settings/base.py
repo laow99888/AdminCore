@@ -165,6 +165,8 @@ FILE_UPLOAD_MAX_SIZE = int(os.getenv('FILE_UPLOAD_MAX_SIZE', str(50 * 1024 * 102
 FILE_PREVIEW_MAX_SIZE = 10 * 1024 * 1024
 FILE_PREVIEW_MAX_PIXELS = 16_000_000
 FILE_PREVIEW_MAX_PDF_PAGES = 100
+# 按需启用的内存图片处理；不改写原件，不生成持久化派生文件。
+ADMINCORE_IMAGE_PROCESSING_ENABLED = os.getenv('ADMINCORE_IMAGE_PROCESSING_ENABLED', 'False').lower() == 'true'
 # 允许的文件扩展名白名单（不含点，统一小写比较）
 FILE_UPLOAD_ALLOWED_EXTENSIONS = [
     # 图片
@@ -322,7 +324,7 @@ CACHES = {
 # ===== 日志配置 =====
 # 精简部署无需 Redis/worker；单进程限流使用本地缓存。
 if (set(ADMINCORE_MODULES) <= {'realtime'} or
-        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example'})):
+        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example', 'files'})):
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # 默认只输出控制台，由部署平台有界轮转，避免多个 worker 竞争同一文件。

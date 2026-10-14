@@ -9,6 +9,7 @@ PERMISSIONS = [
     ('role', 'update', '修改角色', 'role:update'),
     ('file', 'upload', '上传文件', 'file:upload'),
     ('file', 'download', '下载文件', 'file:download'),
+    ('file', 'process', '处理图片并下载派生结果', 'file:process'),
     ('file', 'recycle', '查看文件回收站', 'file:recycle'),
     ('file', 'restore', '恢复文件', 'file:restore'),
     ('file', 'purge', '彻底删除文件', 'file:purge'),

@@ -53,6 +53,9 @@ def parse_definition(value):
         raise GenerationError('模块标识必须为小写Python标识符')
     if module in CORE_MODULES:
         raise GenerationError('不能为核心模块生成业务代码')
+    from apps.logs.audit import FIELDS as audit_resources
+    if module in audit_resources and module not in {item.key for item in MODULES}:
+        raise GenerationError('模块标识与已有审计资源冲突')
     model = text(value.get('model'), '模型名', 48)
     if not re.fullmatch(r'[A-Z][A-Za-z0-9]{0,47}', model) or keyword.iskeyword(model):
         raise GenerationError('模型名必须为PascalCase标识符')
