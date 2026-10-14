@@ -18,6 +18,9 @@ from apps.files.models import FileModel
 from apps.logs.models import LoginLog, OperationLog
 from apps.tasks import lifecycle
 from apps.tasks.models import TaskRecord
+from apps.tasks.models import ImportBatch, ImportExecution
+from apps.tasks.reliability import policy
+from apps.data_io.execution import digest
 
 assert settings.DATABASES['default']['NAME'] == 'foundation', '拒绝在正式库执行'
 assert connections['default'].vendor == 'postgresql', '必须使用 PostgreSQL'
@@ -37,6 +40,8 @@ def fixture():
     FileModel.objects.filter(pk=file.pk).update(created_at=timezone.now() - timedelta(days=400))
     task = TaskRecord.objects.create(name='清理竞争夹具', task_type='import', status='failed', creator=user,
         related_resource='users', result={'file_id': str(file.pk)}, completed_at=timezone.now() - timedelta(days=100))
+    batch = ImportBatch.objects.create(source=file, source_sha256=digest(file.file), resource='users', active_record=task)
+    ImportExecution.objects.create(record=task, batch=batch, policy=policy('import'), session_version=user.session_version)
     return file, task
 
 
@@ -99,7 +104,7 @@ original_create = TaskRecord.objects.create
 
 def hold_retry(**values):
     row = original_create(**values)
-    if values.get('name', '').endswith('（重试）'):
+    if values.get('name', '').endswith('（接续）'):
         locked.set()
         assert release.wait(10)
     return row
@@ -115,7 +120,7 @@ with patch.object(TaskRecord.objects, 'create', side_effect=hold_retry), patch('
             check('重试先持文件行锁时清理等待', not cleaning.done())
         finally:
             release.set()
-        assert retrying.result(timeout=15).status_code == 200
+        assert retrying.result(timeout=15).status_code == 202
         result = cleaning.result(timeout=15)
         check('锁后复核新任务并保留对象', result['deleted']['imports'] == 0 and result['protected_imports'] == 1
               and FileModel.objects.filter(pk=file.pk).exists() and file.file.storage.exists(file.file.name))

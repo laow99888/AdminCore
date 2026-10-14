@@ -76,7 +76,7 @@ class TestExportResources:
         run_data_import(str(task.pk))
         task.refresh_from_db()
         assert task.status == 'failed'
-        assert '导入资源' in task.error
+        assert task.error == 'import_resource_unavailable'
 
     @pytest.mark.parametrize('format', ['csv', 'xlsx'])
     def test_roles_only_basic_metadata_formula_safe_and_boolean_preserved(self, admin_client, format):

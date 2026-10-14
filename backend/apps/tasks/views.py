@@ -30,7 +30,7 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TaskRecordSerializer
     permission_classes = [IsAuthenticated, HasPermission]
     permission_map = {'list': 'task:read', 'retrieve': 'task:read', 'cancel': 'task:cancel',
-                      'cleanup_history': 'task:delete'}
+                      'cleanup_history': 'task:delete', 'resume': 'task:retry'}
     filterset_fields = ['status', 'task_type', 'creator']
     search_fields = ['name', 'related_resource']
     ordering_fields = ['created_at', 'started_at', 'completed_at']
@@ -38,30 +38,47 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         from apps.core.data_scope import scope_queryset
-        return scope_queryset(TaskRecord.objects.select_related('creator').all(), self.request.user, 'task', 'creator_id')
+        return scope_queryset(TaskRecord.objects.select_related('creator', 'import_execution__batch', 'maintenance_request').all(), self.request.user, 'task', 'creator_id')
+
+    @extend_schema(request=None, responses={202: envelope('TaskResumedResponse', TaskRecordSerializer())})
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        source = self.get_object()
+        from apps.data_io.execution import resume
+        record = resume(request, source.pk)
+        return Response({'code': 202, 'message': '已登记接续未提交行',
+                         'data': TaskRecordSerializer(record).data}, status=202)
 
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         """取消执行中的任务（尽力撤销 Celery 任务并标记记录）"""
-        record = self.get_object()
-        if record.related_resource.startswith('maintenance:'):
-            from django.utils import timezone
-            from django.db import transaction
-            from apps.core.system_views import audit
-            with transaction.atomic():
-                changed = TaskRecord.objects.filter(pk=record.pk, status='pending').update(
-                    status='cancelled', completed_at=timezone.now(), updated_at=timezone.now())
-                if not changed:
-                    return Response({'code': 409, 'message': '维护任务已开始或已完成，不能取消已开始的维护操作', 'data': None}, status=409)
-                record.refresh_from_db()
+        visible = self.get_object()
+        from django.db import transaction
+        from .reliability import authorize
+        from .models import ImportExecution, ImportBatch
+        from apps.core.data_scope import scope_queryset
+        from rest_framework.exceptions import NotFound
+        from apps.logs.audit import snapshot, write_audit
+        with transaction.atomic():
+            actor = authorize(request, 'task:cancel')
+            execution = ImportExecution.objects.filter(pk=visible.pk).first()
+            if execution:
+                ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
+            record = scope_queryset(TaskRecord.objects.select_for_update(), actor, 'task', 'creator_id').filter(pk=visible.pk).first()
+            if record is None:
+                raise NotFound()
+            before = snapshot('task', record)
+            maintenance = record.related_resource.startswith('maintenance:')
+            if (maintenance and record.status != 'pending') or (record.status == 'running' and not execution):
+                return Response({'code': 409, 'message': '已开始且不支持协作停止的任务不能取消', 'data': None}, status=409)
+            if not record.mark_cancelled():
+                return Response({'code': 409, 'message': '任务已完成，无法取消', 'data': None}, status=409)
+            write_audit(request=request, actor=actor, resource='task', identifier=record.pk,
+                        before=before, after=snapshot('task', record), record=record,
+                        description='取消等待任务或停止后续导入行；已提交行保留')
+            if maintenance:
+                from apps.core.system_views import audit
                 audit(request, 'maintenance_run', record.pk, {'status': 'pending'}, {'status': 'cancelled'})
-            return Response({'code': 200, 'message': '等待执行的维护任务已取消', 'data': TaskRecordSerializer(record).data})
-        if record.status not in ('pending', 'running'):
-            return Response({'code': 400, 'message': f'任务当前状态为 {record.status}，无法取消', 'data': None},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        if not record.mark_cancelled():
-            return Response({'code': 400, 'message': '任务已完成，无法取消', 'data': None}, status=400)
         revoked = False
         if record.celery_task_id:
             try:

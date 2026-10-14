@@ -1,4 +1,9 @@
 export const uiMessages: Record<string, string> = {
+  '接续未提交行': 'Resume Remaining Rows', '执行次数': 'Execution Attempts', '软 / 硬超时': 'Soft / Hard Timeout',
+  '取消后已提交的数据保留，后续导入行停止；确定继续吗？': 'Committed data will be kept and subsequent import rows will stop. Continue?',
+  '接续将跳过已提交的行和已记录的校验错误，仅执行剩余行；确定继续吗？': 'Resume will skip committed rows and recorded validation errors, and process only remaining rows. Continue?',
+  '任务操作未确认，请刷新检查状态': 'The task action was not confirmed. Refresh to check its status.',
+  '已登记接续未提交行': 'Registered to resume remaining rows.',
   '进度': 'Progress',
   '通知模板': 'Notification Templates', '新增模板': 'New Template', '编辑模板': 'Edit Template',
   '模板管理': 'Manage Templates', '投递记录': 'Delivery Records', '模板编码': 'Template Code', '模板名称': 'Template Name',

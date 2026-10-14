@@ -346,6 +346,10 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 头像绑定/陈旧删除及删除/上传双向竞争', True)
+        encoded = base64.b64encode((ROOT / 'scripts/task_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 导入逐行提交、并发接续、取消及失联去重', True)
         encoded = base64.b64encode((ROOT / 'scripts/maintenance_concurrency.py').read_bytes()).decode('ascii')
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
@@ -421,6 +425,74 @@ def main():
             statuses = list(pool.map(lambda _: api('tasks/schedules/notifications/', 'PATCH', edit, None, token).status_code, range(2)))
         check('PostgreSQL 维护计划同版本编辑仅一次成功', sorted(statuses) == [200, 409])
         compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'worker')
+        source = ('username,email\nhttp_worker_import_1,worker1@example.com\nhttp_worker_import_2,worker2@example.com\n').encode()
+        response = requests.post(BASE + 'data-io/import/', headers={'Authorization': 'Bearer ' + token,
+            'X-Request-ID': 'http-task-verified'}, data={'resource': 'users'},
+            files={'file': ('worker.csv', source, 'text/csv')}, timeout=40)
+        check('真实 HTTP 导入可靠入队', response.status_code == 200)
+        import_id = response.json()['data']['id']
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            body = api('tasks/' + import_id + '/', token=token).json()
+            imported = body.get('data', body)
+            if imported['status'] not in ['pending', 'running']: break
+            time.sleep(1)
+        check('真实 Redis/Celery 导入完成两行且策略可见', imported['status'] == 'success'
+              and imported['result']['created'] == 2 and imported['execution']['policy']['hard_timeout'] == 330)
+        api('tasks/' + import_id + '/resume/', 'POST', {}, 409, token)
+        # 本项目的 SQL 触发器只延迟隔离用户名；强停本项目 worker 模拟进程丢失。
+        code = """from django.conf import settings
+assert settings.DATABASES['default']['NAME']=='foundation'
+from django.db import connection
+with connection.cursor() as cursor:
+    cursor.execute(\"CREATE FUNCTION fixture_import_pause() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.username='http_crash_import_2' THEN PERFORM pg_sleep(50); END IF; RETURN NEW; END $$\")
+    cursor.execute(\"CREATE TRIGGER fixture_import_pause BEFORE INSERT ON auth_app_user FOR EACH ROW EXECUTE FUNCTION fixture_import_pause()\")
+"""
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', code)
+        response = requests.post(BASE + 'data-io/import/', headers={'Authorization': 'Bearer ' + token},
+            data={'resource': 'users'}, files={'file': ('crash.csv', b'username,email\nhttp_crash_import_1,c1@example.com\nhttp_crash_import_2,c2@example.com\n', 'text/csv')}, timeout=40)
+        check('真实 worker 中断夹具登记', response.status_code == 200)
+        crash_id = response.json()['data']['id']
+        deadline = time.monotonic() + 25
+        while time.monotonic() < deadline:
+            body = api('tasks/' + crash_id + '/', token=token).json()
+            crash = body.get('data', body)
+            if (crash['result'] or {}).get('created') == 1: break
+            time.sleep(0.5)
+        check('中断前首行已提交第二行未提交', crash['status'] == 'running' and crash['result'].get('created') == 1)
+        compose('standard', 'stop', '-t', '1', 'worker')
+        code = """from django.conf import settings
+assert settings.DATABASES['default']['NAME']=='foundation'
+from django.db import connection
+from django.utils import timezone
+from datetime import timedelta
+from apps.tasks.models import TaskRecord,ImportRowReceipt
+from apps.tasks.reliability import recover_lost_imports
+from django.contrib.auth import get_user_model
+with connection.cursor() as cursor:
+    cursor.execute('DROP TRIGGER fixture_import_pause ON auth_app_user')
+    cursor.execute('DROP FUNCTION fixture_import_pause()')
+assert get_user_model().objects.filter(username='http_crash_import_1').exists()
+assert not get_user_model().objects.filter(username='http_crash_import_2').exists()
+record=TaskRecord.objects.get(pk='""" + crash_id + """')
+assert ImportRowReceipt.objects.filter(batch=record.import_execution.batch).count()==1
+TaskRecord.objects.filter(pk=record.pk).update(started_at=timezone.now()-timedelta(hours=1))
+recover_lost_imports()
+record.refresh_from_db()
+assert record.error=='worker_lost_committed_rows_preserved'
+"""
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', code)
+        check('真实 worker 强停未提交事务回滚且账本保留', True)
+        resumed = api('tasks/' + crash_id + '/resume/', 'POST', {}, 202, token).json()['data']['id']
+        compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'worker')
+        deadline = time.monotonic() + 40
+        while time.monotonic() < deadline:
+            body = api('tasks/' + resumed + '/', token=token).json()
+            resumed_result = body.get('data', body)
+            if resumed_result['status'] not in ['pending', 'running']: break
+            time.sleep(0.5)
+        check('真实 worker 重启接续只写第二行', resumed_result['status'] == 'success'
+              and resumed_result['result']['created'] == 2 and resumed_result['execution']['attempt'] == 2)
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "from apps.notifications.models import Notification; from django.contrib.auth import get_user_model; from django.utils import timezone; from datetime import timedelta; n=Notification.objects.create(recipient=get_user_model().objects.get(username='admin'),title='维护删除隔离夹具',is_read=True); Notification.objects.filter(pk=n.pk).update(read_at=timezone.now()-timedelta(days=200))")
         entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')

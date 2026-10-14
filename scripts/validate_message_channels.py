@@ -192,6 +192,28 @@ try:
         check('审计失败回滚投递和可靠事件', response.status_code == 500 and MessageDelivery.objects.count() == count)
         logs = OperationLog.objects.filter(user=actor, resource__in=['message_template', 'message_delivery'])
         check('安全审计无正文或实际地址', recipient.email not in str(list(logs.values())) and '私密正文' not in str(list(logs.values())))
+        from apps.tasks.models import TaskRecord
+        from apps.tasks.reliability import deliver_failure
+        from apps.core.models import SystemConfig
+        actor.verified_email = actor.email
+        actor.save(update_fields=['verified_email'])
+        SystemConfig.objects.update_or_create(key='tasks.failure_email', defaults={'value': 1})
+        alert_record = TaskRecord.objects.create(name='private alert title', creator=actor)
+        alert_record.mark_failed('private original error')
+        deliver_failure({'record_id': str(alert_record.pk)})
+        alert = BytesParser(policy=policy.default).parsebytes(sink.messages.get(timeout=5))
+        check('任务告警真实 SMTP 接收且无原始业务内容', str(alert_record.pk) in str(alert['Message-ID'])
+              and 'private alert title' not in alert.as_string() and 'private original error' not in alert.as_string()
+              and 'Bcc' not in alert)
+        sink.reject = True
+        try:
+            deliver_failure({'record_id': str(alert_record.pk)})
+            check('任务告警 SMTP 451 不伪装成功', False)
+        except Exception as error:
+            check('任务告警 SMTP 451 显式失败', type(error).__name__ == 'SMTPDataError')
+        finally:
+            sink.reject = False
+            SystemConfig.objects.filter(key='tasks.failure_email').delete()
 finally:
     sink.shutdown(); sink.server_close(); thread.join(timeout=5)
     assert not thread.is_alive(), 'SMTP 线程未停止'

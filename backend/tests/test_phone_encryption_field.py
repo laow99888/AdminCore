@@ -188,7 +188,7 @@ def test_conversion_invalid_legacy_fails_without_values_and_rolls_back_batch(mem
 def test_settings_reject_unusable_encryption_configuration(enabled, key):
     env = {**os.environ, 'ADMINCORE_FIELD_ENCRYPTION_ENABLED': enabled,
            'ADMINCORE_FIELD_ENCRYPTION_KEY': key, 'DJANGO_SETTINGS_MODULE': 'config.settings.testing'}
-    result = subprocess.run([sys.executable, '-c', 'import config.settings.base'], env=env,
+    result = subprocess.run([sys.executable, '-X', 'utf8', '-c', 'import config.settings.base'], env=env,
                             capture_output=True, text=True, timeout=15)
     assert result.returncode != 0 and 'ImproperlyConfigured' in result.stderr
     assert 'invalid-private-key' not in result.stderr

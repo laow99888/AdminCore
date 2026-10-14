@@ -8,6 +8,7 @@ Celery 异步任务定义
 import logging
 
 from celery import shared_task
+from apps.tasks.routing import RegisteredPolicyTask
 from django.conf import settings
 from django.utils import timezone
 from .maintenance import exclusive
@@ -15,10 +16,17 @@ from .maintenance import exclusive
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, name='tasks.cleanup_lifecycle', soft_time_limit=270, time_limit=300)
+@shared_task(bind=True, name='tasks.cleanup_lifecycle', soft_time_limit=270, time_limit=300, base=RegisteredPolicyTask)
 @exclusive('lifecycle')
 def cleanup_lifecycle(self, dry_run=False, _record=None, _expected_retention=None):
     from .lifecycle import clean
+    if _record is None:
+        from .models import TaskRecord
+        from .routing import record_scheduled_policy
+        _record = TaskRecord.objects.create(name='清理历史日志与导入源文件', task_type='cleanup',
+            status='running', started_at=timezone.now(), related_resource='maintenance:lifecycle',
+            celery_task_id=self.request.id or '')
+        record_scheduled_policy(_record, 'lifecycle', {'dry_run': dry_run}, self.request)
     return clean(dry_run=dry_run, record=_record, expected_policy=_expected_retention,
                  celery_task_id=self.request.id or '')
 
@@ -32,7 +40,7 @@ def request_backup(self, dry_run=False, _record=None):
     return register(record=_record, dry_run=dry_run, celery_task_id=self.request.id or '')
 
 
-@shared_task(bind=True, name='tasks.cleanup_soft_deleted_files', soft_time_limit=270, time_limit=300)
+@shared_task(bind=True, name='tasks.cleanup_soft_deleted_files', soft_time_limit=270, time_limit=300, base=RegisteredPolicyTask)
 @exclusive('files')
 def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None, _expected_retention=None):
     """物理删除超过保留期的软删除文件（默认保留 30 天，由 beat 每日调度）"""
@@ -52,6 +60,9 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None
         related_resource='maintenance:files',
     )
     purged = 0
+    if _record is None:
+        from .routing import record_scheduled_policy
+        record_scheduled_policy(record, 'files', {'dry_run': dry_run, 'batch_size': batch_size}, self.request)
     try:
         if type(dry_run) is not bool or type(batch_size) is not int or not 1 <= batch_size <= 100:
             raise ValueError('dry_run 必须为布尔值，batch_size 必须为 1–100 的整数')
@@ -102,7 +113,7 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None
         raise
 
 
-@shared_task(bind=True, name='tasks.cleanup_expired_notifications', soft_time_limit=270, time_limit=300)
+@shared_task(bind=True, name='tasks.cleanup_expired_notifications', soft_time_limit=270, time_limit=300, base=RegisteredPolicyTask)
 @exclusive('notifications')
 def cleanup_expired_notifications(self, dry_run=False, _record=None, _expected_retention=None):
     """清理超过保留期的已读通知（默认保留 90 天）"""
@@ -121,6 +132,9 @@ def cleanup_expired_notifications(self, dry_run=False, _record=None, _expected_r
         started_at=timezone.now(),
         related_resource='maintenance:notifications',
     )
+    if _record is None:
+        from .routing import record_scheduled_policy
+        record_scheduled_policy(record, 'notifications', {'dry_run': dry_run}, self.request)
     try:
         if type(dry_run) is not bool:
             raise ValueError('dry_run 必须为布尔值')
@@ -145,7 +159,7 @@ def cleanup_expired_notifications(self, dry_run=False, _record=None, _expected_r
 
 
 @shared_task(bind=True, name='tasks.run_maintenance', soft_time_limit=270, time_limit=300,
-             acks_late=True, reject_on_worker_lost=True)
+             acks_late=True, reject_on_worker_lost=True, base=RegisteredPolicyTask)
 def run_maintenance(self, record_id):
     """重复投递只领取一次；执行前重新检查账户、权限、会话和模块。"""
     from datetime import timedelta
@@ -159,15 +173,21 @@ def run_maintenance(self, record_id):
     if not request or request.record.status != 'pending':
         return {'skipped': True, 'reason': 'already_claimed'}
     with transaction.atomic():
+        from django.contrib.auth import get_user_model
+        # 与取消/设备撤销一致：先用户、原设备，再任务，避免读取过期授权。
+        user = get_user_model().objects.select_for_update().filter(pk=request.record.creator_id).first()
+        if request.session_id:
+            from apps.auth_app.models import AuthSession
+            AuthSession.objects.select_for_update().filter(pk=request.session_id).first()
         record = TaskRecord.objects.select_for_update().get(pk=record_id)
         if record.status != 'pending':
             return {'skipped': True, 'reason': 'already_claimed'}
-        user = record.creator
+        from .reliability import valid_execution
         if (not user or not user.is_active or user.must_change_password
                 or not (user.is_staff or user.is_superuser)
                 or user.session_version != request.session_version
                 or not has_permission_code(user, 'schedule:run')
-                or not task_enabled(JOBS[request.key]['task'])):
+                or not task_enabled(JOBS[request.key]['task']) or not valid_execution(request, user)):
             record.mark_failed('execution_not_authorized')
             return {'rejected': True}
         if record.created_at < timezone.now() - timedelta(hours=24):
@@ -208,6 +228,13 @@ def recover_lost_maintenance():
             continue
         with maintenance_lock(key) as acquired:
             if acquired:
-                TaskRecord.objects.filter(related_resource='maintenance:' + key, status='running',
-                    started_at__lt=timezone.now() - timedelta(minutes=10)).update(
-                    status='failed', error='worker_lost_result_unknown', completed_at=timezone.now(), updated_at=timezone.now())
+                from .models import MaintenanceRequest
+                from .reliability import policy
+                for record in TaskRecord.objects.filter(related_resource='maintenance:' + key, status='pending',
+                    created_at__lt=timezone.now() - timedelta(hours=24))[:100]:
+                    record.mark_failed('queue_expired')
+                for record in TaskRecord.objects.filter(related_resource='maintenance:' + key, status='running')[:100]:
+                    request = MaintenanceRequest.objects.filter(pk=record.pk).first()
+                    limits = request.policy if request and request.policy else policy('maintenance')
+                    if record.started_at and record.started_at < timezone.now() - timedelta(seconds=limits['hard_timeout'] + 60):
+                        record.mark_failed('worker_lost_result_unknown')

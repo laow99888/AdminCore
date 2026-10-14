@@ -63,17 +63,22 @@ class TestImport:
         res = admin_client.post('/api/v1/data-io/import/', {'file': f, 'resource': 'users'}, format='multipart')
         assert res.status_code == 200
         task = res.json()['data']
-        assert task['status'] == 'success'  # 同步执行（CELERY_TASK_ALWAYS_EAGER）
+        from apps.data_io.tasks import run_data_import
+        assert task['status'] == 'pending'
+        run_data_import(task['id'])
+        task = admin_client.get(f"/api/v1/data-io/import/{task['id']}/").json()['data']
+        assert task['status'] == 'success'
         assert task['result']['created'] == 2
         assert task['result']['failed'] == 2
 
-    def test_import_retry_duplicates_fail(self, admin_client, member_user):
+    def test_successful_import_cannot_be_replayed(self, admin_client, member_user):
         f = build_xlsx([['u1', 'u1@e.com', '', '', '']])
         first = admin_client.post('/api/v1/data-io/import/', {'file': f, 'resource': 'users'}, format='multipart').json()
-        retry = admin_client.post(f"/api/v1/data-io/import/{first['data']['id']}/", format='json').json()
-        assert retry['code'] == 200
-        assert retry['data']['result']['created'] == 0
-        assert retry['data']['result']['failed'] == 1
+        from apps.data_io.tasks import run_data_import
+        run_data_import(first['data']['id'])
+        retry = admin_client.post(f"/api/v1/data-io/import/{first['data']['id']}/", format='json')
+        assert retry.status_code == 409
+        assert TaskRecord.objects.filter(task_type='import').count() == 1
 
     def test_import_rejects_unsupported_extension(self, admin_client):
         bad = io.BytesIO(b'x')
@@ -92,6 +97,8 @@ class TestImport:
         from django.contrib.auth import get_user_model
         User = get_user_model()
         f = build_xlsx([['nopass', 'nopass@e.com', '', '', '']])
-        admin_client.post('/api/v1/data-io/import/', {'file': f, 'resource': 'users'}, format='multipart')
+        response = admin_client.post('/api/v1/data-io/import/', {'file': f, 'resource': 'users'}, format='multipart')
+        from apps.data_io.tasks import run_data_import
+        run_data_import(response.json()['data']['id'])
         user = User.objects.get(username='nopass')
         assert not user.has_usable_password()

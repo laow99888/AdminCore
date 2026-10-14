@@ -15,6 +15,8 @@ def test_config_list_validation_conflict_audit_and_cache(admin_client):
         'brand.name', 'brand.tagline', 'brand.logo', 'files.retention_days',
         'notifications.retention_days', 'lifecycle.operation_days', 'lifecycle.login_days',
         'lifecycle.exception_days', 'lifecycle.import_days',
+        'tasks.import_timeout', 'tasks.maintenance_timeout', 'tasks.dispatch_attempts',
+        'tasks.failure_alert', 'tasks.failure_email',
     }
     assert all(row['version'] == 0 for row in rows)
     url = CONFIG + 'files.retention_days/'

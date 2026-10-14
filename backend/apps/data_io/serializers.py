@@ -14,7 +14,7 @@ class DataImportSerializer(serializers.Serializer):
 
     def validate_file(self, uploaded):
         from django.conf import settings
-        if uploaded.size > settings.FILE_UPLOAD_MAX_SIZE:
+        if uploaded.size > min(settings.FILE_UPLOAD_MAX_SIZE, 10 * 1024 * 1024):
             raise serializers.ValidationError('导入文件超过上传大小限制')
         return uploaded
 

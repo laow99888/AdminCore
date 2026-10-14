@@ -23,6 +23,7 @@ from apps.core.schema import envelope
 from apps.core.system_views import VersionConflict, audit
 from apps.permissions.permissions import HasPermission, IsAdmin
 from .maintenance import JOBS, valid_preview, validate_options
+from .reliability import policy as task_policy
 from .models import MaintenanceRequest, TaskRecord
 from .serializers import TaskRecordSerializer
 
@@ -127,7 +128,8 @@ def schedule_row(key, user):
                 'minute': '15' if key == 'notifications' else '0',
                 'hour': '4' if key == 'lifecycle' else '2' if key == 'backup' else '3', 'day_of_week': '*',
                 'day_of_month': '*', 'month_of_year': '*', 'timezone': settings.TIME_ZONE},
-            'options': options, 'supported': supported, 'overlap': 'skip', 'time_limit_seconds': 7200 if key == 'backup' else 300,
+            'options': options, 'supported': supported, 'overlap': 'skip',
+            'time_limit_seconds': 7200 if key == 'backup' else task_policy('maintenance')['hard_timeout'],
             'requires_preview': job.get('requires_preview', True),
             'confirmation': job.get('confirmation', '执行清理'),
             'preview': preview_data, 'last_run': TaskRecordSerializer(last).data if last else None}
@@ -208,6 +210,11 @@ class ScheduleRunView(ScheduleView):
         if not PeriodicTask.objects.filter(task='core.dispatch_outbox', enabled=True).exists():
             raise ValidationError('可靠事件补偿计划未启用，不能提交维护任务')
         def submit():
+            from .reliability import authorize, policy
+            actor = authorize(request, 'schedule:run')
+            if not (actor.is_staff or actor.is_superuser):
+                from rest_framework.exceptions import PermissionDenied
+                raise PermissionDenied('仅管理员可运行维护任务')
             row = PeriodicTask.objects.select_for_update().filter(name=job['schedule']).first()
             if data['revision'] != revision(row):
                 raise VersionConflict()
@@ -225,7 +232,8 @@ class ScheduleRunView(ScheduleView):
             except IntegrityError:
                 raise ValidationError('已有等待或执行中的备份任务') from None
             MaintenanceRequest.objects.create(record=record, key=key, options=data['options'],
-                session_version=request.user.session_version, request_id=str(getattr(request, 'request_id', ''))[:100],
+                session_version=actor.session_version, session_id=request.auth.get('sid') if request.auth is not None else None,
+                policy=policy('maintenance'), request_id=str(getattr(request, 'request_id', ''))[:100],
                 preview_id=data.get('preview_id'))
             audit(request, 'maintenance_run', record.pk, None, {'key': key, 'options': data['options'],
                   'preview_id': str(data.get('preview_id') or ''), 'request_id': str(getattr(request, 'request_id', ''))})

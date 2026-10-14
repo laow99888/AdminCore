@@ -57,9 +57,10 @@ class TaskRecord(BaseModel):
 
     def mark_started(self):
         from django.utils import timezone
-        self.status = 'running'
-        self.started_at = timezone.now()
-        self.save(update_fields=['status', 'started_at', 'updated_at'])
+        changed = type(self).objects.filter(pk=self.pk, status='pending').update(
+            status='running', started_at=timezone.now(), updated_at=timezone.now())
+        self.refresh_from_db()
+        return bool(changed)
 
     def mark_success(self, result=None):
         from django.utils import timezone
@@ -73,13 +74,16 @@ class TaskRecord(BaseModel):
         self.refresh_from_db()
 
     def mark_failed(self, error=''):
+        from django.db import transaction
         from django.utils import timezone
-        self.status = 'failed'
-        self.error = error
-        self.completed_at = timezone.now()
-        type(self).objects.filter(pk=self.pk, status__in=['pending', 'running']).update(
-            status=self.status, error=self.error, completed_at=self.completed_at, updated_at=timezone.now())
-        self.refresh_from_db()
+        with transaction.atomic():
+            changed = type(self).objects.filter(pk=self.pk, status__in=['pending', 'running']).update(
+                status='failed', error=error, completed_at=timezone.now(), updated_at=timezone.now())
+            self.refresh_from_db()
+            if changed:
+                from .reliability import failure_event
+                failure_event(self)
+        return bool(changed)
 
     def mark_cancelled(self):
         from django.utils import timezone
@@ -99,6 +103,36 @@ class MaintenanceRequest(models.Model):
     session_version = models.PositiveIntegerField()
     request_id = models.CharField(max_length=100, blank=True)
     preview_id = models.UUIDField(null=True, blank=True)
+    policy = models.JSONField(default=dict)
+    session_id = models.UUIDField(null=True, blank=True)
+
+
+class ImportBatch(BaseModel):
+    """不可变源文件摘要和逐行提交账本；重试只接续未提交的行。"""
+    source = models.ForeignKey('files.FileModel', on_delete=models.SET_NULL, null=True)
+    source_sha256 = models.CharField(max_length=64)
+    resource = models.CharField(max_length=100)
+    active_record = models.ForeignKey(TaskRecord, on_delete=models.SET_NULL, null=True, related_name='+')
+
+
+class ImportExecution(models.Model):
+    record = models.OneToOneField(TaskRecord, on_delete=models.CASCADE, primary_key=True, related_name='import_execution')
+    batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name='executions')
+    attempt = models.PositiveSmallIntegerField(default=1)
+    policy = models.JSONField(default=dict)
+    session_version = models.PositiveIntegerField()
+    session_id = models.UUIDField(null=True, blank=True)
+    request_id = models.CharField(max_length=100, blank=True)
+
+
+class ImportRowReceipt(models.Model):
+    batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name='receipts')
+    row = models.PositiveIntegerField()
+    created = models.BooleanField()
+    error = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['batch', 'row'], name='import_row_once')]
 
 
 class BackupRequest(models.Model):

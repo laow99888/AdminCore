@@ -117,11 +117,14 @@ export interface TaskRow {
   duration?: number | null
   created_at: string
   related_resource?: string
+  creator?: string | null
+  execution?: { attempt: number; can_resume: boolean; semantics: string; policy: { soft_timeout: number; hard_timeout: number; dispatch_attempts: number; automatic_execution_retries: number } } | null
 }
 
 export const tasksApi = {
   list: (params?: ListParams) => getPaged<TaskRow>('/tasks/', params),
   cancel: (id: string) => request.post(`/tasks/${id}/cancel/`),
+  resume: (id: string) => request.post(`/tasks/${id}/resume/`),
   cleanupHistory: (days = 30) => request.post('/tasks/cleanup/', { days }),
 }
 

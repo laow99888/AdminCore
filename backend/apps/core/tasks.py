@@ -19,9 +19,11 @@ def dispatch_outbox(limit=100):
     if module_enabled('tasks'):
         from apps.tasks.tasks import recover_lost_maintenance
         recover_lost_maintenance()
+        from apps.tasks.reliability import recover_lost_imports
+        recover_lost_imports()
     processed = failed = 0
     from django.db.models import Q
-    eligible = ~Q(topic__in=['auth.email', 'notification.delivery']) | Q(attempts__lt=5)
+    eligible = (~Q(topic__in=['auth.email', 'notification.delivery', 'task.failed']) | Q(attempts__lt=5)) & ~Q(last_error='dispatch_exhausted')
     for event_id in list(OutboxEvent.objects.filter(eligible,
         status__in=['pending', 'failed'], available_at__lte=now,
     ).order_by('created_at').values_list('id', flat=True)[:limit]):
@@ -31,11 +33,37 @@ def dispatch_outbox(limit=100):
             ).first()
             if event is None:
                 continue
+            if event.topic in ('maintenance.requested', 'import.requested'):
+                from apps.tasks.models import TaskRecord, MaintenanceRequest, ImportExecution
+                from apps.tasks.reliability import policy
+                model = ImportExecution if event.topic == 'import.requested' else MaintenanceRequest
+                execution = model.objects.select_related('record').filter(pk=event.payload.get('record_id')).first()
+                current = (execution.policy if execution else None) or policy('import' if model == ImportExecution else 'maintenance')
+                if execution and execution.record.status == 'pending' and event.attempts >= current['dispatch_attempts']:
+                    execution.record.mark_failed('dispatch_attempts_exhausted')
+                    event.status, event.last_error = 'failed', 'dispatch_exhausted'
+                    event.save(update_fields=['status', 'last_error', 'updated_at'])
+                    failed += 1
+                    continue
             event.attempts += 1
             delivery_failed = False
             try:
                 with transaction.atomic():
-                    if event.topic == 'maintenance.requested':
+                    if event.topic == 'task.failed':
+                        from apps.tasks.reliability import deliver_failure
+                        deliver_failure(event.payload)
+                    elif event.topic == 'import.requested':
+                        from apps.tasks.models import ImportExecution
+                        from apps.data_io.tasks import run_data_import
+                        if not module_enabled('data_io'):
+                            raise ValueError('data_io_disabled')
+                        request = ImportExecution.objects.select_related('record').filter(pk=event.payload.get('record_id')).first()
+                        if request is None:
+                            raise ValueError('import_request_missing')
+                        if request.record.status == 'pending':
+                            run_data_import.apply_async(args=[str(request.pk)], task_id=str(request.pk),
+                                soft_time_limit=request.policy['soft_timeout'], time_limit=request.policy['hard_timeout'])
+                    elif event.topic == 'maintenance.requested':
                         from apps.tasks.models import MaintenanceRequest
                         from apps.tasks.tasks import run_maintenance
                         if not module_enabled('tasks'):
@@ -44,7 +72,9 @@ def dispatch_outbox(limit=100):
                         if request is None:
                             raise ValueError('maintenance_request_missing')
                         if request.record.status == 'pending':
-                            run_maintenance.apply_async(args=[str(request.pk)], task_id=str(request.pk))
+                            limits = request.policy or current
+                            run_maintenance.apply_async(args=[str(request.pk)], task_id=str(request.pk),
+                                soft_time_limit=limits['soft_timeout'], time_limit=limits['hard_timeout'])
                     elif event.topic == 'auth.email':
                         from apps.auth_app.recovery import deliver_challenge
                         deliver_challenge(event.payload)

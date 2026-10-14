@@ -194,4 +194,4 @@ def test_scoped_import_rechecks_permission_at_execution(member_user, scoped_user
     record = TaskRecord.objects.create(name='权限变化前提交', creator=member_user, related_resource='users')
     run_data_import(str(record.pk))
     record.refresh_from_db()
-    assert record.status == 'failed' and '数据范围' in record.error
+    assert record.status == 'failed' and record.error == 'execution_not_authorized'

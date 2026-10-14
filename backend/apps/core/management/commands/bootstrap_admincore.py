@@ -44,6 +44,7 @@ PERMISSIONS = [
     ('menu', 'update', '维护菜单配置', 'menu:update'),
     ('task', 'read', '查看任务', 'task:read'),
     ('task', 'cancel', '取消任务', 'task:cancel'),
+    ('task', 'retry', '接续失败导入任务', 'task:retry'),
     ('task', 'delete', '清理任务历史', 'task:delete'),
     ('schedule', 'read', '查看维护计划', 'schedule:read'),
     ('schedule', 'update', '修改维护计划', 'schedule:update'),
@@ -180,7 +181,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke', 'template:read', 'template:update', 'template:send'}):
+                if role_created or (code in new_permission_codes and code not in {'task:retry', 'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke', 'template:read', 'template:update', 'template:send'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])

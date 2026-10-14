@@ -26,13 +26,16 @@
         >
           <template #actions="{ row }">
             <el-button
-              v-if="auth.can('task:cancel') && (row.status === 'pending' || (row.status === 'running' && !row.related_resource?.startsWith('maintenance:')))"
+              v-if="auth.can('task:cancel') && (row.status === 'pending' || (row.status === 'running' && row.execution?.semantics === 'resume_uncommitted_rows'))"
               link
               type="danger"
               size="small"
+              :disabled="!!acting"
+              :loading="acting === row.id"
               @click="handleCancel(row)"
             >{{ uiText("取消") }}</el-button>
-            <el-button v-else link type="primary" size="small" @click="showResult(row)">{{ uiText("结果") }}</el-button>
+            <el-button v-if="canResume(row)" link type="warning" size="small" :disabled="!!acting" :loading="acting === row.id" @click="handleResume(row)">{{ uiText('接续未提交行') }}</el-button>
+            <el-button link type="primary" size="small" @click="showResult(row)">{{ uiText("结果") }}</el-button>
           </template>
         </BaseTable>
       </BaseCard>
@@ -43,6 +46,8 @@
           <el-descriptions :column="2" border size="small">
             <el-descriptions-item :label="uiText('状态')">{{ STATUS_LABELS[currentTask.status] || currentTask.status }}</el-descriptions-item>
             <el-descriptions-item :label="uiText('耗时')">{{ currentTask.duration != null ? `${currentTask.duration}s` : '—' }}</el-descriptions-item>
+            <el-descriptions-item v-if="currentTask.execution" :label="uiText('执行次数')">{{ currentTask.execution.attempt }}</el-descriptions-item>
+            <el-descriptions-item v-if="currentTask.execution?.policy?.soft_timeout" :label="uiText('软 / 硬超时')">{{ currentTask.execution.policy.soft_timeout }}s / {{ currentTask.execution.policy.hard_timeout }}s</el-descriptions-item>
           </el-descriptions>
           <pre v-if="currentTask.result" class="result-json">{{ JSON.stringify(currentTask.result, null, 2) }}</pre>
           <div v-if="currentTask.error" class="task-error">{{ currentTask.error }}</div>
@@ -57,6 +62,7 @@ import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { ref } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
@@ -73,6 +79,8 @@ const tableData = ref<TaskRow[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const acting = ref('')
+const actionGuard = useUnsavedChanges({ source: () => null, busy: () => !!acting.value, clear: () => { acting.value = '' }, canEdit: () => auth.can('task:cancel') || auth.can('task:retry') })
 
 usePageState({ statusFilter, currentPage, pageSize })
 const STATUS_LABELS: Record<string, string> = {
@@ -126,14 +134,28 @@ const handleFilterChange = () => {
   loadTasks()
 }
 
-const handleCancel = (row: TaskRow) => {
-  ElMessageBox.confirm(uiText("确定取消任务「{p0}」吗？", { p0: row.name }), uiText("提示"), { type: 'warning' })
-    .then(async () => {
-      const res = await tasksApi.cancel(row.id)
-      ElMessage.success(res.data?.message || uiText("任务已取消"))
-      loadTasks()
-    })
-    .catch(() => {})
+const canResume = (row: TaskRow) => !!row.execution?.can_resume && row.creator === auth.user?.id && auth.can('task:retry') && auth.can('data_io:import')
+const handleCancel = async (row: TaskRow) => {
+  if (acting.value || !auth.can('task:cancel')) return
+  acting.value = row.id
+  try {
+    await ElMessageBox.confirm(uiText('取消后已提交的数据保留，后续导入行停止；确定继续吗？'), uiText('提示'), { type: 'warning' })
+    if (!actionGuard.isCurrent() || !auth.can('task:cancel')) return
+    const res = await tasksApi.cancel(row.id)
+    if (actionGuard.isCurrent()) { ElMessage.success(res.data?.message || uiText('任务已取消')); await loadTasks() }
+  } catch (error) { if (error !== 'cancel' && error !== 'close' && actionGuard.isCurrent()) ElMessage.error(uiText('任务操作未确认，请刷新检查状态')) }
+  finally { if (acting.value === row.id) acting.value = '' }
+}
+const handleResume = async (row: TaskRow) => {
+  if (acting.value || !canResume(row)) return
+  acting.value = row.id
+  try {
+    await ElMessageBox.confirm(uiText('接续将跳过已提交的行和已记录的校验错误，仅执行剩余行；确定继续吗？'), uiText('提示'), { type: 'warning' })
+    if (!actionGuard.isCurrent() || !canResume(row)) return
+    await tasksApi.resume(row.id)
+    if (actionGuard.isCurrent()) { ElMessage.success(uiText('已登记接续未提交行')); await loadTasks() }
+  } catch (error) { if (error !== 'cancel' && error !== 'close' && actionGuard.isCurrent()) ElMessage.error(uiText('任务操作未确认，请刷新检查状态')) }
+  finally { if (acting.value === row.id) acting.value = '' }
 }
 
 const showResult = (row: TaskRow) => {

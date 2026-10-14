@@ -226,6 +226,10 @@ def test_real_s3_import_and_copy_command(s3_storage, admin_client, tmp_path, mon
                                  {'file': uploaded, 'resource': 'users'}, format='multipart')
     assert response.status_code == 200
     task = TaskRecord.objects.get(pk=response.json()['data']['id'])
+    assert task.status == 'pending' and task.import_execution.batch.source_sha256
+    from apps.data_io.tasks import run_data_import
+    run_data_import(str(task.pk))
+    task.refresh_from_db()
     assert task.status == 'success' and task.result['created'] == 1
     assert get_user_model().objects.filter(username='s3-import-user').exists()
     record = FileModel.objects.get(pk=task.result['file_id'])

@@ -43,6 +43,8 @@ class OutboxEventViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mixins.Re
                 return Response({'code': 409, 'message': '只能重试失败事件', 'data': None}, status=409)
             if event.topic == 'notification.delivery':
                 return Response({'code': 409, 'message': '请通过通知投递记录执行授权重试', 'data': None}, status=409)
+            if event.last_error == 'dispatch_exhausted' or (event.topic == 'task.failed' and event.attempts >= 5):
+                return Response({'code': 409, 'message': '有限重试已耗尽，请通过任务中心检查和接续', 'data': None}, status=409)
             if event.topic == 'auth.email' and event.attempts >= 5:
                 return Response({'code': 409, 'message': '邮件重试次数已用尽，请用户重新申请', 'data': None}, status=409)
             event.status = 'pending'

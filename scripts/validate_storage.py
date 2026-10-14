@@ -90,7 +90,7 @@ def main():
                         'STORAGE_CONTRACT_ACCESS': environment['MINIO_ROOT_USER'],
                         'STORAGE_CONTRACT_SECRET': environment['MINIO_ROOT_PASSWORD']}
             with (fixture / 'contract.log').open('wb') as output:
-                result = subprocess.run([sys.executable, '-m', 'pytest', 'integration/test_s3_storage.py',
+                result = subprocess.run([sys.executable, '-X', 'utf8', '-m', 'pytest', 'integration/test_s3_storage.py',
                                          '-q', '--junitxml', str(fixture / 'junit.xml')],
                                         cwd=ROOT / 'backend', env=test_env, stdout=output,
                                         stderr=subprocess.STDOUT, timeout=180)

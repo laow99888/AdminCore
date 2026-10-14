@@ -88,29 +88,31 @@ class DataImportView(DataModuleView):
                 'data': None,
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 复用文件应用存储导入文件，便于任务重读和重试
-        file_record = FileModel.objects.create(
-            original_name=os.path.basename(uploaded.name),
-            file=uploaded,
-            file_type=ext,
-            size=uploaded.size,
-            content_type=getattr(uploaded, 'content_type', '') or '',
-            description=f'数据导入文件（{resource_name}）',
-            uploader=request.user,
-            purpose='import',
-        )
-
-        record = TaskRecord.objects.create(
-            name=f"导入{get_resource(resource_name)['label']}数据",
-            task_type='import',
-            related_resource=resource_name,
-            creator=request.user,
-            result={'file_id': str(file_record.id)},
-        )
-        dispatch_task(run_data_import, str(record.id))
-        record.refresh_from_db()  # 同步执行模式下读取任务执行后的最终状态
-
-        _log(request, 'import', f'Import {resource_name} data from {file_record.original_name}', str(record.id))
+        from django.db import transaction
+        from apps.tasks.reliability import authorize
+        from .execution import register
+        file_record = None
+        try:
+            with transaction.atomic():
+                actor = authorize(request, 'data_io:import')
+                if not unrestricted_user_creation(actor):
+                    from rest_framework.exceptions import PermissionDenied
+                    raise PermissionDenied('用户数据范围受限')
+                file_record = FileModel.objects.create(
+                    original_name=os.path.basename(uploaded.name), file=uploaded, file_type=ext,
+                    size=uploaded.size, content_type=getattr(uploaded, 'content_type', '') or '',
+                    description=f'数据导入文件（{resource_name}）', uploader=actor, purpose='import')
+                record = TaskRecord.objects.create(name=f"导入{get_resource(resource_name)['label']}数据",
+                    task_type='import', related_resource=resource_name, creator=actor,
+                    result={'file_id': str(file_record.pk)})
+                register(record, file_record, request)
+                from apps.logs.audit import snapshot, write_audit
+                write_audit(request=request, resource='task', identifier=record.pk, action='create',
+                            after=snapshot('task', record), record=record, description='提交导入批次')
+        except Exception:
+            if file_record is not None and file_record.file:
+                file_record.file.delete(save=False)
+            raise
         return Response({
             'code': 200,
             'message': '导入任务已提交，请稍后查看任务结果',
@@ -120,7 +122,7 @@ class DataImportView(DataModuleView):
 
 @extend_schema_view(
     get=extend_schema(responses=envelope('ImportStatusResponse', TaskRecordSerializer())),
-    post=extend_schema(operation_id='data_io_import_retry', request=None, responses=envelope('ImportRetryResponse', TaskRecordSerializer())),
+    post=extend_schema(operation_id='data_io_import_retry', request=None, responses={202: envelope('ImportRetryResponse', TaskRecordSerializer())}),
 )
 class DataImportTaskView(DataModuleView):
     """查看自己发起的导入任务结果"""
@@ -139,39 +141,12 @@ class DataImportTaskView(DataModuleView):
         return Response({'code': 200, 'message': 'success', 'data': TaskRecordSerializer(record).data})
 
     def post(self, request, task_id):
-        """重试导入：复用原文件重新提交一个新任务"""
-        record = TaskRecord.objects.filter(id=task_id, creator=request.user).first()
-        if record is None:
-            return Response({'code': 404, 'message': '任务不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
-        if not record.result or not record.result.get('file_id'):
-            return Response({'code': 400, 'message': '原任务未关联导入文件，无法重试', 'data': None},
-                            status=status.HTTP_400_BAD_REQUEST)
+        """人工接续：不再从头执行已提交的行。"""
+        from .execution import resume
+        new_record = resume(request, task_id)
+        return Response({'code': 202, 'message': '已登记接续未提交行',
+                         'data': TaskRecordSerializer(new_record).data}, status=202)
 
-        config = get_resource(record.related_resource)
-        if config is None or not config['importable'] or record.task_type != 'import':
-            return Response({'code': 400, 'message': '该资源不支持导入重试', 'data': None}, status=400)
-
-        from django.db import transaction
-        from apps.core.data_scope import scope_queryset
-        with transaction.atomic():
-            source = scope_queryset(FileModel.objects.select_for_update().filter(is_deleted=False),
-                                    request.user, 'file', 'uploader_id', fallback='self').filter(
-                                        pk=record.result['file_id']).first()
-            if not source:
-                return Response({'code': 400, 'message': '导入源文件已过期或不可用，请重新上传', 'data': None}, status=400)
-            new_record = TaskRecord.objects.create(
-                name=f'{record.name}（重试）', task_type='import',
-                related_resource=record.related_resource, creator=request.user,
-                result={'file_id': record.result['file_id']},
-            )
-        dispatch_task(run_data_import, str(new_record.id))
-        new_record.refresh_from_db()  # 同步执行模式下读取任务执行后的最终状态
-        _log(request, 'import', f'Retry import task {record.id}', str(new_record.id))
-        return Response({
-            'code': 200,
-            'message': '重试任务已提交',
-            'data': TaskRecordSerializer(new_record).data,
-        })
 
 
 @extend_schema_view(

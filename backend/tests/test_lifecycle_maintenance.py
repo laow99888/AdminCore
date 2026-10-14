@@ -214,5 +214,5 @@ def test_expired_import_retry_is_clear_and_creates_no_task(admin_client, admin_u
     clean()
     before = TaskRecord.objects.count()
     response = admin_client.post(f'/api/v1/data-io/import/{task.pk}/', {}, format='json')
-    assert response.status_code == 400 and '已过期或不可用' in response.json()['message']
+    assert response.status_code == 400 and '已过期或不可用' in str(response.json()['data'])
     assert TaskRecord.objects.count() == before

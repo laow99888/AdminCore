@@ -79,8 +79,9 @@ def write_audit(*, resource, identifier='', action='update', request=None, actor
         rows.append({'id': str(UUID(str(result['id']))), 'status': int(result['status'])})
     request_id = getattr(request, 'request_id', '') if request is not None else ''
     if record is not None and not request_id:
-        from apps.tasks.models import MaintenanceRequest
-        request_id = MaintenanceRequest.objects.filter(record=record).values_list('request_id', flat=True).first() or ''
+        from apps.tasks.models import MaintenanceRequest, ImportExecution
+        request_id = (MaintenanceRequest.objects.filter(record=record).values_list('request_id', flat=True).first()
+                      or ImportExecution.objects.filter(record=record).values_list('request_id', flat=True).first() or '')
     actor_identifier = str(actor.pk) if actor else ''
     if actor is not None:
         from django.contrib.auth import get_user_model
