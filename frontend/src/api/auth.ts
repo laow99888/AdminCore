@@ -24,6 +24,12 @@ export interface PersonalProfile extends CurrentUser {
 export type ProfileWrite = Pick<PersonalProfile, 'first_name' | 'last_name' | 'email' | 'phone' | 'bio' | 'profile_version'>
 
 const authApi = {
+  async requestEmailVerification(currentPassword: string): Promise<void> {
+    await request.post('/auth/email-verification/request/', { current_password: currentPassword })
+  },
+  async confirmEmailVerification(code: string): Promise<PersonalProfile> {
+    return (await request.post<ApiResponse<PersonalProfile>>('/auth/email-verification/confirm/', { code })).data.data
+  },
   async profile(signal?: AbortSignal): Promise<PersonalProfile> {
     return (await request.get<ApiResponse<PersonalProfile>>('/auth/profile/', { signal })).data.data
   },

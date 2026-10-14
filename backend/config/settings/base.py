@@ -209,6 +209,26 @@ AUTH_SESSION_IDLE_SECONDS = int(os.getenv('AUTH_SESSION_IDLE_SECONDS', '1800'))
 AUTH_SESSION_TOUCH_SECONDS = int(os.getenv('AUTH_SESSION_TOUCH_SECONDS', '60'))
 AUTH_REAUTH_USER_FAILURE_LIMIT = 10
 AUTH_REAUTH_SCOPE_FAILURE_LIMIT = 5
+AUTH_EMAIL_ENABLED = os.getenv('AUTH_EMAIL_ENABLED', 'False').lower() == 'true'
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.getenv('EMAIL_HOST', '')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', '')
+if AUTH_EMAIL_ENABLED:
+    from django.core.exceptions import ImproperlyConfigured, ValidationError
+    from django.core.validators import validate_email
+    try:
+        validate_email(DEFAULT_FROM_EMAIL)
+    except ValidationError:
+        raise ImproperlyConfigured('启用认证邮件需配置有效的 DEFAULT_FROM_EMAIL') from None
+    if (not EMAIL_HOST or any(char.isspace() for char in EMAIL_HOST) or not 1 <= EMAIL_PORT <= 65535
+            or EMAIL_USE_TLS == EMAIL_USE_SSL or not 1 <= EMAIL_TIMEOUT <= 30):
+        raise ImproperlyConfigured('认证邮件需要 SMTP 主机、有效端口、单选 TLS/SSL 及 1-30 秒超时')
 if not (60 <= AUTH_SESSION_TOUCH_SECONDS <= AUTH_SESSION_IDLE_SECONDS <= AUTH_SESSION_ABSOLUTE_SECONDS
         <= 30 * 86400):
     from django.core.exceptions import ImproperlyConfigured

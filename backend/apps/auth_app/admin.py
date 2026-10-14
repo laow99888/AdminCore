@@ -25,9 +25,9 @@ class RequiredPasswordChangeForm(AdminPasswordChangeForm):
 class UserAdmin(BaseUserAdmin):
     """用户管理后台"""
     change_password_form = RequiredPasswordChangeForm
-    readonly_fields = ('must_change_password', 'avatar_file', 'profile_version')
+    readonly_fields = ('must_change_password', 'avatar_file', 'profile_version', 'verified_email')
     fieldsets = BaseUserAdmin.fieldsets + (
-        ('额外信息', {'fields': ('avatar', 'phone', 'last_login_ip', 'login_count', 'must_change_password', 'avatar_file', 'profile_version')}),
+        ('额外信息', {'fields': ('avatar', 'phone', 'last_login_ip', 'login_count', 'must_change_password', 'avatar_file', 'profile_version', 'verified_email')}),
     )
     list_display = ('username', 'email', 'is_active', 'login_count', 'created_at')
     search_fields = ('username', 'email', 'phone')

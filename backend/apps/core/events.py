@@ -16,7 +16,9 @@ def enqueue_event(topic, event_key, payload, request=None):
         )
         if not created and (event.topic != topic or event.payload != payload):
             raise ValueError('事件键已用于另一份事件')
-        transaction.on_commit(_dispatch_after_commit)
+        # 认证邮件只由定时队列派发：匿名申请从不连接 SMTP 或 broker，避免时序暴露账户存在。
+        if topic != 'auth.email':
+            transaction.on_commit(_dispatch_after_commit)
     return event
 
 

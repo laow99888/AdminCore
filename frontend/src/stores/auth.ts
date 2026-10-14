@@ -18,6 +18,8 @@ export interface CurrentUser {
   profile_version?: number
   has_avatar?: boolean
   avatar_enabled?: boolean
+  email_verified?: boolean
+  recovery_enabled?: boolean
 }
 
 export const useAuthStore = defineStore('auth', () => {

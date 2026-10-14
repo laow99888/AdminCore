@@ -54,6 +54,12 @@ class UserSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
     has_avatar = serializers.SerializerMethodField()
     avatar_enabled = serializers.SerializerMethodField()
+    email_verified = serializers.BooleanField(read_only=True)
+    recovery_enabled = serializers.SerializerMethodField()
+
+    def get_recovery_enabled(self, user) -> bool:
+        from .recovery import recovery_enabled
+        return recovery_enabled()
 
     def get_has_avatar(self, user) -> bool:
         return bool(user.avatar_file_id)
@@ -70,7 +76,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'is_staff', 'is_superuser', 'permissions', 'must_change_password', 'profile_version', 'has_avatar', 'avatar_enabled', 'created_at', 'updated_at')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'is_staff', 'is_superuser', 'permissions', 'must_change_password', 'profile_version', 'has_avatar', 'avatar_enabled', 'email_verified', 'recovery_enabled', 'created_at', 'updated_at')
         read_only_fields = ('id', 'created_at', 'updated_at')
 
 

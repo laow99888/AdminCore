@@ -46,6 +46,12 @@
             >{{ uiText("登录") }}</el-button>
           </el-form-item>
         </el-form>
+        <div class="recovery-entry">
+          <el-button v-if="recoveryEnabled" link :disabled="loading" @click="router.push('/recover-password')">{{ uiText('忘记密码') }}</el-button>
+          <span v-else-if="recoveryLoading" role="status">{{ uiText('正在检查找回密码配置') }}</span>
+          <template v-else-if="recoveryError"><span>{{ uiText('找回密码配置加载失败') }}</span><el-button link :disabled="loading" @click="loadRecovery">{{ uiText('重试找回配置') }}</el-button></template>
+          <span v-else>{{ uiText('邮件找回未启用，请联系管理员重置密码。') }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -54,7 +60,8 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
+import { recoveryApi } from '@/api/recovery'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from 'lucide-vue-next'
@@ -66,6 +73,18 @@ const authStore = useAuthStore()
 const brand = useBrandStore()
 const loading = ref(false)
 const focusedField = ref('')
+const recoveryEnabled = ref(false), recoveryLoading = ref(false), recoveryError = ref(false)
+let recoveryController: AbortController | undefined, alive = true
+async function loadRecovery() {
+  recoveryController?.abort()
+  const controller = new AbortController(); recoveryController = controller
+  recoveryLoading.value = true; recoveryError.value = false; recoveryEnabled.value = false
+  try { const result = await recoveryApi.config(controller.signal); if (alive && !controller.signal.aborted) recoveryEnabled.value = result.enabled }
+  catch { if (alive && !controller.signal.aborted) recoveryError.value = true }
+  finally { if (alive && !controller.signal.aborted) recoveryLoading.value = false }
+}
+void loadRecovery()
+onBeforeUnmount(() => { alive = false; recoveryController?.abort(); form.value.password = '' })
 
 const form = ref({
   username: '',
@@ -193,6 +212,7 @@ const handleLogin = async () => {
   margin-top: var(--spacing-2xl);
 }
 .brand-logo { width: 64px; height: 64px; object-fit: contain; margin-bottom: var(--spacing-md); }
+.recovery-entry { margin-top: var(--spacing-lg); font-size: var(--font-size-sm); color: var(--color-text-secondary); text-align: center; overflow-wrap: anywhere; }
 
 .input-icon {
   margin-right: var(--spacing-sm);

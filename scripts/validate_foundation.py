@@ -136,6 +136,11 @@ def main():
               devices.headers['Cache-Control'] == 'private, no-store'
               and len(devices.json()['data']['items']) == 1
               and devices.json()['data']['items'][0]['is_current'])
+        recovery = api('auth/recovery/config/')
+        check('精简部署匿名找回配置明确关闭且不缓存', recovery.json()['data'] == {'enabled': False}
+              and recovery.headers['Cache-Control'] == 'private, no-store')
+        api('auth/recovery/request/', 'POST', {'username': 'admin', 'email': 'fixture@example.test'}, 503)
+        api('auth/email-verification/request/', 'POST', {'current_password': password}, 503, token)
         second_login = api('auth/login/', 'POST', {'username': 'admin', 'password': password}).json()
         rotated = api('auth/refresh/', 'POST', {'refresh': second_login['refresh']}).json()['data']
         check('刷新轮换同时返回新 access 与 refresh', bool(rotated['access']) and bool(rotated['refresh'])
@@ -325,6 +330,10 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 会话刷新轮换、设备撤销隔离和等待写的撤销复核', True)
+        encoded = base64.b64encode((ROOT / 'scripts/recovery_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL/Redis/本地SMTP 邮箱归属、找回、并发消费及可靠重试', True)
         announcement = api('notifications/announcements/manage/', 'POST',
                            {'title': '模块切换保留公告', 'content': '隔离验收正文', 'version': 0}, 201, token).json()['data']
         announcement_id = announcement['id']

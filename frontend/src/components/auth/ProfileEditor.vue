@@ -33,6 +33,7 @@
         <el-button :disabled="busy || !dirty" @click="discard">{{ uiText('撤销修改') }}</el-button>
       </div>
     </el-form>
+    <EmailVerification :profile="profile" :changed="form.email !== profile.email" :disabled="busy || conflict" @busy="verificationBusy = $event" @updated="verificationUpdated" @conflict="verificationConflict" />
   </div>
 </template>
 
@@ -44,11 +45,13 @@ import authApi, { type PersonalProfile, type ProfileWrite } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
 import { uiText } from '@/i18n/uiText'
 import PrivateAvatar from './PrivateAvatar.vue'
+import EmailVerification from './EmailVerification.vue'
 
 const auth = useAuthStore()
 const profile = ref<PersonalProfile>()
 const loading = ref(false)
-const busy = ref(false)
+const writing = ref(false), verificationBusy = ref(false)
+const busy = computed({ get: () => writing.value || verificationBusy.value, set: value => { writing.value = value } })
 const error = ref('')
 const conflict = ref(false)
 const fileInput = ref<HTMLInputElement>()
@@ -73,6 +76,8 @@ function apply(value: PersonalProfile, reset = true) {
     formRef.value?.clearValidate()
   }
 }
+function verificationUpdated(value: PersonalProfile) { if (canApply(value)) apply(value, false) }
+function verificationConflict() { conflict.value = true; error.value = uiText('资料已被其他窗口修改，当前输入已保留，请重新加载。') }
 async function load() {
   request?.abort()
   const current = new AbortController()

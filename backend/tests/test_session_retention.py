@@ -20,12 +20,12 @@ def test_retention_keeps_active_recent_and_batches_expired(member_user):
     OutstandingToken.objects.filter(jti__in=[tokens[0]['jti'], tokens[1]['jti']]).update(
         expires_at=now - timedelta(days=31))
     result = cleanup_expired_sessions(batch_size=1)
-    assert result == {'deleted_sessions': 1, 'deleted_refresh_records': 1}
+    assert result == {'deleted_sessions': 1, 'deleted_refresh_records': 1, 'deleted_email_challenges': 0}
     assert cleanup_expired_sessions()['deleted_sessions'] == 1
     assert set(str(pk) for pk in AuthSession.objects.values_list('pk', flat=True)) == {
         tokens[index]['sid'] for index in [2, 3, 4]}
     assert OutstandingToken.objects.count() == 3
-    assert cleanup_expired_sessions() == {'deleted_sessions': 0, 'deleted_refresh_records': 0}
+    assert cleanup_expired_sessions() == {'deleted_sessions': 0, 'deleted_refresh_records': 0, 'deleted_email_challenges': 0}
 
 
 @pytest.mark.parametrize('batch', [0, 1001, True, '100', None])

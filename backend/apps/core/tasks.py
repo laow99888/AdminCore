@@ -18,11 +18,13 @@ def dispatch_outbox(limit=100):
         from apps.tasks.tasks import recover_lost_maintenance
         recover_lost_maintenance()
     processed = failed = 0
-    for event_id in list(OutboxEvent.objects.filter(
+    from django.db.models import Q
+    eligible = ~Q(topic='auth.email') | Q(attempts__lt=5)
+    for event_id in list(OutboxEvent.objects.filter(eligible,
         status__in=['pending', 'failed'], available_at__lte=now,
     ).order_by('created_at').values_list('id', flat=True)[:limit]):
         with transaction.atomic():
-            event = OutboxEvent.objects.select_for_update().filter(
+            event = OutboxEvent.objects.select_for_update().filter(eligible,
                 pk=event_id, status__in=['pending', 'failed'], available_at__lte=now,
             ).first()
             if event is None:
@@ -40,6 +42,9 @@ def dispatch_outbox(limit=100):
                             raise ValueError('maintenance_request_missing')
                         if request.record.status == 'pending':
                             run_maintenance.apply_async(args=[str(request.pk)], task_id=str(request.pk))
+                    elif event.topic == 'auth.email':
+                        from apps.auth_app.recovery import deliver_challenge
+                        deliver_challenge(event.payload)
                     elif event.topic != 'notification.created':
                         raise ValueError('unsupported_topic')
                     else:
@@ -80,7 +85,7 @@ def cleanup_expired_sessions(batch_size=1000):
     if type(batch_size) is not int or not 1 <= batch_size <= 1000:
         raise ValueError('清理批量范围为 1-1000')
     from django.db.models import Q
-    from apps.auth_app.models import AuthSession
+    from apps.auth_app.models import AuthSession, EmailChallenge
     from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
     cutoff = timezone.now() - timedelta(days=30)
     session_ids = list(AuthSession.objects.filter(
@@ -90,4 +95,8 @@ def cleanup_expired_sessions(batch_size=1000):
     token_ids = list(OutstandingToken.objects.filter(expires_at__lt=cutoff)
                      .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
     OutstandingToken.objects.filter(pk__in=token_ids).delete()
-    return {'deleted_sessions': sessions, 'deleted_refresh_records': len(token_ids)}
+    challenge_ids = list(EmailChallenge.objects.filter(expires_at__lt=cutoff)
+                         .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
+    EmailChallenge.objects.filter(pk__in=challenge_ids).delete()
+    return {'deleted_sessions': sessions, 'deleted_refresh_records': len(token_ids),
+            'deleted_email_challenges': len(challenge_ids)}

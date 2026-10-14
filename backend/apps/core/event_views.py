@@ -41,6 +41,8 @@ class OutboxEventViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mixins.Re
             event = self.get_queryset().select_for_update().get(pk=self.get_object().pk)
             if event.status != 'failed':
                 return Response({'code': 409, 'message': '只能重试失败事件', 'data': None}, status=409)
+            if event.topic == 'auth.email' and event.attempts >= 5:
+                return Response({'code': 409, 'message': '邮件重试次数已用尽，请用户重新申请', 'data': None}, status=409)
             event.status = 'pending'
             event.available_at = timezone.now()
             event.save(update_fields=['status', 'available_at', 'updated_at'])
