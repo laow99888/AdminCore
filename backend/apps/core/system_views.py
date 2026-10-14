@@ -14,6 +14,7 @@ from apps.logs.models import OperationLog
 from .mixins import EnvelopeResponseMixin
 from .schema import envelope
 from .models import SystemConfig, DataDictionary
+from .cache_keys import dictionary_cache_key
 from .system_config import CONFIG_DEFINITIONS, config_value
 from .system_serializers import ConfigWriteSerializer, ConfigRowSerializer, DictionarySerializer, DictionaryOptionsSerializer, BrandSerializer
 
@@ -132,7 +133,7 @@ class DictionaryViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         row = DataDictionary.objects.filter(code=code, is_active=True).first()
         if row is None:
             raise NotFound()
-        key = f'admincore:dict:{row.id}:v{row.version}'
+        key = dictionary_cache_key(row.id, row.version)
         items = cache.get(key)
         if items is None:
             items = sorted([item for item in row.items if item['is_active']], key=lambda item: item['order'])

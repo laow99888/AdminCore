@@ -5,6 +5,7 @@ from django.core.cache import cache
 from rest_framework import serializers
 from .models import SystemConfig
 from .modules import module_enabled
+from .cache_keys import config_cache_key
 
 
 def validate_logo(value):
@@ -85,7 +86,7 @@ def config_value(key):
     row = SystemConfig.objects.filter(key=key).only('id', 'value', 'version').first()
     if row is None:
         return definition.default_value()
-    cache_key = f'admincore:config:{row.id}:v{row.version}'
+    cache_key = config_cache_key(row.id, row.version)
     value = cache.get(cache_key)
     if value is None:
         value = definition.validate(row.value)

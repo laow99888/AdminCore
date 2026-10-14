@@ -8,10 +8,11 @@ const permissions: Record<string, string> = {
   '/tasks/schedules': 'schedule:read',
   '/system/information': 'diagnostics:read', '/system/monitor': 'monitor:read',
   '/organization/posts': 'post:read',
+  '/system/cache': 'cache:read',
 }
 export function canAccessPage(path: string, user: CurrentUser | null) {
   path = path.length > 1 ? path.replace(/\/+$/, '') : path
   if (!user) return false
-  if (['/organization', '/organization/posts', '/reliability/events', '/tasks/schedules', '/system/information', '/system/monitor'].includes(path) && !(user.is_staff || user.is_superuser)) return false
+  if (['/organization', '/organization/posts', '/reliability/events', '/tasks/schedules', '/system/information', '/system/monitor', '/system/cache'].includes(path) && !(user.is_staff || user.is_superuser)) return false
   return !permissions[path] || !!user.permissions?.some(code => code === '*' || code === permissions[path])
 }

@@ -49,6 +49,8 @@ PERMISSIONS = [
     ('schedule', 'run', '手动执行维护任务', 'schedule:run'),
     ('diagnostics', 'read', '查看系统信息', 'diagnostics:read'),
     ('monitor', 'read', '查看服务监控', 'monitor:read'),
+    ('cache', 'read', '查看业务缓存目录', 'cache:read'),
+    ('cache', 'clear', '清理登记的业务缓存', 'cache:clear'),
     ('config', 'read', '查看系统参数', 'config:read'),
     ('config', 'update', '修改系统参数', 'config:update'),
     ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
@@ -85,6 +87,7 @@ MENUS = [
     ('系统信息', '/system/information', 'info', 17, None, 'diagnostics:read'),
     ('服务监控', '/system/monitor', 'activity', 18, None, 'monitor:read'),
     ('岗位与任职', '/organization/posts', 'briefcase-business', 19, None, 'post:read'),
+    ('缓存管理', '/system/cache', 'database', 20, None, 'cache:read'),
 ]
 
 
@@ -166,7 +169,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update'}):
+                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -231,6 +234,14 @@ class Command(BaseCommand):
                 Menu.objects.get_or_create(path='/organization/posts', defaults={
                     'name': '岗位与任职', 'icon': 'briefcase-business', 'order': 19,
                     'permission': permission_map['post:read'],
+                })
+
+        with transaction.atomic():
+            _, first_cache_init = BootstrapState.objects.get_or_create(key='cache_management_menu_v1')
+            if first_cache_init:
+                Menu.objects.get_or_create(path='/system/cache', defaults={
+                    'name': '缓存管理', 'icon': 'database', 'order': 20,
+                    'permission': permission_map['cache:read'],
                 })
 
         Notification.push(

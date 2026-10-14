@@ -186,6 +186,39 @@ def main():
         row = api('system/dictionaries/', 'POST', {'code': 'integration', 'name': '并发测试', 'items': [], 'version': 0}, 201, token).json()['data']
         statuses = concurrent_patch('system/dictionaries/' + row['id'] + '/', [{'name': name, 'version': 1} for name in ['甲', '乙']], token)
         check('PostgreSQL 字典编辑冲突不覆盖', statuses == [200, 409])
+        # All cache fixtures below belong to this isolated random Compose project.
+        api('system/cache/', expected=401)
+        catalog = api('system/cache/', token=token).json()['data']
+        check('缓存目录使用共享 Redis 且只登记两个命名空间', catalog['backend'] == 'shared'
+              and {entry['namespace'] for entry in catalog['namespaces']} == {'configuration', 'dictionaries'})
+        warm = (
+            "from django.core.cache import cache; from apps.core.models import SystemConfig,DataDictionary; "
+            "from apps.core.system_config import config_value; from apps.core.cache_keys import config_cache_key,dictionary_cache_key; "
+            "r=SystemConfig.objects.get(key='files.retention_days'); d=DataDictionary.objects.get(code='integration'); "
+            "config_value(r.key); cache.set(dictionary_cache_key(d.id,d.version),['cache-fixture'],300); "
+            "cache.set('cache-contract-protected-lock','protected',300); "
+            "cache.set('throttle_cache_contract','protected',300); "
+            "cache.set('cache-contract-protected-session','protected',300)"
+        )
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', warm)
+        confirmation = api('system/cache/preview/', 'POST', {'namespace': 'configuration'}, token=token).json()['data']
+        api('system/cache/clear/', 'POST', {'namespace': 'configuration', 'token': confirmation['token']}, token=token)
+        verify = (
+            "from django.core.cache import cache; from apps.core.models import SystemConfig,DataDictionary; "
+            "from apps.core.cache_keys import config_cache_key,dictionary_cache_key; "
+            "r=SystemConfig.objects.get(key='files.retention_days'); d=DataDictionary.objects.get(code='integration'); "
+            "assert cache.get(config_cache_key(r.id,r.version)) is None; "
+            "assert cache.get(dictionary_cache_key(d.id,d.version))==['cache-fixture']; "
+            "assert all(cache.get(k)=='protected' for k in ['cache-contract-protected-lock','throttle_cache_contract','cache-contract-protected-session']); "
+            "from apps.core.system_config import config_value; assert config_value(r.key)==r.value; "
+            "assert cache.get(config_cache_key(r.id,r.version))==r.value"
+        )
+        check('真实 Redis 定向清理、命名空间隔离、锁/限流/会话保护和数据库重建',
+              compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', verify).returncode == 0)
+        confirmation = api('system/cache/preview/', 'POST', {'namespace': 'dictionaries'}, token=token).json()['data']
+        api('system/cache/clear/', 'POST', {'namespace': 'dictionaries', 'token': confirmation['token']}, token=token)
+        check('真实 Redis 字典缓存清理后仍按当前版本返回选项',
+              api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         departments = [api('organization/departments/', 'POST', {'name': name, 'version': 0}, 201, token).json()['data'] for name in ['甲部门', '乙部门']]
         with ThreadPoolExecutor(max_workers=2) as pool:
             futures = [pool.submit(api, 'organization/departments/' + departments[index]['id'] + '/', 'PATCH',
@@ -381,6 +414,7 @@ def main():
         api('system/dictionaries/', expected=404, token=token)
         api('system/information/', expected=404, token=token)
         api('system/monitor/', expected=404, token=token)
+        api('system/cache/', expected=404, token=token)
         api('files/recycle/', expected=404, token=token)
         api('tasks/schedules/', expected=404, token=token)
         api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 4}, 404, token)
@@ -392,6 +426,7 @@ def main():
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         check('关闭并重新启用系统诊断恢复只读入口', api('system/information/', token=token).json()['data']['environment'] == 'production')
+        check('关闭并重新启用缓存管理恢复共享缓存目录', api('system/cache/', token=token).json()['data']['backend'] == 'shared')
         check('关闭并重新启用岗位保留停用状态和历史任职',
               not api(post_url, token=token).json()['data']['is_active']
               and api('organization/user-posts/', token=token).json()['data']['items'][0]['id'] == assignment_id)

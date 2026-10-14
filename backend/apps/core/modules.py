@@ -22,7 +22,7 @@ MODULES = (
     Module('notifications', '通知中心', 'notifications', 'apps.notifications.urls', ('/notifications',)),
     Module('data_io', '数据导入导出', 'data-io', 'apps.data_io.urls', (), ('files', 'tasks'), ('data_io.run_data_import',)),
     Module('approvals', '单级审批', 'approvals', 'apps.approvals.urls', ('/approvals',), ('notifications',)),
-    Module('system', '系统管理', 'system', 'apps.core.system_urls', ('/system/config', '/system/dictionaries', '/system/information', '/system/monitor')),
+    Module('system', '系统管理', 'system', 'apps.core.system_urls', ('/system/config', '/system/dictionaries', '/system/information', '/system/monitor', '/system/cache')),
     Module('organization', '组织与数据权限', 'organization', 'apps.core.organization_urls', ('/organization',)),
 )
 PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES), 'demo': tuple(m.key for m in MODULES)}
