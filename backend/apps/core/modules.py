@@ -1,20 +1,9 @@
 """显式模块契约；保留所有 Django app 和迁移，只裁剪业务入口与执行。"""
-from dataclasses import dataclass
+from .contracts import Module, validate_registry, scope_resources
+from apps.example.manifest import MODULE as EXAMPLE_MODULE
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
-
-
-@dataclass(frozen=True)
-class Module:
-    key: str
-    title: str
-    api_prefix: str
-    urls: str
-    paths: tuple[str, ...]
-    dependencies: tuple[str, ...] = ()
-    tasks: tuple[str, ...] = ()
-    default_enabled: bool = True
 
 
 MODULES = (
@@ -26,6 +15,7 @@ MODULES = (
     Module('system', '系统管理', 'system', 'apps.core.system_urls', ('/system/config', '/system/dictionaries', '/system/information', '/system/monitor', '/system/cache')),
     Module('organization', '组织与数据权限', 'organization', 'apps.core.organization_urls', ('/organization',)),
     Module('realtime', '实时通道', 'realtime', 'apps.core.realtime_urls', (), default_enabled=False),
+    EXAMPLE_MODULE,
 )
 PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES if m.default_enabled),
            'demo': tuple(m.key for m in MODULES if m.default_enabled)}
@@ -43,6 +33,7 @@ MAINTENANCE_TASKS = {
 
 
 def resolve_modules(preset, explicit=None, production=False):
+    validate_registry(MODULES)
     if preset not in PRESETS:
         raise ImproperlyConfigured('ADMINCORE_PRESET 必须为 minimal、standard 或 demo')
     if production and preset == 'demo':
@@ -86,5 +77,7 @@ def capabilities():
         'contract_version': 1,
         'preset': settings.ADMINCORE_PRESET,
         'modules': [{'key': m.key, 'title': m.title, 'enabled': module_enabled(m.key),
-                     'dependencies': list(m.dependencies), 'paths': list(m.paths)} for m in MODULES],
+                     'dependencies': list(m.dependencies), 'paths': list(m.paths),
+                     'page_permissions': {menu.path: menu.permission for menu in m.menus}} for m in MODULES],
+        'scope_resources': [{'key': key, 'title': title} for key, title in scope_resources(MODULES)],
     }

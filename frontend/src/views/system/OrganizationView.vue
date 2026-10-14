@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
@@ -75,7 +76,8 @@ const total = ref(0)
 usePageState({ section, page, pageSize })
 const form = reactive<any>({})
 const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
-const resources: Record<string, string> = { user: '用户', file: '文件', task: '任务', log: '日志' }
+const modules = useModuleStore()
+const resources = computed<Record<string, string>>(() => Object.fromEntries((modules.config?.scope_resources || [{ key: 'user', title: '用户' }, { key: 'file', title: '文件' }, { key: 'task', title: '任务' }, { key: 'log', title: '日志' }]).map(row => [row.key, row.title])))
 const scopes: Record<string, string> = { self: '本人', department: '本部门', department_tree: '部门及下级', custom: '自定义部门', all: '全部' }
 const activeDepartments = computed(() => departments.value.filter(department => department.is_active))
 const parentOptions = computed(() => {
@@ -98,7 +100,7 @@ const departmentTree = computed(() => {
 const columns = computed(() => section.value === 'departments' ? [
   { prop: 'name', label: uiText('部门名称'), width: 200 }, { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '启用' : '停用') },
 ] : section.value === 'memberships' ? [{ prop: 'username', label: uiText('用户'), width: 180 }, { prop: 'department_name', label: uiText('部门'), width: 180 }] : [
-  { prop: 'role_name', label: uiText('角色'), width: 180 }, { prop: 'resource', label: uiText('资源'), width: 100, render: (value: string) => uiText(resources[value] || value) },
+  { prop: 'role_name', label: uiText('角色'), width: 180 }, { prop: 'resource', label: uiText('资源'), width: 100, render: (value: string) => uiText(resources.value[value] || value) },
   { prop: 'scope', label: uiText('数据范围'), width: 180, render: (value: string) => uiText(scopes[value] || value) },
 ])
 let listVersion = 0

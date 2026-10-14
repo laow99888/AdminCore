@@ -77,9 +77,16 @@ class ModuleDescriptorSerializer(serializers.Serializer):
     enabled = serializers.BooleanField()
     dependencies = serializers.ListField(child=serializers.CharField())
     paths = serializers.ListField(child=serializers.CharField())
+    page_permissions = serializers.DictField(child=serializers.CharField(), required=False)
+
+
+class ScopeResourceSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    title = serializers.CharField()
 
 
 class ModuleCapabilitiesSerializer(serializers.Serializer):
     contract_version = serializers.IntegerField()
     preset = serializers.CharField()
     modules = ModuleDescriptorSerializer(many=True)
+    scope_resources = ScopeResourceSerializer(many=True, required=False)

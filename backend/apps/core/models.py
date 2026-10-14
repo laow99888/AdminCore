@@ -5,6 +5,8 @@
 from django.db import models
 import uuid
 from django.conf import settings
+from .contracts import scope_resources
+from .modules import MODULES
 
 
 class BootstrapState(models.Model):
@@ -148,7 +150,7 @@ class UserPost(BaseModel):
 
 
 class DataScopeGrant(BaseModel):
-    RESOURCE_CHOICES = [(key, label) for key, label in [('user', '用户'), ('file', '文件'), ('task', '任务'), ('log', '日志')]]
+    RESOURCE_CHOICES = scope_resources(MODULES)
     SCOPE_CHOICES = [(key, label) for key, label in [('self', '本人'), ('department', '本部门'),
                      ('department_tree', '部门及下级'), ('custom', '自定义部门'), ('all', '全部')]]
     role = models.ForeignKey('permissions.Role', on_delete=models.CASCADE, related_name='data_scope_grants')

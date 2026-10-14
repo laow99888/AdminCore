@@ -33,6 +33,13 @@ FIELDS = {
     'lifecycle': ('category', 'count', 'ids'),
 }
 
+from apps.core.modules import MODULES
+for module in MODULES:
+    for resource, fields in module.audit_fields:
+        if resource in FIELDS:
+            raise ValueError('模块审计投影与核心资源冲突')
+        FIELDS[resource] = fields
+
 
 def project(resource, values):
     if values is None:

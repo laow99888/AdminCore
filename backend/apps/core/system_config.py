@@ -1,5 +1,5 @@
 """业务参数白名单与带版本缓存。每次读取版本，跨 API/worker 不依赖缓存失效广播。"""
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from django.conf import settings
 from django.core.cache import cache
 from rest_framework import serializers
@@ -87,10 +87,23 @@ CONFIG_DEFINITIONS = {definition.key: definition for definition in (
     ConfigDefinition('tasks.failure_email', '任务失败邮件告警（0关闭/1开启）', 'integer', 0, minimum=0, maximum=1),
 )}
 
+from .modules import MODULES
+PARAMETER_MODULES = {parameter.key: module.key for module in MODULES for parameter in module.parameters}
+for module in MODULES:
+    for parameter in module.parameters:
+        if parameter.key in CONFIG_DEFINITIONS:
+            raise ValueError('模块参数与核心参数冲突')
+        CONFIG_DEFINITIONS[parameter.key] = ConfigDefinition(**asdict(parameter))
+
+
+def visible_definitions():
+    return {key: definition for key, definition in CONFIG_DEFINITIONS.items()
+            if key not in PARAMETER_MODULES or module_enabled(PARAMETER_MODULES[key])}
+
 
 def config_value(key):
     definition = CONFIG_DEFINITIONS[key]
-    if not module_enabled('system'):
+    if not module_enabled('system') or (key in PARAMETER_MODULES and not module_enabled(PARAMETER_MODULES[key])):
         return definition.default_value()
     row = SystemConfig.objects.filter(key=key).only('id', 'value', 'version').first()
     if row is None:

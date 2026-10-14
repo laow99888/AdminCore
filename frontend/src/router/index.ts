@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/auth'
 import { ElMessage } from 'element-plus'
 import { useModuleStore } from '@/stores/modules'
 import { canAccessPage } from './access'
+import { frontendExtensions } from '@/modules/registry'
 
 // 懒加载视图
 const LoginView = () => import('../views/auth/LoginView.vue')
@@ -22,6 +23,8 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  ...frontendExtensions.map(extension => ({ path: extension.path, name: 'Extension-' + extension.key, component: extension.component,
+    meta: { title: extension.title, requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } })),
   { path: '/settings/two-factor', name: 'TwoFactor', component: () => import('../views/settings/TwoFactorView.vue'), meta: { title: '双因素认证', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/recover-password', name: 'RecoverPassword', component: () => import('../views/auth/RecoverPasswordView.vue'), meta: { title: '找回密码', requiresAuth: false, preserveOnLocaleChange: true } },
   { path: '/settings/sessions', name: 'DeviceSessions', component: () => import('../views/settings/SessionManagementView.vue'), meta: { title: '会话与设备', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
@@ -153,7 +156,7 @@ router.beforeEach(async (to, _from, next) => {
         return
       }
       if (!modules.pathEnabled(to.path)) { next('/'); return }
-      if (!canAccessPage(to.path, auth.user)) {
+      if (!canAccessPage(to.path, auth.user, modules.pagePermissions)) {
         ElMessage.error(uiText("没有访问此页面的权限"))
         next('/403')
         return

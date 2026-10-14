@@ -12,7 +12,7 @@ from .mixins import EnvelopeResponseMixin
 from .schema import envelope
 from .models import SystemConfig, DataDictionary
 from .cache_keys import dictionary_cache_key
-from .system_config import CONFIG_DEFINITIONS, config_value
+from .system_config import config_value, visible_definitions
 from .system_serializers import ConfigWriteSerializer, ConfigRowSerializer, DictionarySerializer, DictionaryOptionsSerializer, BrandSerializer
 
 
@@ -43,10 +43,11 @@ class SystemConfigView(APIView):
 
     @extend_schema(operation_id='system_config_detail', responses=envelope('SystemConfigDetailResponse', ConfigRowSerializer(many=True)))
     def get(self, request, key=None):
-        if key is not None and key not in CONFIG_DEFINITIONS:
+        allowed = visible_definitions()
+        if key is not None and key not in allowed:
             raise NotFound()
         rows = {row.key: row for row in SystemConfig.objects.all()}
-        definitions = [CONFIG_DEFINITIONS[key]] if key else CONFIG_DEFINITIONS.values()
+        definitions = [allowed[key]] if key else allowed.values()
         data = [{'key': definition.key, 'label': definition.label, 'kind': definition.kind,
                  'value': rows[definition.key].value if definition.key in rows else definition.default_value(),
                  'default': definition.default_value(), 'version': rows[definition.key].version if definition.key in rows else 0,
@@ -56,7 +57,7 @@ class SystemConfigView(APIView):
 
     @extend_schema(operation_id='system_config_write', request=ConfigWriteSerializer, responses=envelope('SystemConfigWriteResponse', ConfigRowSerializer(many=True)))
     def patch(self, request, key=None):
-        definition = CONFIG_DEFINITIONS.get(key)
+        definition = visible_definitions().get(key)
         if definition is None:
             raise NotFound()
         serializer = ConfigWriteSerializer(data=request.data)

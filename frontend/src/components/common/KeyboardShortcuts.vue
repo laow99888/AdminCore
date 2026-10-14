@@ -34,11 +34,11 @@ const preference = readKeyboardPreference(localStorage)
 const enabled = ref(preference.enabled), persistenceAvailable = ref(preference.persistenceAvailable), opened = ref(false)
 const active = computed(() => auth.isAuthenticated && !!auth.user && !auth.user.must_change_password &&
   router.currentRoute.value.meta.requiresAuth === true && router.currentRoute.value.path !== '/change-password' &&
-  canAccessPage(router.currentRoute.value.path, auth.user) && modules.pathEnabled(router.currentRoute.value.path))
+  canAccessPage(router.currentRoute.value.path, auth.user, modules.pagePermissions) && modules.pathEnabled(router.currentRoute.value.path))
 function allowed(path: string) {
   const resolved = router.resolve(path)
   return resolved.matched.length > 0 && resolved.meta.requiresAuth === true && path !== '/change-password' &&
-    canAccessPage(path, auth.user) && modules.pathEnabled(path)
+    canAccessPage(path, auth.user, modules.pagePermissions) && modules.pathEnabled(path)
 }
 function setEnabled(value: string | number | boolean) {
   enabled.value = value === true

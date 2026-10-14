@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'apps.notifications',
     'apps.data_io',
     'apps.approvals',
+    'apps.example',
 ]
 
 # 中间件
@@ -320,7 +321,8 @@ CACHES = {
 
 # ===== 日志配置 =====
 # 精简部署无需 Redis/worker；单进程限流使用本地缓存。
-if set(ADMINCORE_MODULES) <= {'realtime'}:
+if (set(ADMINCORE_MODULES) <= {'realtime'} or
+        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example'})):
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # 默认只输出控制台，由部署平台有界轮转，避免多个 worker 竞争同一文件。

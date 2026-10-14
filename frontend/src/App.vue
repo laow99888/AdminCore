@@ -61,11 +61,11 @@ async function refreshAccess() {
     }
     await modules.load(true)
     window.dispatchEvent(new Event('admincore:menus-updated'))
-    navigation.prune(path => modules.pathEnabled(path) && canAccessPage(path, auth.user))
+    navigation.prune(path => modules.pathEnabled(path) && canAccessPage(path, auth.user, modules.pagePermissions))
     const path = router.currentRoute.value.path
     if (!auth.user) await router.replace(localStorage.getItem('token') ? '/unavailable' : '/login')
     else if (!modules.pathEnabled(path)) await router.replace('/')
-    else if (!canAccessPage(path, auth.user)) await router.replace('/403')
+    else if (!canAccessPage(path, auth.user, modules.pagePermissions)) await router.replace('/403')
   } catch { await router.replace('/unavailable') }
   finally { refreshing = false }
 }

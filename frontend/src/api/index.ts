@@ -13,6 +13,26 @@ export function newIdempotencyKey(prefix = 'ui') {
   return `${prefix}-${suffix}`
 }
 
+export interface ExampleWorkItem {
+  id: string
+  title: string
+  notes: string
+  status: 'open' | 'done'
+  priority: 'normal' | 'high'
+  creator: string
+  creator_name: string
+  version: number
+  created_at: string
+}
+export type ExampleWrite = Pick<ExampleWorkItem, 'title' | 'notes' | 'status' | 'priority' | 'version'>
+export const exampleApi = {
+  list: (params?: ListParams) => getPaged<ExampleWorkItem>('/example/items/', params),
+  detail: async (id: string) => (await request.get<ApiResponse<ExampleWorkItem>>(`/example/items/${id}/`)).data.data,
+  save: (id: string, data: ExampleWrite, key: string) => id ? request.patch(`/example/items/${id}/`, data)
+    : request.post('/example/items/', data, { headers: { 'Idempotency-Key': key } }),
+  remove: (id: string, version: number) => request.delete(`/example/items/${id}/`, { data: { version } }),
+}
+
 // ===== 通用查询参数 =====
 export interface ListParams {
   page?: number

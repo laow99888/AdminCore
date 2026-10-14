@@ -12,6 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 import logging
@@ -176,6 +177,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         'message': f'{action} success',
                         'data': None,
                     })
+            except ProtectedError:
+                return Response({'code': 409, 'message': '用户仍被业务数据引用，批量操作未执行', 'data': None}, status=409)
             except Exception:
                 logger.exception('批量用户操作失败')
                 return Response({

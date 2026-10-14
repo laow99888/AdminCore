@@ -1,4 +1,6 @@
 export const uiMessages: Record<string, string> = {
+  '重新加载失败，输入已保留，请重试': 'Reload failed. Your input is preserved; please retry.',
+  '示例工单': 'Example Work Items', '新增工单': 'New Work Item', '编辑工单': 'Edit Work Item', '工单标题': 'Work Item Title', '工单说明': 'Work Item Notes', '工单状态': 'Work Item Status', '工单详情': 'Work Item Details', '优先级': 'Priority', '普通': 'Normal', '高': 'High', '待处理': 'Open', '搜索工单标题': 'Search Work Item Titles', '全部状态': 'All Statuses', '请填写工单标题': 'Enter a work item title.', '确定删除此工单？此操作不可恢复。': 'Delete this work item? This action cannot be undone.', '删除未确认，请刷新检查版本和状态': 'Deletion was not confirmed. Refresh to check its version and status.',
   '接续未提交行': 'Resume Remaining Rows', '执行次数': 'Execution Attempts', '软 / 硬超时': 'Soft / Hard Timeout',
   '取消后已提交的数据保留，后续导入行停止；确定继续吗？': 'Committed data will be kept and subsequent import rows will stop. Continue?',
   '接续将跳过已提交的行和已记录的校验错误，仅执行剩余行；确定继续吗？': 'Resume will skip committed rows and recorded validation errors, and process only remaining rows. Continue?',

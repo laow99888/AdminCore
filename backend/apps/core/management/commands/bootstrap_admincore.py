@@ -22,54 +22,13 @@ DEMO_USERNAME = 'demo'
 DEMO_PASSWORD = 'Demo#12345'
 
 # 权限清单（resource, action, name, code）
-PERMISSIONS = [
-    ('user', 'read', '查看用户', 'user:read'),
-    ('user', 'sensitive_read', '查看用户联系方式原值（需密码确认）', 'user:sensitive_read'),
-    ('user', 'create', '创建用户', 'user:create'),
-    ('user', 'update', '修改用户', 'user:update'),
-    ('user', 'delete', '删除用户', 'user:delete'),
-    ('role', 'read', '查看角色', 'role:read'),
-    ('role', 'update', '修改角色', 'role:update'),
-    ('file', 'upload', '上传文件', 'file:upload'),
-    ('file', 'download', '下载文件', 'file:download'),
-    ('file', 'recycle', '查看文件回收站', 'file:recycle'),
-    ('file', 'restore', '恢复文件', 'file:restore'),
-    ('file', 'purge', '彻底删除文件', 'file:purge'),
-    ('approval', 'read', '查看审批', 'approval:read'),
-    ('approval', 'decide', '审批处理', 'approval:decide'),
-    ('log', 'read', '查看日志', 'log:read'),
-    ('data_io', 'import', '数据导入', 'data_io:import'),
-    ('data_io', 'export', '数据导出', 'data_io:export'),
-    ('menu', 'read', '查看菜单配置', 'menu:read'),
-    ('menu', 'update', '维护菜单配置', 'menu:update'),
-    ('task', 'read', '查看任务', 'task:read'),
-    ('task', 'cancel', '取消任务', 'task:cancel'),
-    ('task', 'retry', '接续失败导入任务', 'task:retry'),
-    ('task', 'delete', '清理任务历史', 'task:delete'),
-    ('schedule', 'read', '查看维护计划', 'schedule:read'),
-    ('schedule', 'update', '修改维护计划', 'schedule:update'),
-    ('schedule', 'run', '手动执行维护任务', 'schedule:run'),
-    ('diagnostics', 'read', '查看系统信息', 'diagnostics:read'),
-    ('monitor', 'read', '查看服务监控', 'monitor:read'),
-    ('cache', 'read', '查看业务缓存目录', 'cache:read'),
-    ('cache', 'clear', '清理登记的业务缓存', 'cache:clear'),
-    ('announcement', 'read', '查看公告管理', 'announcement:read'),
-    ('announcement', 'update', '维护公告草稿', 'announcement:update'),
-    ('announcement', 'publish', '发布和撤回公告', 'announcement:publish'),
-    ('template', 'read', '查看通知模板与投递', 'template:read'),
-    ('template', 'update', '维护通知模板版本', 'template:update'),
-    ('template', 'send', '发送模板通知与重试', 'template:send'),
-    ('session', 'read', '查看在线用户', 'session:read'),
-    ('session', 'revoke', '撤销用户登录会话', 'session:revoke'),
-    ('config', 'read', '查看系统参数', 'config:read'),
-    ('config', 'update', '修改系统参数', 'config:update'),
-    ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
-    ('dictionary', 'update', '维护数据字典', 'dictionary:update'),
-    ('post', 'read', '查看岗位与任职', 'post:read'),
-    ('post', 'update', '维护岗位与任职', 'post:update'),
-]
+from apps.core.permission_declarations import PERMISSIONS as BASE_PERMISSIONS
+PERMISSIONS = list(BASE_PERMISSIONS)
 
 # 角色与权限码
+from apps.core.modules import MODULES, module_enabled
+MODULE_PERMISSION_CODES = {row[3] for module in MODULES for row in module.permissions}
+PERMISSIONS += [row for module in MODULES for row in module.permissions]
 ROLES = {
     '系统管理员': ('全部权限', [code for *_, code in PERMISSIONS]),
     '运营编辑': ('内容与用户管理', ['user:read', 'user:create', 'file:upload', 'file:download', 'file:recycle', 'file:restore', 'approval:read']),
@@ -181,7 +140,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'task:retry', 'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke', 'template:read', 'template:update', 'template:send'}):
+                if role_created or (code in new_permission_codes and code not in MODULE_PERMISSION_CODES | {'task:retry', 'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke', 'template:read', 'template:update', 'template:send'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -278,6 +237,16 @@ class Command(BaseCommand):
                     'name': '通知模板', 'icon': 'mail', 'order': 23,
                     'permission': permission_map['template:read'],
                 })
+
+        for module in MODULES:
+            if not module_enabled(module.key) or not module.menus:
+                continue
+            with transaction.atomic():
+                _, first = BootstrapState.objects.get_or_create(key='module:' + module.key + ':menus:v1')
+                if first:
+                    for menu in module.menus:
+                        Menu.objects.get_or_create(path=menu.path, defaults={'name': menu.name, 'icon': menu.icon,
+                            'order': menu.order, 'permission': permission_map[menu.permission]})
 
         Notification.push(
             recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),
