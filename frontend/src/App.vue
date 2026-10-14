@@ -9,6 +9,7 @@
         </router-view>
       </AppErrorBoundary>
       <PageWatermark />
+      <KeyboardShortcuts />
     </div>
   </el-config-provider>
 </template>
@@ -19,7 +20,6 @@ import { onMounted, onBeforeUnmount, computed, watch, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import en from 'element-plus/es/locale/lang/en'
-import { useThemeStore } from './stores/theme'
 import { useAuthStore } from './stores/auth'
 import { useModuleStore } from './stores/modules'
 import { useRouter } from 'vue-router'
@@ -27,8 +27,8 @@ import { canAccessPage } from './router/access'
 import { useNavigationStore } from './stores/navigation'
 import AppErrorBoundary from './components/common/AppErrorBoundary.vue'
 import PageWatermark from './components/common/PageWatermark.vue'
+import KeyboardShortcuts from './components/common/KeyboardShortcuts.vue'
 
-const themeStore = useThemeStore()
 const { locale } = useI18n()
 const elementLocale = computed(() => locale.value === 'en-US' ? en : zhCn)
 const auth = useAuthStore()
@@ -70,7 +70,6 @@ async function refreshAccess() {
 }
 
 onMounted(() => {
-  themeStore.initTheme()
   refreshTimer = setInterval(refreshAccess, 30000)
   window.addEventListener('focus', refreshAccess)
   document.addEventListener('visibilitychange', refreshAccess)

@@ -3,6 +3,42 @@
  * 基础样式、布局、组件覆盖等
  */
 
+/* 自定义主色只调整主色控件；透明/文本按钮继续使用主色文字。 */
+html[data-custom-theme-color] .el-button--primary:not(.is-link):not(.is-text):not(.is-plain) {
+  --el-button-text-color: var(--admincore-primary-on-color);
+  --el-button-hover-text-color: var(--admincore-primary-on-color);
+  --el-button-active-text-color: var(--admincore-primary-on-color);
+  --el-button-disabled-text-color: var(--admincore-primary-on-color);
+}
+html[data-custom-theme-color] .el-button--primary.is-plain:not(.is-link):not(.is-text) {
+  --el-button-bg-color: var(--admincore-primary-subtle);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-text-color: var(--admincore-primary-on-color);
+  --el-button-hover-bg-color: var(--el-color-primary-light-3);
+  --el-button-active-text-color: var(--admincore-primary-on-color);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+}
+html[data-custom-theme-color] .base-button.variant-primary {
+  color: var(--admincore-primary-on-color);
+}
+html[data-custom-theme-color] .retry-button {
+  background: var(--color-primary-500);
+  border-color: var(--color-primary-500);
+  color: var(--admincore-primary-on-color);
+}
+html[data-custom-theme-color] .el-checkbox {
+  --el-checkbox-checked-icon-color: var(--admincore-primary-on-color);
+}
+html[data-custom-theme-color] .el-radio-button {
+  --el-radio-button-checked-text-color: var(--admincore-primary-on-color);
+}
+html[data-custom-theme-color] .el-pagination.is-background .el-pager li.is-active {
+  color: var(--admincore-primary-on-color);
+}
+html[data-custom-theme-color] .el-radio__input.is-checked:not(.is-disabled) .el-radio__inner::after {
+  background-color: var(--admincore-primary-on-color);
+}
+
 /* ===== 根元素样式 ===== */
 
 html {

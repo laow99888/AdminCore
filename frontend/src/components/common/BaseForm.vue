@@ -3,11 +3,11 @@
     ref="formRef"
     :model="modelValue"
     :rules="rules"
-    :disabled="loading"
-    :aria-busy="loading"
+    :disabled="busy"
+    :aria-busy="busy"
     label-width="auto"
     class="base-form"
-    :class="{ 'is-loading': loading }"
+    :class="{ 'is-loading': busy }"
     @submit.prevent="handleSubmit"
   >
     <!-- 表单字段 -->
@@ -116,10 +116,10 @@
 
     <!-- 操作按钮 -->
     <div class="form-actions">
-      <el-button type="primary" native-type="submit" :loading="loading" :disabled="loading">
+      <el-button type="primary" native-type="submit" :loading="busy" :disabled="busy">
         {{ submitText || uiText('提交') }}
       </el-button>
-      <el-button :disabled="loading" @click="handleReset">{{ resetText || uiText('重置') }}</el-button>
+      <el-button :disabled="busy" @click="handleReset">{{ resetText || uiText('重置') }}</el-button>
       <slot name="actions"></slot>
     </div>
   </el-form>
@@ -128,7 +128,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref, toRaw } from 'vue'
+import { computed, nextTick, ref, toRaw } from 'vue'
 import type { FormInstance } from 'element-plus'
 
 type FieldType = 'text' | 'email' | 'password' | 'number' | 'select' | 'multiselect' | 'date' | 'datetime' | 'switch' | 'checkbox' | 'textarea'
@@ -167,6 +167,8 @@ const emit = defineEmits<{
 }>()
 
 const formRef = ref<FormInstance>()
+const validating = ref(false)
+const busy = computed(() => props.loading || validating.value)
 const initialValues = structuredClone(toRaw(props.modelValue))
 const formModel = new Proxy({} as Record<string, any>, {
   get: (_target, key: string) => props.modelValue[key],
@@ -177,17 +179,18 @@ const formModel = new Proxy({} as Record<string, any>, {
 })
 
 const handleSubmit = async () => {
-  if (props.loading) return
+  if (busy.value) return
+  validating.value = true
   try {
     const valid = await formRef.value?.validate()
-    if (valid !== false) emit('submit', props.modelValue)
+    if (valid !== false && !props.loading) emit('submit', props.modelValue)
   } catch {
     // Element Plus 在字段旁显示校验错误；不要提交或制造未处理 Promise。
-  }
+  } finally { await nextTick(); validating.value = false }
 }
 
 const handleReset = () => {
-  if (props.loading) return
+  if (busy.value) return
   emit('update:modelValue', structuredClone(initialValues))
   formRef.value?.clearValidate()
 }

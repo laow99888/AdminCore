@@ -29,8 +29,8 @@
       </BaseCard>
 
       <!-- 角色编辑 -->
-      <BaseDialog v-model="dialogVisible" :title="formData.id ? uiText('编辑角色') : uiText('新增角色')" :loading="saving" @confirm="handleSave">
-        <el-form :model="formData" label-width="90px">
+      <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="formData.id ? uiText('编辑角色') : uiText('新增角色')" :loading="saving" @confirm="handleSave">
+        <el-form :model="formData" label-width="90px" :disabled="saving">
           <el-form-item :label="uiText('角色名')" required>
             <el-input v-model="formData.name" />
           </el-form-item>
@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -105,6 +106,7 @@ const formData = reactive({
   permission_ids: [] as string[],
 })
 
+const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can('role:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', name: '', description: '', is_active: true, permission_ids: [] }) } })
 const tableColumns = [
   { prop: 'name', label: uiText("角色名") },
   { prop: 'description', label: uiText("描述") },
@@ -151,6 +153,7 @@ const handleEdit = (row: RoleRow) => {
 }
 
 const handleSave = async () => {
+  if (saving.value || !auth.can('role:update')) return
   if (!formData.name) {
     ElMessage.warning(uiText("请填写角色名"))
     return
@@ -172,7 +175,7 @@ const handleSave = async () => {
     }
     dialogVisible.value = false
     loadRoles()
-  } finally {
+  } catch { ElMessage.error(uiText('保存失败，已保留输入')) } finally {
     saving.value = false
   }
 }

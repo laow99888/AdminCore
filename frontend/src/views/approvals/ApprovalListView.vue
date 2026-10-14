@@ -51,7 +51,7 @@
         </el-descriptions>
       </BaseDialog>
       <!-- 发起申请 -->
-      <BaseDialog v-model="createVisible" :title="uiText('发起审批申请')" :loading="saving" @confirm="handleSubmit">
+      <BaseDialog v-model="createVisible" :before-close="formGuard.confirmDiscard" :title="uiText('发起审批申请')" :loading="saving" @confirm="handleSubmit">
         <el-alert v-if="submitError" :title="uiText('提交失败，输入已保留；请重新选择审批人后重试')" type="error" :closable="false" />
         <el-form :model="createForm" label-width="90px" :disabled="saving">
           <el-form-item :label="uiText('标题')" required>
@@ -78,11 +78,11 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { computed, reactive, ref } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
 import PersonPicker from '@/components/common/PersonPicker.vue'
 import type { Person } from '@/api/personnel'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -124,6 +124,7 @@ const createForm = reactive({
   content: '',
 })
 
+const formGuard = useUnsavedChanges({ source: () => ({ form: createForm, assignee: assignee.value }), active: () => createVisible.value, busy: () => saving.value, clear: () => { dialogOpen.value = false; assignee.value = null; Object.assign(createForm, { title: '', request_type: 'other', content: '' }) } })
 const tableColumns = [
   { prop: 'title', label: uiText("标题") },
   { prop: 'request_type', label: uiText("类型"), width: '100px', render: (v: string) => TYPE_LABELS[v] || v },
@@ -239,7 +240,6 @@ const handlePageSizeChange = (size: number) => {
   loadList()
 }
 
-onBeforeRouteLeave(() => !saving.value)
 loadList()
 </script>
 

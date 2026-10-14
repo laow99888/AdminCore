@@ -151,7 +151,7 @@ const isActive = (path: string) => {
 .logo-icon {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
-  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -190,7 +190,7 @@ const isActive = (path: string) => {
 
 .menu-item.active {
   color: var(--color-primary-500);
-  background-color: rgb(20 184 166 / 0.1);
+  background-color: color-mix(in srgb, var(--color-primary-500) 10%, transparent);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -234,7 +234,7 @@ const isActive = (path: string) => {
 }
 
 .collapse-btn:hover {
-  background-color: var(--color-primary-100);
+  background-color: var(--admincore-primary-subtle, var(--color-primary-100));
   color: var(--color-primary-500);
 }
 

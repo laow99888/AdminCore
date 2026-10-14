@@ -15,7 +15,8 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { BaseButton } from '@/components'
 import { uiText } from '@/i18n/uiText'
@@ -28,7 +29,8 @@ const errorRef = ref<HTMLElement>()
 const saving = ref(false)
 const error = ref('')
 const form = reactive({ old: '', new1: '', new2: '' })
-const rules: FormRules = {
+const formGuard = useUnsavedChanges({ source: () => form, busy: () => saving.value, allowForcedPassword: true, clear: () => { form.old = ''; form.new1 = ''; form.new2 = '' } })
+const rules = computed<FormRules>(() => ({
   old: [{ required: true, message: uiText('请填写当前密码和新密码'), trigger: 'blur' }],
   new1: [
     { required: true, message: uiText('请填写当前密码和新密码'), trigger: 'blur' },
@@ -36,16 +38,17 @@ const rules: FormRules = {
     { validator: (_rule, value, done) => done(value === form.old ? new Error(uiText('新密码不能与当前密码相同')) : undefined), trigger: 'blur' },
   ],
   new2: [{ validator: (_rule, value, done) => done(!value || value !== form.new1 ? new Error(uiText('两次输入的新密码不一致')) : undefined), trigger: 'blur' }],
-}
+}))
 
 async function submit() {
   if (saving.value) return
   error.value = ''
-  if (!await formRef.value?.validate().catch(() => false)) return
   saving.value = true
   try {
+    if (!await formRef.value?.validate().catch(() => false)) return
+    if (!formGuard.isCurrent()) return
     await authApi.changePassword(form.old, form.new1, form.new2)
-    form.old = ''; form.new1 = ''; form.new2 = ''
+    formGuard.discard()
     auth.clearSession()
     ElMessage.success(uiText('密码修改成功，请使用新密码重新登录'))
     window.location.assign('/login')

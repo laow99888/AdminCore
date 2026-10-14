@@ -38,7 +38,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import authApi, { type PersonalProfile, type ProfileWrite } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
@@ -54,10 +54,10 @@ const conflict = ref(false)
 const fileInput = ref<HTMLInputElement>()
 const formRef = ref<FormInstance>()
 const form = reactive({ first_name: '', last_name: '', email: '', phone: '', bio: '' })
-const baseline = ref('')
 let request: AbortController | undefined
 let alive = true
-const dirty = computed(() => !!profile.value && JSON.stringify(form) !== baseline.value)
+const formGuard = useUnsavedChanges({ source: () => form, active: () => !!profile.value, busy: () => busy.value, message: () => uiText('尚有未保存的资料，确定放弃修改吗？'), clear: () => { for (const field of Object.keys(form) as Array<keyof typeof form>) form[field] = '' } })
+const dirty = formGuard.dirty
 const canApply = (value: PersonalProfile) => alive && auth.isAuthenticated && auth.user?.id === value.id
 const rules = computed<FormRules>(() => ({
   email: [{ type: 'email', message: uiText('请输入有效邮箱'), trigger: 'blur' }],
@@ -69,7 +69,7 @@ function apply(value: PersonalProfile, reset = true) {
   auth.applyUser(value)
   if (reset) {
     for (const field of Object.keys(form) as Array<keyof typeof form>) form[field] = value[field]
-    baseline.value = JSON.stringify(form)
+    formGuard.markClean()
     formRef.value?.clearValidate()
   }
 }
@@ -89,13 +89,7 @@ async function load() {
     if (alive && !current.signal.aborted) loading.value = false
   }
 }
-async function confirmDiscard() {
-  if (!dirty.value) return true
-  try {
-    await ElMessageBox.confirm(uiText('尚有未保存的资料，确定放弃修改吗？'), uiText('提示'), { confirmButtonText: uiText('确定'), cancelButtonText: uiText('取消'), type: 'warning' })
-    return true
-  } catch { return false }
-}
+const confirmDiscard = formGuard.confirmDiscard
 async function reload() { if (await confirmDiscard()) await load() }
 async function discard() { if (profile.value && await confirmDiscard()) apply(profile.value) }
 function failed(reason: unknown) {
@@ -104,10 +98,10 @@ function failed(reason: unknown) {
 }
 async function save() {
   if (busy.value || !profile.value || conflict.value) return
-  if (!await formRef.value?.validate().catch(() => false)) return
-  if (busy.value) return
   busy.value = true; error.value = ''
   try {
+    if (!await formRef.value?.validate().catch(() => false)) return
+    if (!formGuard.isCurrent() || !profile.value) return
     const value = await authApi.saveProfile({ ...form, profile_version: profile.value.profile_version } satisfies ProfileWrite)
     if (canApply(value)) { apply(value); ElMessage.success(uiText('资料已保存')) }
   } catch (reason) { if (alive) failed(reason) }
@@ -141,15 +135,8 @@ async function remove() {
   } catch (reason) { if (alive) failed(reason) }
   finally { busy.value = false }
 }
-function beforeUnload(event: BeforeUnloadEvent) { if (dirty.value || busy.value) { event.preventDefault(); event.returnValue = '' } }
-onBeforeRouteLeave(async to => {
-  // 安全重定向优先，未保存提示不能阻断凭据撤销或管理员要求改密。
-  if (to.path === '/login' && !localStorage.getItem('token')) { auth.clearSession(); return true }
-  if (['/change-password', '/403', '/unavailable', '/500'].includes(to.path)) return true
-  return !busy.value && await confirmDiscard()
-})
-onMounted(() => { window.addEventListener('beforeunload', beforeUnload); void load() })
-onBeforeUnmount(() => { alive = false; request?.abort(); window.removeEventListener('beforeunload', beforeUnload) })
+onMounted(() => { void load() })
+onBeforeUnmount(() => { alive = false; request?.abort() })
 </script>
 
 <style scoped>

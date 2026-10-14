@@ -66,13 +66,13 @@ const buttonType = computed(() => {
 
 /* 按钮风格 */
 .variant-primary {
-  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
   border: none;
 }
 
 .variant-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(20, 184, 166, 0.3);
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--color-primary-500) 30%, transparent);
 }
 
 .variant-primary:active:not(:disabled) {

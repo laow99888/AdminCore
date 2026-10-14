@@ -11,7 +11,7 @@
         <template #actions="{ row }"><el-button v-if="auth.can('dictionary:update')" link type="primary" @click="edit(row)">{{ uiText('编辑') }}</el-button></template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="visible" :title="uiText(form.id ? '编辑字典' : '新增字典')" :loading="saving" @confirm="save">
+    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑字典' : '新增字典')" :loading="saving" @confirm="save">
       <div v-if="formError" ref="errorSummary" role="alert" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" class="notice" /></div>
       <el-form label-position="top" :disabled="saving">
         <el-form-item :label="uiText('编码')" required><el-input v-model="form.code" :disabled="!!form.id" maxlength="64" /></el-form-item>
@@ -35,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -58,6 +59,7 @@ const error = ref('')
 const formError = ref('')
 useErrorSummary(formError)
 const form = reactive<DictionaryRow>({ id: '', code: '', name: '', description: '', is_active: true, items: [], version: 0 })
+const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value, canEdit: () => auth.can('dictionary:update'), clear: () => { visible.value = false; Object.assign(form, { id: '', code: '', name: '', description: '', is_active: true, items: [], version: 0 }) } })
 const columns = computed(() => [{ prop: 'code', label: uiText('编码'), width: 180 }, { prop: 'name', label: uiText('名称'), width: 200 },
   { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '启用' : '停用') }])
 async function load() {
@@ -77,7 +79,7 @@ function edit(row?: DictionaryRow) {
 }
 function addItem() { form.items.push({ label: '', value: '', order: form.items.length, is_active: true }) }
 async function save() {
-  if (saving.value) return
+  if (saving.value || !auth.can('dictionary:update')) return
   formError.value = ''
   if (!/^[a-z][a-z0-9_]{0,63}$/.test(form.code) || !form.name.trim()) { formError.value = uiText('请填写有效编码和名称'); return }
   if (form.items.some(item => !item.label.trim() || !item.value) || new Set(form.items.map(item => item.value)).size !== form.items.length) {

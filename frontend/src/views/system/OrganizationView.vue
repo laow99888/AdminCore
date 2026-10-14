@@ -18,7 +18,7 @@
       </BaseTable>
       <BaseButton v-if="referencesFailed" @click="loadReferences">{{ uiText('重新加载选项') }}</BaseButton>
     </BaseCard>
-    <BaseDialog v-model="visible" :title="uiText(form.id ? '编辑' : '新增')" :loading="saving" @confirm="save">
+    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑' : '新增')" :loading="saving" @confirm="save">
       <div v-if="formError" ref="errorSummary" role="alert" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" class="notice" /></div>
       <el-form label-position="top" :disabled="saving">
         <template v-if="section === 'departments'">
@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -51,7 +52,9 @@ import { organizationApi, type DepartmentRow, type OrganizationSection } from '@
 import { rolesApi, usersApi } from '@/api'
 import { uiText } from '@/i18n/uiText'
 import { useErrorSummary } from '@/composables/useErrorSummary'
+import { useAuthStore } from '@/stores/auth'
 
+const auth = useAuthStore()
 const section = ref<OrganizationSection>('departments')
 const rows = ref<any[]>([])
 const departments = ref<DepartmentRow[]>([])
@@ -71,6 +74,7 @@ const pageSize = ref(20)
 const total = ref(0)
 usePageState({ section, page, pageSize })
 const form = reactive<any>({})
+const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
 const resources: Record<string, string> = { user: '用户', file: '文件', task: '任务', log: '日志' }
 const scopes: Record<string, string> = { self: '本人', department: '本部门', department_tree: '部门及下级', custom: '自定义部门', all: '全部' }
 const activeDepartments = computed(() => departments.value.filter(department => department.is_active))
@@ -156,7 +160,7 @@ function edit(row?: any) {
   }
 }
 async function save() {
-  if (saving.value) return
+  if (saving.value || !(auth.user?.is_staff || auth.user?.is_superuser)) return
   formError.value = ''
   let data: object
   if (section.value === 'departments') {

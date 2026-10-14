@@ -49,8 +49,8 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { ElMessage } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useSidebar } from '@/composables/useSidebar'
@@ -68,12 +68,11 @@ const error = ref('')
 const editorError = ref('')
 const runError = ref('')
 const editor = ref<MaintenanceSchedule | null>(null)
-const editorBaseline = ref('')
 const execution = ref<MaintenanceSchedule | null>(null)
 const confirmation = ref('')
 const busyKey = ref('')
 const busy = computed(() => !!busyKey.value)
-const dirty = computed(() => !!editor.value && JSON.stringify(editor.value) !== editorBaseline.value)
+const formGuard = useUnsavedChanges({ source: () => editor.value, active: () => !!editor.value, busy: () => busy.value, canEdit: () => auth.can('schedule:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), message: () => uiText('计划有未保存内容，确定放弃吗？'), clear: () => { editor.value = null } })
 const attempts = new Map<string, string>()
 let alive = true
 let loadGeneration = 0
@@ -92,12 +91,9 @@ async function load() {
   finally { if (alive && generation === loadGeneration) loading.value = false }
 }
 function edit(row: MaintenanceSchedule) {
-  editor.value = JSON.parse(JSON.stringify(row)); editorBaseline.value = JSON.stringify(editor.value); editorError.value = ''
+  editor.value = JSON.parse(JSON.stringify(row)); formGuard.markClean(); editorError.value = ''
 }
-async function discard() {
-  if (!dirty.value) return true
-  try { await ElMessageBox.confirm(uiText('计划有未保存内容，确定放弃吗？'), uiText('确认'), { type: 'warning' }); return true } catch { return false }
-}
+const discard = formGuard.confirmDiscard
 async function closeEditor(done?: () => void) { if (!busy.value && await discard()) { editor.value = null; done?.() } }
 function closeExecution(done: () => void) { if (!busy.value) { execution.value = null; done() } }
 async function reloadEditor() {
@@ -132,13 +128,8 @@ async function submit(row: MaintenanceSchedule, dryRun: boolean) {
   } catch { if (alive) { const message = uiText('提交失败，请刷新计划或重新预览后重试'); if (dryRun) error.value = message; else runError.value = message } }
   finally { busyKey.value = '' }
 }
-onBeforeRouteLeave(async to => {
-  if (['/login', '/change-password', '/403', '/unavailable', '/500'].includes(to.path)) return true
-  return !busy.value && await discard()
-})
-function beforeUnload(event: BeforeUnloadEvent) { if (dirty.value || busy.value) { event.preventDefault(); event.returnValue = '' } }
-onMounted(() => { window.addEventListener('beforeunload', beforeUnload); void load() })
-onBeforeUnmount(() => { alive = false; loadGeneration += 1; window.removeEventListener('beforeunload', beforeUnload) })
+onMounted(() => { void load() })
+onBeforeUnmount(() => { alive = false; loadGeneration += 1 })
 </script>
 
 <style scoped>

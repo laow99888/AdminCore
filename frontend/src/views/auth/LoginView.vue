@@ -8,7 +8,7 @@
           <h1 class="title">{{ brand.name }}</h1>
           <p class="subtitle">{{ uiText(brand.tagline) }}</p>
         </div>
-        <el-form ref="formRef" :model="form" @keyup.enter="handleLogin" class="login-form">
+        <el-form ref="formRef" :model="form" :disabled="loading" @submit.prevent="handleLogin" @keyup.enter="handleLogin" class="login-form">
           <el-form-item prop="username">
             <el-input
               v-model="form.username"
@@ -73,6 +73,7 @@ const form = ref({
 })
 
 const handleLogin = async () => {
+  if (loading.value) return
   if (!form.value.username || !form.value.password) {
     ElMessage.error(uiText("请输入用户名和密码"))
     return
@@ -175,7 +176,7 @@ const handleLogin = async () => {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   margin: 0 0 var(--spacing-sm);
-  background: linear-gradient(135deg, #14b8a6 0%, #64748b 100%);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, #64748b 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -202,14 +203,14 @@ const handleLogin = async () => {
   height: 40px;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
   border: none;
   transition: all var(--transition-fast);
 }
 
 .login-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(20, 184, 166, 0.3);
+  box-shadow: 0 8px 16px color-mix(in srgb, var(--color-primary-500) 30%, transparent);
 }
 
 .login-btn:active:not(:disabled) {

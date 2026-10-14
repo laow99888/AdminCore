@@ -30,7 +30,7 @@
         <template #empty><el-empty :description="uiText('暂无菜单数据')" :image-size="80" /></template>
       </el-table>
     </BaseCard>
-    <BaseDialog v-model="dialogVisible" :title="form.id ? uiText('编辑菜单') : uiText('新增菜单')" width="560px" :loading="saving || permissionsLoading" :confirm-disabled="permissionsFailed" @confirm="saveMenu">
+    <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="form.id ? uiText('编辑菜单') : uiText('新增菜单')" width="560px" :loading="saving || permissionsLoading" :confirm-disabled="permissionsFailed" @confirm="saveMenu">
       <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px" :disabled="saving">
         <el-form-item :label="uiText('菜单名')" prop="name"><el-input v-model="form.name" maxlength="100" /></el-form-item>
@@ -47,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { isAxiosError } from 'axios'
@@ -70,6 +71,7 @@ const permissionsFailed = ref(false)
 const permissionOptions = ref<Array<{ id: string; name: string }>>([])
 const emptyForm = () => ({ id: '', name: '', path: '', icon: '', order: 0, parent: null as string | null, permission: null as string | null, is_visible: true })
 const form = reactive(emptyForm())
+const formGuard = useUnsavedChanges({ source: () => form, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can('menu:update'), clear: () => { dialogVisible.value = false; Object.assign(form, emptyForm()) } })
 const rules: FormRules = {
   name: [{ required: true, message: uiText('请输入菜单名'), trigger: 'blur' }],
   path: [{ required: true, pattern: /^\/(?!\/)[^?#\\]*$/, message: uiText('请输入以 / 开头的站内路由'), trigger: 'blur' }],
@@ -111,11 +113,12 @@ const openEditor = (row?: MenuRow) => {
   loadPermissions()
 }
 const saveMenu = async () => {
-  if (saving.value || permissionsLoading.value || permissionsFailed.value) return
-  try { if (!(await formRef.value?.validate())) return } catch { return }
+  if (saving.value || permissionsLoading.value || permissionsFailed.value || !auth.can('menu:update')) return
   saving.value = true
   formError.value = ''
   try {
+    if (!await formRef.value?.validate().catch(() => false)) return
+    if (!formGuard.isCurrent()) return
     const { id, ...data } = form
     data.parent ||= null
     data.permission ||= null

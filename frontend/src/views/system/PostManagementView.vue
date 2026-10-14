@@ -10,7 +10,7 @@
         <template #actions="{ row }"><el-button v-if="section === 'posts'" link type="primary" :disabled="saving" @click="edit(row)">{{ uiText('编辑') }}</el-button><el-button link type="danger" :disabled="saving" @click="remove(row)">{{ uiText(section === 'posts' ? '删除' : '移除任职') }}</el-button></template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="visible" :title="uiText(section === 'posts' ? (form.id ? '编辑岗位' : '新增岗位') : '分配岗位')" :loading="saving" :confirm-disabled="choicesLoading || !!choicesError" @confirm="save">
+    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(section === 'posts' ? (form.id ? '编辑岗位' : '新增岗位') : '分配岗位')" :loading="saving" :confirm-disabled="choicesLoading || !!choicesError" @confirm="save">
       <div v-if="formError" ref="errorSummary" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" /></div>
       <el-form label-position="top" :disabled="saving">
         <template v-if="section === 'posts'">
@@ -34,9 +34,9 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import PersonPicker from '@/components/common/PersonPicker.vue'
@@ -45,12 +45,15 @@ import type { Person } from '@/api/personnel'
 import request, { type ApiResponse } from '@/api/request'
 import { uiText } from '@/i18n/uiText'
 import { useErrorSummary } from '@/composables/useErrorSummary'
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
 const section = ref<PostSection>('posts'), rows = ref<Array<PostRow | UserPostRow>>([]), page = ref(1), pageSize = ref(10), total = ref(0), search = ref(''), appliedSearch = ref('')
 usePageState({ section, page, pageSize, search, appliedSearch })
 const loading = ref(false), saving = ref(false), error = ref(false), formError = ref(''), conflict = ref(false), dialogOpen = ref(false)
 const visible = computed({ get: () => dialogOpen.value, set: value => { if (!saving.value) dialogOpen.value = value } })
 const form = reactive<PostRow>({ id: '', code: '', name: '', description: '', order: 0, is_active: true, version: 0 })
 const person = ref<Person | null>(null), postId = ref(''), choices = ref<PostRow[]>([]), choicesLoading = ref(false), choicesError = ref(false)
+const formGuard = useUnsavedChanges({ source: () => ({ form, person: person.value, postId: postId.value }), active: () => visible.value, busy: () => saving.value, canEdit: () => auth.can('post:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { dialogOpen.value = false; person.value = null; postId.value = ''; Object.assign(form, { id: '', code: '', name: '', description: '', order: 0, is_active: true, version: 0 }) } })
 useErrorSummary(formError)
 const columns = computed(() => section.value === 'posts' ? [
   { prop: 'code', label: uiText('岗位编码'), width: 160 }, { prop: 'name', label: uiText('岗位名称'), width: 180 },
@@ -71,16 +74,17 @@ function changePage(value: number) { page.value = value; void loadRows() }
 function changeSize(value: number) { pageSize.value = value; page.value = 1; void loadRows() }
 async function loadChoices() { choicesLoading.value = true; choicesError.value = false; choices.value = []; try { choices.value = await postsApi.choices() } catch { choicesError.value = true } finally { choicesLoading.value = false } }
 function edit(row?: PostRow) {
+  if (!auth.can('post:update') || saving.value) return
   formError.value = ''; conflict.value = false; person.value = null; postId.value = ''
   Object.assign(form, row || { id: '', code: '', name: '', description: '', order: 0, is_active: true, version: 0 })
   dialogOpen.value = true
   if (section.value === 'user-posts') void loadChoices()
 }
 async function reloadForm() {
-  try { await ElMessageBox.confirm(uiText('重新加载会丢弃当前输入，确定继续？'), uiText('提示')); const data = (await request.get<ApiResponse<PostRow>>(`/organization/posts/${form.id}/`)).data.data; Object.assign(form, data); conflict.value = false; formError.value = '' } catch { /* 取消或请求错误保留输入 */ }
+  try { await ElMessageBox.confirm(uiText('重新加载会丢弃当前输入，确定继续？'), uiText('提示')); const data = (await request.get<ApiResponse<PostRow>>(`/organization/posts/${form.id}/`)).data.data; Object.assign(form, data); formGuard.markClean(); conflict.value = false; formError.value = '' } catch { /* 取消或请求错误保留输入 */ }
 }
 async function save() {
-  if (saving.value || choicesLoading.value || choicesError.value) return
+  if (saving.value || choicesLoading.value || choicesError.value || !auth.can('post:update')) return
   formError.value = ''
   if (section.value === 'posts' && (!/^[a-z][a-z0-9_]{0,63}$/.test(form.code) || !form.name.trim())) { formError.value = uiText('请填写有效岗位编码和名称'); return }
   if (section.value === 'user-posts' && (!person.value || !postId.value)) { formError.value = uiText('请选择人员和岗位'); return }
@@ -99,7 +103,6 @@ async function remove(row: PostRow | UserPostRow) {
   catch { ElMessage.warning(uiText('移除失败，请刷新后检查版本或关联任职')) }
   finally { saving.value = false }
 }
-onBeforeRouteLeave(() => !saving.value)
 onBeforeUnmount(() => { alive = false; generation++ })
 void loadRows()
 </script>

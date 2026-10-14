@@ -48,6 +48,13 @@
         </button>
       </div>
 
+      <!-- 快捷键帮助 -->
+      <div class="header-action">
+        <button class="action-btn shortcut-help" :title="uiText('快捷键帮助')" :aria-label="uiText('快捷键帮助')" @click="openKeyboardHelp">
+          <Keyboard :size="17" :stroke-width="1.75" aria-hidden="true" />
+        </button>
+      </div>
+
       <!-- 语言切换 -->
       <div class="header-action">
         <el-dropdown @command="switchLanguage">
@@ -94,7 +101,9 @@ import { useThemeStore } from '../../stores/theme'
 import { useAuthStore } from '../../stores/auth'
 import { notificationsApi } from '../../api'
 import { useI18n } from 'vue-i18n'
-import { Search, Bell, Sun, Moon, Languages, Menu } from 'lucide-vue-next'
+import { Search, Bell, Sun, Moon, Languages, Menu, Keyboard } from 'lucide-vue-next'
+import { KEYBOARD_HELP_EVENT } from '@/utils/keyboardShortcuts'
+import { confirmPendingForms } from '@/composables/useUnsavedChanges'
 import PrivateAvatar from '@/components/auth/PrivateAvatar.vue'
 import { useSidebar } from '../../composables/useSidebar'
 import { useModuleStore } from '@/stores/modules'
@@ -108,6 +117,7 @@ const { locale } = useI18n()
 const { isCollapsed, toggle: toggleSidebar } = useSidebar()
 
 const searchQuery = ref('')
+function openKeyboardHelp() { window.dispatchEvent(new Event(KEYBOARD_HELP_EVENT)) }
 const notificationCount = ref(0)
 
 const isDark = computed(() => themeStore.isDark)
@@ -148,7 +158,9 @@ const toggleTheme = () => {
 }
 
 // 切换语言
-const switchLanguage = (command: string) => {
+const switchLanguage = async (command: string) => {
+  if (command === locale.value || !['zh-CN', 'en-US'].includes(command)) return
+  if (!route.meta.preserveOnLocaleChange && !await confirmPendingForms()) return
   locale.value = command
   localStorage.setItem('language', command)
 }
@@ -257,7 +269,7 @@ const handleCommand = async (command: string) => {
 }
 
 .action-btn:hover {
-  background-color: var(--color-primary-100);
+  background-color: var(--admincore-primary-subtle, var(--color-primary-100));
   color: var(--color-primary-500);
 }
 
@@ -266,6 +278,8 @@ const handleCommand = async (command: string) => {
   gap: var(--spacing-sm);
   padding: 0 var(--spacing-md);
 }
+
+.shortcut-help { width: 44px; height: 44px; }
 
 .user-avatar {
   font-size: var(--font-size-sm);
@@ -292,6 +306,7 @@ const handleCommand = async (command: string) => {
 }
 
 @media (max-width: 768px) {
+  .header-right { gap: var(--spacing-xs); }
   .app-header {
     padding: 0 var(--spacing-lg);
     gap: var(--spacing-md);

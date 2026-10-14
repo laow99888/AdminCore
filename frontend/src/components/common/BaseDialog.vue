@@ -4,6 +4,8 @@
     :title="title || uiText('对话框')"
     :width="dialogWidth"
     :close-on-click-modal="false"
+    :before-close="guardClose"
+    :close-on-press-escape="!loading"
     class="base-dialog"
     @close="handleClose"
   >
@@ -16,7 +18,7 @@
     <template #footer>
       <div class="dialog-footer">
         <slot name="footer">
-          <el-button v-if="showCancel" @click="handleCancel">{{ uiText("取消") }}</el-button>
+          <el-button v-if="showCancel" :disabled="loading" @click="handleCancel">{{ uiText("取消") }}</el-button>
           <el-button type="primary" :loading="loading" :disabled="loading || confirmDisabled" @click="handleConfirm">
             {{ confirmText || uiText('确认') }}
           </el-button>
@@ -40,6 +42,7 @@ interface Props {
   confirmDisabled?: boolean
   confirmText?: string
   showCancel?: boolean
+  beforeClose?: ((done: () => void) => void) | (() => Promise<boolean>)
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -71,8 +74,18 @@ const handleConfirm = () => {
 }
 
 const handleCancel = () => {
-  isVisible.value = false
-  emit('cancel')
+  void guardClose(() => { isVisible.value = false; emit('cancel') })
+}
+
+async function guardClose(done: () => void) {
+  if (props.loading) return
+  if (!props.beforeClose) { done(); return }
+  let completed = false
+  const finish = () => { if (!completed && !props.loading) { completed = true; done() } }
+  try {
+    const result = await props.beforeClose(finish)
+    if (result === true) finish()
+  } catch { /* A failed close check preserves the dialog and its input. */ }
 }
 
 const handleClose = () => {

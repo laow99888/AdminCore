@@ -65,8 +65,8 @@
       </BaseCard>
 
       <!-- 用户编辑对话框 -->
-      <BaseDialog v-model="dialogVisible" :title="dialogTitle" :loading="saving || rolesLoading" :confirm-disabled="rolesFailed" @confirm="handleSaveUser">
-        <el-form :model="formData" label-width="100px">
+      <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="dialogTitle" :loading="saving || rolesLoading" :confirm-disabled="rolesFailed" @confirm="handleSaveUser">
+        <el-form :model="formData" label-width="100px" :disabled="saving">
           <el-form-item :label="uiText('用户名')" required>
             <el-input v-model="formData.username" :disabled="!!formData.id" />
           </el-form-item>
@@ -97,8 +97,8 @@
         </el-form>
       </BaseDialog>
 
-      <BaseDialog v-model="resetVisible" :title="uiText('重置密码')" :loading="resetSaving" @confirm="saveResetPassword">
-        <el-form label-position="top">
+      <BaseDialog v-model="resetVisible" :before-close="resetGuard.confirmDiscard" :title="uiText('重置密码')" :loading="resetSaving" @confirm="saveResetPassword">
+        <el-form label-position="top" :disabled="resetSaving">
           <p>{{ resetTarget?.username }}</p>
           <el-form-item :label="uiText('新密码')" required>
             <el-input v-model="resetValue" type="password" show-password autocomplete="new-password" :disabled="resetSaving" />
@@ -128,6 +128,7 @@
 </template>
 
 <script setup lang="ts">
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -195,6 +196,7 @@ const formData = reactive({
   role_ids: [] as string[],
 })
 
+const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can(formData.id ? 'user:update' : 'user:create'), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true }) } })
 const tableColumns = [
   { prop: 'username', label: uiText("用户名") },
   { prop: 'email', label: uiText("邮箱") },
@@ -251,8 +253,11 @@ const handleCreate = () => {
 }
 
 const handleEdit = async (row: UserRow) => {
+  if (saving.value || dialogVisible.value || !auth.can('user:update')) return
+  const owner = auth.user?.id
   try {
     const detail = await usersApi.detail(row.id)
+    if (auth.user?.id !== owner || !auth.can('user:update') || !formGuard.isSessionCurrent()) return
     Object.assign(formData, { id: '', username: '', email: '', first_name: '', last_name: '', is_active: true, password: '' }, detail)
     formData.role_ids = detail.roles.map((role) => role.role__id)
     dialogVisible.value = true
@@ -263,7 +268,7 @@ const handleEdit = async (row: UserRow) => {
 }
 
 const handleSaveUser = async () => {
-  if (rolesLoading.value || rolesFailed.value) return
+  if (saving.value || rolesLoading.value || rolesFailed.value || !auth.can(formData.id ? 'user:update' : 'user:create')) return
   if (!formData.username || !formData.email || (!formData.id && !formData.password)) {
     ElMessage.warning(uiText("请填写必填项（用户名、邮箱、初始密码）"))
     return
@@ -320,6 +325,7 @@ const resetSaving = ref(false)
 const resetTarget = ref<UserRow>()
 const resetValue = ref('')
 const resetRequired = ref(true)
+const resetGuard = useUnsavedChanges({ source: () => ({ value: resetValue.value, required: resetRequired.value }), active: () => resetVisible.value, busy: () => resetSaving.value, canEdit: () => auth.can('user:update'), clear: () => { resetVisible.value = false; resetValue.value = ''; resetRequired.value = true; resetTarget.value = undefined } })
 const handleResetPassword = (row: UserRow) => {
   resetTarget.value = row
   resetValue.value = ''
@@ -327,7 +333,7 @@ const handleResetPassword = (row: UserRow) => {
   resetVisible.value = true
 }
 const saveResetPassword = async () => {
-  if (resetSaving.value || !resetTarget.value) return
+  if (resetSaving.value || !resetTarget.value || !auth.can('user:update')) return
   if (resetValue.value.length < 8) { ElMessage.warning(uiText('密码至少 8 位')); return }
   resetSaving.value = true
   try {
