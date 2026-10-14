@@ -3,6 +3,7 @@
     <AppSidebar />
     <div class="layout-main">
       <AppHeader />
+      <NavigationTabs />
       <main class="layout-content">
         <slot></slot>
       </main>
@@ -14,6 +15,7 @@
 
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
+import NavigationTabs from './NavigationTabs.vue'
 </script>
 
 <style scoped>
@@ -34,6 +36,7 @@ import AppHeader from './AppHeader.vue'
 
 .layout-content {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--spacing-xl);

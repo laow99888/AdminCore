@@ -8,7 +8,7 @@
       >
         <Menu :size="18" :stroke-width="1.75" />
       </button>
-      <h1 class="header-title">{{ currentPageTitle }}</h1>
+      <component :is="route.meta.hasPageHeading ? 'span' : 'h1'" class="header-title">{{ currentPageTitle }}</component>
     </div>
 
     <div class="header-right">
@@ -88,7 +88,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { onMounted, onUnmounted, ref, computed } from 'vue'
+import { onMounted, onUnmounted, onActivated, onDeactivated, watch, ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useThemeStore } from '../../stores/theme'
 import { useAuthStore } from '../../stores/auth'
@@ -115,39 +115,31 @@ const displayName = computed(() => authStore.user?.username || 'Admin')
 
 // 未读通知数轮询
 let pollTimer: number | undefined
+let active = true
 const refreshUnread = async () => {
+  if (!active || !modules.enabled('notifications')) return
   try {
     notificationCount.value = await notificationsApi.unreadCount()
   } catch {
     // 静默失败，下一轮再试
   }
 }
-onMounted(() => {
-  if (modules.enabled('notifications')) {
+function startPolling() {
+  window.clearInterval(pollTimer)
+  if (active && modules.enabled('notifications')) {
     refreshUnread()
     pollTimer = window.setInterval(refreshUnread, 60000)
   }
-})
+}
+onMounted(startPolling)
+onActivated(() => { active = true; startPolling() })
+onDeactivated(() => { active = false; window.clearInterval(pollTimer) })
+watch(() => modules.enabled('notifications'), startPolling)
 onUnmounted(() => window.clearInterval(pollTimer))
 
 // 当前页面标题
 const currentPageTitle = computed(() => {
-  const titles: Record<string, string> = {
-    '/': uiText("仪表盘"),
-    '/users': uiText("用户管理"),
-    '/roles': uiText("角色权限"),
-    '/menus': uiText("菜单管理"),
-    '/files': uiText("文件管理"),
-    '/tasks': uiText("任务中心"),
-    '/approvals': uiText("审批工作流"),
-    '/logs': uiText("操作日志"),
-    '/notifications': uiText("通知中心"),
-    '/settings': uiText("系统设置"),
-    '/system/config': uiText('系统参数'),
-    '/system/dictionaries': uiText('数据字典'),
-    '/organization': uiText('组织与数据权限'),
-  }
-  return titles[route.path] || 'AdminCore'
+  return typeof route.meta.title === 'string' ? uiText(route.meta.title) : 'AdminCore'
 })
 
 // 切换主题

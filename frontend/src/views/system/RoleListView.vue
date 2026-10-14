@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { onMounted, reactive, ref } from 'vue'
@@ -95,6 +96,7 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+usePageState({ currentPage, pageSize })
 const formData = reactive({
   id: '',
   name: '',

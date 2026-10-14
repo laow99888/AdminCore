@@ -1,22 +1,27 @@
 <template>
   <el-config-provider :locale="elementLocale">
     <div class="app-container">
-      <router-view :key="route.meta.preserveOnLocaleChange ? route.path : locale" />
+      <router-view v-slot="{ Component, route: viewRoute }">
+        <KeepAlive :key="navigation.epoch" :include="cacheIncludes" :max="1">
+          <component :is="Component" :key="viewRoute.path + ':' + (viewRoute.meta.preserveOnLocaleChange ? '' : locale)" />
+        </KeepAlive>
+      </router-view>
     </div>
   </el-config-provider>
 </template>
 
 <script setup lang="ts">
 
-import { onMounted, onBeforeUnmount, computed } from 'vue'
+import { onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import en from 'element-plus/es/locale/lang/en'
 import { useThemeStore } from './stores/theme'
 import { useAuthStore } from './stores/auth'
 import { useModuleStore } from './stores/modules'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { canAccessPage } from './router/access'
+import { useNavigationStore } from './stores/navigation'
 
 const themeStore = useThemeStore()
 const { locale } = useI18n()
@@ -24,7 +29,12 @@ const elementLocale = computed(() => locale.value === 'en-US' ? en : zhCn)
 const auth = useAuthStore()
 const modules = useModuleStore()
 const router = useRouter()
-const route = useRoute()
+const navigation = useNavigationStore()
+const cacheIncludes = computed(() => navigation.tabs.some(tab => tab.path === '/logs') ? ['OperationLogView'] : [])
+watch(() => JSON.stringify([auth.token, auth.user?.id, auth.user?.must_change_password,
+  auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, modules.config]), () => {
+  navigation.clear()
+}, { flush: 'sync' })
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let refreshing = false
 async function refreshAccess() {
@@ -42,6 +52,7 @@ async function refreshAccess() {
     }
     await modules.load(true)
     window.dispatchEvent(new Event('admincore:menus-updated'))
+    navigation.prune(path => modules.pathEnabled(path) && canAccessPage(path, auth.user))
     const path = router.currentRoute.value.path
     if (!auth.user) await router.replace(localStorage.getItem('token') ? '/unavailable' : '/login')
     else if (!modules.pathEnabled(path)) await router.replace('/')
@@ -56,10 +67,12 @@ onMounted(() => {
   window.addEventListener('focus', refreshAccess)
   document.addEventListener('visibilitychange', refreshAccess)
 })
+window.addEventListener('admincore:session-cleared', navigation.clear)
 onBeforeUnmount(() => {
   clearInterval(refreshTimer)
   window.removeEventListener('focus', refreshAccess)
   document.removeEventListener('visibilitychange', refreshAccess)
+  window.removeEventListener('admincore:session-cleared', navigation.clear)
 })
 </script>
 

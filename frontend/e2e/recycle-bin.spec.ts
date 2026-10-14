@@ -64,7 +64,7 @@ test('只有查看权限时不显示恢复和彻底删除入口', async ({ page 
   await setup(page, ['file:recycle'])
   await page.addInitScript(() => localStorage.setItem('language', 'en-US'))
   await page.goto('/files/recycle')
-  await expect(page.getByText('File Recycle Bin', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'File Recycle Bin', exact: true })).toBeVisible()
   await expect(page.getByText(record.original_name, { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: /Restore|Delete|Edit/ })).toHaveCount(0)
   await page.screenshot({ path: test.info().outputPath('recycle-readonly-en.png'), fullPage: true })

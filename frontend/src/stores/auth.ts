@@ -115,6 +115,7 @@ export const useAuthStore = defineStore('auth', () => {
     fetchedAt = 0
     localStorage.removeItem('token')
     localStorage.removeItem('refreshToken')
+    window.dispatchEvent(new Event('admincore:session-cleared'))
   }
 
   function can(permission: string) {

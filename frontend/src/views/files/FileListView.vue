@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { ref } from 'vue'
@@ -63,6 +64,7 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+usePageState({ currentPage, pageSize })
 const tableColumns = [
   { prop: 'original_name', label: uiText("文件名") },
   { prop: 'file_type', label: uiText("类型"), width: '90px' },

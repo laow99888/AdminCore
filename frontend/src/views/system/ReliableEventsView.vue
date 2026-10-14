@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -58,6 +59,7 @@ const statusFilter = ref('')
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
+usePageState({ statusFilter, page, pageSize })
 const statusLabels = { pending: uiText('等待执行'), failed: uiText('失败'), succeeded: uiText('已投递') }
 const columns = [
   { prop: 'topic', label: uiText('事件主题'), minWidth: '180px' },

@@ -35,6 +35,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
@@ -49,6 +50,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 const keyword = ref('')
+usePageState({ keyword, page, pageSize })
 const loading = ref(false)
 const saving = ref(false)
 const visible = ref(false)

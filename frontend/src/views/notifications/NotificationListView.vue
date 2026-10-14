@@ -52,6 +52,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { ref } from 'vue'
@@ -69,6 +70,7 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+usePageState({ filterRead, currentPage, pageSize })
 const TYPE_LABELS: Record<string, string> = {
   system: uiText("系统"),
   approval: uiText("审批"),

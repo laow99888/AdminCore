@@ -1,4 +1,6 @@
 export const uiMessages: Record<string, string> = {
+  '首页': 'Home', '页面导航': 'Page navigation', '关闭其他页签': 'Close other tabs',
+  '面包屑': 'Breadcrumb', '已打开页面': 'Open pages', '页签操作': 'Tab actions', '关闭页签 {p0}': 'Close tab {p0}', '系统管理': 'System Management',
   '岗位与任职': 'Posts and Assignments', '岗位': 'Post', '人员任职': 'Assignments', '新增岗位': 'New Post', '编辑岗位': 'Edit Post', '分配岗位': 'Assign Post',
   '岗位编码': 'Post code', '岗位名称': 'Post name', '岗位说明': 'Post description', '岗位状态': 'Post status', '账号状态': 'Account status', '人员': 'Person',
   '岗位描述任职，不授予角色权限；停用保留历史任职，删除前需移除任职。': 'Posts describe assignments without granting role permissions. Disabling preserves history. Remove assignments before deleting a post.',

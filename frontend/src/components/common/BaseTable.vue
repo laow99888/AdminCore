@@ -187,6 +187,18 @@ const handleDelete = (row: any) => {
   border-top: 1px solid var(--color-border);
 }
 
+.table-pagination :deep(.el-pagination) {
+  max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: var(--spacing-sm);
+}
+
+@media (max-width: 768px) {
+  .table-pagination { padding: var(--spacing-sm); justify-content: center; }
+  .table-pagination :deep(.el-pagination) { justify-content: center; }
+}
+
 .action-buttons {
   display: flex;
   gap: var(--spacing-sm);

@@ -78,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { computed, reactive, ref } from 'vue'
@@ -103,6 +104,7 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 
+usePageState({ activeBox, currentPage, pageSize })
 const STATUS_LABELS: Record<string, string> = {
   pending: uiText("待审批"),
   approved: uiText("已通过"),

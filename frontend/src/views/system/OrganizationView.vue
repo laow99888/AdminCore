@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
@@ -68,6 +69,7 @@ useErrorSummary(formError)
 const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
+usePageState({ section, page, pageSize })
 const form = reactive<any>({})
 const resources: Record<string, string> = { user: '用户', file: '文件', task: '任务', log: '日志' }
 const scopes: Record<string, string> = { self: '本人', department: '本部门', department_tree: '部门及下级', custom: '自定义部门', all: '全部' }

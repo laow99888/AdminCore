@@ -57,6 +57,38 @@ async function setup(page: Page, enabled = true) {
   return state
 }
 
+test('关闭页签和关闭其他尊重未保存提示，取消后保留输入与页签', async ({ page }) => {
+  await setup(page)
+  await page.goto('/users')
+  if (page.viewportSize()!.width <= 768) await page.getByRole('button', { name: '打开菜单' }).click()
+  await page.locator('.sidebar-menu a[href="/settings"]').click()
+  await page.getByLabel('名字', { exact: true }).fill('dirty-tabs')
+  await page.getByRole('button', { name: '关闭页签 系统设置', exact: true }).click()
+  await expect(page.getByText('尚有未保存的资料，确定放弃修改吗？')).toBeVisible()
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(page).toHaveURL(/\/settings$/)
+  await expect(page.getByLabel('名字', { exact: true })).toHaveValue('dirty-tabs')
+  await expect(page.locator('.navigation-tab[data-path="/settings"]')).toBeVisible()
+  await page.locator('.navigation-tab[data-path="/users"]').click({ button: 'right' })
+  await page.getByRole('button', { name: '关闭其他页签', exact: true }).click()
+  await expect(page.getByText('尚有未保存的资料，确定放弃修改吗？')).toBeVisible()
+  await page.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(page.locator('.navigation-tab')).toHaveCount(3)
+  await expect(page.getByLabel('名字', { exact: true })).toHaveValue('dirty-tabs')
+})
+
+test('关闭后台缓存页签不重建正在编辑的个人资料', async ({ page }) => {
+  await setup(page)
+  await page.route('**/logs/operation/**', route => route.fulfill({ json: envelope({ items: [], pagination: { total: 0, page: 1, page_size: 10, total_pages: 0 } }) }))
+  await page.goto('/logs')
+  if (page.viewportSize()!.width <= 768) await page.getByRole('button', { name: '打开菜单' }).click()
+  await page.locator('.sidebar-menu a[href="/settings"]').click()
+  await page.getByLabel('名字', { exact: true }).fill('keep-current-form')
+  await page.getByRole('button', { name: '关闭页签 操作日志', exact: true }).click()
+  await expect(page.locator('.navigation-tab[data-path="/logs"]')).toHaveCount(0)
+  await expect(page.getByLabel('名字', { exact: true })).toHaveValue('keep-current-form')
+})
+
 test('资料保存白名单和版本，字段错误不发请求，手机无溢出', async ({ page }, testInfo) => {
   const state = await setup(page)
   await page.goto('/settings')

@@ -128,6 +128,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
 import { computed, reactive, ref } from 'vue'
@@ -181,6 +182,7 @@ const searchForm = reactive({
   is_active: null as boolean | null,
 })
 
+usePageState({ searchForm, currentPage, pageSize })
 const formData = reactive({
   id: '' as string,
   username: '',

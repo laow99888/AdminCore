@@ -70,10 +70,13 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref } from 'vue'
+import { ref, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { logsApi, type OperationLogRow } from '@/api'
+import { usePageState } from '@/composables/usePageState'
+
+defineOptions({ name: 'OperationLogView' })
 
 const loading = ref(false)
 const activeTab = ref('operation')
@@ -81,6 +84,7 @@ const search = ref('')
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+usePageState({ activeTab, search, currentPage, pageSize })
 
 const operationLogs = ref<OperationLogRow[]>([])
 const loginLogs = ref<any[]>([])
@@ -124,7 +128,10 @@ const exceptionColumns = [
   { prop: 'request_path', label: uiText("请求路径") },
 ]
 
+let active = true, generation = 0
 const loadLogs = async () => {
+  const current = ++generation
+  const tab = activeTab.value
   loading.value = true
   try {
     const params = {
@@ -133,19 +140,23 @@ const loadLogs = async () => {
       ...(search.value ? { search: search.value } : {}),
     }
     let data
-    if (activeTab.value === 'operation') {
+    if (tab === 'operation') {
       data = await logsApi.operation(params)
+      if (!active || current !== generation) return
       operationLogs.value = data.items
-    } else if (activeTab.value === 'login') {
+    } else if (tab === 'login') {
       data = await logsApi.login(params)
+      if (!active || current !== generation) return
       loginLogs.value = data.items
     } else {
       data = await logsApi.exception(params)
+      if (!active || current !== generation) return
       exceptionLogs.value = data.items
     }
     total.value = data.pagination.total
-  } finally {
-    loading.value = false
+  } catch { /* 请求拦截器显示错误，保持查询条件以便重试。 */ }
+  finally {
+    if (active && current === generation) loading.value = false
   }
 }
 
@@ -170,7 +181,9 @@ const handlePageSizeChange = (size: number) => {
   loadLogs()
 }
 
-loadLogs()
+onActivated(() => { active = true; void loadLogs() })
+onDeactivated(() => { active = false; generation++; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
+onBeforeUnmount(() => { active = false; generation++ })
 </script>
 
 <style scoped>
@@ -182,12 +195,18 @@ loadLogs()
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
 }
 
 .header-actions {
   display: flex;
   gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  max-width: 100%;
 }
+
+.header-actions :deep(.el-input) { max-width: 100%; }
 
 .card-header-title {
   font-weight: var(--font-weight-semibold);

@@ -50,6 +50,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -67,6 +68,7 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const search = ref('')
+usePageState({ search, page, pageSize })
 const loading = ref(false)
 const busy = ref(false)
 const loadError = ref('')

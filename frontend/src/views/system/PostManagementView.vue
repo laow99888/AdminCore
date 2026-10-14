@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import { usePageState } from '@/composables/usePageState'
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -45,6 +46,7 @@ import request, { type ApiResponse } from '@/api/request'
 import { uiText } from '@/i18n/uiText'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 const section = ref<PostSection>('posts'), rows = ref<Array<PostRow | UserPostRow>>([]), page = ref(1), pageSize = ref(10), total = ref(0), search = ref(''), appliedSearch = ref('')
+usePageState({ section, page, pageSize, search, appliedSearch })
 const loading = ref(false), saving = ref(false), error = ref(false), formError = ref(''), conflict = ref(false), dialogOpen = ref(false)
 const visible = computed({ get: () => dialogOpen.value, set: value => { if (!saving.value) dialogOpen.value = value } })
 const form = reactive<PostRow>({ id: '', code: '', name: '', description: '', order: 0, is_active: true, version: 0 })
