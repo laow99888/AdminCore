@@ -16,7 +16,7 @@ export interface MaintenanceSchedule {
   time_limit_seconds: number
   requires_preview: boolean
   confirmation: string
-  preview: { id: string; result: Record<string, number | boolean | string>; completed_at: string } | null
+  preview: { id: string; result: Record<string, unknown>; completed_at: string } | null
   last_run: TaskRow | null
 }
 

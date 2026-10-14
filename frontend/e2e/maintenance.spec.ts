@@ -10,9 +10,15 @@ const schedule = () => ({ key: 'files', name: '清理软删除文件', task: 'ta
 })
 const backupSchedule = () => ({ ...schedule(), key: 'backup', name: '数据库与媒体备份', task: 'tasks.request_backup',
   enabled: false, options: { dry_run: false }, time_limit_seconds: 7200, requires_preview: false, confirmation: '执行备份', preview: null, last_run: null })
-async function setup(page: Page, options: { admin?: boolean; readOnly?: boolean; failed?: boolean; noPreview?: boolean; disabled?: boolean; backup?: boolean } = {}) {
+const lifecycleSchedule = () => ({ ...schedule(), key: 'lifecycle', name: '清理历史日志与导入源文件', task: 'tasks.cleanup_lifecycle',
+  enabled: false, options: { dry_run: false }, cron: { ...schedule().cron, hour: '4' },
+  preview: { id: 'lifecycle-preview', completed_at: '', result: { eligible: { operation: 21, login: 12, exception: 3, imports: 5 }, protected_imports: 2, more: true } },
+  last_run: { id: 'lifecycle-run', status: 'failed', name: '清理历史日志与导入源文件', error: 'lifecycle_partial_failure',
+    result: { deleted: { operation: 20, login: 11, exception: 2, imports: 4 }, failed: 1 } },
+})
+async function setup(page: Page, options: { admin?: boolean; readOnly?: boolean; failed?: boolean; noPreview?: boolean; disabled?: boolean; backup?: boolean; lifecycle?: boolean } = {}) {
   await page.addInitScript(() => localStorage.setItem('token', 'isolated-maintenance-fixture'))
-  const row = options.backup ? backupSchedule() : schedule()
+  const row = options.backup ? backupSchedule() : options.lifecycle ? lifecycleSchedule() : schedule()
   if (options.noPreview) Object.assign(row, { preview: null })
   if (options.disabled) row.module_enabled = false
   await page.route('**/api/v1/**', route => {
@@ -37,6 +43,54 @@ test('维护页面展示注册计划、预览和结果，窄屏无溢出', async
   await expect(page.locator('.schedule .el-tag')).not.toHaveClass(/enter-active|enter-from/)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: info.outputPath('maintenance-page.png'), fullPage: true })
+})
+
+test('历史清理默认禁用，分别呈现预览、保护数量和部分失败结果', async ({ page }, info) => {
+  await setup(page, { lifecycle: true })
+  await page.goto('/tasks/schedules')
+  await expect(page.getByRole('heading', { name: '清理历史日志与导入源文件' })).toBeVisible()
+  await expect(page.locator('.schedule .el-tag')).toHaveText('禁用')
+  await expect(page.locator('.preview')).toContainText('操作日志 21 条、登录日志 12 条、异常日志 3 条、导入源 5 个；受保护文件 2 个')
+  await expect(page.locator('.preview')).toContainText('每类每次最多处理 1,000 条')
+  await expect(page.locator('.last-run')).toContainText('操作日志 20 条、登录日志 11 条、异常日志 2 条、导入源 4 个；失败 1 项')
+  await expect(page.locator('.last-run [role="alert"]')).toContainText('原记录已保留')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({ path: info.outputPath('lifecycle-results.png'), fullPage: true })
+  await page.getByRole('button', { name: '执行清理', exact: true }).click()
+  await page.getByLabel('清理确认文本').fill('执行清理')
+  const request = page.waitForRequest(req => req.method() === 'POST' && req.url().endsWith('/lifecycle/run/'))
+  await page.getByRole('button', { name: '确认执行' }).click()
+  expect((await request).postDataJSON()).toEqual({ revision: 'v1', options: { dry_run: false }, confirmation: '执行清理', preview_id: 'lifecycle-preview' })
+})
+
+test('历史清理没有预览时禁止删除，编辑不出现其他任务的参数', async ({ page }) => {
+  await setup(page, { lifecycle: true, noPreview: true })
+  await page.goto('/tasks/schedules')
+  await expect(page.getByRole('button', { name: '执行清理', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '编辑计划' }).click()
+  await expect(page.getByLabel('每批文件数')).toHaveCount(0)
+  await expect(page.getByRole('switch', { name: '计划启用', exact: true })).not.toBeChecked()
+})
+
+test('历史清理最近一次只是预览时不会呈现为已执行删除', async ({ page }) => {
+  await setup(page, { lifecycle: true })
+  const row = lifecycleSchedule()
+  await page.route('**/tasks/schedules/', route => route.fulfill({ json: envelope([{ ...row,
+    last_run: { ...row.last_run, status: 'success', error: '', result: { ...row.preview.result, dry_run: true } },
+  }]) }))
+  await page.goto('/tasks/schedules')
+  await expect(page.locator('.last-run')).toContainText('预计清理：操作日志 21 条')
+  await expect(page.locator('.last-run')).not.toContainText('本次清理')
+})
+
+test('英文深色历史清理摘要、禁用及只读状态在窄屏可读', async ({ page }) => {
+  await setup(page, { lifecycle: true, readOnly: true, disabled: true })
+  await page.addInitScript(() => { localStorage.setItem('language', 'en-US'); localStorage.setItem('theme', 'dark') })
+  await page.goto('/tasks/schedules')
+  await expect(page.locator('.preview')).toContainText('21')
+  await expect(page.locator('.preview')).not.toContainText('预计清理')
+  await expect(page.getByRole('button', { name: 'Run preview' })).toHaveCount(0)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
 test('计划编辑包含版本、Cron、时区及白名单参数，保存后关闭', async ({ page }) => {

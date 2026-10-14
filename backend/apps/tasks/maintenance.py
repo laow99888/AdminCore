@@ -8,6 +8,8 @@ from django.db import connection
 from rest_framework.exceptions import ValidationError
 
 JOBS = {
+    'lifecycle': {'task': 'tasks.cleanup_lifecycle', 'name': '清理历史日志与导入源文件',
+                  'schedule': 'AdminCore 每日历史数据清理', 'dependencies': ['tasks']},
     'backup': {'task': 'tasks.request_backup', 'name': '数据库与媒体备份',
                'schedule': 'AdminCore 每日数据库与媒体备份', 'dependencies': ['tasks'],
                'confirmation': '执行备份', 'requires_preview': False},
@@ -93,6 +95,11 @@ def valid_preview(key, record_id, user_id):
         return bool(isinstance(result, dict) and result.get('dry_run') is True
                     and result.get('enabled') == available()
                     and all(result.get(name) == value for name, value in policy().items()))
+    if key == 'lifecycle':
+        from .lifecycle import policy
+        return bool(preview and isinstance(preview.record.result, dict)
+                    and preview.record.result.get('dry_run') is True
+                    and preview.record.result.get('policy') == policy())
     policy = 'files.retention_days' if key == 'files' else 'notifications.retention_days'
     return bool(preview and isinstance(preview.record.result, dict)
                 and preview.record.result.get('dry_run') is True

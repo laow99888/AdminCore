@@ -97,6 +97,7 @@ class DataImportView(DataModuleView):
             content_type=getattr(uploaded, 'content_type', '') or '',
             description=f'数据导入文件（{resource_name}）',
             uploader=request.user,
+            purpose='import',
         )
 
         record = TaskRecord.objects.create(
@@ -150,13 +151,19 @@ class DataImportTaskView(DataModuleView):
         if config is None or not config['importable'] or record.task_type != 'import':
             return Response({'code': 400, 'message': '该资源不支持导入重试', 'data': None}, status=400)
 
-        new_record = TaskRecord.objects.create(
-            name=f'{record.name}（重试）',
-            task_type='import',
-            related_resource=record.related_resource,
-            creator=request.user,
-            result={'file_id': record.result['file_id']},
-        )
+        from django.db import transaction
+        from apps.core.data_scope import scope_queryset
+        with transaction.atomic():
+            source = scope_queryset(FileModel.objects.select_for_update().filter(is_deleted=False),
+                                    request.user, 'file', 'uploader_id', fallback='self').filter(
+                                        pk=record.result['file_id']).first()
+            if not source:
+                return Response({'code': 400, 'message': '导入源文件已过期或不可用，请重新上传', 'data': None}, status=400)
+            new_record = TaskRecord.objects.create(
+                name=f'{record.name}（重试）', task_type='import',
+                related_resource=record.related_resource, creator=request.user,
+                result={'file_id': record.result['file_id']},
+            )
         dispatch_task(run_data_import, str(new_record.id))
         new_record.refresh_from_db()  # 同步执行模式下读取任务执行后的最终状态
         _log(request, 'import', f'Retry import task {record.id}', str(new_record.id))

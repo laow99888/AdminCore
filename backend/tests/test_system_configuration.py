@@ -11,7 +11,12 @@ DICTS = '/api/v1/system/dictionaries/'
 
 def test_config_list_validation_conflict_audit_and_cache(admin_client):
     rows = admin_client.get(CONFIG).json()['data']
-    assert len(rows) == 5 and all(row['version'] == 0 for row in rows)
+    assert {row['key'] for row in rows} == {
+        'brand.name', 'brand.tagline', 'brand.logo', 'files.retention_days',
+        'notifications.retention_days', 'lifecycle.operation_days', 'lifecycle.login_days',
+        'lifecycle.exception_days', 'lifecycle.import_days',
+    }
+    assert all(row['version'] == 0 for row in rows)
     url = CONFIG + 'files.retention_days/'
     for invalid in [True, '30', 0, 3651, 1.5]:
         assert admin_client.patch(url, {'value': invalid, 'version': 0}, format='json').status_code == 400

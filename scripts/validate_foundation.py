@@ -121,6 +121,11 @@ def main():
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'backend', 'frontend')
         services = compose('minimal', 'ps', '--status', 'running', '--services').stdout.split()
         check('精简部署只有数据库、后端、前端', set(services) == {'db', 'backend', 'frontend'})
+        for service in services:
+            container = compose('minimal', 'ps', '-q', service).stdout.strip()
+            configuration = json.loads(run(['docker', 'inspect', container, '--format', '{{json .HostConfig.LogConfig}}']).stdout)
+            check('真实容器日志有界轮转 ' + service, configuration == {
+                'Type': 'json-file', 'Config': {'max-size': '10m', 'max-file': '3'}})
         api('health/')
         token = login(password)
         check('新初始化账号必须改密', api('auth/me/', token=token).json()['data']['must_change_password'])
@@ -512,6 +517,12 @@ def main():
         preview = api('files/recycle_action/', 'POST', {'action': 'purge', 'dry_run': True,
                       'items': [{'id': file_id, 'lifecycle_version': 4}]}, token=token).json()['data']
         check('真实 HTTP 删除预览不删除回收站文件', preview['succeeded'] == 1 and preview['dry_run'])
+        lifecycle = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'lifecycle')
+        check('历史清理默认关闭且凌晨四点运行', not lifecycle['enabled'] and lifecycle['cron']['hour'] == '4')
+        encoded = base64.b64encode((ROOT / 'scripts/validate_lifecycle.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 历史清理、本地对象及导入重试双向竞争验收', True)
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)

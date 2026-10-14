@@ -24,6 +24,23 @@ pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
 
 
+def test_real_s3_import_source_retention(s3_storage, admin_user):
+    from datetime import timedelta
+    from apps.tasks.lifecycle import clean
+    from apps.tasks.models import TaskRecord
+    row = FileModel.objects.create(original_name='import.csv', file=ContentFile(b'username\nu1', name='import.csv'),
+                                   uploader=admin_user, purpose='import', size=11)
+    FileModel.objects.filter(pk=row.pk).update(created_at=timezone.now() - timedelta(days=400))
+    task = TaskRecord.objects.create(name='导入', task_type='import', status='pending', result={'file_id': str(row.pk)})
+    assert clean()['protected_imports'] == 1 and s3_storage.exists(row.file.name)
+    task.status = 'failed'
+    task.completed_at = timezone.now() - timedelta(days=100)
+    task.save()
+    assert clean(dry_run=True)['eligible']['imports'] == 1 and s3_storage.exists(row.file.name)
+    assert clean()['deleted']['imports'] == 1
+    assert not s3_storage.exists(row.file.name) and not FileModel.objects.filter(pk=row.pk).exists()
+
+
 def test_real_s3_private_profile_avatar_lifecycle(s3_storage, member_client, member_user, admin_client):
     from datetime import timedelta
     from PIL import Image

@@ -124,7 +124,8 @@ def schedule_row(key, user):
     return {'key': key, 'name': job['name'], 'task': job['task'], 'enabled': bool(row and row.enabled),
             'module_enabled': task_enabled(job['task']), 'missing': row is None, 'revision': revision(row),
             'cron': configuration(row)['cron'] if row and row.crontab else {
-                'minute': '15' if key == 'notifications' else '0', 'hour': '2' if key == 'backup' else '3', 'day_of_week': '*',
+                'minute': '15' if key == 'notifications' else '0',
+                'hour': '4' if key == 'lifecycle' else '2' if key == 'backup' else '3', 'day_of_week': '*',
                 'day_of_month': '*', 'month_of_year': '*', 'timezone': settings.TIME_ZONE},
             'options': options, 'supported': supported, 'overlap': 'skip', 'time_limit_seconds': 7200 if key == 'backup' else 300,
             'requires_preview': job.get('requires_preview', True),

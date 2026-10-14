@@ -15,6 +15,14 @@ from .maintenance import exclusive
 logger = logging.getLogger(__name__)
 
 
+@shared_task(bind=True, name='tasks.cleanup_lifecycle', soft_time_limit=270, time_limit=300)
+@exclusive('lifecycle')
+def cleanup_lifecycle(self, dry_run=False, _record=None, _expected_retention=None):
+    from .lifecycle import clean
+    return clean(dry_run=dry_run, record=_record, expected_policy=_expected_retention,
+                 celery_task_id=self.request.id or '')
+
+
 @shared_task(bind=True, name='tasks.request_backup')
 def request_backup(self, dry_run=False, _record=None):
     """Celery 仅登记停写备份请求，不取得 Docker 控制权限。"""
@@ -179,9 +187,11 @@ def run_maintenance(self, record_id):
             result = {'skipped': True, 'reason': 'overlap'}
             record.mark_success(result)
             return result
-        function = cleanup_soft_deleted_files if request.key == 'files' else cleanup_expired_notifications
+        function = {'files': cleanup_soft_deleted_files, 'notifications': cleanup_expired_notifications,
+                    'lifecycle': cleanup_lifecycle}[request.key]
         try:
-            expected = TaskRecord.objects.get(pk=request.preview_id).result['retention_days'] if not request.options.get('dry_run') else None
+            expected = TaskRecord.objects.get(pk=request.preview_id).result[
+                'policy' if request.key == 'lifecycle' else 'retention_days'] if not request.options.get('dry_run') else None
             return function(_record=record, _expected_retention=expected, **validate_options(request.key, request.options))
         except Exception as exc:
             record.mark_failed(type(exc).__name__)

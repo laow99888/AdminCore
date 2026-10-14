@@ -28,6 +28,7 @@ MODULES = (
 PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES), 'demo': tuple(m.key for m in MODULES)}
 CORE_MODULES = ('core', 'auth_app', 'users', 'permissions', 'logs')
 MAINTENANCE_TASKS = {
+    'tasks.cleanup_lifecycle': ('tasks',),
     'tasks.request_backup': ('tasks',),
     'tasks.run_maintenance': ('tasks',),
     'tasks.cleanup_soft_deleted_files': ('tasks', 'files'),

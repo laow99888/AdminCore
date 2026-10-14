@@ -76,6 +76,10 @@ CONFIG_DEFINITIONS = {definition.key: definition for definition in (
     ConfigDefinition('brand.logo', '产品 Logo', 'image', '', minimum=0, maximum=280000),
     ConfigDefinition('files.retention_days', '软删除文件保留天数', 'integer', 30, 'FILE_SOFT_DELETE_RETENTION_DAYS', 1, 3650),
     ConfigDefinition('notifications.retention_days', '已读通知保留天数', 'integer', 90, 'NOTIFICATION_RETENTION_DAYS', 1, 3650),
+    ConfigDefinition('lifecycle.operation_days', '操作审计日志保留天数', 'integer', 365, minimum=180, maximum=3650),
+    ConfigDefinition('lifecycle.login_days', '登录日志保留天数', 'integer', 180, minimum=30, maximum=3650),
+    ConfigDefinition('lifecycle.exception_days', '异常日志保留天数', 'integer', 90, minimum=7, maximum=3650),
+    ConfigDefinition('lifecycle.import_days', '导入源文件保留天数', 'integer', 30, minimum=1, maximum=3650),
 )}
 
 

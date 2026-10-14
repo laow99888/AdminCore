@@ -4,8 +4,15 @@
 
 name: admincore
 
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *bounded-logging
     image: postgres:18.6
     restart: unless-stopped
     environment:
@@ -22,6 +29,7 @@ services:
       retries: 10
 
   redis:
+    logging: *bounded-logging
     image: redis:8.10.2
     restart: unless-stopped
     volumes:
@@ -33,6 +41,7 @@ services:
       retries: 10
 
   backend:
+    logging: *bounded-logging
     build: ./backend
     restart: unless-stopped
     env_file: .env
@@ -63,6 +72,7 @@ services:
       start_period: 30s
 
   worker:
+    logging: *bounded-logging
     build: ./backend
     restart: unless-stopped
     env_file: .env
@@ -83,6 +93,7 @@ services:
         condition: service_healthy
 
   beat:
+    logging: *bounded-logging
     build: ./backend
     restart: unless-stopped
     env_file: .env
@@ -100,6 +111,7 @@ services:
         condition: service_healthy
 
   frontend:
+    logging: *bounded-logging
     build: ./frontend
     environment:
       TRUSTED_PROXY_IP: ${TRUSTED_PROXY_IP:-127.0.0.1}

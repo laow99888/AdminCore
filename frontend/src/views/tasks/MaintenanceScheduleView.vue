@@ -13,9 +13,10 @@
           <p>{{ uiText('重叠时跳过；最长执行 {p0} 秒。中断结果未知时不自动重放。', { p0: row.time_limit_seconds }) }}</p>
           <p>{{ uiText(row.options.dry_run ? '定时计划仅预览' : row.key === 'backup' ? '定时计划执行备份' : '定时计划执行清理') }}</p>
           <el-alert v-if="row.key === 'backup'" :title="uiText('备份会短暂停写，宿主备份执行器需要保持运行；失败记录见任务中心。默认计划关闭，配置备份目标后再启用。')" type="warning" :closable="false" />
+          <el-alert v-if="row.key === 'lifecycle'" :title="uiText('历史清理默认关闭，只删除超过保留期的日志和明确登记的导入源文件；使用中或近期重试的文件保留。普通文件、旧版导入文件和未知临时目录不在范围内。保留期在系统参数中设置。')" type="warning" :closable="false" />
           <el-alert v-if="!row.supported" :title="uiText('现有计划包含不支持的定义，请由管理员修复。')" type="warning" :closable="false" />
-          <div v-if="row.last_run" class="last-run"><strong>{{ uiText('最近执行') }}</strong><span>{{ row.last_run.result?.skipped ? uiText('已跳过（已有同类任务执行中）') : statusLabel(row.last_run.status) }}</span><pre v-if="row.last_run.result">{{ JSON.stringify(row.last_run.result, null, 2) }}</pre><p v-if="row.last_run.error" role="alert">{{ runFailure(row.last_run.error) }}</p></div>
-          <div v-if="row.preview" class="preview"><strong>{{ uiText('我的有效预览（15 分钟）') }}</strong><p v-if="row.key === 'backup'">{{ uiText('保留 {p0} 天且至少 {p1} 份完整备份；同时超出两项条件才自动清理。', { p0: row.preview.result.retention_days, p1: row.preview.result.retention_count }) }}</p><p v-else>{{ uiText('符合清理条件：{p0} 项；保留 {p1} 天', { p0: row.preview.result.eligible_files ?? row.preview.result.eligible_notifications ?? 0, p1: row.preview.result.retention_days }) }}</p></div>
+          <div v-if="row.last_run" class="last-run"><strong>{{ uiText('最近执行') }}</strong><span>{{ row.last_run.result?.skipped ? uiText('已跳过（已有同类任务执行中）') : statusLabel(row.last_run.status) }}</span><p v-if="row.last_run.result && row.key === 'lifecycle'">{{ lifecycleSummary(row.last_run.result, row.last_run.result.dry_run === true) }}</p><pre v-else-if="row.last_run.result">{{ JSON.stringify(row.last_run.result, null, 2) }}</pre><p v-if="row.last_run.error" role="alert">{{ runFailure(row.last_run.error) }}</p></div>
+          <div v-if="row.preview" class="preview"><strong>{{ uiText('我的有效预览（15 分钟）') }}</strong><p v-if="row.key === 'backup'">{{ uiText('保留 {p0} 天且至少 {p1} 份完整备份；同时超出两项条件才自动清理。', { p0: row.preview.result.retention_days, p1: row.preview.result.retention_count }) }}</p><p v-else-if="row.key === 'lifecycle'">{{ lifecycleSummary(row.preview.result, true) }}</p><p v-else>{{ uiText('符合清理条件：{p0} 项；保留 {p1} 天', { p0: row.preview.result.eligible_files ?? row.preview.result.eligible_notifications ?? 0, p1: row.preview.result.retention_days }) }}</p></div>
           <div class="actions">
             <BaseButton v-if="auth.can('schedule:update')" :disabled="busy || !row.module_enabled || !row.supported" @click="edit(row)">{{ uiText('编辑计划') }}</BaseButton>
             <BaseButton v-if="auth.can('schedule:run')" :loading="busyKey === row.key + ':preview'" :disabled="busy || !row.module_enabled || !row.supported" @click="submit(row, true)">{{ uiText('运行预览') }}</BaseButton>
@@ -82,8 +83,12 @@ const cronFields = [
   { key: 'minute', label: '分钟' }, { key: 'hour', label: '小时' }, { key: 'day_of_month', label: '每月日期' },
   { key: 'month_of_year', label: '月份' }, { key: 'day_of_week', label: '星期' },
 ] as const
+function lifecycleSummary(result: Record<string, unknown>, preview: boolean) {
+  const counts = (preview ? result.eligible : result.deleted) as Record<string, number> | undefined
+  return uiText(preview ? '预计清理：操作日志 {p0} 条、登录日志 {p1} 条、异常日志 {p2} 条、导入源 {p3} 个；受保护文件 {p4} 个。' : '本次清理：操作日志 {p0} 条、登录日志 {p1} 条、异常日志 {p2} 条、导入源 {p3} 个；失败 {p4} 项。', { p0: counts?.operation ?? 0, p1: counts?.login ?? 0, p2: counts?.exception ?? 0, p3: counts?.imports ?? 0, p4: preview ? result.protected_imports ?? 0 : result.failed ?? 0 }) + (result.more ? ' ' + uiText('仍有待处理数据，请重新预览后继续；每类每次最多处理 1,000 条。') : '')
+}
 function statusLabel(status: string) { return uiText(({ pending: '等待执行', running: '执行中', success: '成功', failed: '失败', cancelled: '已取消' } as Record<string, string>)[status] || status) }
-function runFailure(code: string) { return uiText(({ execution_not_authorized: '执行权限或账户状态已变化，请重新登录检查', preview_expired_or_policy_changed: '预览已过期或策略已变化，请重新预览', request_expired: '请求等待超过 24 小时，请重新提交', worker_lost_result_unknown: '执行中断，结果未知；请核对记录，禁止直接重放清理' } as Record<string, string>)[code] || '维护执行失败，请查看任务记录') }
+function runFailure(code: string) { return uiText(({ execution_not_authorized: '执行权限或账户状态已变化，请重新登录检查', preview_expired_or_policy_changed: '预览已过期或策略已变化，请重新预览', request_expired: '请求等待超过 24 小时，请重新提交', lifecycle_partial_failure: '部分文件清理失败，原记录已保留，请检查存储后重新预览', worker_lost_result_unknown: '执行中断，结果未知；请核对记录，禁止直接重放清理' } as Record<string, string>)[code] || '维护执行失败，请查看任务记录') }
 async function load() {
   const generation = ++loadGeneration
   loading.value = true; error.value = ''

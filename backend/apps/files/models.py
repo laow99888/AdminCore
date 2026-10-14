@@ -35,7 +35,7 @@ class FileModel(SoftDeleteModel):
     description = models.CharField(max_length=255, blank=True, verbose_name='描述')
     uploader = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='files', verbose_name='上传者')
     download_count = models.IntegerField(default=0, verbose_name='下载次数')
-    purpose = models.CharField(max_length=16, default='general', choices=[('general', '普通文件'), ('avatar', '个人头像')])
+    purpose = models.CharField(max_length=16, default='general', choices=[('general', '普通文件'), ('avatar', '个人头像'), ('import', '导入源文件')])
 
     class Meta:
         verbose_name = '文件'

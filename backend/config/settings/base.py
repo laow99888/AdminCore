@@ -320,9 +320,12 @@ CACHES = {
 if not ADMINCORE_MODULES:
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
-# RotatingFileHandler 不会自动创建目录，这里显式保证日志目录存在
+# 默认只输出控制台，由部署平台有界轮转，避免多个 worker 竞争同一文件。
+# 受信任的单进程终端部署可显式开启文件日志。
+DJANGO_FILE_LOGGING = os.getenv('DJANGO_FILE_LOGGING', 'False').lower() == 'true'
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
-os.makedirs(LOG_DIR, exist_ok=True)
+if DJANGO_FILE_LOGGING:
+    os.makedirs(LOG_DIR, exist_ok=True)
 
 LOGGING = {
     'version': 1,
@@ -347,17 +350,20 @@ LOGGING = {
         },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console', *(['file'] if DJANGO_FILE_LOGGING else [])],
         'level': 'INFO',
     },
     'loggers': {
         'django': {
-            'handlers': ['console', 'file'],
+            'handlers': ['console', *(['file'] if DJANGO_FILE_LOGGING else [])],
             'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'),
             'propagate': False,
         },
     },
 }
+
+if not DJANGO_FILE_LOGGING:
+    LOGGING['handlers'].pop('file')
 
 # ===== 默认主键类型 =====
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

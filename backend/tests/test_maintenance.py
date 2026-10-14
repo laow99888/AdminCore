@@ -53,7 +53,7 @@ def preview(client):
 
 def test_schedule_whitelist_and_permissions(admin_client, member_client):
     assert member_client.get(BASE).status_code == 403
-    assert len(admin_client.get(BASE).json()['data']) == 3
+    assert len(admin_client.get(BASE).json()['data']) == 4
     assert admin_client.patch(BASE + 'core.dispatch_outbox/', {}, format='json').status_code == 404
     assert member_client.post(BASE + 'files/run/', {}, format='json').status_code == 403
 
