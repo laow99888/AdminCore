@@ -6,6 +6,8 @@
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("文件列表") }}</div>
             <div class="file-header-actions">
+              <DataExportButton :loading="loading || !exportReady" resource="files" />
+              <PrintTableButton :title="uiText('文件列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('file:download') && modules.enabled('files')" :owner-key="printOwner" />
               <BaseButton v-if="auth.can('file:recycle')" variant="ghost" @click="router.push('/files/recycle')">{{ uiText('文件回收站') }}</BaseButton>
               <input ref="uploadInput" type="file" class="hidden-input" @change="handleUpload" />
               <BaseButton variant="primary" :loading="uploading" @click="triggerUpload">{{ uiText("上传文件") }}</BaseButton>
@@ -43,7 +45,7 @@
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -52,11 +54,23 @@ import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
 import FilePreviewDialog from '@/components/files/FilePreviewDialog.vue'
 import { canPreview } from '@/api/filePreview'
+import DataExportButton from '@/components/common/DataExportButton.vue'
+import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import type { PrintColumn } from '@/utils/printDocument'
+import { useModuleStore } from '@/stores/modules'
 
 const loading = ref(false)
 const previewFile = ref<FileRow | null>(null)
 const router = useRouter()
 const auth = useAuthStore()
+const modules = useModuleStore()
+const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, modules.config]))
+const printColumns = computed<PrintColumn<FileRow>[]>(() => [
+  { label: uiText('文件名'), value: row => row.original_name },
+  { label: uiText('类型'), value: row => row.file_type },
+  { label: uiText('大小'), value: row => row.size_display },
+  { label: uiText('上传者'), value: row => row.uploader_name },
+])
 const uploading = ref(false)
 const uploadInput = ref<HTMLInputElement>()
 const tableData = ref<FileRow[]>([])
@@ -74,11 +88,14 @@ const tableColumns = [
   { prop: 'created_at', label: uiText("上传时间"), width: '180px' },
 ]
 
+const exportReady = ref(false)
 const loadFiles = async () => {
+  exportReady.value = false
   loading.value = true
   try {
     const data = await filesApi.list({ page: currentPage.value, page_size: pageSize.value })
     tableData.value = data.items
+    exportReady.value = true
     total.value = data.pagination.total
   } finally {
     loading.value = false

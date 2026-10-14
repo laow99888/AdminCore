@@ -49,6 +49,7 @@ const parent = computed(() => {
   const path = route.path
   if (path === '/files/recycle' && canAccessPage('/files', auth.user) && modules.pathEnabled('/files')) return { path: '/files', title: '文件管理' }
   if (path === '/tasks/schedules' && canAccessPage('/tasks', auth.user) && modules.pathEnabled('/tasks')) return { path: '/tasks', title: '任务中心' }
+  if (path === '/notifications/announcements' && modules.pathEnabled('/notifications')) return { path: '/notifications', title: '通知中心' }
   if (path === '/organization/posts' && canAccessPage('/organization', auth.user)) return { path: '/organization', title: '组织与数据权限' }
   if (path.startsWith('/system/')) return { path: '', title: '系统管理' }
   return null

@@ -75,3 +75,20 @@ class Notification(BaseModel):
                     link=link, data=data, sender=sender) for user in users]
         cls.objects.bulk_create(objs)
         return len(objs)
+
+
+class Announcement(BaseModel):
+    """全员公告的共享发布记录，不为每位用户复制个人通知。"""
+    STATUS_CHOICES = [('draft', '草稿'), ('published', '已发布'), ('withdrawn', '已撤回')]
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    version = models.PositiveIntegerField(default=1)
+    published_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_announcements')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='updated_announcements')
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['status', '-published_at', '-id'], name='announcement_public_order')]
+        constraints = [models.CheckConstraint(condition=models.Q(status__in=['draft', 'published', 'withdrawn']), name='announcement_valid_status')]

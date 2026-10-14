@@ -1,12 +1,13 @@
 """
 导入导出资源注册表
 
-新增可导入/导出的资源时，在这里注册即可：
-- fields: 模板列与导入列（顺序即列顺序）
+新增资源需显式声明能力，未开放导入的资源不能创建模板或执行导入：
+- fields: 导出白名单；用户模板与导入列复用该列表，日志按类型分别声明
 - required: 必填列
 - unique_field: 用于判重的字段
 - create_row: 单行创建逻辑（返回 (对象, None) 或 (None, 错误信息)）
-- export_queryset: 导出数据来源
+- permissions: 导出除 data_io:export 外仍需精确资源权限
+- export_queryset(): 数据来源与列表使用同一范围策略
 """
 
 from django.contrib.auth import get_user_model
@@ -35,9 +36,68 @@ IMPORT_EXPORT_RESOURCES = {
         'required': ['username', 'email'],
         'unique_field': 'username',
         'create_row': create_user_row,
-        'export_queryset': lambda: get_user_model().objects.filter(is_staff=False).order_by('date_joined'),
+        'importable': True,
+        'exportable': True,
+        'permissions': ('user:read',),
+    },
+    'roles': {
+        'label': '角色', 'importable': False, 'exportable': True,
+        'permissions': ('role:read',),
+        'fields': ['id', 'name', 'description', 'is_active', 'created_at'],
+    },
+    'logs': {
+        'label': '日志', 'importable': False, 'exportable': True,
+        'permissions': ('log:read',),
+        # 原始描述、异常内容和请求路径可能带业务凭据，批量下载仅提供审计元数据。
+        'fields': {
+            'operation': ['id', 'created_at', 'user__username', 'action', 'resource', 'resource_id', 'status', 'ip_address'],
+            'login': ['id', 'created_at', 'username', 'status', 'ip_address'],
+            'exception': ['id', 'created_at', 'user__username', 'level', 'request_method', 'ip_address'],
+        },
+    },
+    'files': {
+        'label': '文件元数据', 'importable': False, 'exportable': True,
+        'permissions': ('file:download',),
+        'fields': ['id', 'original_name', 'file_type', 'size', 'content_type', 'uploader__username', 'download_count', 'created_at'],
     },
 }
+
+
+def export_queryset(resource, user, filters):
+    """与资源列表使用同一对象范围，只返回白名单字段，不读取文件内容。"""
+    from django.db.models import Q
+    from rest_framework.filters import SearchFilter
+    from apps.core.data_scope import scope_queryset
+    if resource == 'users':
+        queryset = scope_queryset(get_user_model().objects.filter(is_staff=False, is_superuser=False), user, 'user', 'pk')
+        search_fields = ['username', 'email', 'first_name', 'last_name']
+    elif resource == 'roles':
+        from apps.permissions.models import Role
+        queryset = Role.objects.all()
+        search_fields = ['name']
+    elif resource == 'files':
+        from apps.files.models import FileModel
+        queryset = scope_queryset(FileModel.objects.filter(purpose='general', is_deleted=False), user, 'file', 'uploader_id', fallback='self')
+        search_fields = ['original_name', 'description']
+    else:
+        from apps.logs.models import OperationLog, LoginLog, ExceptionLog
+        kind = filters.get('log_type', 'operation')
+        model = {'operation': OperationLog, 'login': LoginLog, 'exception': ExceptionLog}[kind]
+        queryset = scope_queryset(model.objects.all(), user, 'log', 'user_id')
+        search_fields = {'operation': ['description', 'user__username'], 'login': ['username'], 'exception': ['message', 'request_path']}[kind]
+    for key, value in filters.items():
+        if key not in {'resource', 'export_format', 'search', 'log_type'}:
+            queryset = queryset.filter(**{('resource' if key == 'resource_name' else key): value})
+    # 复用 DRF 的搜索词切分，多个词之间为 AND，与列表 API 一致。
+    if filters.get('search'):
+        class SearchRequest:
+            query_params = {'search': filters['search']}
+        for term in SearchFilter().get_search_terms(SearchRequest()):
+            condition = Q()
+            for field in search_fields:
+                condition |= Q(**{field + '__icontains': term})
+            queryset = queryset.filter(condition)
+    return queryset.order_by('-created_at', 'pk')
 
 
 def get_resource(name):

@@ -65,7 +65,7 @@ def run_data_import(self, task_record_id):
             record.mark_failed(error='任务发起人的导入权限已撤销')
             return
         config = get_resource(record.related_resource)
-        if config is None:
+        if config is None or not config['importable']:
             record.mark_failed(error=f'未注册的导入资源：{record.related_resource}')
             return
 

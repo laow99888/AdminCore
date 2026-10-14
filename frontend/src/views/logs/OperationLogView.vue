@@ -6,6 +6,8 @@
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("系统日志") }}</div>
             <div class="header-actions">
+              <DataExportButton :loading="loading || !exportReady" resource="logs" :filters="{ ...exportFilters, log_type: activeTab }" />
+              <PrintTableButton :title="uiText('系统日志')" :rows="printRows" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('log:read')" :owner-key="printOwner" />
               <el-input
                 v-model="search"
                 :placeholder="uiText('搜索描述 / 用户名')"
@@ -70,11 +72,15 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { ref, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { logsApi, type OperationLogRow } from '@/api'
 import { usePageState } from '@/composables/usePageState'
+import DataExportButton from '@/components/common/DataExportButton.vue'
+import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import type { PrintColumn } from '@/utils/printDocument'
+import { useAuthStore } from '@/stores/auth'
 
 defineOptions({ name: 'OperationLogView' })
 
@@ -84,11 +90,28 @@ const search = ref('')
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const auth = useAuthStore()
+const exportFilters = ref<{ search?: string }>({})
+const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
 usePageState({ activeTab, search, currentPage, pageSize })
 
 const operationLogs = ref<OperationLogRow[]>([])
 const loginLogs = ref<any[]>([])
 const exceptionLogs = ref<any[]>([])
+const printRows = computed(() => activeTab.value === 'operation' ? operationLogs.value : activeTab.value === 'login' ? loginLogs.value : exceptionLogs.value)
+const printColumns = computed<PrintColumn<Record<string, any>>[]>(() => activeTab.value === 'operation' ? [
+  { label: uiText('时间'), value: row => row.created_at },
+  { label: uiText('操作'), value: row => row.action },
+  { label: uiText('资源'), value: row => row.resource },
+  { label: uiText('状态码'), value: row => row.status },
+] : activeTab.value === 'login' ? [
+  { label: uiText('时间'), value: row => row.created_at },
+  { label: uiText('用户名'), value: row => row.username },
+  { label: uiText('结果'), value: row => uiText(row.status === 'success' ? '成功' : '失败') },
+] : [
+  { label: uiText('时间'), value: row => row.created_at },
+  { label: uiText('级别'), value: row => row.level },
+])
 
 const ACTION_LABELS: Record<string, string> = {
   create: uiText("创建"), read: uiText("查看"), update: uiText("修改"), delete: uiText("删除"),
@@ -129,15 +152,18 @@ const exceptionColumns = [
 ]
 
 let active = true, generation = 0
+const exportReady = ref(false)
 const loadLogs = async () => {
+  exportReady.value = false
   const current = ++generation
   const tab = activeTab.value
   loading.value = true
+  const filters = search.value ? { search: search.value } : {}
   try {
     const params = {
       page: currentPage.value,
       page_size: pageSize.value,
-      ...(search.value ? { search: search.value } : {}),
+      ...filters,
     }
     let data
     if (tab === 'operation') {
@@ -153,7 +179,9 @@ const loadLogs = async () => {
       if (!active || current !== generation) return
       exceptionLogs.value = data.items
     }
+    exportReady.value = true
     total.value = data.pagination.total
+    exportFilters.value = filters
   } catch { /* 请求拦截器显示错误，保持查询条件以便重试。 */ }
   finally {
     if (active && current === generation) loading.value = false
@@ -181,8 +209,9 @@ const handlePageSizeChange = (size: number) => {
   loadLogs()
 }
 
-onActivated(() => { active = true; void loadLogs() })
-onDeactivated(() => { active = false; generation++; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
+onMounted(() => { void loadLogs() })
+onActivated(() => { active = true; if (!loading.value) void loadLogs() })
+onDeactivated(() => { active = false; generation++; loading.value = false; exportReady.value = false; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
 onBeforeUnmount(() => { active = false; generation++ })
 </script>
 

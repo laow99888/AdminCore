@@ -11,19 +11,18 @@ from apps.core.schema import envelope
 
 from django.http import HttpResponse
 from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.files.models import FileModel
 from apps.logs.models import OperationLog
-from apps.permissions.permissions import HasPermission
+from apps.permissions.permissions import HasPermission, has_permission_code
 from apps.tasks.models import TaskRecord
 from apps.tasks.serializers import TaskRecordSerializer
 
-from .resources import get_resource
-from .serializers import DataImportSerializer
+from .resources import get_resource, IMPORT_EXPORT_RESOURCES, export_queryset
+from .serializers import DataImportSerializer, DataExportSerializer, DataResourceDirectorySerializer
 from .tasks import dispatch_task, run_data_import
 
 # 导入文件仅允许这两种格式（.xls 旧格式未引入 xlrd 依赖，不支持）
@@ -32,7 +31,7 @@ IMPORT_ALLOWED_EXTENSIONS = ['xlsx', 'csv']
 
 def spreadsheet_text(value):
     """文本列禁止以公式/控制字符开头；CSV 和 XLSX 使用同一策略。"""
-    value = str(value or '')
+    value = str('' if value is None else value)
     if value.startswith(('=', '+', '-', '@', '\t', '\r', '\n')) or value.lstrip().startswith(('=', '+', '-', '@')):
         return "'" + value
     return value
@@ -49,10 +48,25 @@ def _log(request, action, description, resource_id=''):
     )
 
 
+class DataModuleView(APIView):
+    """已加载的 URL 在模块运行时关闭后也不能保留数据入口。"""
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        from apps.core.modules import module_enabled
+        from apps.core.exceptions import APIError
+        if not module_enabled('data_io'):
+            raise APIError('数据导入导出模块已关闭', status_code=404)
+
+
 @extend_schema_view(
     post=extend_schema(request=DataImportSerializer, responses=envelope('ImportResponse', TaskRecordSerializer())),
 )
-class DataImportView(APIView):
+class DataImportView(DataModuleView):
     """上传导入文件，创建导入任务"""
     permission_classes = [IsAuthenticated, HasPermission]
     required_permission = 'data_io:import'
@@ -107,7 +121,7 @@ class DataImportView(APIView):
     get=extend_schema(responses=envelope('ImportStatusResponse', TaskRecordSerializer())),
     post=extend_schema(operation_id='data_io_import_retry', request=None, responses=envelope('ImportRetryResponse', TaskRecordSerializer())),
 )
-class DataImportTaskView(APIView):
+class DataImportTaskView(DataModuleView):
     """查看自己发起的导入任务结果"""
     permission_classes = [IsAuthenticated]
 
@@ -132,6 +146,10 @@ class DataImportTaskView(APIView):
             return Response({'code': 400, 'message': '原任务未关联导入文件，无法重试', 'data': None},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        config = get_resource(record.related_resource)
+        if config is None or not config['importable'] or record.task_type != 'import':
+            return Response({'code': 400, 'message': '该资源不支持导入重试', 'data': None}, status=400)
+
         new_record = TaskRecord.objects.create(
             name=f'{record.name}（重试）',
             task_type='import',
@@ -152,7 +170,7 @@ class DataImportTaskView(APIView):
 @extend_schema_view(
     get=extend_schema(parameters=[OpenApiParameter('resource', str)], responses={(200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY}),
 )
-class ImportTemplateView(APIView):
+class ImportTemplateView(DataModuleView):
     """下载导入模板（xlsx，含表头与示例行）"""
     permission_classes = [IsAuthenticated, HasPermission]
     required_permission = 'data_io:import'
@@ -162,7 +180,7 @@ class ImportTemplateView(APIView):
 
         resource_name = request.query_params.get('resource', 'users')
         config = get_resource(resource_name)
-        if config is None:
+        if config is None or not config['importable']:
             return Response({'code': 400, 'message': f'未注册的资源：{resource_name}', 'data': None},
                             status=status.HTTP_400_BAD_REQUEST)
 
@@ -189,55 +207,91 @@ class ImportTemplateView(APIView):
 @extend_schema_view(
     get=extend_schema(parameters=[OpenApiParameter('resource', str), OpenApiParameter('export_format', str, enum=['csv', 'xlsx'])], responses={(200, 'text/csv'): OpenApiTypes.BINARY, (200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY}),
 )
-class DataExportView(APIView):
+class DataExportView(DataModuleView):
     """导出数据（csv / xlsx）"""
     permission_classes = [IsAuthenticated, HasPermission]
     required_permission = 'data_io:export'
 
     def get(self, request):
-        resource_name = request.query_params.get('resource', 'users')
-        # 注意：参数名不能用 format，会触发 DRF 内容协商的 404
-        export_format = request.query_params.get('export_format', 'csv').lower()
+        from apps.core.modules import module_enabled
+        from apps.core.exceptions import APIError
+        serializer = DataExportSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        filters = serializer.validated_data
+        resource_name = filters['resource']
+        export_format = filters['export_format']
         config = get_resource(resource_name)
-        if config is None:
-            return Response({'code': 400, 'message': f'未注册的资源：{resource_name}', 'data': None},
-                            status=status.HTTP_400_BAD_REQUEST)
-        if export_format not in ('csv', 'xlsx'):
-            return Response({'code': 400, 'message': '仅支持 csv / xlsx 格式', 'data': None},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        fields = config['fields']
-        queryset = config['export_queryset']()
-        from apps.core.data_scope import scope_queryset
-        queryset = scope_queryset(queryset, request.user, 'user', 'pk')
-        count = queryset.count()
-        _log(request, 'export', f'Export {resource_name} ({export_format}, {count} rows)')
-
+        if not all(has_permission_code(request.user, code) for code in config['permissions']):
+            raise APIError('没有该资源的导出权限', status_code=403)
+        if resource_name == 'files' and not module_enabled('files'):
+            raise APIError('文件模块已关闭', status_code=404)
+        fields = config['fields'][filters['log_type']] if resource_name == 'logs' else config['fields']
+        queryset = export_queryset(resource_name, request.user, filters)
+        # 只查询白名单，关联字段由 values_list 一次 JOIN，避免逐行额外查询。
+        rows = []
+        text_size = 0
+        for index, values in enumerate(queryset.values_list(*fields).iterator(chunk_size=500)):
+            if index >= EXPORT_MAX_ROWS:
+                raise APIError('导出超过 5000 行，请缩小筛选范围；未生成部分文件', status_code=413)
+            row = []
+            for value in values:
+                value = spreadsheet_text(value.isoformat() if hasattr(value, 'isoformat') else value)
+                if len(value) > 32767 or any(ord(character) < 32 and character not in '\t\r\n' for character in value):
+                    raise APIError('导出包含超长或无效单元格，请调整数据后重试', status_code=400)
+                text_size += len(value.encode('utf-8'))
+                if text_size > EXPORT_MAX_BYTES:
+                    raise APIError('导出超过 10 MiB，请缩小筛选范围；未生成部分文件', status_code=413)
+                row.append(value)
+            rows.append(row)
         if export_format == 'csv':
-            response = HttpResponse(content_type='text/csv; charset=utf-8')
-            response['Content-Disposition'] = f'attachment; filename="{resource_name}-export.csv"'
-            # 加 BOM 保证 Excel 打开中文不乱码
-            response.write('\ufeff')
-            writer = csv.writer(response)
+            buffer = io.StringIO()
+            buffer.write('\ufeff')
+            writer = csv.writer(buffer)
             writer.writerow(fields)
-            for obj in queryset.iterator():
-                writer.writerow([spreadsheet_text(getattr(obj, field, '')) for field in fields])
-            return response
-
-        # xlsx
-        from openpyxl import Workbook
-        wb = Workbook()
-        ws = wb.active
-        ws.title = config['label']
-        ws.append(fields)
-        for obj in queryset.iterator():
-            ws.append([spreadsheet_text(getattr(obj, field, '')) for field in fields])
-        buffer = io.BytesIO()
-        wb.save(buffer)
-        buffer.seek(0)
-        response = HttpResponse(
-            buffer.read(),
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        )
-        response['Content-Disposition'] = f'attachment; filename="{resource_name}-export.xlsx"'
+            writer.writerows(rows)
+            content = buffer.getvalue().encode('utf-8')
+            content_type = 'text/csv; charset=utf-8'
+        else:
+            from openpyxl import Workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = config['label']
+            ws.append(fields)
+            for row in rows:
+                ws.append(row)
+            buffer = io.BytesIO()
+            wb.save(buffer)
+            content = buffer.getvalue()
+            content_type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        if len(content) > EXPORT_MAX_BYTES:
+            raise APIError('导出超过 10 MiB，请缩小筛选范围；未生成部分文件', status_code=413)
+        # 生成完成后写审计；审计失败由异常处理返回失败，不发送未审计的文件。
+        _log(request, 'export', f'Export {resource_name} ({export_format}, {len(rows)} rows)', filters.get('log_type', ''))
+        response = HttpResponse(content, content_type=content_type)
+        response['Content-Disposition'] = f'attachment; filename="{resource_name}-export.{export_format}"'
+        response['Cache-Control'] = 'private, no-store'
+        response['X-Content-Type-Options'] = 'nosniff'
         return response
+
+
+EXPORT_MAX_ROWS = 5000
+EXPORT_MAX_BYTES = 10 * 1024 * 1024
+
+
+@extend_schema_view(get=extend_schema(responses=envelope('DataResourceDirectoryResponse', DataResourceDirectorySerializer())))
+class DataResourcesView(DataModuleView):
+    """只展示当前用户可访问的能力，导出与导入资格独立。"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.modules import module_enabled
+        from apps.core.data_scope import unrestricted_user_creation
+        resources = []
+        for key, config in IMPORT_EXPORT_RESOURCES.items():
+            if key == 'files' and not module_enabled('files'):
+                continue
+            importable = config['importable'] and has_permission_code(request.user, 'data_io:import') and unrestricted_user_creation(request.user)
+            exportable = config['exportable'] and has_permission_code(request.user, 'data_io:export') and all(has_permission_code(request.user, code) for code in config['permissions'])
+            if importable or exportable:
+                resources.append({'resource': key, 'label': config['label'], 'importable': importable, 'exportable': exportable})
+        return Response({'code': 200, 'message': 'success', 'data': {'resources': resources, 'max_rows': EXPORT_MAX_ROWS, 'max_bytes': EXPORT_MAX_BYTES}})

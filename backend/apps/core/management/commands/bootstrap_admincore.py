@@ -51,6 +51,9 @@ PERMISSIONS = [
     ('monitor', 'read', '查看服务监控', 'monitor:read'),
     ('cache', 'read', '查看业务缓存目录', 'cache:read'),
     ('cache', 'clear', '清理登记的业务缓存', 'cache:clear'),
+    ('announcement', 'read', '查看公告管理', 'announcement:read'),
+    ('announcement', 'update', '维护公告草稿', 'announcement:update'),
+    ('announcement', 'publish', '发布和撤回公告', 'announcement:publish'),
     ('config', 'read', '查看系统参数', 'config:read'),
     ('config', 'update', '修改系统参数', 'config:update'),
     ('dictionary', 'read', '查看数据字典', 'dictionary:read'),
@@ -88,6 +91,7 @@ MENUS = [
     ('服务监控', '/system/monitor', 'activity', 18, None, 'monitor:read'),
     ('岗位与任职', '/organization/posts', 'briefcase-business', 19, None, 'post:read'),
     ('缓存管理', '/system/cache', 'database', 20, None, 'cache:read'),
+    ('通知公告', '/notifications/announcements', 'bell', 21, None, None),
 ]
 
 
@@ -169,7 +173,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear'}):
+                if role_created or (code in new_permission_codes and code not in {'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -242,6 +246,13 @@ class Command(BaseCommand):
                 Menu.objects.get_or_create(path='/system/cache', defaults={
                     'name': '缓存管理', 'icon': 'database', 'order': 20,
                     'permission': permission_map['cache:read'],
+                })
+
+        with transaction.atomic():
+            _, first_announcements_init = BootstrapState.objects.get_or_create(key='announcements_menu_v1')
+            if first_announcements_init:
+                Menu.objects.get_or_create(path='/notifications/announcements', defaults={
+                    'name': '通知公告', 'icon': 'bell', 'order': 21,
                 })
 
         Notification.push(

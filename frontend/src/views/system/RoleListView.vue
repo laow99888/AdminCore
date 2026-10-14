@@ -5,7 +5,11 @@
         <template #header>
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("角色列表") }}</div>
-            <BaseButton v-if="auth.can('role:update') && (auth.user?.is_staff || auth.user?.is_superuser)" variant="primary" @click="handleCreate">{{ uiText("+ 新增角色") }}</BaseButton>
+            <div class="role-header-actions">
+              <DataExportButton :loading="loading || !exportReady" resource="roles" />
+              <PrintTableButton :title="uiText('角色列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('role:read')" :owner-key="printOwner" />
+              <BaseButton v-if="auth.can('role:update') && (auth.user?.is_staff || auth.user?.is_superuser)" variant="primary" @click="handleCreate">{{ uiText("+ 新增角色") }}</BaseButton>
+            </div>
           </div>
         </template>
 
@@ -78,14 +82,23 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { rolesApi, permissionsApi, type RoleRow } from '@/api'
+import DataExportButton from '@/components/common/DataExportButton.vue'
+import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import type { PrintColumn } from '@/utils/printDocument'
 
 const auth = useAuthStore()
+const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
+const printColumns = computed<PrintColumn<RoleRow>[]>(() => [
+  { label: uiText('角色名'), value: row => row.name },
+  { label: uiText('描述'), value: row => row.description },
+  { label: uiText('状态'), value: row => uiText(row.is_active ? '激活' : '停用') },
+])
 const loading = ref(false)
 const saving = ref(false)
 const dialogVisible = ref(false)
@@ -125,11 +138,14 @@ const tableColumns = [
   { prop: 'created_at', label: uiText("创建时间"), width: '180px' },
 ]
 
+const exportReady = ref(false)
 const loadRoles = async () => {
+  exportReady.value = false
   loading.value = true
   try {
     const data = await rolesApi.list({ page: currentPage.value, page_size: pageSize.value })
     tableData.value = data.items
+    exportReady.value = true
     total.value = data.pagination.total
   } finally {
     loading.value = false
@@ -227,6 +243,7 @@ loadRoles()
 </script>
 
 <style scoped>
+.role-header-actions { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; max-width: 100%; }
 .role-list-container {
   width: 100%;
 }

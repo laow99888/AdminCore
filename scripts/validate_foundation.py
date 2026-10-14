@@ -302,6 +302,21 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 维护任务会话锁与四次重复领取仅执行一次', True)
+        encoded = base64.b64encode((ROOT / 'scripts/announcement_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL 公告同版本发布竞争与幂等重放单次审计', True)
+        announcement = api('notifications/announcements/manage/', 'POST',
+                           {'title': '模块切换保留公告', 'content': '隔离验收正文', 'version': 0}, 201, token).json()['data']
+        announcement_id = announcement['id']
+        api(f'notifications/announcements/manage/{announcement_id}/publish/', 'POST',
+            {'version': announcement['version']}, token=token)
+        check('真实 HTTP 已发布公告可读',
+              api(f'notifications/announcements/{announcement_id}/', token=token).json()['data']['content'] == '隔离验收正文')
+        for resource in ('users', 'roles', 'logs', 'files'):
+            exported = api(f'data-io/export/?resource={resource}&export_format=csv', token=token)
+            check('真实 HTTP 安全导出资源 ' + resource,
+                  exported.headers['Content-Type'].startswith('text/csv') and bool(exported.content))
         schedules = api('tasks/schedules/', token=token).json()['data']
         entry = next(item for item in schedules if item['key'] == 'notifications')
         edit = {'revision': entry['revision'], 'enabled': False, **entry['cron'], 'options': {'dry_run': True}}
@@ -417,12 +432,16 @@ def main():
         api('system/cache/', expected=404, token=token)
         api('files/recycle/', expected=404, token=token)
         api('tasks/schedules/', expected=404, token=token)
+        api('notifications/announcements/', expected=404, token=token)
+        api('data-io/resources/', expected=404, token=token)
         api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 4}, 404, token)
         compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "from apps.core.modules import task_enabled; assert not task_enabled('data_io.run_data_import'); from apps.core.models import DataDictionary; assert DataDictionary.objects.filter(code='integration').exists()")
         compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)
+        check('通知模块关闭/重新启用保留已发布公告',
+              api(f'notifications/announcements/{announcement_id}/', token=token).json()['data']['status'] == 'published')
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         check('关闭并重新启用系统诊断恢复只读入口', api('system/information/', token=token).json()['data']['environment'] == 'production')

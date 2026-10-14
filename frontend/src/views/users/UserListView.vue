@@ -10,7 +10,8 @@
               <input ref="importInput" type="file" accept=".xlsx,.csv" class="hidden-input" @change="handleImport" />
               <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import')" variant="ghost" @click="triggerImport">{{ uiText("导入") }}</BaseButton>
               <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import')" variant="ghost" @click="downloadTemplate">{{ uiText("导入模板") }}</BaseButton>
-              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:export')" variant="ghost" @click="handleExport">{{ uiText("导出") }}</BaseButton>
+              <DataExportButton :loading="loading || !exportReady" resource="users" :filters="exportFilters" />
+              <PrintTableButton :title="uiText('用户列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('user:read')" :owner-key="printOwner" />
             </div>
           </div>
         </template>
@@ -139,6 +140,9 @@ import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
 import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type RoleRow } from '@/api'
+import DataExportButton from '@/components/common/DataExportButton.vue'
+import PrintTableButton from '@/components/common/PrintTableButton.vue'
+import type { PrintColumn } from '@/utils/printDocument'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -177,6 +181,15 @@ const tableData = ref<UserRow[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
+const exportFilters = ref<{ search?: string; is_active?: boolean }>({})
+const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, modules.config]))
+const printColumns = computed<PrintColumn<UserRow>[]>(() => [
+  { label: uiText('用户名'), value: row => row.username },
+  { label: uiText('邮箱'), value: row => row.email },
+  { label: uiText('名字'), value: row => row.first_name },
+  { label: uiText('姓氏'), value: row => row.last_name },
+  { label: uiText('状态'), value: row => uiText(row.is_active ? '激活' : '禁用') },
+])
 
 const searchForm = reactive({
   search: '',
@@ -214,21 +227,29 @@ const tableColumns = [
 
 const dialogTitle = computed(() => (formData.id ? uiText("编辑用户") : uiText("新增用户")))
 
+let listGeneration = 0
+const exportReady = ref(false)
 const loadUsers = async () => {
+  const current = ++listGeneration
+  exportReady.value = false
   loading.value = true
+  const filters = { ...(searchForm.search ? { search: searchForm.search } : {}),
+    ...(typeof searchForm.is_active === 'boolean' ? { is_active: searchForm.is_active } : {}) }
   try {
     const data = await usersApi.list({
-      ...(searchForm.search ? { search: searchForm.search } : {}),
-      ...(searchForm.is_active !== null ? { is_active: searchForm.is_active } : {}),
+      ...filters,
       page: currentPage.value,
       page_size: pageSize.value,
     })
+    if (current !== listGeneration) return
     tableData.value = data.items
+    exportFilters.value = filters
+    exportReady.value = true
     total.value = data.pagination.total
   } catch {
     // 拦截器已提示
   } finally {
-    loading.value = false
+    if (current === listGeneration) loading.value = false
   }
 }
 
@@ -368,11 +389,6 @@ const handleImport = async (event: Event) => {
 
 const downloadTemplate = () => {
   downloadFile(dataIoApi.templateUrl(), 'import-template-users.xlsx')
-}
-
-const handleExport = async () => {
-  await downloadFile(dataIoApi.exportUrl('users', 'xlsx'), 'users-export.xlsx')
-  ElMessage.success(uiText("导出已开始下载"))
 }
 
 const handlePageChange = (page: number) => {
