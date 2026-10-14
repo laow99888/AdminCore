@@ -1,0 +1,64 @@
+from django.db import transaction
+from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import viewsets
+from rest_framework.exceptions import NotFound
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from apps.core.idempotency import with_idempotency
+from apps.core.schema import envelope, MessageResponse
+from apps.permissions.permissions import HasPermission
+from .serializers import @@MODEL@@Serializer as RecordSerializer, @@MODEL@@VersionSerializer as VersionSerializer
+from .services import visible, mutate, locked_actor
+
+
+@extend_schema_view(
+    retrieve=extend_schema(responses=envelope('@@MODULE@@_@@MODEL@@DetailResponse', RecordSerializer())),
+    create=extend_schema(responses={201: envelope('@@MODULE@@_@@MODEL@@CreatedResponse', RecordSerializer())}),
+    update=extend_schema(responses=envelope('@@MODULE@@_@@MODEL@@UpdatedResponse', RecordSerializer())),
+    partial_update=extend_schema(responses=envelope('@@MODULE@@_@@MODEL@@PatchedResponse', RecordSerializer())),
+    destroy=extend_schema(request=VersionSerializer, responses={200: MessageResponse}),
+)
+class RecordViewSet(viewsets.ModelViewSet):
+    serializer_class = RecordSerializer
+    permission_classes = [IsAuthenticated, HasPermission]
+    permission_map = {'list': '@@MODULE@@:read', 'retrieve': '@@MODULE@@:read', 'create': '@@MODULE@@:create',
+        'update': '@@MODULE@@:update', 'partial_update': '@@MODULE@@:update', 'destroy': '@@MODULE@@:delete'}
+    search_fields = @@SEARCH_FIELDS@@
+    ordering_fields = ['created_at', 'updated_at']
+    ordering = ['-created_at', '-id']
+
+    def get_queryset(self):
+        return visible(self.request.user)
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+    def retrieve(self, request, *args, **kwargs):
+        return Response({'code': 200, 'message': 'success', 'data': self.get_serializer(self.get_object()).data})
+
+    @transaction.atomic
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        actor = locked_actor(request, 'create')
+        def execute():
+            row = mutate(request, 'create', serializer.validated_data)
+            return Response({'code': 201, 'message': '创建成功', 'data': self.get_serializer(row).data}, status=201)
+        response = with_idempotency(request, '@@MODULE@@:create', execute)
+        if not visible(actor).filter(pk=response.data['data']['id']).exists():
+            raise NotFound()
+        return response
+
+    def update(self, request, *args, **kwargs):
+        serializer = self.get_serializer(self.get_object(), data=request.data, partial=kwargs.get('partial', False))
+        serializer.is_valid(raise_exception=True)
+        row = mutate(request, 'update', serializer.validated_data, self.kwargs['pk'])
+        return Response({'code': 200, 'message': '更新成功', 'data': self.get_serializer(row).data})
+
+    def destroy(self, request, *args, **kwargs):
+        serializer = VersionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mutate(request, 'delete', serializer.validated_data, self.kwargs['pk'])
+        return Response({'code': 200, 'message': '删除成功', 'data': None})

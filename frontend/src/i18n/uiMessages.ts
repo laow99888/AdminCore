@@ -306,4 +306,5 @@ export const uiMessages: Record<string, string> = {
   '此类型暂不支持预览，请下载查看': 'This file type cannot be previewed. Download it instead.',
   '图片像素超出预览限制': 'Image dimensions exceed preview limits.', '图片解码结果超出预览限制': 'Decoded image exceeds preview limits.',
   'PDF 结构过于复杂，暂不支持预览': 'PDF structure is too complex to preview.',
+  '必填字段不能为空': 'Required fields cannot be empty.', '确定删除？': 'Confirm deletion?', '否': 'No',
 }

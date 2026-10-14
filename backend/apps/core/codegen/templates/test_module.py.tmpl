@@ -1,0 +1,74 @@
+"""生成模块的权限、版本、字段白名单、幂等与审计检查。需先完成显式注册及迁移。"""
+from unittest.mock import patch
+import pytest
+from django.urls import path, include
+from django.db import connection
+from apps.@@MODULE@@.models import @@MODEL@@
+from apps.permissions.models import Role, Permission, RolePermission, UserRole
+from apps.logs.models import OperationLog
+from config.urls import urlpatterns as base_urls
+
+pytestmark = pytest.mark.django_db(transaction=@@UNMANAGED@@)
+urlpatterns = list(base_urls) + [path('api/v1/@@API_PREFIX@@/', include('apps.@@MODULE@@.urls'))]
+URL = '/api/v1/@@API_PREFIX@@/records/'
+
+
+@pytest.fixture(autouse=True)
+def enabled(settings, db):
+    settings.ADMINCORE_MODULES = tuple(dict.fromkeys((*settings.ADMINCORE_MODULES, '@@MODULE@@')))
+    settings.ROOT_URLCONF = __name__
+    created = False
+    if @@UNMANAGED@@:
+        # pytest独立测试库里显式建立不受迁移管理的表；不读取或改动正式表。
+        assert getattr(settings, 'TESTING', False), '只允许在独立测试配置中准备已有表'
+        if @@MODEL@@._meta.db_table not in connection.introspection.table_names():
+            with connection.schema_editor() as editor:
+                editor.create_model(@@MODEL@@)
+            created = True
+    yield
+    if created:
+        with connection.schema_editor() as editor:
+            editor.delete_model(@@MODEL@@)
+
+
+def payload():
+    values = @@DEFAULTS_PY@@
+    for name in @@REQUIRED_TEXT_FIELDS@@:
+        values[name] = 'X'
+    return {**values, 'version': 0}
+
+
+def test_crud_and_conflict(admin_client):
+    first = admin_client.post(URL, payload(), format='json', HTTP_IDEMPOTENCY_KEY='generated-once')
+    assert first.status_code == 201
+    repeated = admin_client.post(URL, payload(), format='json', HTTP_IDEMPOTENCY_KEY='generated-once')
+    assert repeated.status_code == 201 and first.json() == repeated.json()
+    identifier = first.json()['data']['id']
+    detail = URL + identifier + '/'
+    assert admin_client.patch(detail, {'version': 0}, format='json').status_code == 409
+    assert admin_client.patch(detail, {'version': 1}, format='json').status_code == 200
+    assert admin_client.delete(detail, {'version': 1}, format='json').status_code == 409
+    assert admin_client.delete(detail, {'version': 2}, format='json').status_code == 200
+    assert OperationLog.objects.filter(resource='@@MODULE@@', resource_id=identifier).count() == 3
+
+
+def test_permissions_and_owner_scope(member_client, member_user, admin_user):
+    assert member_client.get(URL).status_code == 403
+    role = Role.objects.create(name='generated-reader')
+    UserRole.objects.create(user=member_user, role=role)
+    permission, _ = Permission.objects.get_or_create(resource='@@MODULE@@', action='read', defaults={'name': 'read', 'code': '@@MODULE@@:read'})
+    RolePermission.objects.create(role=role, permission=permission)
+    mine = @@MODEL@@.objects.create(creator=member_user, **{key: value for key, value in payload().items() if key != 'version'})
+    other = @@MODEL@@.objects.create(creator=admin_user, **{key: value for key, value in payload().items() if key != 'version'})
+    assert [row['id'] for row in member_client.get(URL).json()['data']['items']] == [str(mine.pk)]
+    assert member_client.get(URL + str(other.pk) + '/').status_code == 404
+    assert member_client.post(URL, payload(), format='json').status_code == 403
+
+
+def test_write_whitelist_and_audit_rollback(admin_client, settings):
+    assert admin_client.post(URL, {**payload(), 'creator': 'spoof'}, format='json').status_code == 400
+    with patch('apps.@@MODULE@@.services.write_audit', side_effect=RuntimeError('isolated audit fixture')):
+        assert admin_client.post(URL, payload(), format='json').status_code == 500
+    assert not @@MODEL@@.objects.exists()
+    settings.ADMINCORE_MODULES = tuple(key for key in settings.ADMINCORE_MODULES if key != '@@MODULE@@')
+    assert admin_client.get(URL).status_code == 404

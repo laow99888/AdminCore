@@ -1,0 +1,27 @@
+from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_serializer
+from .models import @@MODEL@@
+
+
+@extend_schema_serializer(component_name='@@MODULE@@_@@MODEL@@')
+class @@MODEL@@Serializer(serializers.ModelSerializer):
+@@SERIALIZER_FIELDS@@
+    version = serializers.IntegerField(min_value=0, required=True)
+    creator_name = serializers.CharField(source='creator.username', read_only=True)
+
+    class Meta:
+        model = @@MODEL@@
+        fields = @@ALL_FIELDS@@
+        read_only_fields = ('id', 'creator', 'created_at', 'updated_at')
+
+    def validate(self, values):
+        if set(self.initial_data) - {*@@FIELDS_REPR@@, 'version'}:
+            raise serializers.ValidationError('只能提交登记的业务字段')
+        if 'version' not in values:
+            raise serializers.ValidationError({'version': '必须提交读取到的版本'})
+        return values
+
+
+@extend_schema_serializer(component_name='@@MODULE@@_@@MODEL@@Version')
+class @@MODEL@@VersionSerializer(serializers.Serializer):
+    version = serializers.IntegerField(min_value=1)

@@ -1,0 +1,71 @@
+"""用户、设备、幂等、业务行依次加锁；授权、写入和审计共用事务。"""
+import hashlib
+import json
+from django.contrib.auth import get_user_model
+from django.db import transaction
+from rest_framework.exceptions import AuthenticationFailed, NotFound, PermissionDenied, APIException
+from apps.auth_app.sessions import locked_request_session
+from apps.core.data_scope import scope_queryset
+from apps.core.modules import module_enabled
+from apps.logs.audit import write_audit
+from apps.permissions.permissions import has_permission_code
+from .models import @@MODEL@@ as Record
+
+
+class VersionConflict(APIException):
+    status_code = 409
+    default_detail = '记录已变化，请刷新后重试'
+
+
+def visible(user):
+    return scope_queryset(Record.objects.select_related('creator'), user, '@@MODULE@@', 'creator_id', fallback='self')
+
+
+def projection(row):
+    values = {name: getattr(row, name) for name in @@FIELDS_REPR@@}
+    digest = hashlib.sha256(json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return {'id': row.pk, 'creator_id': row.creator_id, 'version': row.version, 'record_sha256': digest}
+
+
+def locked_actor(request, action):
+    actor = get_user_model().objects.select_for_update().filter(pk=request.user.pk, is_active=True).first()
+    if actor is None:
+        raise AuthenticationFailed('登录凭据已撤销')
+    if request.auth is not None:
+        locked_request_session(request, actor)
+    if actor.must_change_password or not has_permission_code(actor, '@@MODULE@@:' + action):
+        raise PermissionDenied('没有操作权限')
+    return actor
+
+
+@transaction.atomic
+def mutate(request, action, values, identifier=None):
+    if not module_enabled('@@MODULE@@'):
+        raise NotFound()
+    actor = locked_actor(request, action)
+    before = None
+    if action == 'create':
+        if values['version'] != 0:
+            raise VersionConflict()
+        row = Record.objects.create(creator=actor, **{**values, 'version': 1})
+        if not visible(actor).filter(pk=row.pk).exists():
+            raise PermissionDenied('新记录不在当前数据范围内')
+    else:
+        row = visible(actor).select_for_update(of=('self',)).filter(pk=identifier).first()
+        if row is None:
+            raise NotFound()
+        if values['version'] != row.version:
+            raise VersionConflict()
+        before = projection(row)
+        if action == 'update':
+            for key, value in values.items():
+                if key != 'version':
+                    setattr(row, key, value)
+            row.version += 1
+            row.save()
+    write_audit(request=request, actor=actor, resource='@@MODULE@@', identifier=row.pk, action=action,
+                before=before, after=None if action == 'delete' else projection(row))
+    if action == 'delete':
+        row.delete()
+        return None
+    return row

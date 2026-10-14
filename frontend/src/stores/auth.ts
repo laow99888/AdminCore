@@ -108,7 +108,9 @@ export const useAuthStore = defineStore('auth', () => {
     const installedGeneration = sessionGeneration
     const current = await authApi.me()
     if (installedGeneration !== sessionGeneration) throw new Error('Login session changed')
-    user.value = current; fetchedAt = Date.now()
+    // me返回更完整的权限/账户字段；仍属于同一次登录，不能卸载等待导航的登录页。
+    preservingSecuritySession.value = true
+    try { user.value = current; fetchedAt = Date.now() } finally { preservingSecuritySession.value = false }
     return data.user
   }
   function cancelPendingLogin() { sessionGeneration++ }

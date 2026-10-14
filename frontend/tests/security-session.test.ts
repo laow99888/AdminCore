@@ -10,6 +10,21 @@ const old = jwt('old'), next = jwt('new')
 
 describe('双重证明后的当前会话替换', () => {
   beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); localStorage.setItem('token', old); setActivePinia(createPinia()) })
+  it('完整me增加权限字段仍属于同次登录，缓存监听不能取消导航', async () => {
+    const auth = useAuthStore()
+    vi.mocked(authApi.login).mockResolvedValue({ access: next, refresh: 'fixture', user })
+    vi.mocked(authApi.me).mockResolvedValue({ ...user, permissions: ['*'], is_staff: true, is_superuser: true })
+    const observations: boolean[] = []
+    watch(() => JSON.stringify([auth.token, auth.user?.id, auth.user?.permissions, auth.user?.is_staff]), () => {
+      observations.push(auth.preservingSecuritySession)
+      if (!auth.preservingSecuritySession) auth.cancelPendingLogin()
+    }, { flush: 'sync' })
+    await auth.login('member', 'fixture')
+    expect(auth.user?.permissions).toEqual(['*'])
+    expect(observations.length).toBeGreaterThan(1)
+    expect(observations.every(Boolean)).toBe(true)
+    expect(auth.preservingSecuritySession).toBe(false)
+  })
   it('login的第四参数原样传递单次captcha，仍只安装认证结果', async () => {
     const auth = useAuthStore(); vi.mocked(authApi.login).mockResolvedValue({ access: next, refresh: 'fixture', user }); vi.mocked(authApi.me).mockResolvedValue(user)
     const proof = { captcha_id: '00000000-0000-4000-8000-000000000001', captcha_code: 'ABCDE' }

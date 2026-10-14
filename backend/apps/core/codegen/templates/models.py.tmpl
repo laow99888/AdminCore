@@ -1,0 +1,16 @@
+from django.conf import settings
+from django.db import models
+from apps.core.models import BaseModel
+
+
+class @@MODEL@@(BaseModel):
+@@MODEL_FIELDS@@
+    creator = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='@@MODULE@@_records')
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+@@TABLE_CONFIG@@        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['creator', '-created_at'], name=@@INDEX_NAME@@)]
+        constraints = [
+            @@CONSTRAINTS@@,
+        ]

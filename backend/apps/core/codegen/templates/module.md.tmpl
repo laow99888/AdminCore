@@ -1,0 +1,16 @@
+# @@MODULE@@ 生成模块接入
+
+本产物不是已安装插件。先审查模型、字段、授权、迁移及页面，再显式接入。
+
+1. 将生成的backend/frontend文件复制到对应项目路径；保留人工改动，使用计划差异选择写入。
+2. 在config/settings/base.py的INSTALLED_APPS登记`apps.@@MODULE@@`；在core/modules.py显式导入`apps.@@MODULE@@.manifest.MODULE`并加入MODULES（PRESETS计算之前）。
+3. 在frontend/src/modules/registry.ts加入`{ key: '@@MODULE@@', path: '/@@API_PREFIX@@', permission: '@@MODULE@@:read', title: @@TITLE_JSON@@, component: () => import('../views/@@MODULE@@/RecordListView.vue') }`。
+4. 执行`manage.py makemigrations @@MODULE@@ core`，审查生成迁移；已有表模式managed=False不得据此宣称数据库约束已创建，需要独立核验DDL和归属/version。
+5. 备份已有库后执行migrate及bootstrap_admincore。已有角色不自动扩权，按项目职责授予四类权限。模块默认关闭，显式加入ADMINCORE_MODULES才提供入口。
+6. 运行生成的backend测试、严格OpenAPI、前端lint/类型/构建及实际浏览器/SQL并发；生成不代替业务状态机、关系约束和上线验收。
+
+新增数据范围资源为`@@MODULE@@`，普通用户默认本人，已有组织范围继续执行。写操作携带版本，创建支持幂等；原会话、权限和范围在事务中复核，业务与审计原子提交。创建者引用受保护，审计仅保存字段摘要，不存业务原文。关闭模块保留迁移和表，回退不反向迁移删除业务数据。
+
+字段标签由定义提供。中英项目需要把标签/标题及自定义业务文案加入现有uiMessages；不要将字段名或数据库类型作为产品界面文案。
+
+仅支持有界文本、整数和布尔字段。金额、日期、文件、业务关系、唯一编码、业务状态机、复杂查询或批量副作用需要人工建模；生成器会拒绝不支持的已有表字段。用户、认证、权限、日志等内部表禁止生成CRUD。

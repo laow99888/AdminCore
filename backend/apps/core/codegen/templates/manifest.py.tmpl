@@ -1,0 +1,11 @@
+from apps.core.contracts import Module, MenuDeclaration
+
+GENERATED_BY = 'AdminCore.codegen.v1'
+
+MODULE = Module('@@MODULE@@', @@TITLE_REPR@@, '@@API_PREFIX@@', 'apps.@@MODULE@@.urls', ('/@@API_PREFIX@@',),
+    default_enabled=False,
+    permissions=tuple(('@@MODULE@@', action, @@TITLE_REPR@@ + ':' + action, '@@MODULE@@:' + action)
+                      for action in ('read', 'create', 'update', 'delete')),
+    menus=(MenuDeclaration(@@TITLE_REPR@@, '/@@API_PREFIX@@', 'clipboard-check', '@@MODULE@@:read'),),
+    data_resources=(('@@MODULE@@', @@TITLE_REPR@@),),
+    audit_fields=(('@@MODULE@@', ('id', 'creator_id', 'version', 'record_sha256')),))
