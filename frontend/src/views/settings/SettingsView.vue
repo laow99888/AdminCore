@@ -7,6 +7,12 @@
           <BaseButton size="large" variant="ghost" @click="router.push('/settings/sessions')">{{ uiText('管理设备') }}</BaseButton>
         </div>
       </BaseCard>
+      <BaseCard class="session-entry">
+        <div class="setting-row">
+          <div><div class="setting-label">{{ uiText('双因素认证') }}</div><div class="setting-desc">{{ uiText('使用认证器动态码及一次性恢复码保护登录。') }}</div></div>
+          <BaseButton size="large" variant="ghost" @click="router.push('/settings/two-factor')">{{ uiText('管理双因素认证') }}</BaseButton>
+        </div>
+      </BaseCard>
       <el-row :gutter="16">
         <!-- 个人信息 -->
         <el-col :xs="24" :lg="10">

@@ -97,3 +97,16 @@ class EmailChallenge(models.Model):
 
     class Meta:
         indexes = [models.Index(fields=['user', 'purpose', 'consumed_at']), models.Index(fields=['expires_at'])]
+
+
+class TOTPDevice(models.Model):
+    """用户行先锁；密钥只保存独立 Fernet 密文，恢复码只保存散列。"""
+    user = models.OneToOneField(User, primary_key=True, on_delete=models.CASCADE, related_name='totp_device')
+    active_secret = models.TextField(blank=True)
+    pending_secret = models.TextField(blank=True)
+    pending_expires_at = models.DateTimeField(null=True, blank=True)
+    pending_session_id = models.UUIDField(null=True, blank=True)
+    pending_password_digest = models.CharField(max_length=64, blank=True)
+    pending_session_version = models.PositiveIntegerField(null=True, blank=True)
+    last_counter = models.BigIntegerField(default=-1)
+    recovery_hashes = models.JSONField(default=list)

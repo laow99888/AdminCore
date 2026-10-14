@@ -6,6 +6,7 @@
 """
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import base64
 import json
 import secrets
 import socket
@@ -93,6 +94,7 @@ def main():
         'DJANGO_ALLOWED_HOSTS': 'localhost,127.0.0.1,backend', 'DJANGO_ENV': 'production',
         'DJANGO_DEBUG': 'False', 'FRONTEND_PORT': '18421', 'BACKEND_PORT': '18420',
         'ALLOW_PUBLIC_REGISTRATION': 'False', 'USE_TLS': 'False',
+        'AUTH_TOTP_ENCRYPTION_KEY': base64.urlsafe_b64encode(secrets.token_bytes(32)).decode('ascii'),
     }
     env_file = FOLDER / 'fixture.env'
     env_file.write_text(''.join(key + '=' + value + '\n' for key, value in environment.items()), encoding='utf-8')
@@ -308,7 +310,6 @@ def main():
                 "assert OutboxEvent.objects.count()==2 and OutboxEvent.objects.filter(status='succeeded').count()==2; "
                 "assert Notification.objects.count()==2")
         check('PostgreSQL 四个派发器并发消费两条事件无重复通知', True)
-        import base64
         source = (ROOT / 'scripts/recycle_concurrency.py').read_bytes()
         encoded = base64.b64encode(source).decode('ascii')
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
@@ -334,6 +335,10 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL/Redis/本地SMTP 邮箱归属、找回、并发消费及可靠重试', True)
+        encoded = base64.b64encode((ROOT / 'scripts/totp_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL/Redis 双因素动态码与恢复码单次消费、会话撤销及失效设置', True)
         announcement = api('notifications/announcements/manage/', 'POST',
                            {'title': '模块切换保留公告', 'content': '隔离验收正文', 'version': 0}, 201, token).json()['data']
         announcement_id = announcement['id']

@@ -15,6 +15,8 @@ User = get_user_model()
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     """自定义 JWT Token 序列化器"""
+    otp_code = serializers.RegexField(r'^(?:[0-9]{6}|[0-9a-f]{32})$', max_length=32, required=False,
+                                     write_only=True, trim_whitespace=False)
 
     @classmethod
     def get_token(cls, user):
@@ -38,6 +40,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed('登录凭据已撤销，请重新登录')
         self.user = fresh
         request = self.context.get('request')
+        from .totp import login_proof
+        login_proof(fresh, request, attrs.get('otp_code'))
         refresh = issue_session(fresh, request)
         ip = request_ip(request) or '0.0.0.0'
         LoginLog.objects.create(user=fresh, username=fresh.username, status='success',

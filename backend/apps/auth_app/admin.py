@@ -5,8 +5,21 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import AdminPasswordChangeForm
+from django.contrib.admin.forms import AdminAuthenticationForm
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from .models import User
+
+
+class MFAAdminAuthenticationForm(AdminAuthenticationForm):
+    def confirm_login_allowed(self, user):
+        super().confirm_login_allowed(user)
+        from .models import TOTPDevice
+        if TOTPDevice.objects.filter(user=user).exclude(active_secret='').exists():
+            raise ValidationError('已启用双因素认证，请使用系统登录入口', code='mfa_required')
+
+
+admin.site.login_form = MFAAdminAuthenticationForm
 
 
 class RequiredPasswordChangeForm(AdminPasswordChangeForm):

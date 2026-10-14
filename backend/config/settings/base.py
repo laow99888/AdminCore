@@ -25,6 +25,14 @@ PROJECT_ROOT = BASE_DIR.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key-change-in-production')
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
 ALLOW_PUBLIC_REGISTRATION = os.getenv('ALLOW_PUBLIC_REGISTRATION', 'False').lower() == 'true'
+# 独立于 JWT 签名密钥；缺失时不允许绑定，已有设备认证保持失败关闭。
+AUTH_TOTP_ENCRYPTION_KEY = os.getenv('AUTH_TOTP_ENCRYPTION_KEY', '')
+if AUTH_TOTP_ENCRYPTION_KEY:
+    from cryptography.fernet import Fernet
+    try:
+        Fernet(AUTH_TOTP_ENCRYPTION_KEY.encode('ascii'))
+    except (ValueError, UnicodeEncodeError):
+        raise ValueError('AUTH_TOTP_ENCRYPTION_KEY 必须为合法的 Fernet 密钥') from None
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
 
 # 应用配置

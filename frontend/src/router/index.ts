@@ -22,6 +22,7 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/settings/two-factor', name: 'TwoFactor', component: () => import('../views/settings/TwoFactorView.vue'), meta: { title: '双因素认证', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/recover-password', name: 'RecoverPassword', component: () => import('../views/auth/RecoverPasswordView.vue'), meta: { title: '找回密码', requiresAuth: false, preserveOnLocaleChange: true } },
   { path: '/settings/sessions', name: 'DeviceSessions', component: () => import('../views/settings/SessionManagementView.vue'), meta: { title: '会话与设备', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/system/online-users', name: 'OnlineUsers', component: () => import('../views/settings/SessionManagementView.vue'), props: { admin: true }, meta: { title: '在线用户', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },

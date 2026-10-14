@@ -14,6 +14,12 @@ logger = logging.getLogger(__name__)
 class PasswordChangeSessionMiddleware(MiddlewareMixin):
     """同时保护 Django 管理后台的会话认证，避免绕过 JWT 限制。"""
     def process_view(self, request, view_func, view_args, view_kwargs):
+        if (request.user.is_authenticated and request.resolver_match.namespace == 'admin'
+                and request.resolver_match.view_name != 'admin:logout'):
+            from apps.auth_app.models import TOTPDevice
+            if TOTPDevice.objects.filter(user=request.user).exclude(active_secret='').exists():
+                return JsonResponse({'code': 403, 'message': '已启用双因素认证，请使用系统登录入口',
+                                     'data': {'reason': 'mfa_required'}}, status=403)
         if (request.user.is_authenticated and request.user.must_change_password
                 and request.resolver_match.view_name != 'admin:logout'):
             return JsonResponse({'code': 403, 'message': '请通过系统登录页修改初始密码',

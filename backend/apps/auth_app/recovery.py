@@ -177,6 +177,9 @@ def reset_password(request, code, new_password, new_password2):
     user.session_version += 1
     user.must_change_password = False
     user.save(update_fields=['password', 'session_version', 'must_change_password', 'updated_at'])
+    from .models import TOTPDevice
+    TOTPDevice.objects.filter(user=user).update(pending_secret='', pending_expires_at=None,
+        pending_session_id=None, pending_password_digest='', pending_session_version=None)
     # 所有同用户待用挑战一起作废，避免 reset/verify 之间存在可复用能力。
     EmailChallenge.objects.filter(user=user, consumed_at__isnull=True).update(consumed_at=timezone.now())
     audit(request, user, 'password_recovered')

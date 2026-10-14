@@ -12,6 +12,7 @@
           <el-form-item prop="username">
             <el-input
               v-model="form.username"
+              :disabled="loading || mfaRequired"
               :placeholder="uiText('用户名')"
               clearable
               @focus="focusedField = 'username'"
@@ -25,6 +26,7 @@
           <el-form-item prop="password">
             <el-input
               v-model="form.password"
+              :disabled="loading || mfaRequired"
               type="password"
               :placeholder="uiText('密码')"
               clearable
@@ -37,13 +39,18 @@
               </template>
             </el-input>
           </el-form-item>
+          <template v-if="mfaRequired">
+            <p role="status">{{ uiText('请填写认证器的 6 位动态码或一次性恢复码。') }}</p>
+            <el-form-item :label="uiText('动态码或恢复码')"><el-input v-model="otpCode" :aria-label="uiText('动态码或恢复码')" autocomplete="one-time-code" maxlength="64" /></el-form-item>
+            <el-button :disabled="loading" @click="cancelMfa">{{ uiText('取消双因素登录') }}</el-button>
+          </template>
           <el-form-item class="mb-0">
             <el-button
               type="primary"
               class="login-btn"
               :loading="loading"
               @click="handleLogin"
-            >{{ uiText("登录") }}</el-button>
+            >{{ uiText(mfaRequired ? '验证并登录' : '登录') }}</el-button>
           </el-form-item>
         </el-form>
         <div class="recovery-entry">
@@ -73,6 +80,8 @@ const authStore = useAuthStore()
 const brand = useBrandStore()
 const loading = ref(false)
 const focusedField = ref('')
+const mfaRequired = ref(false), otpCode = ref('')
+function cancelMfa() { if (!loading.value) { mfaRequired.value = false; otpCode.value = ''; form.value.password = '' } }
 const recoveryEnabled = ref(false), recoveryLoading = ref(false), recoveryError = ref(false)
 let recoveryController: AbortController | undefined, alive = true
 async function loadRecovery() {
@@ -84,7 +93,7 @@ async function loadRecovery() {
   finally { if (alive && !controller.signal.aborted) recoveryLoading.value = false }
 }
 void loadRecovery()
-onBeforeUnmount(() => { alive = false; recoveryController?.abort(); form.value.password = '' })
+onBeforeUnmount(() => { alive = false; authStore.cancelPendingLogin(); recoveryController?.abort(); form.value.password = ''; otpCode.value = '' })
 
 const form = ref({
   username: '',
@@ -97,13 +106,24 @@ const handleLogin = async () => {
     ElMessage.error(uiText("请输入用户名和密码"))
     return
   }
+  if (mfaRequired.value && !otpCode.value.trim()) { ElMessage.error(uiText('请填写动态码或恢复码')); return }
 
   loading.value = true
   try {
-    await authStore.login(form.value.username, form.value.password)
+    await authStore.login(form.value.username, form.value.password, mfaRequired.value ? otpCode.value.trim() : undefined)
+    if (!alive) return
+    form.value.password = ''; otpCode.value = ''; mfaRequired.value = false
     ElMessage.success(uiText("登录成功"))
     router.push('/')
   } catch (error: any) {
+    if (!alive) return
+    if (error?.response?.status === 401 && (error?.response?.data?.code === 'mfa_required' || error?.response?.data?.data?.code === 'mfa_required')) { mfaRequired.value = true; otpCode.value = ''; return }
+    if (mfaRequired.value) {
+      otpCode.value = ''
+      const status = error?.response?.status
+      ElMessage.error(uiText(status === 503 ? '双因素认证服务暂不可用，请联系管理员或稍后重试。' : status === 429 ? '尝试过于频繁，请稍后再试。' : status === 401 ? '动态码或恢复码无效，请重试' : '登录未确认，请稍后重试。'))
+      return
+    }
     const message = error?.response?.data?.message
     if (message && error?.response?.status !== 401) {
       ElMessage.error(message)

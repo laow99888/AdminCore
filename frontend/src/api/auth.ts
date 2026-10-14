@@ -50,8 +50,8 @@ const authApi = {
     if (blob.type !== 'image/png' || blob.size > 1024 * 1024 || blob.size === 0) throw new Error('Invalid avatar response')
     return blob
   },
-  async login(username: string, password: string): Promise<LoginResult> {
-    const res = await request.post('/auth/login/', { username, password })
+  async login(username: string, password: string, otpCode?: string): Promise<LoginResult> {
+    const res = await request.post('/auth/login/', { username, password, ...(otpCode ? { otp_code: otpCode } : {}) })
     return res.data
   },
 

@@ -8,6 +8,7 @@ from .views import CustomTokenObtainPairView, AuthViewSet
 from .session_views import PersonalSessionViewSet, OnlineUserViewSet
 from .recovery_views import (RecoveryConfigView, RecoveryRequestView, RecoveryResetView,
                              VerificationRequestView, VerificationConfirmView)
+from .totp_views import TOTPView, TOTPSetupView, TOTPChangeView, TOTPDisableView, TOTPRecoveryCodesView
 
 router = DefaultRouter()
 router.register(r'sessions', PersonalSessionViewSet, basename='personal-sessions')
@@ -21,5 +22,10 @@ urlpatterns = [
     path('recovery/reset/', RecoveryResetView.as_view(), name='recovery-reset'),
     path('email-verification/request/', VerificationRequestView.as_view(), name='email-verification-request'),
     path('email-verification/confirm/', VerificationConfirmView.as_view(), name='email-verification-confirm'),
+    path('totp/', TOTPView.as_view(), name='totp-status'),
+    path('totp/setup/', TOTPSetupView.as_view(), name='totp-setup'),
+    path('totp/enable/', TOTPChangeView.as_view(), name='totp-enable'),
+    path('totp/disable/', TOTPDisableView.as_view(), name='totp-disable'),
+    path('totp/recovery-codes/', TOTPRecoveryCodesView.as_view(), name='totp-recovery-codes'),
     path('', include(router.urls)),
 ]

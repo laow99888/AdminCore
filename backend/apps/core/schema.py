@@ -27,6 +27,7 @@ class TokenPairSerializer(serializers.Serializer):
 class LoginRequestSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
+    otp_code = serializers.CharField(write_only=True, required=False, max_length=32)
 
 
 class ResetPasswordRequestSerializer(serializers.Serializer):

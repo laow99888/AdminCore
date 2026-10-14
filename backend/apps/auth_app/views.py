@@ -5,6 +5,7 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
+from collections.abc import Mapping
 from apps.core.schema import envelope, MessageResponse
 from apps.core.schema import TokenPairSerializer, LoginRequestSerializer
 
@@ -42,12 +43,22 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [LoginRateThrottle]
 
+    def initial(self, request, *args, **kwargs):
+        # throttle 会读取 form 数据；在它读流前缓存并检查大小。
+        if len(request.body) > 4096:
+            raise serializers.ValidationError('请求大小超过限制')
+        return super().initial(request, *args, **kwargs)
+
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
         response['Cache-Control'] = 'private, no-store'
         return response
 
     def post(self, request, *args, **kwargs):
+        if not isinstance(request.data, Mapping) or set(request.data) - {'username', 'password', 'otp_code'}:
+            raise serializers.ValidationError('请求包含不允许的字段')
+        if hasattr(request.data, 'getlist') and any(len(request.data.getlist(key)) != 1 for key in request.data):
+            raise serializers.ValidationError('请求包含重复字段')
         try:
             return super().post(request, *args, **kwargs)
         except (serializers.ValidationError, AuthenticationFailed):
