@@ -47,6 +47,13 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         # throttle 会读取 form 数据；在它读流前缓存并检查大小。
         if len(request.body) > 4096:
             raise serializers.ValidationError('请求大小超过限制')
+        if not isinstance(request.data, Mapping) or set(request.data) - {'username', 'password', 'otp_code', 'captcha_id', 'captcha_code'}:
+            raise serializers.ValidationError('请求包含不允许的字段')
+        if hasattr(request.data, 'getlist') and any(len(request.data.getlist(key)) != 1 for key in request.data):
+            raise serializers.ValidationError('请求包含重复字段')
+        username = request.data.get('username')
+        if username is not None and (not isinstance(username, str) or len(username) > 150):
+            raise serializers.ValidationError({'username': '用户名需为不超过 150 字的文本'})
         return super().initial(request, *args, **kwargs)
 
     def finalize_response(self, request, response, *args, **kwargs):
@@ -55,13 +62,15 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         return response
 
     def post(self, request, *args, **kwargs):
-        if not isinstance(request.data, Mapping) or set(request.data) - {'username', 'password', 'otp_code'}:
-            raise serializers.ValidationError('请求包含不允许的字段')
-        if hasattr(request.data, 'getlist') and any(len(request.data.getlist(key)) != 1 for key in request.data):
-            raise serializers.ValidationError('请求包含重复字段')
+        from .login_captcha import require_captcha, record_failure
+        username = str(request.data.get('username', ''))
+        require_captcha(request, username, request.data.get('captcha_id'), request.data.get('captcha_code'))
         try:
-            return super().post(request, *args, **kwargs)
-        except (serializers.ValidationError, AuthenticationFailed):
+            response = super().post(request, *args, **kwargs)
+        except (serializers.ValidationError, AuthenticationFailed) as exc:
+            if isinstance(exc.detail, dict) and exc.detail.get('code') == 'mfa_required':
+                raise
+            needs_captcha = record_failure(request, username)
             # 登录失败（用户名不存在/密码错误）也记录登录日志
             from apps.logs.models import LoginLog
             LoginLog.objects.create(
@@ -71,7 +80,10 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
                 error_message='用户名或密码错误',
             )
+            if needs_captcha:
+                raise AuthenticationFailed({'detail': '登录认证失败，请完成图形验证码', 'code': 'captcha_required'}) from None
             raise
+        return response
 
 
 @extend_schema_view(

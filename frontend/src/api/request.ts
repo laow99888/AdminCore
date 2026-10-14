@@ -109,6 +109,8 @@ request.interceptors.response.use(
   (response) => response,
   (error) => {
     if (axios.isCancel(error)) return Promise.reject(error)
+    // The login page owns credential, captcha, MFA, throttling and network feedback.
+    if (/\/auth\/login\/(?:\?|$)/.test(error.config?.url || '')) return Promise.reject(error)
     if (error.response) {
       const { status } = error.response
       if (status === 401) {

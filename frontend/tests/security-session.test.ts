@@ -10,6 +10,13 @@ const old = jwt('old'), next = jwt('new')
 
 describe('双重证明后的当前会话替换', () => {
   beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); localStorage.setItem('token', old); setActivePinia(createPinia()) })
+  it('login的第四参数原样传递单次captcha，仍只安装认证结果', async () => {
+    const auth = useAuthStore(); vi.mocked(authApi.login).mockResolvedValue({ access: next, refresh: 'fixture', user }); vi.mocked(authApi.me).mockResolvedValue(user)
+    const proof = { captcha_id: '00000000-0000-4000-8000-000000000001', captcha_code: 'ABCDE' }
+    await auth.login('member', 'fixture', '123456', proof)
+    expect(authApi.login).toHaveBeenCalledWith('member', 'fixture', '123456', proof)
+    expect(localStorage.getItem('token')).toBe(next); expect(JSON.stringify({ ...localStorage })).not.toContain('ABCDE')
+  })
   it('同步替换当前token并阻止旧个人资料响应覆盖新用户状态', async () => {
     const auth = useAuthStore(); auth.applyUser(user)
     let resolve!: (value: typeof user) => void

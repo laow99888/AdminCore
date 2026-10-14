@@ -110,3 +110,22 @@ class TOTPDevice(models.Model):
     pending_session_version = models.PositiveIntegerField(null=True, blank=True)
     last_counter = models.BigIntegerField(default=-1)
     recovery_hashes = models.JSONField(default=list)
+
+
+class LoginCaptchaGuard(models.Model):
+    """SQL 共享的登录失败与挑战限频；身份只存摘要，不依赖 Redis。"""
+    identity_digest = models.CharField(primary_key=True, max_length=64)
+    failure_count = models.PositiveIntegerField(default=0)
+    failure_expires_at = models.DateTimeField(null=True, blank=True)
+    refresh_window = models.BigIntegerField(default=-1)
+    refresh_count = models.PositiveIntegerField(default=0)
+    current_challenge_id = models.UUIDField(null=True, blank=True)
+    expires_at = models.DateTimeField(db_index=True)
+
+
+class LoginCaptchaChallenge(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pair_digest = models.CharField(max_length=64)
+    answer_digest = models.CharField(max_length=64)
+    expires_at = models.DateTimeField(db_index=True)
+    consumed_at = models.DateTimeField(null=True, blank=True)

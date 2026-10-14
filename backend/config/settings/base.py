@@ -217,6 +217,11 @@ AUTH_SESSION_IDLE_SECONDS = int(os.getenv('AUTH_SESSION_IDLE_SECONDS', '1800'))
 AUTH_SESSION_TOUCH_SECONDS = int(os.getenv('AUTH_SESSION_TOUCH_SECONDS', '60'))
 AUTH_REAUTH_USER_FAILURE_LIMIT = 10
 AUTH_REAUTH_SCOPE_FAILURE_LIMIT = 5
+AUTH_LOGIN_CAPTCHA_ENABLED = os.getenv('AUTH_LOGIN_CAPTCHA_ENABLED', 'False').lower() == 'true'
+AUTH_LOGIN_CAPTCHA_FAILURE_THRESHOLD = int(os.getenv('AUTH_LOGIN_CAPTCHA_FAILURE_THRESHOLD', '3'))
+if not 1 <= AUTH_LOGIN_CAPTCHA_FAILURE_THRESHOLD <= 5:
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('登录验证码失败门槛范围为 1-5')
 AUTH_EMAIL_ENABLED = os.getenv('AUTH_EMAIL_ENABLED', 'False').lower() == 'true'
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')

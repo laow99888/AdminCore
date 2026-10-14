@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { tokensBelongToSameSession } from '../src/api/tokenRefresh'
+import { ElMessage } from 'element-plus'
 const mocks = vi.hoisted(() => ({ rejected: undefined as ((error: unknown) => Promise<unknown>) | undefined,
   request: Object.assign(vi.fn(), { defaults: { baseURL: '/api/v1' }, interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } }),
   post: vi.fn(), clear: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
@@ -21,6 +22,11 @@ describe('401 拦截器刷新与会话边界', () => {
     mocks.request.mockResolvedValue({ data: 'retried' })
   })
   const failure = (token = old) => ({ response: { status: 401 }, config: { url: '/auth/sessions/', headers: { Authorization: `Bearer ${token}` } } })
+  it.each([400, 401, 429, 503, undefined])('登录%s错误由登录页反馈，不refresh、不清会话、不发重复全局message', async status => {
+    const error = { config: { url: '/auth/login/' }, ...(status ? { response: { status } } : {}) }
+    await expect(mocks.rejected!(error)).rejects.toBe(error)
+    expect(mocks.refresh).not.toHaveBeenCalled(); expect(mocks.clear).not.toHaveBeenCalled(); expect(ElMessage.error).not.toHaveBeenCalled()
+  })
   it('同标签并发401只刷新一次并使用新token重放', async () => {
     let resolve!: (result: { access: string; stale: boolean }) => void
     mocks.refresh.mockImplementation(() => new Promise(done => { resolve = done }))

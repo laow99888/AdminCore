@@ -85,7 +85,7 @@ def cleanup_expired_sessions(batch_size=1000):
     if type(batch_size) is not int or not 1 <= batch_size <= 1000:
         raise ValueError('清理批量范围为 1-1000')
     from django.db.models import Q
-    from apps.auth_app.models import AuthSession, EmailChallenge
+    from apps.auth_app.models import AuthSession, EmailChallenge, LoginCaptchaGuard, LoginCaptchaChallenge
     from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
     cutoff = timezone.now() - timedelta(days=30)
     session_ids = list(AuthSession.objects.filter(
@@ -98,5 +98,14 @@ def cleanup_expired_sessions(batch_size=1000):
     challenge_ids = list(EmailChallenge.objects.filter(expires_at__lt=cutoff)
                          .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
     EmailChallenge.objects.filter(pk__in=challenge_ids).delete()
+    captcha_cutoff = timezone.now() - timedelta(days=1)
+    captcha_ids = list(LoginCaptchaChallenge.objects.filter(expires_at__lt=captcha_cutoff)
+                       .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
+    LoginCaptchaChallenge.objects.filter(pk__in=captcha_ids).delete()
+    guard_ids = list(LoginCaptchaGuard.objects.filter(expires_at__lt=captcha_cutoff)
+                     .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
+    # 领取ID后可能被并发登录重新使用；删除时再次检查保留期。
+    guards_deleted, _ = LoginCaptchaGuard.objects.filter(pk__in=guard_ids, expires_at__lt=captcha_cutoff).delete()
     return {'deleted_sessions': sessions, 'deleted_refresh_records': len(token_ids),
-            'deleted_email_challenges': len(challenge_ids)}
+            'deleted_email_challenges': len(challenge_ids), 'deleted_login_captchas': len(captcha_ids),
+            'deleted_captcha_guards': guards_deleted}

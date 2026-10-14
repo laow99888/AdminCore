@@ -42,6 +42,8 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         request = self.context.get('request')
         from .totp import login_proof
         login_proof(fresh, request, attrs.get('otp_code'))
+        from .login_captcha import record_success
+        record_success(request, attrs['username'])
         refresh = issue_session(fresh, request)
         ip = request_ip(request) or '0.0.0.0'
         LoginLog.objects.create(user=fresh, username=fresh.username, status='success',

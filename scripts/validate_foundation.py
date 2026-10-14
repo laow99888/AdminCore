@@ -143,6 +143,13 @@ def main():
               and recovery.headers['Cache-Control'] == 'private, no-store')
         api('auth/recovery/request/', 'POST', {'username': 'admin', 'email': 'fixture@example.test'}, 503)
         api('auth/email-verification/request/', 'POST', {'current_password': password}, 503, token)
+        captcha = api('auth/login-captcha/', 'POST', {'username': 'admin'})
+        check('精简部署默认关闭图形验证码且响应禁止缓存', captcha.json()['data'] == {'required': False}
+              and captcha.headers['Cache-Control'] == 'private, no-store')
+        encoded = base64.b64encode((ROOT / 'scripts/validate_login_captcha.py').read_bytes()).decode('ascii')
+        compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('精简部署无Redis的PostgreSQL跨进程验证码共享、消费与门槛验收', True)
         second_login = api('auth/login/', 'POST', {'username': 'admin', 'password': password}).json()
         rotated = api('auth/refresh/', 'POST', {'refresh': second_login['refresh']}).json()['data']
         check('刷新轮换同时返回新 access 与 refresh', bool(rotated['access']) and bool(rotated['refresh'])
@@ -350,6 +357,10 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL/Redis 双因素动态码与恢复码单次消费、会话撤销及失效设置', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_login_captcha.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('标准部署PostgreSQL/Redis验证码跨进程竞态、第二因素与故障关闭验收', True)
         announcement = api('notifications/announcements/manage/', 'POST',
                            {'title': '模块切换保留公告', 'content': '隔离验收正文', 'version': 0}, 201, token).json()['data']
         announcement_id = announcement['id']

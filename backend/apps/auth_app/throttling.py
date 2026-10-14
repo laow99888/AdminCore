@@ -4,6 +4,7 @@ import time
 
 from django.core.cache import cache
 from rest_framework.throttling import BaseThrottle
+from .login_captcha import CaptchaUnavailable
 
 
 class LoginRateThrottle(BaseThrottle):
@@ -16,14 +17,17 @@ class LoginRateThrottle(BaseThrottle):
         if username:
             identities.append(('username', username, 5))
         allowed = True
-        for scope, identity, limit in identities:
-            digest = hashlib.sha256(identity.encode()).hexdigest()
-            key = f'login:{scope}:{digest}:{window}'
-            if cache.add(key, 1, timeout=120):
-                count = 1
-            else:
-                count = cache.incr(key)
-            allowed = allowed and count <= limit
+        try:
+            for scope, identity, limit in identities:
+                digest = hashlib.sha256(identity.encode()).hexdigest()
+                key = f'login:{scope}:{digest}:{window}'
+                if cache.add(key, 1, timeout=120):
+                    count = 1
+                else:
+                    count = cache.incr(key)
+                allowed = allowed and count <= limit
+        except Exception:
+            raise CaptchaUnavailable() from None
         return allowed
 
     def wait(self):

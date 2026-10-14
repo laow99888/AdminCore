@@ -28,6 +28,8 @@ class LoginRequestSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
     otp_code = serializers.CharField(write_only=True, required=False, max_length=32)
+    captcha_id = serializers.UUIDField(write_only=True, required=False)
+    captcha_code = serializers.CharField(write_only=True, required=False, max_length=5)
 
 
 class ResetPasswordRequestSerializer(serializers.Serializer):

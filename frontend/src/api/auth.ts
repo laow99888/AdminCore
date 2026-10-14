@@ -4,6 +4,7 @@
 
 import request, { type ApiResponse } from './request'
 import type { CurrentUser } from '../stores/auth'
+import type { LoginCaptchaProof } from './loginCaptcha'
 
 /** 登录响应（后端 CustomTokenObtainPair 为平铺结构） */
 export interface LoginResult {
@@ -50,8 +51,8 @@ const authApi = {
     if (blob.type !== 'image/png' || blob.size > 1024 * 1024 || blob.size === 0) throw new Error('Invalid avatar response')
     return blob
   },
-  async login(username: string, password: string, otpCode?: string): Promise<LoginResult> {
-    const res = await request.post('/auth/login/', { username, password, ...(otpCode ? { otp_code: otpCode } : {}) })
+  async login(username: string, password: string, otpCode?: string, captcha?: LoginCaptchaProof): Promise<LoginResult> {
+    const res = await request.post('/auth/login/', { username, password, ...(otpCode ? { otp_code: otpCode } : {}), ...(captcha ? { captcha_id: captcha.captcha_id, captcha_code: captcha.captcha_code } : {}) })
     return res.data
   },
 

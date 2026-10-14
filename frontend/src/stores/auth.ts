@@ -99,9 +99,9 @@ export const useAuthStore = defineStore('auth', () => {
     try { installSession(data) } finally { preservingSecuritySession.value = false }
     return true
   }
-  async function login(username: string, password: string, otpCode?: string) {
+  async function login(username: string, password: string, otpCode?: string, captcha?: import('../api/loginCaptcha').LoginCaptchaProof) {
     const generation = ++sessionGeneration
-    const data = await authApi.login(username, password, otpCode)
+    const data = await authApi.login(username, password, otpCode, captcha)
     if (generation !== sessionGeneration) throw new Error('Login session changed')
     preservingSecuritySession.value = true
     try { installSession(data) } finally { preservingSecuritySession.value = false }
