@@ -6,6 +6,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 from apps.notifications.models import Announcement, Notification
@@ -134,9 +135,21 @@ def test_transaction_authorization_reloads_actor(admin_user, field, value, error
     if field == 'is_staff':
         get_user_model().objects.filter(pk=admin_user.pk).update(is_superuser=False)
     stale = get_user_model().objects.get(pk=admin_user.pk)
+    from apps.auth_app.sessions import issue_session
+    token = issue_session(stale)
     get_user_model().objects.filter(pk=admin_user.pk).update(**{field: value})
-    request = SimpleNamespace(user=stale, auth={'session_version': 0})
+    request = SimpleNamespace(user=stale, auth=token.access_token)
     with transaction.atomic(), pytest.raises(error):
+        authorize(request, 'announcement:update', lock=True)
+
+
+def test_transaction_authorization_rechecks_specific_session(admin_user):
+    from apps.auth_app.models import AuthSession
+    from apps.auth_app.sessions import issue_session
+    token = issue_session(admin_user)
+    request = SimpleNamespace(user=admin_user, auth=token.access_token)
+    AuthSession.objects.filter(pk=token['sid']).update(revoked_at=timezone.now())
+    with transaction.atomic(), pytest.raises(AuthenticationFailed):
         authorize(request, 'announcement:update', lock=True)
 
 

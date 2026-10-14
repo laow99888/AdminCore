@@ -8,7 +8,7 @@ from PIL import Image
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connections, transaction
-from rest_framework_simplejwt.utils import get_md5_hash_password
+from apps.auth_app.sessions import issue_session
 from apps.auth_app.profile import replace_avatar
 from apps.core.exceptions import APIError
 from apps.files.models import FileModel
@@ -28,18 +28,19 @@ def in_thread(call):
 
 
 def request_for(user):
-    return SimpleNamespace(user=user, auth={'session_version': user.session_version,
-        'hash_password': get_md5_hash_password(user.password)}, META={'REMOTE_ADDR': '127.0.0.1'})
+    return SimpleNamespace(user=user, auth=issue_session(user).access_token,
+                           META={'REMOTE_ADDR': '127.0.0.1'})
 
 
 owner = User.objects.create_user('profile-concurrency', password='Fixture#Secure27835')
+owner_request = request_for(owner)
 stale = User.objects.get(pk=owner.pk)
 locked, release = Event(), Event()
 
 
 def upload_and_hold():
     with transaction.atomic():
-        bound = replace_avatar(request_for(owner), {'profile_version': 1, 'file': image.getvalue()})
+        bound = replace_avatar(owner_request, {'profile_version': 1, 'file': image.getvalue()})
         asset_id = bound.avatar_file_id
         locked.set()
         assert release.wait(10)
@@ -65,6 +66,7 @@ assert asset.is_deleted and asset.uploader_id is None
 asset.hard_delete()
 
 owner = User.objects.create_user('profile-concurrency-deleted', password='Fixture#Secure27835')
+owner_request = request_for(owner)
 locked, release = Event(), Event()
 
 
@@ -77,7 +79,7 @@ def delete_and_hold():
 
 def competing_upload():
     try:
-        replace_avatar(request_for(owner), {'profile_version': 1, 'file': image.getvalue()})
+        replace_avatar(owner_request, {'profile_version': 1, 'file': image.getvalue()})
         raise AssertionError('已删除用户仍能绑定头像')
     except APIError as error:
         assert error.status_code == 401

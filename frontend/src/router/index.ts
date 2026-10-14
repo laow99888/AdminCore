@@ -22,6 +22,8 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  { path: '/settings/sessions', name: 'DeviceSessions', component: () => import('../views/settings/SessionManagementView.vue'), meta: { title: '会话与设备', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
+  { path: '/system/online-users', name: 'OnlineUsers', component: () => import('../views/settings/SessionManagementView.vue'), props: { admin: true }, meta: { title: '在线用户', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/notifications/announcements', name: 'Announcements', component: () => import('../views/notifications/AnnouncementView.vue'), meta: { title: '通知公告', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/system/cache', name: 'CacheManagement', component: () => import('../views/system/CacheManagementView.vue'), meta: { title: '缓存管理', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/organization/posts', name: 'PostManagement', component: () => import('../views/system/PostManagementView.vue'), meta: { title: '岗位与任职', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },

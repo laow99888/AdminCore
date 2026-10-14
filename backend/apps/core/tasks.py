@@ -72,3 +72,22 @@ def cleanup_expired_idempotency():
     cutoff = timezone.now()
     deleted, _ = IdempotencyRecord.objects.filter(expires_at__lt=cutoff, status='succeeded').delete()
     return {'deleted_records': deleted}
+
+
+@shared_task(name='core.cleanup_expired_sessions')
+def cleanup_expired_sessions(batch_size=1000):
+    """保留至少30天后分批清理失效设备记录；从不触碰有效会话。"""
+    if type(batch_size) is not int or not 1 <= batch_size <= 1000:
+        raise ValueError('清理批量范围为 1-1000')
+    from django.db.models import Q
+    from apps.auth_app.models import AuthSession
+    from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+    cutoff = timezone.now() - timedelta(days=30)
+    session_ids = list(AuthSession.objects.filter(
+        Q(expires_at__lt=cutoff) | Q(revoked_at__lt=cutoff)
+    ).order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
+    sessions, _ = AuthSession.objects.filter(pk__in=session_ids).delete()
+    token_ids = list(OutstandingToken.objects.filter(expires_at__lt=cutoff)
+                     .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
+    OutstandingToken.objects.filter(pk__in=token_ids).delete()
+    return {'deleted_sessions': sessions, 'deleted_refresh_records': len(token_ids)}

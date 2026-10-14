@@ -4,9 +4,7 @@
 
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-from rest_framework_simplejwt.utils import get_md5_hash_password
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
@@ -20,39 +18,35 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
     @classmethod
     def get_token(cls, user):
-        token = super().get_token(user)
-        # 添加自定义声明
-        token['user_id'] = str(user.id)
-        token['username'] = user.username
-        token['email'] = user.email
-        token['session_version'] = user.session_version
-        return token
+        from .sessions import issue_session
+        return issue_session(user)
 
+    @transaction.atomic
     def validate(self, attrs):
-        data = super().validate(attrs)
-        # 登录成功：记录登录日志并累计登录次数
+        from rest_framework_simplejwt.serializers import TokenObtainSerializer
         from django.db.models import F
+        from django.utils import timezone
         from apps.logs.models import LoginLog
+        from .sessions import issue_session, request_ip, agent_hint
 
+        TokenObtainSerializer.validate(self, attrs)
+        # 认证后重新锁定用户；等待期间的密码/状态/全局撤销变化不得签发会话。
+        fresh = User.objects.select_for_update().filter(pk=self.user.pk).first()
+        if (fresh is None or not fresh.is_active or fresh.password != self.user.password
+                or fresh.session_version != self.user.session_version):
+            from rest_framework.exceptions import AuthenticationFailed
+            raise AuthenticationFailed('登录凭据已撤销，请重新登录')
+        self.user = fresh
         request = self.context.get('request')
-        ip = request.META.get('REMOTE_ADDR', '') if request else ''
-        user_agent = request.META.get('HTTP_USER_AGENT', '') if request else ''
-        LoginLog.objects.create(
-            user=self.user, username=self.user.username, status='success',
-            ip_address=ip, user_agent=user_agent,
-        )
-        User.objects.filter(pk=self.user.pk).update(
-            login_count=F('login_count') + 1, last_login_ip=ip,
-        )
-        # 添加用户信息
-        data['user'] = {
-            'id': str(self.user.id),
-            'username': self.user.username,
-            'email': self.user.email,
-            'avatar': self.user.avatar,
-            'must_change_password': self.user.must_change_password,
-        }
-        return data
+        refresh = issue_session(fresh, request)
+        ip = request_ip(request) or '0.0.0.0'
+        LoginLog.objects.create(user=fresh, username=fresh.username, status='success',
+            ip_address=ip, user_agent=agent_hint(request))
+        User.objects.filter(pk=fresh.pk).update(login_count=F('login_count') + 1,
+            last_login_ip=ip, last_login=timezone.now())
+        return {'refresh': str(refresh), 'access': str(refresh.access_token), 'user': {
+            'id': str(fresh.pk), 'username': fresh.username, 'email': fresh.email,
+            'avatar': fresh.avatar, 'must_change_password': fresh.must_change_password}}
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -119,14 +113,42 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class RefreshTokenSerializer(TokenRefreshSerializer):
-    """刷新 Token 序列化器"""
+    """锁定用户及设备会话后，单次轮换 refresh；绝对期限不延长。"""
     def validate(self, attrs):
-        token = RefreshToken(attrs['refresh'])
-        with transaction.atomic():
+        from .sessions import SessionRefreshToken
+        return self.rotate(SessionRefreshToken(attrs['refresh']))
+
+    @transaction.atomic
+    def rotate(self, token):
+        from django.utils import timezone
+        from .models import AuthSession
+        from .sessions import session_id, validate_session, audit_session
+        from rest_framework.exceptions import AuthenticationFailed
+        try:
             user = User.objects.select_for_update().filter(pk=token.get('user_id')).first()
-            if (user is None or not user.is_active
-                    or token.get('session_version') != user.session_version
-                    or token.get('hash_password') != get_md5_hash_password(user.password)):
-                raise TokenError('登录凭据已撤销')
-            # 锁内重新验证黑名单，避免并发刷新重复使用同一凭据。
-            return super().validate(attrs)
+        except (ValueError, TypeError, DjangoValidationError):
+            raise TokenError('登录凭据已撤销')
+        if user is None:
+            raise TokenError('登录凭据已撤销')
+        try:
+            session = AuthSession.objects.select_for_update().filter(pk=session_id(token), user=user).first()
+            validate_session(session, user, token)
+        except AuthenticationFailed as exc:
+            raise TokenError('登录凭据已撤销') from exc
+        if session.refresh_jti != token['jti']:
+            raise TokenError('刷新凭据已使用')
+        # 超过普通 access 生命周期仍不得越过设备绝对期限。
+        token.check_blacklist()
+        token.blacklist()
+        token.set_jti()
+        token.set_iat()
+        token.set_exp()
+        token['exp'] = min(token['exp'], int(session.expires_at.timestamp()))
+        token.outstand()
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+        OutstandingToken.objects.filter(jti=token['jti']).update(token='')
+        session.refresh_jti = token['jti']
+        session.last_seen_at = timezone.now()
+        session.save(update_fields=['refresh_jti', 'last_seen_at'])
+        audit_session(self.context.get('request'), user, 'refresh', session.pk)
+        return {'access': str(token.access_token), 'refresh': str(token)}

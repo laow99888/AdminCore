@@ -204,6 +204,16 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ===== JWT 配置 =====
+AUTH_SESSION_ABSOLUTE_SECONDS = int(os.getenv('AUTH_SESSION_ABSOLUTE_SECONDS', '86400'))
+AUTH_SESSION_IDLE_SECONDS = int(os.getenv('AUTH_SESSION_IDLE_SECONDS', '1800'))
+AUTH_SESSION_TOUCH_SECONDS = int(os.getenv('AUTH_SESSION_TOUCH_SECONDS', '60'))
+AUTH_REAUTH_USER_FAILURE_LIMIT = 10
+AUTH_REAUTH_SCOPE_FAILURE_LIMIT = 5
+if not (60 <= AUTH_SESSION_TOUCH_SECONDS <= AUTH_SESSION_IDLE_SECONDS <= AUTH_SESSION_ABSOLUTE_SECONDS
+        <= 30 * 86400):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('会话期限需满足 60 ≤ 活动登记间隔 ≤ 空闲期限 ≤ 绝对期限 ≤ 30 天')
+
 SIMPLE_JWT = {
     'CHECK_REVOKE_TOKEN': True,
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),

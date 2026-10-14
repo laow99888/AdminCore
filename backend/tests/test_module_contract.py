@@ -65,11 +65,11 @@ def test_disabled_schedule_preserved_and_filtered():
     with override_settings(ADMINCORE_MODULES=()):
         call_command('configure_maintenance', stdout=StringIO())
         scheduler = ModuleScheduler(app=app, lazy=True)
-        assert scheduler.enabled_models_qs().count() == 2
-        assert PeriodicTask.objects.filter(enabled=True).count() == 4
+        assert scheduler.enabled_models_qs().count() == 3
+        assert PeriodicTask.objects.filter(enabled=True).count() == 5
         assert not task_enabled('tasks.cleanup_expired_notifications')
         assert not task_enabled('arbitrary.function')
-    assert ModuleScheduler(app=app, lazy=True).enabled_models_qs().count() == 4
+    assert ModuleScheduler(app=app, lazy=True).enabled_models_qs().count() == 5
 
 
 def test_minimal_dashboard_no_disabled_table_reads(admin_client, django_assert_num_queries):

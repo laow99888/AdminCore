@@ -30,6 +30,9 @@ def authorize(request, code=None, lock=False):
         raise AuthenticationFailed('登录凭据已撤销')
     if user.must_change_password:
         raise PermissionDenied('请先修改初始密码')
+    if lock and request.auth is not None:
+        from apps.auth_app.sessions import locked_request_session
+        locked_request_session(request, user)
     if code and (not (user.is_staff or user.is_superuser) or not has_permission_code(user, code)):
         raise PermissionDenied('没有公告管理权限')
     return user

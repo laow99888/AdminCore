@@ -4,6 +4,7 @@
 
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from apps.core.schema import envelope, MessageResponse
 from apps.core.schema import TokenPairSerializer, LoginRequestSerializer
 
@@ -13,7 +14,6 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import TokenError
-from .authentication import revoke_user_sessions
 from .throttling import LoginRateThrottle
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -42,10 +42,15 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [LoginRateThrottle]
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
     def post(self, request, *args, **kwargs):
         try:
             return super().post(request, *args, **kwargs)
-        except Exception:
+        except (serializers.ValidationError, AuthenticationFailed):
             # 登录失败（用户名不存在/密码错误）也记录登录日志
             from apps.logs.models import LoginLog
             LoginLog.objects.create(
@@ -68,6 +73,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 class AuthViewSet(viewsets.ViewSet):
     """认证相关端点"""
     permission_classes = [AllowAny]
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
     @extend_schema(methods=['GET'], responses=envelope('PersonalProfileResponse', ProfileReadSerializer()))
     @extend_schema(methods=['PATCH'], request=ProfileWriteSerializer,
@@ -116,8 +126,10 @@ class AuthViewSet(viewsets.ViewSet):
             return Response({'code': 403, 'message': '当前环境未开放注册', 'data': None}, status=403)
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
-            user = serializer.save()
-            refresh = CustomTokenObtainPairSerializer.get_token(user)
+            from .sessions import issue_session
+            with transaction.atomic():
+                user = serializer.save()
+                refresh = issue_session(user, request)
             return Response({
                 'code': 201,
                 'message': '注册成功',
@@ -140,7 +152,7 @@ class AuthViewSet(viewsets.ViewSet):
         注意保持 AllowAny（类默认）：调用时机是 access 已过期，
         请求头里没有有效 Bearer，鉴权只依赖 body 中的 refresh token。
         """
-        serializer = RefreshTokenSerializer(data=request.data)
+        serializer = RefreshTokenSerializer(data=request.data, context={'request': request})
         try:
             if serializer.is_valid():
                 return Response({
@@ -163,7 +175,8 @@ class AuthViewSet(viewsets.ViewSet):
     @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated])
     def logout(self, request):
         """登出"""
-        revoke_user_sessions(request.user)
+        from .sessions import logout_session
+        logout_session(request)
         return Response({
             'code': 200,
             'message': '登出成功',
@@ -183,7 +196,11 @@ class AuthViewSet(viewsets.ViewSet):
     @transaction.atomic
     def change_password(self, request):
         """修改密码"""
-        user = User.objects.select_for_update().get(pk=request.user.pk)
+        user = User.objects.select_for_update().filter(pk=request.user.pk).first()
+        if user is None:
+            raise AuthenticationFailed('登录凭据已撤销，请重新登录')
+        from .sessions import locked_request_session
+        locked_request_session(request, user)
         # 锁内再验凭据，防止等待期间管理员重置密码或撤销会话。
         if (request.auth.get('session_version') != user.session_version
                 or request.auth.get('hash_password') != get_md5_hash_password(user.password)):

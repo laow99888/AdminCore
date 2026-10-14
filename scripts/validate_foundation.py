@@ -131,6 +131,21 @@ def main():
         password = new_password
         token = login(password)
         check('改密后解除限制', not api('auth/me/', token=token).json()['data']['must_change_password'])
+        devices = api('auth/sessions/', token=token)
+        check('精简部署保留本人设备入口且禁止缓存',
+              devices.headers['Cache-Control'] == 'private, no-store'
+              and len(devices.json()['data']['items']) == 1
+              and devices.json()['data']['items'][0]['is_current'])
+        second_login = api('auth/login/', 'POST', {'username': 'admin', 'password': password}).json()
+        rotated = api('auth/refresh/', 'POST', {'refresh': second_login['refresh']}).json()['data']
+        check('刷新轮换同时返回新 access 与 refresh', bool(rotated['access']) and bool(rotated['refresh'])
+              and rotated['refresh'] != second_login['refresh'])
+        api('auth/refresh/', 'POST', {'refresh': second_login['refresh']}, 400)
+        api('auth/logout/', 'POST', token=rotated['access'])
+        api('auth/me/', expected=401, token=rotated['access'])
+        api('auth/refresh/', 'POST', {'refresh': rotated['refresh']}, 400)
+        check('当前设备退出后另一设备仍有效', api('auth/me/', token=token).status_code == 200)
+        api('auth/online-users/', token=token)
         competing = [secrets.token_urlsafe(40), secrets.token_urlsafe(40)]
         with ThreadPoolExecutor(max_workers=2) as pool:
             decisions = list(pool.map(lambda candidate: api('auth/change_password/', 'POST', {
@@ -306,6 +321,10 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('PostgreSQL 公告同版本发布竞争与幂等重放单次审计', True)
+        encoded = base64.b64encode((ROOT / 'scripts/session_concurrency.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('PostgreSQL 会话刷新轮换、设备撤销隔离和等待写的撤销复核', True)
         announcement = api('notifications/announcements/manage/', 'POST',
                            {'title': '模块切换保留公告', 'content': '隔离验收正文', 'version': 0}, 201, token).json()['data']
         announcement_id = announcement['id']

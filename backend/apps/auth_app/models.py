@@ -34,3 +34,23 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
+
+
+class AuthSession(models.Model):
+    """服务器登记的 JWT 设备会话；客户端提示绝不参与身份判定。"""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='jwt_sessions')
+    session_version = models.PositiveIntegerField()
+    password_hash = models.CharField(max_length=32)
+    refresh_jti = models.CharField(max_length=255)
+    created_at = models.DateTimeField()
+    last_seen_at = models.DateTimeField()
+    expires_at = models.DateTimeField()
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=256, blank=True)
+
+    class Meta:
+        ordering = ['-last_seen_at', '-id']
+        indexes = [models.Index(fields=['user', 'revoked_at', 'expires_at']),
+                   models.Index(fields=['last_seen_at'])]

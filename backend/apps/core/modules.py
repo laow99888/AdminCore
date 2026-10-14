@@ -33,6 +33,7 @@ MAINTENANCE_TASKS = {
     'tasks.cleanup_expired_notifications': ('tasks', 'notifications'),
     'core.dispatch_outbox': (),
     'core.cleanup_expired_idempotency': (),
+    'core.cleanup_expired_sessions': (),
 }
 
 

@@ -11,6 +11,7 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '../router'
 import { useAuthStore } from '../stores/auth'
+import { refreshSessionTokens, tokensBelongToSameSession } from './tokenRefresh'
 
 export interface ApiResponse<T = any> {
   code: number
@@ -38,33 +39,30 @@ const request = axios.create({
 // 请求拦截器：附加认证头
 request.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
+  if ((config as any)._retried && !tokensBelongToSameSession((config as any)._sessionToken, token)) {
+    // Re-login between refresh completion and dispatch must not replay prior work as the new actor.
+    throw Object.assign(new Error('Session changed before retry'), { __CANCEL__: true })
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+    if (!(config as any)._retried) (config as any)._sessionToken = token
   }
   return config
 })
 
 // ---- access token 自动刷新（access 有效期仅 5 分钟）----
-let refreshing: Promise<string | null> | null = null
+let refreshing: ReturnType<typeof refreshSessionTokens> | null = null
+let refreshingToken: string | null = null
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = localStorage.getItem('refreshToken')
-  if (!refreshToken) return null
-  try {
+function refreshAccessToken(failedAccess: string | null) {
+  return refreshSessionTokens(failedAccess, async refreshToken => {
     // 用裸 axios：不带过期的 access，也不走本实例拦截器避免递归
     const res = await axios.post(`${request.defaults.baseURL}/auth/refresh/`, {
       refresh: refreshToken,
     })
     const body = res.data
-    const access = body?.data?.access ?? body?.access
-    if (!access) return null
-    localStorage.setItem('token', access)
-    const rotatedRefresh = body?.data?.refresh ?? body?.refresh
-    if (rotatedRefresh) localStorage.setItem('refreshToken', rotatedRefresh)
-    return access
-  } catch {
-    return null
-  }
+    return { access: body?.data?.access ?? body?.access, refresh: body?.data?.refresh ?? body?.refresh }
+  })
 }
 
 function forceRelogin() {
@@ -77,24 +75,31 @@ function forceRelogin() {
 
 async function handle401(error: any): Promise<any> {
   const config = error.config
+  const authorization = config?.headers?.Authorization
+  const failedAccess = typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : localStorage.getItem('token')
+  const originalAccess = config?._sessionToken ?? failedAccess
   const isAuthEndpoint = /\/auth\/(login|refresh)\//.test(config?.url || '')
   if (isAuthEndpoint || (config as any)?._retried) {
     // 登录/刷新本身的 401 由页面自行提示（登录页密码错误等）
-    if (!isAuthEndpoint) forceRelogin()
+    if (!isAuthEndpoint && config?.headers?.Authorization === `Bearer ${localStorage.getItem('token')}`) forceRelogin()
     return Promise.reject(error)
   }
   // 并发 401 只触发一次刷新，其余等待同一 Promise
-  if (!refreshing) {
-    refreshing = refreshAccessToken().finally(() => {
-      refreshing = null
+  if (!refreshing || !tokensBelongToSameSession(refreshingToken, originalAccess)) {
+    const pending = refreshAccessToken(failedAccess).finally(() => {
+      if (refreshing === pending) { refreshing = null; refreshingToken = null }
     })
+    refreshing = pending
+    refreshingToken = originalAccess
   }
-  const access = await refreshing
+  const { access, stale } = await refreshing
   if (!access) {
-    forceRelogin()
+    if (!stale && tokensBelongToSameSession(originalAccess, localStorage.getItem('token'))) forceRelogin()
     return Promise.reject(error)
   }
+  if (!tokensBelongToSameSession(originalAccess, access) || !tokensBelongToSameSession(originalAccess, localStorage.getItem('token'))) return Promise.reject(error)
   ;(config as any)._retried = true
+  ;(config as any)._sessionToken = originalAccess
   config.headers = { ...config.headers, Authorization: `Bearer ${access}` }
   return request(config)
 }

@@ -99,6 +99,8 @@ def locked_user(request, version):
             or request.auth.get('session_version') != user.session_version
             or request.auth.get('hash_password') != get_md5_hash_password(user.password)):
         raise APIError('登录凭据已撤销', status_code=401)
+    from .sessions import locked_request_session
+    locked_request_session(request, user)
     if user.profile_version != version:
         raise APIError('个人资料已变化，请刷新后重试', status_code=409)
     return user

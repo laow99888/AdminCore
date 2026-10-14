@@ -1,6 +1,12 @@
 <template>
   <AppLayout>
     <div class="settings-container">
+      <BaseCard class="session-entry">
+        <div class="setting-row">
+          <div><div class="setting-label">{{ uiText('会话与设备') }}</div><div class="setting-desc">{{ uiText('查看近期有效会话，使用密码确认后下线设备。') }}</div></div>
+          <BaseButton size="large" variant="ghost" @click="router.push('/settings/sessions')">{{ uiText('管理设备') }}</BaseButton>
+        </div>
+      </BaseCard>
       <el-row :gutter="16">
         <!-- 个人信息 -->
         <el-col :xs="24" :lg="10">
@@ -66,8 +72,9 @@ import { uiText } from "@/i18n/uiText"
 
 import { onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import AppLayout from '../../components/layout/AppLayout.vue'
-import { BaseCard } from '@/components'
+import { BaseCard, BaseButton } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import ChangePasswordForm from '@/components/auth/ChangePasswordForm.vue'
@@ -77,6 +84,7 @@ import WatermarkSettings from '@/components/settings/WatermarkSettings.vue'
 import ThemeColorSettings from '@/components/settings/ThemeColorSettings.vue'
 
 const authStore = useAuthStore()
+const router = useRouter()
 const themeStore = useThemeStore()
 const { locale } = useI18n()
 
@@ -96,6 +104,7 @@ onMounted(() => {
 .settings-container {
   width: 100%;
 }
+.session-entry { margin-bottom: var(--spacing-lg); }
 
 .card-header-title {
   font-weight: var(--font-weight-semibold);

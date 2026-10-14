@@ -139,14 +139,23 @@ test('不支持的文件类型预览入口禁用', async ({ page }) => {
 })
 
 test('预览 401 使用共享刷新流程重放，令牌仍只在请求头', async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem('refreshToken', 'isolated-refresh-fixture'))
+  const jwt = (marker: string) => `fixture.${Buffer.from(JSON.stringify({ sid: 'preview-session', user_id: 'member', session_version: 1, marker })).toString('base64url')}.fixture`
+  const oldAccess = jwt('old'), oldRefresh = jwt('refresh-old'), newAccess = jwt('new'), newRefresh = jwt('refresh-new')
+  await page.addInitScript(({ oldAccess, oldRefresh }) => {
+    localStorage.setItem('token', oldAccess)
+    localStorage.setItem('refreshToken', oldRefresh)
+  }, { oldAccess, oldRefresh })
   await setup(page)
+  await page.evaluate(({ oldAccess, oldRefresh }) => {
+    localStorage.setItem('token', oldAccess)
+    localStorage.setItem('refreshToken', oldRefresh)
+  }, { oldAccess, oldRefresh })
   let attempts = 0
-  await page.route('**/api/v1/auth/refresh/', route => route.fulfill({ json: { access: 'refreshed-preview-token' } }))
+  await page.route('**/api/v1/auth/refresh/', route => route.fulfill({ json: envelope({ access: newAccess, refresh: newRefresh }) }))
   await page.route('**/api/v1/files/f1/preview/', route => {
     attempts++
     if (attempts === 1) return route.fulfill({ status: 401, json: { code: 401, message: '认证失败', data: null } })
-    expect(route.request().headers().authorization).toBe('Bearer refreshed-preview-token')
+    expect(route.request().headers().authorization).toBe(`Bearer ${newAccess}`)
     expect(route.request().url()).not.toContain('token=')
     return route.fulfill({ contentType: 'image/png', body: png })
   })

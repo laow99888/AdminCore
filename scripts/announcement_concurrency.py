@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connections
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.tokens import RefreshToken
+from apps.auth_app.sessions import issue_session
 from apps.notifications.models import Announcement, Notification
 from apps.logs.models import OperationLog
 
@@ -18,8 +18,7 @@ admins = [User.objects.create_superuser(f'announcement-{suffix}-{n}', password='
 
 
 def token_for(user):
-    token = RefreshToken.for_user(user)
-    token['session_version'] = user.session_version
+    token = issue_session(user)
     return str(token.access_token)
 
 

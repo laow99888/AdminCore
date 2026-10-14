@@ -16,6 +16,7 @@ class Command(BaseCommand):
             ('AdminCore 每日已读通知清理', 'tasks.cleanup_expired_notifications', '15'),
             ('AdminCore 可靠事件派发', 'core.dispatch_outbox', '*'),
             ('AdminCore 幂等记录清理', 'core.cleanup_expired_idempotency', '30'),
+            ('AdminCore 失效设备会话清理', 'core.cleanup_expired_sessions', '45'),
         ]:
             if not task_enabled(task):
                 self.stdout.write(f'模块未启用，跳过维护计划：{name}')
