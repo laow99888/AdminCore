@@ -1,5 +1,5 @@
 import type { Component } from 'vue'
-import { LayoutDashboard, Users, ShieldCheck, ListTree, FolderOpen, ClipboardCheck, Bell, ListChecks, FileText, Settings, Trash2, Clock, Info, Activity, BriefcaseBusiness, Database } from 'lucide-vue-next'
+import { LayoutDashboard, Users, ShieldCheck, ListTree, FolderOpen, ClipboardCheck, Bell, ListChecks, FileText, Settings, Trash2, Clock, Info, Activity, BriefcaseBusiness, Database, Mail } from 'lucide-vue-next'
 
 export const menuIcons: Record<string, Component> = {
   'layout-dashboard': LayoutDashboard, users: Users, 'shield-check': ShieldCheck,
@@ -10,4 +10,5 @@ export const menuIcons: Record<string, Component> = {
   info: Info, activity: Activity,
   'briefcase-business': BriefcaseBusiness,
   database: Database,
+  mail: Mail,
 }

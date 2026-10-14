@@ -8,6 +8,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 from .models import OperationLog
 
 FIELDS = {
+    'message_template': ('id', 'code', 'enabled', 'revision', 'variables', 'content_sha256'),
+    'message_delivery': ('id', 'template_id', 'revision', 'channels', 'count', 'status', 'attempts'),
     'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids', 'group_ids', 'django_permission_ids'),
     'role': ('id', 'name', 'is_active', 'permission_ids'),
     'menu': ('id', 'name', 'path', 'icon', 'order', 'parent_id', 'permission_id', 'is_visible'),

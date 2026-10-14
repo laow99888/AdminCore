@@ -95,3 +95,56 @@ class Announcement(BaseModel):
         indexes = [models.Index(fields=['status', '-published_at', '-id'], name='announcement_public_order')]
         constraints = [models.CheckConstraint(condition=models.Q(status__in=['draft', 'published', 'withdrawn']), name='announcement_valid_status'),
                        models.CheckConstraint(condition=models.Q(content_format__in=['plain', 'html']), name='announcement_valid_format')]
+
+
+class MessageTemplate(BaseModel):
+    code = models.SlugField(max_length=40, unique=True)
+    name = models.CharField(max_length=100)
+    enabled = models.BooleanField(default=True)
+    revision = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['code']
+        constraints = [models.CheckConstraint(condition=models.Q(revision__gte=1), name='message_template_revision_valid')]
+
+
+class MessageTemplateVersion(BaseModel):
+    template = models.ForeignKey(MessageTemplate, on_delete=models.PROTECT, related_name='versions')
+    number = models.PositiveIntegerField()
+    subject = models.CharField(max_length=200)
+    body = models.TextField()
+    variables = models.JSONField(default=list)
+    creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        ordering = ['-number']
+        constraints = [models.UniqueConstraint(fields=['template', 'number'], name='message_template_version_unique')]
+
+
+class MessageDelivery(BaseModel):
+    CHANNELS = [('inapp', '站内通知'), ('email', 'SMTP 邮件')]
+    STATUS_CHOICES = [('pending', '待发送'), ('succeeded', '成功'), ('failed', '失败'), ('terminated', '已终止')]
+    version = models.ForeignKey(MessageTemplateVersion, on_delete=models.PROTECT, related_name='deliveries')
+    recipient = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='message_deliveries')
+    creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_message_deliveries')
+    channel = models.CharField(max_length=10, choices=CHANNELS)
+    subject = models.CharField(max_length=200)
+    body = models.TextField()
+    email_binding = models.CharField(max_length=64, blank=True)
+    actor_session_version = models.PositiveIntegerField()
+    actor_session_id = models.UUIDField(null=True)
+    request_id = models.CharField(max_length=100, blank=True, db_index=True)
+    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='pending')
+    attempts = models.PositiveSmallIntegerField(default=0)
+    last_error = models.CharField(max_length=100, blank=True)
+    expires_at = models.DateTimeField()
+    sent_at = models.DateTimeField(null=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [models.Index(fields=['status', 'created_at'])]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(status__in=['pending', 'succeeded', 'failed', 'terminated']), name='message_delivery_status_valid'),
+            models.CheckConstraint(condition=models.Q(channel__in=['inapp', 'email']), name='message_delivery_channel_valid'),
+            models.CheckConstraint(condition=models.Q(attempts__lte=5), name='message_delivery_attempts_valid'),
+        ]

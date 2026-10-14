@@ -21,7 +21,7 @@ def dispatch_outbox(limit=100):
         recover_lost_maintenance()
     processed = failed = 0
     from django.db.models import Q
-    eligible = ~Q(topic='auth.email') | Q(attempts__lt=5)
+    eligible = ~Q(topic__in=['auth.email', 'notification.delivery']) | Q(attempts__lt=5)
     for event_id in list(OutboxEvent.objects.filter(eligible,
         status__in=['pending', 'failed'], available_at__lte=now,
     ).order_by('created_at').values_list('id', flat=True)[:limit]):
@@ -32,6 +32,7 @@ def dispatch_outbox(limit=100):
             if event is None:
                 continue
             event.attempts += 1
+            delivery_failed = False
             try:
                 with transaction.atomic():
                     if event.topic == 'maintenance.requested':
@@ -47,6 +48,9 @@ def dispatch_outbox(limit=100):
                     elif event.topic == 'auth.email':
                         from apps.auth_app.recovery import deliver_challenge
                         deliver_challenge(event.payload)
+                    elif event.topic == 'notification.delivery':
+                        from apps.notifications.message_services import deliver
+                        delivery_failed = deliver(event.payload)
                     elif event.topic != 'notification.created':
                         raise ValueError('unsupported_topic')
                     else:
@@ -66,10 +70,15 @@ def dispatch_outbox(limit=100):
                 event.available_at = timezone.now() + timedelta(seconds=min(3600, 2 ** min(event.attempts, 12)))
                 failed += 1
             else:
-                event.status = 'succeeded'
-                event.published_at = timezone.now()
-                event.last_error = ''
-                processed += 1
+                if delivery_failed:
+                    event.status, event.last_error = 'failed', 'channel_delivery_failed'
+                    event.available_at = timezone.now() + timedelta(seconds=min(3600, 2 ** min(event.attempts, 12)))
+                    failed += 1
+                else:
+                    event.status = 'succeeded'
+                    event.published_at = timezone.now()
+                    event.last_error = ''
+                    processed += 1
             event.save(update_fields=['status', 'attempts', 'last_error', 'available_at', 'published_at', 'updated_at'])
     return {'processed': processed, 'failed': failed}
 

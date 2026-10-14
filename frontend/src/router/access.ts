@@ -10,10 +10,11 @@ const permissions: Record<string, string> = {
   '/organization/posts': 'post:read',
   '/system/cache': 'cache:read',
   '/system/online-users': 'session:read',
+  '/notifications/templates': 'template:read',
 }
 export function canAccessPage(path: string, user: CurrentUser | null) {
   path = path.length > 1 ? path.replace(/\/+$/, '') : path
   if (!user) return false
-  if (['/organization', '/organization/posts', '/reliability/events', '/tasks/schedules', '/system/information', '/system/monitor', '/system/cache', '/system/online-users'].includes(path) && !(user.is_staff || user.is_superuser)) return false
+  if (['/organization', '/organization/posts', '/reliability/events', '/tasks/schedules', '/system/information', '/system/monitor', '/system/cache', '/system/online-users', '/notifications/templates'].includes(path) && !(user.is_staff || user.is_superuser)) return false
   return !permissions[path] || !!user.permissions?.some(code => code === '*' || code === permissions[path])
 }

@@ -531,6 +531,21 @@ def main():
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL Django admin 并发前值链与批量审计回滚', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_message_channels.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 通用通知版本、SMTP 字节及有限重试', True)
+        message_template = api('notifications/templates/', 'POST', {'code': 'http-message-fixture', 'name': 'HTTP 通知验收',
+            'enabled': True, 'revision': 0, 'subject': 'HTTP ${name}', 'body': 'Body ${name}', 'variables': ['name']}, 201, token).json()['data']
+        api('notifications/templates/' + message_template['id'] + '/preview/', 'POST', {'revision': 1, 'values': {'name': 'fixture'}}, token=token)
+        actor_id = api('auth/me/', token=token).json()['data']['id']
+        message_send = api('notifications/templates/' + message_template['id'] + '/send/', 'POST', {'revision': 1,
+            'values': {'name': 'fixture'}, 'recipient_ids': [actor_id], 'channels': ['inapp']}, 202, token,
+            {'Idempotency-Key': 'http-message-fixture'}).json()['data']
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                'from apps.core.tasks import dispatch_outbox; dispatch_outbox()')
+        message_record = api('notifications/deliveries/' + message_send['delivery_ids'][0] + '/', token=token).json()['data']
+        check('真实 Nginx HTTP 通知登记及站内派发', message_record['status'] == 'succeeded' and message_record['attempts'] == 1)
         admin_browser = requests.Session()
         admin_login_url = BASE.removesuffix('/api/v1/') + '/admin/login/'
         login_page = admin_browser.get(admin_login_url, timeout=20)
@@ -575,6 +590,8 @@ def main():
         api('files/recycle/', expected=404, token=token)
         api('tasks/schedules/', expected=404, token=token)
         api('notifications/announcements/', expected=404, token=token)
+        api('notifications/templates/', expected=404, token=token)
+        api('notifications/deliveries/', expected=404, token=token)
         api('data-io/resources/', expected=404, token=token)
         api(f'files/{file_id}/restore/', 'POST', {'lifecycle_version': 4}, 404, token)
         compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
@@ -589,6 +606,8 @@ def main():
         check('关闭并重新启用后参数与字典数据保留', api('system/config/files.retention_days/', token=token).json()['data'][0]['value'] == retained
               and api('system/dictionaries/options/integration/', token=token).json()['data']['version'] == 2)
         check('关闭并重新启用系统诊断恢复只读入口', api('system/information/', token=token).json()['data']['environment'] == 'production')
+        check('关闭并重新启用通知保留模板和投递版本', api('notifications/templates/' + message_template['id'] + '/', token=token).json()['data']['revision'] == 1
+              and api('notifications/deliveries/' + message_send['delivery_ids'][0] + '/', token=token).json()['data']['version_number'] == 1)
         check('关闭并重新启用缓存管理恢复共享缓存目录', api('system/cache/', token=token).json()['data']['backend'] == 'shared')
         check('关闭并重新启用岗位保留停用状态和历史任职',
               not api(post_url, token=token).json()['data']['is_active']
@@ -599,7 +618,8 @@ def main():
         check('当前迁移无遗漏', compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'makemigrations', '--check', '--dry-run').returncode == 0)
         command = ['docker', 'compose', '-p', PROJECT, '--env-file', str(env_file), '-f', 'docker-compose.yml',
                    '-f', 'compose.minimal.yml', '-f', str(FOLDER / 'override.yml'), '-f', str(FOLDER / 'standard.yml')]
-        for key, value, label in [('ADMINCORE_PRESET', 'demo', '生产配置拒绝演示预设'), ('ADMINCORE_MODULES', 'approvals', '缺失模块依赖立即拒绝启动')]:
+        for key, value, label in [('ADMINCORE_PRESET', 'demo', '生产配置拒绝演示预设'), ('ADMINCORE_MODULES', 'approvals', '缺失模块依赖立即拒绝启动'),
+                                  ('NOTIFICATION_EMAIL_ENABLED', 'True', '通用邮件开启但缺少 SMTP 配置立即拒绝启动')]:
             result = run(command + ['exec', '-T', '-e', key + '=' + value, 'backend', 'python', '-c',
                                     'from django.conf import settings; print(settings.ADMINCORE_MODULES)'], allowed_failure=True)
             check(label, result.returncode != 0 and 'ImproperlyConfigured' in result.stderr)

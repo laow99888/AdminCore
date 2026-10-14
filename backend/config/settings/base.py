@@ -217,7 +217,8 @@ SPECTACULAR_SETTINGS = {
     'TITLE': 'AdminCore API',
     'VERSION': '1.0.0',
     'COMPONENT_SPLIT_REQUEST': True,
-    'ENUM_NAME_OVERRIDES': {'OperationActionEnum': 'apps.logs.models.OperationLog.ACTION_CHOICES'},
+    'ENUM_NAME_OVERRIDES': {'OperationActionEnum': 'apps.logs.models.OperationLog.ACTION_CHOICES',
+                          'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS'},
     'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
     'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},
 }
@@ -234,6 +235,7 @@ if not 1 <= AUTH_LOGIN_CAPTCHA_FAILURE_THRESHOLD <= 5:
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured('登录验证码失败门槛范围为 1-5')
 AUTH_EMAIL_ENABLED = os.getenv('AUTH_EMAIL_ENABLED', 'False').lower() == 'true'
+NOTIFICATION_EMAIL_ENABLED = os.getenv('NOTIFICATION_EMAIL_ENABLED', 'False').lower() == 'true'
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
@@ -243,16 +245,16 @@ EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', '')
-if AUTH_EMAIL_ENABLED:
+if AUTH_EMAIL_ENABLED or NOTIFICATION_EMAIL_ENABLED:
     from django.core.exceptions import ImproperlyConfigured, ValidationError
     from django.core.validators import validate_email
     try:
         validate_email(DEFAULT_FROM_EMAIL)
     except ValidationError:
-        raise ImproperlyConfigured('启用认证邮件需配置有效的 DEFAULT_FROM_EMAIL') from None
+        raise ImproperlyConfigured('启用邮件需配置有效的 DEFAULT_FROM_EMAIL') from None
     if (not EMAIL_HOST or any(char.isspace() for char in EMAIL_HOST) or not 1 <= EMAIL_PORT <= 65535
             or EMAIL_USE_TLS == EMAIL_USE_SSL or not 1 <= EMAIL_TIMEOUT <= 30):
-        raise ImproperlyConfigured('认证邮件需要 SMTP 主机、有效端口、单选 TLS/SSL 及 1-30 秒超时')
+        raise ImproperlyConfigured('邮件需要 SMTP 主机、有效端口、单选 TLS/SSL 及 1-30 秒超时')
 if not (60 <= AUTH_SESSION_TOUCH_SECONDS <= AUTH_SESSION_IDLE_SECONDS <= AUTH_SESSION_ABSOLUTE_SECONDS
         <= 30 * 86400):
     from django.core.exceptions import ImproperlyConfigured

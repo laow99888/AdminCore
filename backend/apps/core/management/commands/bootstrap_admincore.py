@@ -55,6 +55,9 @@ PERMISSIONS = [
     ('announcement', 'read', '查看公告管理', 'announcement:read'),
     ('announcement', 'update', '维护公告草稿', 'announcement:update'),
     ('announcement', 'publish', '发布和撤回公告', 'announcement:publish'),
+    ('template', 'read', '查看通知模板与投递', 'template:read'),
+    ('template', 'update', '维护通知模板版本', 'template:update'),
+    ('template', 'send', '发送模板通知与重试', 'template:send'),
     ('session', 'read', '查看在线用户', 'session:read'),
     ('session', 'revoke', '撤销用户登录会话', 'session:revoke'),
     ('config', 'read', '查看系统参数', 'config:read'),
@@ -177,7 +180,7 @@ class Command(BaseCommand):
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
-                if role_created or (code in new_permission_codes and code not in {'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke'}):
+                if role_created or (code in new_permission_codes and code not in {'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke', 'template:read', 'template:update', 'template:send'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
         if demo:
             UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
@@ -265,6 +268,14 @@ class Command(BaseCommand):
                 Menu.objects.get_or_create(path='/system/online-users', defaults={
                     'name': '在线用户', 'icon': 'users', 'order': 22,
                     'permission': permission_map['session:read'],
+                })
+
+        with transaction.atomic():
+            _, first_templates_init = BootstrapState.objects.get_or_create(key='message_templates_menu_v1')
+            if first_templates_init:
+                Menu.objects.get_or_create(path='/notifications/templates', defaults={
+                    'name': '通知模板', 'icon': 'mail', 'order': 23,
+                    'permission': permission_map['template:read'],
                 })
 
         Notification.push(
