@@ -28,7 +28,7 @@ class DataExportSerializer(serializers.Serializer):
         resource = data.get('resource', 'users')
         kind = data.get('log_type', 'operation')
         self.fields['search'] = serializers.CharField(required=False, max_length=200, allow_blank=True)
-        if resource in {'users', 'roles'}:
+        if resource in {'users', 'roles', 'posts'}:
             self.fields['is_active'] = serializers.ChoiceField(choices=['true', 'false'], required=False)
         elif resource == 'files':
             self.fields['file_type'] = serializers.RegexField(r'^[a-zA-Z0-9]{1,20}$', required=False)

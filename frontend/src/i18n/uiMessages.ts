@@ -1,14 +1,21 @@
 export const uiMessages: Record<string, string> = {
-  '图片处理': 'Image Processing', '生成预览': 'Generate Preview', '最大宽度（px）': 'Maximum Width (px)',
-  '最大高度（px）': 'Maximum Height (px)', '输出格式': 'Output Format', '质量（PNG 为无损编码）': 'Quality (PNG is lossless)',
-  '水印图片（可选）': 'Watermark Image (optional)', '移除水印': 'Remove Watermark', '不透明度（%）': 'Opacity (%)',
-  '水印位置': 'Watermark Position', '右下角': 'Bottom Right', '居中': 'Center', '正在处理图片…': 'Processing image…',
-  '取消请求': 'Cancel Request', '处理结果预览': 'Processed Image Preview', '下载处理结果': 'Download Result',
-  '结果大小：{p0} KiB': 'Result size: {p0} KiB', '水印图片最大 512 KiB': 'Watermark images must not exceed 512 KiB.',
-  '图片处理结果无法显示，请重新生成': 'The result could not be displayed. Generate it again.',
-  '图片处理失败，请重试': 'Image processing failed. Please retry.', '图片处理结果不符合安全限制': 'The image processing result exceeds safety limits.',
-  '保持比例且不放大；仅处理首帧，清除元数据。结果只供下载，原文件保留。': 'Preserves proportions without enlarging; processes the first frame and removes metadata. Download the result while keeping the original.',
-  'PNG/JPEG/WebP，最大 512 KiB、1024px；可上传带中文或 Logo 的图片，水印不保存。': 'PNG/JPEG/WebP, up to 512 KiB and 1024px. Use an image containing text or a logo. Watermarks are not stored.',
+  "开放凭证": "API Credentials",
+  "只读开放 API": "Read-only Open API",
+  "创建本人开放凭证": "Create My API Credential",
+  "读取任务摘要": "Read Task Summaries",
+  "读取示例工单": "Read Example Work Items",
+  "查看本人开放凭证": "View My API Credentials",
+  "撤销本人开放凭证": "Revoke My API Credentials",
+  'Twilio 短信': 'Twilio SMS',
+  '外部渠道成功表示对端接收；短信结果不确定时终止，请核对供应商记录后处理。': 'External success means provider acceptance. Unknown SMS outcomes are terminated; check provider records before taking action.',
+  '资源导入': 'Resource Import', '选择导入文件': 'Select Import File',
+  '下载模板失败，请重试': 'Template download failed. Please retry.',
+  '请选择不超过 10 MiB 的 CSV 或 XLSX 文件': 'Select a CSV or XLSX file no larger than 10 MiB.',
+  '只新增记录，不覆盖已有记录；导入结果默认停用，不分配权限或人员。最多 5000 行，逐行提交，失败行不会撤销已成功行。': 'Creates new records without overwriting existing ones. Imported records are inactive and receive no permissions or members. Up to 5,000 rows are committed individually; failed rows do not undo successful rows.',
+  '确认导入': 'Confirm Import',
+  "图片处理": "Image Processing",
+  "居中": "Center",
+  "取消请求": "Cancel Request",
   '重新加载失败，输入已保留，请重试': 'Reload failed. Your input is preserved; please retry.',
   '示例工单': 'Example Work Items', '新增工单': 'New Work Item', '编辑工单': 'Edit Work Item', '工单标题': 'Work Item Title', '工单说明': 'Work Item Notes', '工单状态': 'Work Item Status', '工单详情': 'Work Item Details', '优先级': 'Priority', '普通': 'Normal', '高': 'High', '待处理': 'Open', '搜索工单标题': 'Search Work Item Titles', '全部状态': 'All Statuses', '请填写工单标题': 'Enter a work item title.', '确定删除此工单？此操作不可恢复。': 'Delete this work item? This action cannot be undone.', '删除未确认，请刷新检查版本和状态': 'Deletion was not confirmed. Refresh to check its version and status.',
   '接续未提交行': 'Resume Remaining Rows', '执行次数': 'Execution Attempts', '软 / 硬超时': 'Soft / Hard Timeout',
@@ -20,24 +27,24 @@ export const uiMessages: Record<string, string> = {
   '通知模板': 'Notification Templates', '新增模板': 'New Template', '编辑模板': 'Edit Template',
   '模板管理': 'Manage Templates', '投递记录': 'Delivery Records', '模板编码': 'Template Code', '模板名称': 'Template Name',
   '标题模板': 'Subject Template', '正文模板': 'Body Template', '变量名（逗号分隔）': 'Variables (comma separated)',
-  '模板编辑生成新版本；已登记投递保持原版本。邮件仅发送至已验证邮箱。': 'Editing creates a new version. Queued deliveries keep their original version. Email requires a verified address.',
-  '使用 ${name} 文本占位符，变量名需逐一声明；字面美元符写为 $$。不支持表达式或 HTML。': 'Use ${name} text placeholders and declare each variable; use $$ for a literal dollar sign. Expressions and HTML are not supported.',
+
+
   '版本记录': 'Version History', '发送通知': 'Send Notification', '确认发送': 'Confirm Send', '收件人': 'Recipients', '收件人标识': 'Recipient ID',
   '添加收件人': 'Add Recipient', '投递渠道': 'Delivery Channels', '站内通知': 'In-app Notification', 'SMTP 邮件': 'SMTP Email',
-  '邮件渠道未启用；请联系部署管理员配置。': 'Email is disabled. Ask your deployment administrator to configure it.',
+
   '预览通知': 'Preview Notification', '通知预览': 'Notification Preview',
-  '每位收件人、每个渠道独立记录；最多五次尝试。登记成功后请查看投递记录。': 'Each recipient and channel has a separate record, with up to five attempts. Check delivery records after submitting.',
+
   '待发送': 'Pending', '已终止': 'Terminated', '失败原因': 'Failure Reason',
-  '版本加载失败，请重试': 'Could not load versions. Please retry.', '通知配置加载失败，请重试': 'Could not load notification settings. Please retry.',
-  '请填写有效编码、名称、标题和不重复的变量': 'Enter a valid code, name, subject and unique variables.',
-  '模板已变化，已保留输入，请重新打开编辑窗口': 'The template changed. Your input is preserved. Reopen the editor to load the latest version.',
-  '保存失败，已保留输入；请检查占位符与声明变量': 'Save failed. Input is preserved. Check placeholders and declared variables.',
-  '投递渠道加载失败，请关闭后重试': 'Could not load delivery channels. Close and retry.',
-  '预览失败，请检查变量或重新打开最新模板': 'Preview failed. Check variables or reopen the latest template.',
-  '确定向所选人员登记通知投递吗？': 'Queue notification deliveries to the selected recipients?',
-  '已登记投递，请查看结果': 'Deliveries queued. Check their results.', '已登记重试': 'Retry queued.',
-  '发送未确认，已保留输入；检查模板、人员和邮箱后重试': 'Sending was not confirmed. Input is preserved. Check the template, recipients and email addresses before retrying.',
-  '重试未确认，请刷新检查状态、期限与次数': 'Retry was not confirmed. Refresh to check status, expiry and attempts.',
+  '版本加载失败，请重试': 'Could not load versions. Please retry.',
+
+
+
+
+
+
+   '已登记重试': 'Retry queued.',
+
+
   '审计详情': 'Audit details',
   '审计详情加载失败，请重试': 'Could not load audit details. Please retry.',
   '操作者标识': 'Actor identifier',

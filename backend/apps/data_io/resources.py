@@ -40,6 +40,39 @@ def create_user_row(data):
     return user, None
 
 
+def create_role_row(data):
+    """只新增无授权角色，不导入角色成员、权限或数据范围。"""
+    from apps.permissions.serializers import RoleSerializer
+    serializer = RoleSerializer(data={**data, 'is_active': False})
+    serializer.is_valid(raise_exception=True)
+    return serializer.save(), None
+
+
+def create_post_row(data):
+    from apps.core.post_views import PostSerializer
+    serializer = PostSerializer(data={**data, 'version': 1, 'is_active': False, 'order': 0})
+    serializer.is_valid(raise_exception=True)
+    return serializer.save(), None
+
+
+def import_allowed(user, resource):
+    """提交、模板、接续和每行写入共同复核当前权限。"""
+    from apps.permissions.permissions import has_permission_code
+    from apps.core.data_scope import unrestricted_user_creation
+    from apps.core.modules import module_enabled
+    config = get_resource(resource)
+    if not config or not config['importable'] or not has_permission_code(user, 'data_io:import'):
+        return False
+    if not all(has_permission_code(user, code) for code in config['import_permissions']):
+        return False
+    if config.get('module') and not module_enabled(config['module']):
+        return False
+    if resource == 'users':
+        return unrestricted_user_creation(user)
+    # 与角色/岗位的人工写入口一致，不能通过导入绕过管理员限制。
+    return bool(user.is_staff or user.is_superuser)
+
+
 IMPORT_EXPORT_RESOURCES = {
     'users': {
         'label': '用户',
@@ -50,9 +83,13 @@ IMPORT_EXPORT_RESOURCES = {
         'importable': True,
         'exportable': True,
         'permissions': ('user:read',),
+        'import_permissions': ('user:create',),
     },
     'roles': {
-        'label': '角色', 'importable': False, 'exportable': True,
+        'label': '角色', 'importable': True, 'exportable': True,
+        'import_permissions': ('role:update',),
+        'import_fields': ['name', 'description'], 'required': ['name'],
+        'create_row': create_role_row,
         'permissions': ('role:read',),
         'fields': ['id', 'name', 'description', 'is_active', 'created_at'],
     },
@@ -70,6 +107,13 @@ IMPORT_EXPORT_RESOURCES = {
         'label': '文件元数据', 'importable': False, 'exportable': True,
         'permissions': ('file:download',),
         'fields': ['id', 'original_name', 'file_type', 'size', 'content_type', 'uploader__username', 'download_count', 'created_at'],
+    },
+    'posts': {
+        'label': '岗位', 'importable': True, 'exportable': True, 'module': 'organization',
+        'permissions': ('post:read',), 'import_permissions': ('post:update',),
+        'import_fields': ['code', 'name', 'description'], 'required': ['code', 'name'],
+        'fields': ['id', 'code', 'name', 'description', 'order', 'is_active', 'created_at'],
+        'create_row': create_post_row,
     },
 }
 
@@ -90,6 +134,10 @@ def export_queryset(resource, user, filters):
         from apps.files.models import FileModel
         queryset = scope_queryset(FileModel.objects.filter(purpose='general', is_deleted=False), user, 'file', 'uploader_id', fallback='self')
         search_fields = ['original_name', 'description']
+    elif resource == 'posts':
+        from apps.core.models import Post
+        queryset = Post.objects.all()
+        search_fields = ['code', 'name']
     else:
         from apps.logs.models import OperationLog, LoginLog, ExceptionLog
         kind = filters.get('log_type', 'operation')

@@ -16,6 +16,7 @@ from apps.permissions.permissions import has_permission_code
 from apps.logs.audit import write_audit
 from .models import MessageTemplate, MessageTemplateVersion, MessageDelivery
 from .message_channels import CHANNELS, enabled, email_binding
+from .external_channels import binding, TerminalDeliveryError
 
 
 def validate_content(subject, body, variables):
@@ -99,11 +100,21 @@ def submit(request, actor, template_id, revision, recipient_ids, channels, value
         raise ValidationError('收件人不在当前可选范围或已停用')
     if 'email' in channels and any(not user.email_verified or not user.email or user.verified_email.strip().lower() != user.email.strip().lower() for user in users):
         raise ValidationError('邮件收件人必须具有已验证的当前邮箱')
+    external_bindings = {}
+    for user in users:
+        for channel in set(channels) & {'sms', 'webhook'}:
+            try:
+                external_bindings[user.pk, channel] = binding(channel, user)
+            except ValueError:
+                raise ValidationError('短信收件人尚未完成部署管理员核验登记') from None
+    if 'sms' in channels and (not body.strip() or len(body) > 1600):
+        raise ValidationError('短信正文须为 1 到 1600 字符')
     deliveries = []
     for user in users:
         for channel in channels:
             delivery = MessageDelivery.objects.create(version=version, recipient=user, creator=actor,
                 channel=channel, subject=subject, body=body, email_binding=email_binding(user) if channel == 'email' else '',
+                external_binding=external_bindings.get((user.pk, channel), ''),
                 actor_session_version=actor.session_version, actor_session_id=session.pk if session else None, request_id=request.request_id,
                 expires_at=timezone.now() + timedelta(hours=24))
             enqueue_event('notification.delivery', 'message:' + str(delivery.pk), {'delivery_id': str(delivery.pk)}, request=request)
@@ -136,6 +147,12 @@ def deliver(payload):
     elif not MessageTemplate.objects.select_for_update().get(pk=row.version.template_id).enabled: reason = 'template_disabled'
     elif not enabled(row.channel): reason = 'channel_disabled'
     elif row.channel == 'email' and (not user.email_verified or email_binding(user) != row.email_binding or user.verified_email.strip().lower() != user.email.strip().lower()): reason = 'recipient_email_changed'
+    elif row.channel in ('sms', 'webhook'):
+        try:
+            if binding(row.channel, user) != row.external_binding:
+                reason = 'external_destination_changed'
+        except ValueError:
+            reason = 'external_destination_changed'
     if reason:
         row.status, row.last_error = 'terminated', reason
         row.save(update_fields=['status', 'last_error', 'updated_at'])
@@ -143,6 +160,8 @@ def deliver(payload):
     row.attempts += 1
     try:
         CHANNELS[row.channel](row, user)
+    except TerminalDeliveryError:
+        row.status, row.last_error = 'terminated', 'external_delivery_rejected_or_unknown'
     except Exception:
         row.status, row.last_error = 'failed', 'channel_delivery_failed'
     else:

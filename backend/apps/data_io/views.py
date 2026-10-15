@@ -24,7 +24,7 @@ from apps.permissions.permissions import HasPermission, has_permission_code
 from apps.tasks.models import TaskRecord
 from apps.tasks.serializers import TaskRecordSerializer
 
-from .resources import get_resource, IMPORT_EXPORT_RESOURCES, export_queryset
+from .resources import get_resource, IMPORT_EXPORT_RESOURCES, export_queryset, import_allowed
 from .serializers import DataImportSerializer, DataExportSerializer, DataResourceDirectorySerializer
 from .tasks import dispatch_task, run_data_import
 
@@ -75,13 +75,12 @@ class DataImportView(DataModuleView):
     required_permission = 'data_io:import'
 
     def post(self, request):
-        from apps.core.data_scope import unrestricted_user_creation
-        if not unrestricted_user_creation(request.user):
-            return Response({'code': 403, 'message': '受限用户数据范围不能批量创建未分配部门的用户', 'data': None}, status=403)
         serializer = DataImportSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         uploaded = serializer.validated_data['file']
         resource_name = serializer.validated_data['resource']
+        if not import_allowed(request.user, resource_name):
+            return Response({'code': 403, 'message': '没有该资源的导入权限或数据范围受限', 'data': None}, status=403)
 
         ext = os.path.splitext(uploaded.name)[1].lower().lstrip('.')
         if ext not in IMPORT_ALLOWED_EXTENSIONS:
@@ -98,9 +97,9 @@ class DataImportView(DataModuleView):
         try:
             with transaction.atomic():
                 actor = authorize(request, 'data_io:import')
-                if not unrestricted_user_creation(actor):
+                if not import_allowed(actor, resource_name):
                     from rest_framework.exceptions import PermissionDenied
-                    raise PermissionDenied('用户数据范围受限')
+                    raise PermissionDenied('没有该资源的导入权限或数据范围受限')
                 file_record = FileModel.objects.create(
                     original_name=os.path.basename(uploaded.name), file=uploaded, file_type=ext,
                     size=uploaded.size, content_type=getattr(uploaded, 'content_type', '') or '',
@@ -168,15 +167,21 @@ class ImportTemplateView(DataModuleView):
         if config is None or not config['importable']:
             return Response({'code': 400, 'message': error_text('未注册的资源：{resource}', resource=resource_name), 'data': None},
                             status=status.HTTP_400_BAD_REQUEST)
+        if not import_allowed(request.user, resource_name):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('没有该资源的导入权限或数据范围受限')
 
         wb = Workbook()
         ws = wb.active
         ws.title = config['label']
-        ws.append(config['fields'])
+        fields = config.get('import_fields', config['fields'])
+        ws.append(fields)
         example = {
             'users': ['zhangsan', 'zhangsan@example.com', '三', '张', '13800000000'],
+            'roles': ['project_viewer', '导入后默认停用，授权需在角色管理单独配置'],
+            'posts': ['project_assistant', '项目助理', '导入后默认停用，不分配人员'],
         }
-        ws.append(example.get(resource_name, [''] * len(config['fields'])))
+        ws.append(example.get(resource_name, [''] * len(fields)))
 
         buffer = io.BytesIO()
         wb.save(buffer)
@@ -211,6 +216,8 @@ class DataExportView(DataModuleView):
             raise APIError('没有该资源的导出权限', status_code=403)
         if resource_name == 'files' and not module_enabled('files'):
             raise APIError('文件模块已关闭', status_code=404)
+        if config.get('module') and not module_enabled(config['module']):
+            raise APIError('资源模块已关闭', status_code=404)
         fields = config['fields'][filters['log_type']] if resource_name == 'logs' else config['fields']
         queryset = export_queryset(resource_name, request.user, filters)
         # 只查询白名单，关联字段由 values_list 一次 JOIN，避免逐行额外查询。
@@ -277,12 +284,13 @@ class DataResourcesView(DataModuleView):
 
     def get(self, request):
         from apps.core.modules import module_enabled
-        from apps.core.data_scope import unrestricted_user_creation
         resources = []
         for key, config in IMPORT_EXPORT_RESOURCES.items():
             if key == 'files' and not module_enabled('files'):
                 continue
-            importable = config['importable'] and has_permission_code(request.user, 'data_io:import') and unrestricted_user_creation(request.user)
+            if config.get('module') and not module_enabled(config['module']):
+                continue
+            importable = import_allowed(request.user, key)
             exportable = config['exportable'] and has_permission_code(request.user, 'data_io:export') and all(has_permission_code(request.user, code) for code in config['permissions'])
             if importable or exportable:
                 resources.append({'resource': key, 'label': config['label'], 'importable': importable, 'exportable': exportable})

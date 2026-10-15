@@ -309,5 +309,20 @@
   "查询选项无效": "Invalid query option.",
   "最多允许5个排序字段": "Use at most 5 ordering fields.",
   "排序字段不受支持": "Unsupported ordering field.",
-  "排序字段不能重复": "Ordering fields must not be repeated."
+  "排序字段不能重复": "Ordering fields must not be repeated.",
+  "短信收件人尚未完成部署管理员核验登记": "SMS recipients must be verified and registered by the deployment administrator.",
+  "短信正文须为 1 到 1600 字符": "SMS body must contain 1 to 1600 characters.",
+  "没有该资源的导入权限或数据范围受限": "You lack import permission for this resource or your data scope is restricted.",
+  "资源模块已关闭": "The resource module is disabled.",
+  "没有开放凭证管理权限": "You do not have permission to manage API credentials",
+  "不能签发当前账户没有的能力": "You cannot issue capabilities your account does not currently have",
+  "有效开放凭证最多20个，请先撤销旧凭证": "At most 20 active API credentials are allowed; revoke an old credential first",
+  "密钥仅展示一次，请妥善保存": "This secret is shown only once; store it securely",
+  "开放凭证已撤销": "API credential revoked",
+  "只能提交登记的开放凭证字段": "Only registered API credential fields may be submitted",
+  "请选择已启用的只读能力": "Select an enabled read-only capability",
+  "有效期必须为5分钟至90天": "Expiry must be between 5 minutes and 90 days",
+  "开放凭证限流暂不可用": "API credential rate limiting is temporarily unavailable",
+  "开放凭证无效或已撤销": "API credential is invalid or revoked",
+  "开放凭证无此只读能力": "This API credential does not have this read-only capability"
 }

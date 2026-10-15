@@ -45,9 +45,9 @@ def run_data_import(self, task_record_id):
     from apps.files.models import FileModel
     from apps.tasks.models import TaskRecord, ImportExecution, ImportBatch, ImportRowReceipt
     from apps.tasks.reliability import policy, valid_execution
-    from apps.core.data_scope import unrestricted_user_creation, scope_queryset
+    from apps.core.data_scope import scope_queryset
     from apps.permissions.permissions import has_permission_code
-    from .resources import get_resource
+    from .resources import get_resource, import_allowed
     from .execution import digest
     record = TaskRecord.objects.filter(pk=task_record_id).first()
     if record is None or record.status != 'pending':
@@ -60,12 +60,15 @@ def run_data_import(self, task_record_id):
             if locked.status != 'pending':
                 return {'skipped': True}
             actor = get_user_model().objects.filter(pk=record.creator_id, is_active=True).first()
-            if actor is None or actor.must_change_password or not unrestricted_user_creation(actor) or not has_permission_code(actor, 'data_io:import'):
+            if actor is None or actor.must_change_password or not has_permission_code(actor, 'data_io:import'):
                 record.mark_failed('execution_not_authorized')
                 return
             config = get_resource(record.related_resource)
             if not config or not config['importable']:
                 record.mark_failed('import_resource_unavailable')
+                return
+            if not import_allowed(actor, record.related_resource):
+                record.mark_failed('execution_not_authorized')
                 return
             source = scope_queryset(FileModel.objects.filter(is_deleted=False), actor, 'file', 'uploader_id', fallback='self').filter(
                 pk=(record.result or {}).get('file_id')).first() if actor else None
@@ -86,7 +89,7 @@ def run_data_import(self, task_record_id):
             record.mark_failed('queue_expired')
             return
         actor = get_user_model().objects.filter(pk=record.creator_id).first()
-        if not valid_execution(execution, actor) or not has_permission_code(actor, 'data_io:import') or not unrestricted_user_creation(actor):
+        if not valid_execution(execution, actor) or not import_allowed(actor, batch.resource):
             record.mark_failed('execution_not_authorized')
             return
         config = get_resource(batch.resource)
@@ -113,10 +116,14 @@ def run_data_import(self, task_record_id):
         if any(field not in frame.columns for field in config['required']):
             record.mark_failed('import_missing_columns')
             return
+        fields = config.get('import_fields', config['fields'])
+        if set(frame.columns) - set(fields):
+            record.mark_failed('import_unknown_columns')
+            return
         total = len(frame)
         summary = import_summary(batch, source.pk, total)
         for index, row in frame.iterrows():
-            data = {field: str(row.get(field, '')).strip() for field in config['fields']}
+            data = {field: str(row.get(field, '')).strip() for field in fields}
             with transaction.atomic():
                 # 锁用户和原设备，再锁批次和执行；与撤销/取消/接续同一顺序。
                 actor = get_user_model().objects.select_for_update().filter(pk=record.creator_id).first()
@@ -128,7 +135,7 @@ def run_data_import(self, task_record_id):
                 if locked.status != 'running' or batch.active_record_id != record.pk:
                     return {'stopped': True}
                 if (not task_enabled(self.name) or not valid_execution(execution, actor)
-                        or not has_permission_code(actor, 'data_io:import') or not unrestricted_user_creation(actor)):
+                        or not import_allowed(actor, batch.resource)):
                     locked.mark_failed('execution_not_authorized_committed_rows_preserved')
                     return
                 if timezone.now() > locked.started_at + timedelta(seconds=current['soft_timeout']):
@@ -139,7 +146,21 @@ def run_data_import(self, task_record_id):
                     if missing or any(len(value) > 32767 for value in data.values()):
                         obj, error = None, 'required_or_cell_length_invalid'
                     else:
-                        obj, error = config['create_row'](data)
+                        from django.core.exceptions import ValidationError
+                        from django.db import IntegrityError
+                        from rest_framework.exceptions import ValidationError as APIValidationError
+                        try:
+                            # 唯一键并发或行校验失败只回滚本行，不破坏外层账本事务。
+                            with transaction.atomic():
+                                obj, error = config['create_row'](data)
+                        except (ValidationError, APIValidationError, IntegrityError):
+                            obj, error = None, 'row_validation_failed'
+                        if obj is not None:
+                            from apps.logs.audit import write_audit, snapshot
+                            resource = {'users': 'user', 'roles': 'role', 'posts': 'post'}[batch.resource]
+                            write_audit(actor=actor, resource=resource, identifier=obj.pk,
+                                action='create', after=snapshot(resource, obj), record=locked,
+                                description='import_row_created')
                     # 仅保留受控错误码，不写原始姓名、邮箱或供应商错误。
                     ImportRowReceipt.objects.create(batch=batch, row=index + 2, created=obj is not None,
                                                     error='row_validation_failed' if error else '')

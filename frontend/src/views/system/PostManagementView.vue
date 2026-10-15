@@ -1,7 +1,7 @@
 <template>
   <AppLayout>
     <BaseCard>
-      <template #header><div class="header"><h2>{{ uiText('岗位与任职') }}</h2><BaseButton variant="primary" :disabled="loading || saving" @click="edit()">{{ uiText(section === 'posts' ? '新增岗位' : '分配岗位') }}</BaseButton></div></template>
+      <template #header><div class="header"><h2>{{ uiText('岗位与任职') }}</h2><DataImportButton v-if="section === 'posts'" resource="posts" :loading="loading || saving" /><BaseButton variant="primary" :disabled="loading || saving" @click="edit()">{{ uiText(section === 'posts' ? '新增岗位' : '分配岗位') }}</BaseButton></div></template>
       <el-alert :title="uiText('岗位描述任职，不授予角色权限；停用保留历史任职，删除前需移除任职。')" type="info" :closable="false" />
       <el-tabs v-model="section" @tab-change="changeSection"><el-tab-pane :label="uiText('岗位')" name="posts" /><el-tab-pane :label="uiText('人员任职')" name="user-posts" /></el-tabs>
       <div class="search"><el-input v-model="search" :aria-label="uiText('搜索岗位或用户名')" :placeholder="uiText('搜索岗位或用户名')" maxlength="100" clearable @keyup.enter="searchRows" /><BaseButton :disabled="loading" @click="searchRows">{{ uiText('搜索') }}</BaseButton><BaseButton :disabled="loading" @click="loadRows">{{ uiText('刷新') }}</BaseButton></div>
@@ -44,6 +44,7 @@ import { postsApi, type PostRow, type UserPostRow, type PostSection } from '@/ap
 import type { Person } from '@/api/personnel'
 import request, { type ApiResponse } from '@/api/request'
 import { uiText } from '@/i18n/uiText'
+import DataImportButton from '@/components/common/DataImportButton.vue'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useAuthStore } from '@/stores/auth'
 const auth = useAuthStore()

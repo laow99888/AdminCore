@@ -4,6 +4,7 @@ from django.core.mail import EmailMessage, get_connection
 from django.utils.crypto import salted_hmac
 
 from .models import Notification
+from . import external_channels
 
 
 def email_binding(user):
@@ -11,6 +12,8 @@ def email_binding(user):
 
 
 def enabled(channel):
+    if channel in ('webhook', 'sms'):
+        return external_channels.enabled(channel)
     return channel == 'inapp' or channel == 'email' and bool(
         settings.NOTIFICATION_EMAIL_ENABLED and settings.EMAIL_HOST and settings.DEFAULT_FROM_EMAIL)
 
@@ -29,4 +32,4 @@ def email(delivery, recipient):
         raise RuntimeError('email_delivery_failed')
 
 
-CHANNELS = {'inapp': inapp, 'email': email}
+CHANNELS = {'inapp': inapp, 'email': email, 'webhook': external_channels.webhook, 'sms': external_channels.sms}

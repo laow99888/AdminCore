@@ -53,13 +53,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue'
 import { BaseButton, BaseDialog } from '@/components'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { imageProcessingMessages } from '@/i18n/imageProcessingMessages'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { processImage, type ImageOptions } from '@/api/imageProcessing'
 import type { FileRow } from '@/api'
+
+registerUiMessages(imageProcessingMessages)
 
 const props = defineProps<{ file: FileRow | null; enabled: boolean }>()
 const emit = defineEmits<{ close: [] }>()

@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'apps.data_io',
     'apps.approvals',
     'apps.example',
+    'apps.api_credentials',
 ]
 
 # 中间件
@@ -249,6 +250,8 @@ SPECTACULAR_SETTINGS = {
     'VERSION': BASE_VERSION,
     'COMPONENT_SPLIT_REQUEST': True,
     'ENUM_NAME_OVERRIDES': {'OperationActionEnum': 'apps.logs.models.OperationLog.ACTION_CHOICES',
+                          'TaskRecordStatusEnum': 'apps.tasks.models.TaskRecord.STATUS_CHOICES',
+                          'WorkItemStatusEnum': [('open', '待处理'), ('done', '已完成')],
                           'TaskMetricStatusEnum': ['ok', 'degraded', 'disabled'],
                           'QueueMetricStatusEnum': ['ok', 'unavailable', 'disabled'],
                           'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS'},
@@ -271,6 +274,15 @@ if not 1 <= AUTH_LOGIN_CAPTCHA_FAILURE_THRESHOLD <= 5:
     raise ImproperlyConfigured('登录验证码失败门槛范围为 1-5')
 AUTH_EMAIL_ENABLED = os.getenv('AUTH_EMAIL_ENABLED', 'False').lower() == 'true'
 NOTIFICATION_EMAIL_ENABLED = os.getenv('NOTIFICATION_EMAIL_ENABLED', 'False').lower() == 'true'
+# 只从部署环境读取密钥，不通过参数管理或匿名能力接口回显。
+import json
+try:
+    NOTIFICATION_EXTERNAL_CHANNELS = json.loads(os.getenv('ADMINCORE_NOTIFICATION_EXTERNAL_CHANNELS_JSON', '{}'))
+    if not isinstance(NOTIFICATION_EXTERNAL_CHANNELS, dict):
+        raise ValueError()
+except (ValueError, TypeError):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('ADMINCORE_NOTIFICATION_EXTERNAL_CHANNELS_JSON 必须为 JSON 对象') from None
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))

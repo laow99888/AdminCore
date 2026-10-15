@@ -1,5 +1,5 @@
 """
-初始化权限和管理员；演示账号仅通过非生产环境的 --demo 创建。
+初始化权限和管理员；演示仅通过独立演示项目安全入口创建。
 
 幂等设计：已存在的数据自动跳过，可重复执行。
 用法：python manage.py bootstrap_admincore
@@ -15,10 +15,8 @@ import os
 
 User = get_user_model()
 
-# 固定凭据仅用于显式 --demo 的非生产环境。
-ADMIN_USERNAME = 'admin'
+# 历史弱凭据仅用于识别并拒绝不安全的旧初始化账户。
 ADMIN_PASSWORD = 'Admin#12345'
-DEMO_USERNAME = 'demo'
 DEMO_PASSWORD = 'Demo#12345'
 
 # 权限清单（resource, action, name, code）
@@ -49,7 +47,7 @@ class Command(BaseCommand):
     help = '初始化 AdminCore 权限与管理员（幂等，可重复执行）'
 
     def add_arguments(self, parser):
-        parser.add_argument('--demo', action='store_true', help='仅非生产环境：创建固定凭据的演示用户')
+        parser.add_argument('--demo', action='store_true', help='仅显式隔离的演示项目；不再创建固定凭据')
 
     def handle(self, *args, **options):
         from apps.notifications.models import Notification
@@ -60,21 +58,23 @@ class Command(BaseCommand):
         demo_mode = demo_mode or settings.ADMINCORE_PRESET == 'demo'
         if demo_mode and os.getenv('DJANGO_ENV') == 'production':
             raise CommandError('生产环境禁止 --demo')
-        username = ADMIN_USERNAME if demo_mode else os.getenv('ADMINCORE_ADMIN_USERNAME', 'admin')
-        password = ADMIN_PASSWORD if demo_mode else os.getenv('ADMINCORE_ADMIN_PASSWORD', '')
+        if demo_mode:
+            call_command('demo_admincore', stdout=self.stdout)
+            return
+        username = os.getenv('ADMINCORE_ADMIN_USERNAME', 'admin')
+        password = os.getenv('ADMINCORE_ADMIN_PASSWORD', '')
         existing = User.objects.filter(username=username).first()
-        if not demo_mode:
-            if existing and (not existing.is_superuser or existing.check_password(ADMIN_PASSWORD)):
-                raise CommandError('现有初始化账户权限或密码不安全，请先通过管理命令修正')
-            if existing is None:
-                if not password:
-                    raise CommandError('首次初始化必须设置 ADMINCORE_ADMIN_PASSWORD')
-                try:
-                    validate_password(password, User(username=username))
-                except ValidationError as exc:
-                    raise CommandError('初始化密码不符合密码策略') from exc
-                if password in (ADMIN_PASSWORD, DEMO_PASSWORD):
-                    raise CommandError('生产初始化不能使用演示密码')
+        if existing and (not existing.is_superuser or existing.check_password(ADMIN_PASSWORD)):
+            raise CommandError('现有初始化账户权限或密码不安全，请先通过管理命令修正')
+        if existing is None:
+            if not password:
+                raise CommandError('首次初始化必须设置 ADMINCORE_ADMIN_PASSWORD')
+            try:
+                validate_password(password, User(username=username))
+            except ValidationError as exc:
+                raise CommandError('初始化密码不符合密码策略') from exc
+            if password in (ADMIN_PASSWORD, DEMO_PASSWORD):
+                raise CommandError('生产初始化不能使用演示密码')
         self.stdout.write('开始初始化基础数据...')
 
         # 1. 超级管理员
@@ -85,22 +85,11 @@ class Command(BaseCommand):
         admin_created = created
         if created:
             admin.set_password(password)
-            admin.must_change_password = not demo_mode
+            admin.must_change_password = True
             admin.save()
             self.stdout.write(self.style.SUCCESS(f'  创建超级管理员：{username}'))
         else:
             self.stdout.write(f'  超级管理员已存在：{username}（跳过）')
-
-        # 2. 演示用户
-        demo = None
-        demo_created = False
-        if demo_mode:
-            demo, created = User.objects.get_or_create(username=DEMO_USERNAME, defaults={'email': 'demo@example.com'})
-            demo_created = created
-            if created:
-                demo.set_password(DEMO_PASSWORD)
-                demo.save()
-            self.stdout.write(f'  演示用户就绪：{DEMO_USERNAME}')
 
         # 3. 权限
         permission_map = {}
@@ -116,7 +105,6 @@ class Command(BaseCommand):
         self.stdout.write(f'  权限就绪：{len(permission_map)} 项')
 
         # 4. 角色 + 角色权限
-        from apps.permissions.models import UserRole
         role_map = {}
         for role_name, (desc, codes) in ROLES.items():
             role, role_created = Role.objects.get_or_create(name=role_name, defaults={'description': desc})
@@ -125,9 +113,7 @@ class Command(BaseCommand):
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。
                 if role_created or (code in new_permission_codes and code not in MODULE_PERMISSION_CODES | {'file:process', 'task:retry', 'user:sensitive_read', 'file:recycle', 'file:restore', 'file:purge', 'schedule:read', 'schedule:update', 'schedule:run', 'diagnostics:read', 'monitor:read', 'post:read', 'post:update', 'cache:read', 'cache:clear', 'announcement:read', 'announcement:update', 'announcement:publish', 'session:read', 'session:revoke', 'template:read', 'template:update', 'template:send'}):
                     RolePermission.objects.get_or_create(role=role, permission=permission_map[code])
-        if demo:
-            UserRole.objects.get_or_create(user=demo, role=role_map['只读访客'])
-        self.stdout.write(f'  角色就绪：{len(role_map)} 个（演示用户已绑定「只读访客」）')
+        self.stdout.write(f'  角色就绪：{len(role_map)} 个')
 
         # 5. 菜单
         from apps.core.models import BootstrapState
@@ -178,7 +164,7 @@ class Command(BaseCommand):
                             'order': menu.order, 'permission': permission_map[menu.permission] if menu.permission else None})
 
         Notification.push(
-            recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),
+            recipient_ids=([admin.id] if admin_created else []),
             title='欢迎使用 AdminCore',
             content='系统基础数据已初始化，请妥善保管账户凭据。',
             notification_type='system',

@@ -31,7 +31,8 @@ def test_declaration_move_preserves_2dac5c5_seed_and_audit_contracts():
     templates = next(menu for module in BUILTIN_MODULES for menu in module.menus if menu.path == '/notifications/templates')
     menus = MENUS + [(templates.name, templates.path, templates.icon, templates.order, None, templates.permission)]
     assert digest(sorted(menus)) == '074c7cf5b4c73f4aa4935e5384c00732a8527841cc6a8db903aa243970ea9c04'
-    assert digest({key: value for key, value in FIELDS.items() if key != 'example'}) == 'cbaca682f802aaa9330b0d9f1414a8036543e0836946d9b3fda3b85bca923089'
+    assert digest({key: value for key, value in FIELDS.items()
+                   if key not in {'example', 'api_credential'}}) == 'cbaca682f802aaa9330b0d9f1414a8036543e0836946d9b3fda3b85bca923089'
     parameters = [asdict(row) for key, row in CONFIG_DEFINITIONS.items() if not key.startswith('example.')]
     assert digest(sorted(parameters, key=lambda row: row['key'])) == '9c5839150a66142744affffeb8b49bc555cd0bf82b12b38f935697105f124243'
     assert digest(MAINTENANCE_TASKS) == 'edc6bcc36bfacea8a61d6ed8350e4dc430d41b54091367c277db8f1e31ceb612'

@@ -4,7 +4,7 @@ import hashlib
 from django.db import transaction
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 
-from apps.core.data_scope import scope_queryset, unrestricted_user_creation
+from apps.core.data_scope import scope_queryset
 from apps.core.events import enqueue_event
 from apps.core.modules import task_enabled
 from apps.logs.audit import snapshot, write_audit
@@ -47,7 +47,8 @@ def register(record, source, request=None, batch=None, attempt=1):
 @transaction.atomic
 def resume(request, identifier):
     actor = authorize(request, 'data_io:import')
-    if not has_retry_permission(actor) or not unrestricted_user_creation(actor):
+    from .resources import import_allowed
+    if not has_retry_permission(actor):
         raise PermissionDenied('没有任务接续权限或用户数据范围受限')
     if not task_enabled('data_io.run_data_import'):
         raise NotFound()
@@ -85,6 +86,8 @@ def resume(request, identifier):
     config = get_resource(batch.resource)
     if not config or not config['importable']:
         raise ValidationError('资源不能导入')
+    if not import_allowed(actor, batch.resource):
+        raise PermissionDenied('没有该资源的导入权限或数据范围受限')
     new = TaskRecord.objects.create(name=record.name.removesuffix('（接续）')[:190] + '（接续）',
         task_type='import', related_resource=batch.resource, creator=actor, result={'file_id': str(source.pk)})
     register(new, source, request, batch, execution.attempt + 1)

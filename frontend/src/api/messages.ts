@@ -3,7 +3,7 @@ import request, { type ApiResponse, type PagedData } from './request'
 export interface MessageVersion { id: string; number: number; subject: string; body: string; variables: string[]; created_at: string }
 export interface MessageTemplate { id: string; code: string; name: string; enabled: boolean; revision: number; current: MessageVersion }
 export interface MessageDraft { code: string; name: string; enabled: boolean; revision: number; subject: string; body: string; variables: string[] }
-export type MessageChannel = 'inapp' | 'email'
+export type MessageChannel = 'inapp' | 'email' | 'webhook' | 'sms'
 export interface MessageDelivery { id: string; template_code: string; version_number: number; recipient: string | null; channel: MessageChannel; status: 'pending' | 'succeeded' | 'failed' | 'terminated'; attempts: number; last_error: string; request_id: string; created_at: string; expires_at: string }
 export interface MessagePreview { subject: string; body: string }
 const base = '/notifications/templates/', deliveryBase = '/notifications/deliveries/'

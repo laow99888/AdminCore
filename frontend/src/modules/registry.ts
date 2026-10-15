@@ -2,4 +2,7 @@
 export const frontendExtensions = [{
   key: 'example', path: '/example', permission: 'example:read', title: '示例工单',
   component: () => import('../views/example/WorkItemListView.vue'),
+}, {
+  key: 'api_credentials', path: '/api-credentials', permission: 'api_credential:read', title: '开放凭证',
+  component: () => import('../views/settings/APICredentialsView.vue'),
 }] as const

@@ -122,7 +122,7 @@ class MessageTemplateVersion(BaseModel):
 
 
 class MessageDelivery(BaseModel):
-    CHANNELS = [('inapp', '站内通知'), ('email', 'SMTP 邮件')]
+    CHANNELS = [('inapp', '站内通知'), ('email', 'SMTP 邮件'), ('webhook', 'Webhook'), ('sms', 'Twilio 短信')]
     STATUS_CHOICES = [('pending', '待发送'), ('succeeded', '成功'), ('failed', '失败'), ('terminated', '已终止')]
     version = models.ForeignKey(MessageTemplateVersion, on_delete=models.PROTECT, related_name='deliveries')
     recipient = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='message_deliveries')
@@ -131,6 +131,7 @@ class MessageDelivery(BaseModel):
     subject = models.CharField(max_length=200)
     body = models.TextField()
     email_binding = models.CharField(max_length=64, blank=True)
+    external_binding = models.CharField(max_length=64, blank=True)
     actor_session_version = models.PositiveIntegerField()
     actor_session_id = models.UUIDField(null=True)
     request_id = models.CharField(max_length=100, blank=True, db_index=True)
@@ -145,6 +146,12 @@ class MessageDelivery(BaseModel):
         indexes = [models.Index(fields=['status', 'created_at'])]
         constraints = [
             models.CheckConstraint(condition=models.Q(status__in=['pending', 'succeeded', 'failed', 'terminated']), name='message_delivery_status_valid'),
-            models.CheckConstraint(condition=models.Q(channel__in=['inapp', 'email']), name='message_delivery_channel_valid'),
+            models.CheckConstraint(condition=models.Q(channel__in=['inapp', 'email', 'webhook', 'sms']), name='message_delivery_channel_valid'),
             models.CheckConstraint(condition=models.Q(attempts__lte=5), name='message_delivery_attempts_valid'),
         ]
+
+
+class SmsDispatchFence(models.Model):
+    """独立提交的短信意图。无外键，避免和派发事务的用户/投递锁形成等待。"""
+    delivery_id = models.UUIDField(primary_key=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)

@@ -36,7 +36,8 @@
         <el-form-item v-for="key in selected?.current.variables" :key="key" :label="key"><el-input v-model="values[key]" maxlength="2000" /></el-form-item>
         <el-form-item :label="uiText('收件人')"><PersonPicker v-model="picked" purpose="message" :disabled="saving || recipients.length >= 100" /><el-button :disabled="saving || !picked || recipients.length >= 100" @click="addRecipient">{{ uiText('添加收件人') }}</el-button></el-form-item>
         <div class="recipients"><el-tag v-for="person in recipients" :key="person.id" :closable="!saving" @close="removeRecipient(person.id)">{{ person.display_name }} ({{ person.username }})</el-tag></div>
-        <el-form-item :label="uiText('投递渠道')"><el-checkbox-group v-model="channels" :disabled="saving || channelLoading"><el-checkbox value="inapp" :disabled="!available.inapp">{{ uiText('站内通知') }}</el-checkbox><el-checkbox value="email" :disabled="!available.email">{{ uiText('SMTP 邮件') }}</el-checkbox></el-checkbox-group></el-form-item>
+        <el-form-item :label="uiText('投递渠道')"><el-checkbox-group v-model="channels" :disabled="saving || channelLoading"><el-checkbox value="inapp" :disabled="!available.inapp">{{ uiText('站内通知') }}</el-checkbox><el-checkbox value="email" :disabled="!available.email">{{ uiText('SMTP 邮件') }}</el-checkbox><el-checkbox value="webhook" :disabled="!available.webhook">Webhook</el-checkbox><el-checkbox value="sms" :disabled="!available.sms">{{ uiText('Twilio 短信') }}</el-checkbox></el-checkbox-group></el-form-item>
+        <p class="notice">{{ uiText('外部渠道成功表示对端接收；短信结果不确定时终止，请核对供应商记录后处理。') }}</p>
         <p v-if="!available.email" class="notice">{{ uiText('邮件渠道未启用；请联系部署管理员配置。') }}</p>
         <el-button :loading="previewing" :disabled="saving || channelLoading" @click="makePreview">{{ uiText('预览通知') }}</el-button>
       </el-form>
@@ -63,7 +64,10 @@ import { useErrorSummary } from '@/composables/useErrorSummary'
 import { messagesApi, type MessageTemplate, type MessageVersion, type MessageDelivery, type MessageChannel, type MessagePreview } from '@/api/messages'
 import type { Person } from '@/api/personnel'
 import { newIdempotencyKey } from '@/api'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { notificationMessages } from '@/i18n/notificationMessages'
+
+registerUiMessages(notificationMessages)
 
 defineOptions({ name: 'MessageTemplatesView' })
 const auth = useAuthStore(), modules = useModuleStore(), owner = auth.user?.id
@@ -75,14 +79,14 @@ const templates = ref<MessageTemplate[]>([]), deliveries = ref<MessageDelivery[]
 const editorOpen = ref(false), sendOpen = ref(false), selected = ref<MessageTemplate>()
 const blank = () => ({ id: '', code: '', name: '', subject: '', body: '', variablesText: '', enabled: true, revision: 0 })
 const form = reactive(blank()), values = ref<Record<string, string>>({}), recipients = ref<Person[]>([]), picked = ref<Person | null>(null), channels = ref<MessageChannel[]>(['inapp'])
-const available = ref({ inapp: false, email: false }), channelLoading = ref(false), preview = ref<MessagePreview>(), previewing = ref(false)
+const available = ref({ inapp: false, email: false, webhook: false, sms: false }), channelLoading = ref(false), preview = ref<MessagePreview>(), previewing = ref(false)
 const historyOpen = ref(false), historyId = ref(''), historyPage = ref(1), historyTotal = ref(0), historyLoading = ref(false), historyError = ref(false), versions = ref<MessageVersion[]>([])
 let generation = 0, previewGeneration = 0, historyGeneration = 0, channelGeneration = 0
 let listController: AbortController | undefined, previewController: AbortController | undefined, historyController: AbortController | undefined, channelController: AbortController | undefined
 let sendBody = '', sendKey = '', ownsConfirmation = false
 const states = ['pending', 'succeeded', 'failed', 'terminated']
 const statusLabel = (value: string) => uiText(({ pending: '待发送', succeeded: '成功', failed: '失败', terminated: '已终止' } as Record<string, string>)[value] || value)
-const channelLabel = (value: string) => uiText(value === 'inapp' ? '站内通知' : 'SMTP 邮件')
+const channelLabel = (value: string) => uiText(({ inapp: '站内通知', email: 'SMTP 邮件', webhook: 'Webhook', sms: 'Twilio 短信' } as Record<string, string>)[value] || value)
 const templateColumns = computed(() => [{ prop: 'code', label: uiText('模板编码') }, { prop: 'name', label: uiText('模板名称') }, { prop: 'revision', label: uiText('版本'), width: 80 }, { prop: 'enabled', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '已启用' : '未启用') }])
 const deliveryColumns = computed(() => [{ prop: 'template_code', label: uiText('模板编码') }, { prop: 'version_number', label: uiText('版本'), width: 75 }, { prop: 'recipient', label: uiText('收件人标识'), width: 200 }, { prop: 'channel', label: uiText('投递渠道'), width: 110, render: channelLabel }, { prop: 'status', label: uiText('状态'), width: 85, render: statusLabel }, { prop: 'attempts', label: uiText('尝试次数'), width: 90 }, { prop: 'last_error', label: uiText('失败原因'), width: 180 }, { prop: 'request_id', label: uiText('请求关联 ID'), width: 200 }])
 useErrorSummary(formError)
@@ -91,7 +95,7 @@ function clearDraft() {
   if (ownsConfirmation) ElMessageBox.close()
   editorOpen.value = false; sendOpen.value = false; Object.assign(form, blank()); selected.value = undefined
   values.value = {}; recipients.value = []; picked.value = null; channels.value = ['inapp']; formError.value = ''; sendBody = ''; sendKey = ''
-  invalidatePreview(); channelGeneration++; channelController?.abort(); available.value = { inapp: false, email: false }; channelLoading.value = false
+  invalidatePreview(); channelGeneration++; channelController?.abort(); available.value = { inapp: false, email: false, webhook: false, sms: false }; channelLoading.value = false
 }
 const guard = useUnsavedChanges({ source: () => editorOpen.value ? form : { values: values.value, recipients: recipients.value.map(person => person.id), channels: channels.value }, active: () => editorOpen.value || sendOpen.value, busy: () => saving.value, canEdit: () => canRead.value && (editorOpen.value ? canUpdate.value : canSend.value), clear: clearDraft })
 watch(values, invalidatePreview, { deep: true, flush: 'sync' })
@@ -136,7 +140,7 @@ async function compose(row: MessageTemplate) {
   const current = ++channelGeneration; channelController = new AbortController(); channelLoading.value = true
   try {
     const data = await messagesApi.channels(channelController.signal)
-    if (current === channelGeneration && sendOpen.value && guard.isCurrent()) { available.value = { inapp: data.some(item => item.key === 'inapp' && item.enabled), email: data.some(item => item.key === 'email' && item.enabled) }; channels.value = available.value.inapp ? ['inapp'] : [] }
+    if (current === channelGeneration && sendOpen.value && guard.isCurrent()) { available.value = { inapp: data.some(item => item.key === 'inapp' && item.enabled), email: data.some(item => item.key === 'email' && item.enabled), webhook: data.some(item => item.key === 'webhook' && item.enabled), sms: data.some(item => item.key === 'sms' && item.enabled) }; channels.value = available.value.inapp ? ['inapp'] : [] }
   } catch { if (current === channelGeneration && guard.isCurrent()) formError.value = uiText('投递渠道加载失败，请关闭后重试') }
   finally { if (current === channelGeneration) channelLoading.value = false }
 }

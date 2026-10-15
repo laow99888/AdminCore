@@ -58,14 +58,14 @@ class TestExportResources:
 
     def test_directory_declares_export_only_and_filters_permissions(self, admin_client, member_client, member_user):
         data = admin_client.get('/api/v1/data-io/resources/').json()['data']
-        assert {item['resource'] for item in data['resources']} == {'users', 'roles', 'logs', 'files'}
-        assert [item['resource'] for item in data['resources'] if item['importable']] == ['users']
+        assert {item['resource'] for item in data['resources']} == {'users', 'roles', 'logs', 'files', 'posts'}
+        assert [item['resource'] for item in data['resources'] if item['importable']] == ['users', 'roles', 'posts']
         assert data['max_rows'] == 5000 and data['max_bytes'] == 10485760
         grant(member_user, 'data_io:export', 'log:read')
         allowed = member_client.get('/api/v1/data-io/resources/').json()['data']['resources']
         assert allowed == [{'resource': 'logs', 'label': '日志', 'importable': False, 'exportable': True}]
 
-    @pytest.mark.parametrize('resource', ['roles', 'logs', 'files'])
+    @pytest.mark.parametrize('resource', ['logs', 'files'])
     def test_export_only_resources_cannot_template_import_retry_or_execute(self, admin_client, admin_user, resource):
         uploaded = io.BytesIO(b'name\nexample\n')
         uploaded.name = 'data.csv'

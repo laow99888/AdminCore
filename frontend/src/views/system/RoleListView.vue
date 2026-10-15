@@ -6,6 +6,7 @@
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("角色列表") }}</div>
             <div class="role-header-actions">
+              <DataImportButton resource="roles" :loading="loading" />
               <DataExportButton :loading="loading || !exportReady" resource="roles" />
               <LocalExportButton resource="roles" :title="uiText('角色列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :owner-key="printOwner" />
               <PrintTableButton :title="uiText('角色列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('role:read')" :owner-key="printOwner" />
@@ -82,6 +83,7 @@
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
+import DataImportButton from '@/components/common/DataImportButton.vue'
 
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'

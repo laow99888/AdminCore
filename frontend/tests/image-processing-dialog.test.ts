@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import { defineComponent } from 'vue'
 vi.mock('../src/api/imageProcessing', () => ({ processImage: vi.fn() }))
-vi.mock('../src/i18n/uiText', () => ({ uiText: (text: string) => text }))
+vi.mock('../src/i18n/uiText', () => ({ uiText: (text: string) => text, registerUiMessages: vi.fn() }))
 vi.mock('../src/components', () => ({
   BaseDialog: defineComponent({ name: 'ImageDialogStub', props: ['modelValue', 'beforeClose'], emits: ['confirm'], template: '<div><slot /></div>' }),
   BaseButton: defineComponent({ template: '<button><slot /></button>' }),

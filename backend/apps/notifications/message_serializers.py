@@ -57,7 +57,7 @@ class TemplatePreviewSerializer(StrictMessageSerializer):
 
 class TemplateSendSerializer(TemplatePreviewSerializer):
     recipient_ids = serializers.ListField(child=serializers.UUIDField(), min_length=1, max_length=100)
-    channels = serializers.ListField(child=serializers.ChoiceField(choices=MessageDelivery.CHANNELS), min_length=1, max_length=2)
+    channels = serializers.ListField(child=serializers.ChoiceField(choices=MessageDelivery.CHANNELS), min_length=1, max_length=4)
 
     def validate(self, data):
         if len(set(data['recipient_ids'])) != len(data['recipient_ids']) or len(set(data['channels'])) != len(data['channels']):

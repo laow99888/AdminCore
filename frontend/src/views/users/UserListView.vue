@@ -8,8 +8,8 @@
             <div class="card-header-title">{{ uiText("用户查询") }}</div>
             <div class="header-actions">
               <input ref="importInput" type="file" accept=".xlsx,.csv" class="hidden-input" @change="handleImport" />
-              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import')" variant="ghost" @click="triggerImport">{{ uiText("导入") }}</BaseButton>
-              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import')" variant="ghost" @click="downloadTemplate">{{ uiText("导入模板") }}</BaseButton>
+              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import') && auth.can('user:create')" variant="ghost" @click="triggerImport">{{ uiText("导入") }}</BaseButton>
+              <BaseButton v-if="modules.enabled('data_io') && auth.can('data_io:import') && auth.can('user:create')" variant="ghost" @click="downloadTemplate">{{ uiText("导入模板") }}</BaseButton>
               <DataExportButton :loading="loading || !exportReady" resource="users" :filters="exportFilters" />
               <LocalExportButton resource="users" :title="uiText('用户列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :owner-key="printOwner" />
               <PrintTableButton :title="uiText('用户列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :allowed="auth.can('user:read')" :owner-key="printOwner" />

@@ -468,7 +468,7 @@ def main():
                      {'title': '纯文本兼容', 'content': plain_markup, 'version': 0}, 201, token).json()['data']
         check('真实 HTTP 未指定格式的旧客户端保持纯文本和原始字面标签',
               legacy['content_format'] == 'plain' and legacy['content'] == plain_markup)
-        for resource in ('users', 'roles', 'logs', 'files'):
+        for resource in ('users', 'roles', 'logs', 'files', 'posts'):
             exported = api(f'data-io/export/?resource={resource}&export_format=csv', token=token)
             check('真实 HTTP 安全导出资源 ' + resource,
                   exported.headers['Content-Type'].startswith('text/csv') and bool(exported.content))
@@ -701,6 +701,15 @@ assert record.error=='worker_lost_committed_rows_preserved'
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 通用通知版本、SMTP 字节及有限重试', True)
+        for filename, label in [
+            ('validate_resource_imports.py', '真实 PostgreSQL 角色/岗位导入、逐行回滚及撤权边界'),
+            ('validate_api_credentials.py', '真实 PostgreSQL 独立凭证、只读范围、限流及撤销'),
+            ('validate_external_channels.py', '真实 PostgreSQL/TLS Webhook签名及短信崩溃防重复提交'),
+        ]:
+            encoded = base64.b64encode((ROOT / 'scripts' / filename).read_bytes()).decode('ascii')
+            compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                    "import base64; exec(base64.b64decode('" + encoded + "'))")
+            check(label, True)
         message_template = api('notifications/templates/', 'POST', {'code': 'http-message-fixture', 'name': 'HTTP 通知验收',
             'enabled': True, 'revision': 0, 'subject': 'HTTP ${name}', 'body': 'Body ${name}', 'variables': ['name']}, 201, token).json()['data']
         api('notifications/templates/' + message_template['id'] + '/preview/', 'POST', {'revision': 1, 'values': {'name': 'fixture'}}, token=token)

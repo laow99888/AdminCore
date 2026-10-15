@@ -177,14 +177,15 @@ def test_upgrade_does_not_expand_existing_roles_or_recreate_removed_menu(monkeyp
     from django.core.management import call_command
     from apps.permissions.models import Menu
     monkeypatch.setenv('DJANGO_ENV', 'testing')
+    monkeypatch.setenv('ADMINCORE_ADMIN_PASSWORD', 'IsolatedRecycleReview#87392')
     editor = Role.objects.create(name='运营编辑')
-    call_command('bootstrap_admincore', demo=True)
+    call_command('bootstrap_admincore')
     assert not RolePermission.objects.filter(role=editor, permission__code__in=['file:recycle', 'file:restore', 'file:purge']).exists()
     assert Permission.objects.filter(code__in=['file:recycle', 'file:restore', 'file:purge']).count() == 3
     menu = Menu.objects.get(path='/files/recycle')
     assert menu.permission.code == 'file:recycle'
     menu.delete()
-    call_command('bootstrap_admincore', demo=True)
+    call_command('bootstrap_admincore')
     assert not Menu.objects.filter(path='/files/recycle').exists()
 
 
