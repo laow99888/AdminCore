@@ -78,6 +78,19 @@ def main():
             api('users/', token=tokens[username], method='POST', data={'username': 'forbidden'}, expected=403)
         rows = api('example/items/', token=tokens['demo_admin'])['data']
         check('演示管理员可见完整六条工单', rows['pagination']['total'] == 6)
+        templates = api('notifications/templates/', token=tokens['demo_admin'])['data']['items']
+        template = next(row for row in templates if row['code'] == 'demo-welcome')
+        preview = api('notifications/templates/' + template['id'] + '/preview/',
+            token=tokens['demo_admin'], method='POST', data={'revision': 1, 'values': {'name': '演示访客'}})
+        check('演示模板实际替换变量', preview['data']['subject'] == '欢迎 演示访客')
+        files = api('files/', token=tokens['demo_admin'])['data']['items']
+        image = next(row for row in files if row['original_name'] == '演示图片.png')
+        image_preview = requests.get('http://127.0.0.1:' + str(options.frontend_port)
+            + '/api/v1/files/' + image['id'] + '/preview/',
+            headers={'Authorization': 'Bearer ' + tokens['demo_admin']}, timeout=20)
+        check('演示图片通过真实鉴权预览', image_preview.status_code == 200
+              and image_preview.headers.get('Content-Type') == 'image/png'
+              and image_preview.content.startswith(b'\x89PNG\r\n\x1a\n'))
         item = rows['items'][0]
         api('example/items/' + item['id'] + '/', method='PATCH', token=tokens['demo_admin'],
             data={'title': '保留后续演示修改', 'version': item['version']})

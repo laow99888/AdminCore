@@ -32,7 +32,7 @@ def create_demo(target, *, source=ROOT, ref='HEAD', frontend_port=8088, backend_
         'ADMINCORE_DEMO_VIEWER_PASSWORD': secrets.token_urlsafe(40),
         'ADMINCORE_STORAGE_BACKEND': 'local', 'ADMINCORE_BACKUP_ENABLED': 'False',
         'AUTH_EMAIL_ENABLED': 'False', 'NOTIFICATION_EMAIL_ENABLED': 'False',
-        'NOTIFICATION_WEBHOOK_ENABLED': 'False', 'NOTIFICATION_SMS_ENABLED': 'False',
+        'ADMINCORE_NOTIFICATION_EXTERNAL_CHANNELS_JSON': '{}',
         'ADMINCORE_IMAGE_PROCESSING_ENABLED': 'False', 'AUTH_LOGIN_CAPTCHA_ENABLED': 'False',
     }
     # 此文件由上方create_project新建；绝不读取源仓库的实际.env。

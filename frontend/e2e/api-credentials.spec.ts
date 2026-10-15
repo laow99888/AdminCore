@@ -8,7 +8,7 @@ async function setup(page: Page) {
   await page.route('**/api/v1/**', async route => {
     const path = new URL(route.request().url()).pathname
     if (path.endsWith('/auth/me/')) return route.fulfill({ json: envelope({ id: 'owner', username: 'owner', permissions: state.permissions }) })
-    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: [{ key: 'api_credentials', title: '只读开放 API', enabled: state.enabled, dependencies: [], paths: ['/api-credentials'], page_permissions: { '/api-credentials': 'api_credential:read' } }] }) })
+    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: [{ key: 'api_credentials', title: '只读开放 API', enabled: state.enabled, dependencies: [], paths: ['/integrations/credentials'], page_permissions: { '/integrations/credentials': 'api_credential:read' } }] }) })
     if (path.endsWith('/brand/')) return route.fulfill({ json: envelope({ name: 'AdminCore' }) })
     if (path.endsWith('/menus/my_menu/')) return route.fulfill({ json: envelope([]) })
     if (path.endsWith('/credentials/scopes/')) return route.fulfill({ json: envelope([{ code: 'task:read', label: '读取任务摘要' }]) })
@@ -28,7 +28,7 @@ async function setup(page: Page) {
 
 test('创建本人只读凭证必须密码确认；密钥只在临时窗口展示且不写浏览器存储', async ({ page }, info) => {
   const state = await setup(page)
-  await page.goto('/api-credentials')
+  await page.goto('/integrations/credentials')
   await expect(page.getByRole('heading', { name: '开放凭证', exact: true })).toBeVisible()
   await page.getByRole('textbox', { name: '名称', exact: true }).fill('Browser integration')
   await page.getByRole('checkbox', { name: '读取任务摘要' }).check()
@@ -53,7 +53,7 @@ test('创建本人只读凭证必须密码确认；密钥只在临时窗口展�
 
 test('签发失败清密码可重试；撤销只针对所选本人凭证并需要再次确认', async ({ page }) => {
   const state = await setup(page)
-  await page.goto('/api-credentials')
+  await page.goto('/integrations/credentials')
   await page.getByRole('textbox', { name: '名称', exact: true }).fill('Retry fixture')
   await page.getByRole('checkbox', { name: '读取任务摘要' }).check()
   await page.getByRole('button', { name: '确认创建', exact: true }).click()
@@ -75,7 +75,7 @@ test('签发失败清密码可重试；撤销只针对所选本人凭证并需�
 test('只有读取权限不显示创建与撤销；模块关闭拒绝页面', async ({ page }) => {
   const state = await setup(page)
   state.permissions = ['api_credential:read']
-  await page.goto('/api-credentials')
+  await page.goto('/integrations/credentials')
   await expect(page.getByRole('heading', { name: '开放凭证', exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '确认创建' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '撤销凭证' })).toHaveCount(0)

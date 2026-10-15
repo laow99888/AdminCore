@@ -113,7 +113,7 @@ def seed_data(accounts):
                                     sender=admin, link='/example')
     template = MessageTemplate.objects.create(code='demo-welcome', name='演示欢迎模板')
     MessageTemplateVersion.objects.create(template=template, number=1,
-        subject='欢迎 {{name}}', body='欢迎使用独立演示环境。', variables=['name'], creator=admin)
+        subject='欢迎 ${name}', body='欢迎使用独立演示环境。', variables=['name'], creator=admin)
     for status, title in (('pending', '演示采购申请'), ('approved', '演示请假申请'), ('rejected', '演示权限申请')):
         ApprovalRequest.objects.create(title=title, content='合成数据，不涉及真实业务。',
             applicant=editor, assignee=admin, status=status,
@@ -143,7 +143,7 @@ def seed_files(admin):
     from apps.files.models import FileModel
 
     # 内置1×1 PNG与纯文本，不下载外部样本；重复重置保留已有对象而不清理任意上传。
-    png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWoQAAAAASUVORK5CYII=')
+    png = base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMwStnyHwAEYAJKWhW15AAAAABJRU5ErkJggg==')
     for name, content, mime, deleted in (
             ('演示图片.png', png, 'image/png', False),
             ('回收站示例.txt', '这是合成演示文件。\n'.encode(), 'text/plain', True)):

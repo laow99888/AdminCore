@@ -186,6 +186,31 @@ def test_duplicate_seed_lock_fails_closed(identity):
 
 
 @pytest.mark.django_db
+def test_demo_template_and_png_can_be_previewed(seed_context):
+    from rest_framework.test import APIClient
+    from apps.files.models import FileModel
+    from apps.files.preview import preview_content
+    from apps.notifications.models import MessageTemplate
+
+    call_command('demo_admincore', stdout=StringIO())
+    client = APIClient()
+    response = client.post('/api/v1/auth/login/', {'username': 'demo_admin',
+        'password': seed_context[2]['demo_admin']}, format='json')
+    assert response.status_code == 200
+    client.credentials(HTTP_AUTHORIZATION='Bearer ' + response.json()['access'])
+    template = MessageTemplate.objects.get(code='demo-welcome')
+    response = client.post('/api/v1/notifications/templates/' + str(template.pk) + '/preview/',
+        {'revision': 1, 'values': {'name': '演示访客'}}, format='json')
+    assert response.status_code == 200
+    assert response.json()['data']['subject'] == '欢迎 演示访客'
+    image = FileModel.objects.get(original_name='演示图片.png')
+    content, mime = preview_content(image)
+    assert mime == 'image/png' and content.startswith(b'\x89PNG\r\n\x1a\n')
+    response = client.get('/api/v1/files/' + str(image.pk) + '/preview/')
+    assert response.status_code == 200 and response['Content-Type'] == 'image/png'
+
+
+@pytest.mark.django_db
 def test_demo_accounts_login_read_own_items_and_cannot_grant_roles(seed_context, settings):
     from rest_framework.test import APIClient
     # config.urls may already be imported with the standard preset by earlier tests.

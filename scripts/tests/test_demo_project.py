@@ -63,6 +63,7 @@ def test_create_demo_has_fresh_credentials_database_labels_and_nonproduction_ove
         assert environment['DB_NAME'] == data['database_name']
         assert environment['ADMINCORE_ADMIN_USERNAME'] == 'demo_admin'
         assert environment['NOTIFICATION_EMAIL_ENABLED'] == 'False'
+        assert environment['ADMINCORE_NOTIFICATION_EXTERNAL_CHANNELS_JSON'] == '{}'
         keys = ('ADMINCORE_ADMIN_PASSWORD', 'ADMINCORE_DEMO_EDITOR_PASSWORD', 'ADMINCORE_DEMO_VIEWER_PASSWORD')
         assert len({environment[key] for key in keys}) == 3
         assert all(len(environment[key]) >= 40 for key in keys)

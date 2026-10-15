@@ -18,8 +18,8 @@ import { useAuthStore } from '../src/stores/auth'
 const InputStub = defineComponent({ props: ['modelValue'], emits: ['update:modelValue'], template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' })
 const CheckboxGroup = defineComponent({ name: 'ChoiceStub', props: ['modelValue'], emits: ['update:modelValue'], template: '<div><slot /></div>' })
 async function harness() {
-  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/api-credentials', component: { template: '<div />' } }, { path: '/other', component: { template: '<div />' } }] })
-  await router.push('/api-credentials'); await router.isReady()
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/integrations/credentials', component: { template: '<div />' } }, { path: '/other', component: { template: '<div />' } }] })
+  await router.push('/integrations/credentials'); await router.isReady()
   const auth = useAuthStore()
   auth.applyUser({ id: 'owner', username: 'owner', email: '', avatar: '', permissions: ['api_credential:read', 'api_credential:create', 'api_credential:revoke'] })
   const wrapper = mount(APICredentialsView, { global: { plugins: [router], stubs: {
