@@ -1,6 +1,6 @@
 # AdminCore 后端镜像
 # Python 补丁版本与 版本要求.md 基线一致
-FROM python:3.13.15-slim
+FROM python:3.14.8-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
