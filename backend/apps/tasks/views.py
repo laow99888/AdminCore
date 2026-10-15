@@ -36,6 +36,11 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['created_at', 'started_at', 'completed_at']
     ordering = ['-created_at']
 
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
     def get_queryset(self):
         from apps.core.data_scope import scope_queryset
         return scope_queryset(TaskRecord.objects.select_related('creator', 'import_execution__batch', 'maintenance_request').all(), self.request.user, 'task', 'creator_id')
