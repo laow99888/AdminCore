@@ -38,6 +38,7 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
     search_fields = ['title', 'content', 'applicant__username']
     ordering_fields = ['created_at', 'decided_at']
     ordering = ['-created_at']
+    list_query_choices = {'box': ('', 'todo', 'done', 'sent')}
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):

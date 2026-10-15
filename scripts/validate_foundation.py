@@ -681,6 +681,14 @@ assert record.error=='worker_lost_committed_rows_preserved'
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 查询取消、锁等待预算、嵌套恢复及列表/导出503边界', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_list_queries.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 查询输入、同值分页、数据范围及撤权边界', True)
+        api('users/?search=a&search=b', expected=400, token=token)
+        api('users/?ordering=password', expected=400, token=token)
+        api('users/?ordering=-login_count&page_size=2', token=token)
+        api('notifications/?scope=unknown', expected=400, token=token)
         encoded = base64.b64encode((ROOT / 'scripts/validate_bulk_results.py').read_bytes()).decode('ascii')
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")

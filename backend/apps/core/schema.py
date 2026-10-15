@@ -22,13 +22,36 @@ MessageResponse = envelope('MessageResponse')
 
 
 class QueryBudgetSchema(AutoSchema):
+    def has_list_query_contract(self):
+        return self.method == 'GET' and getattr(self.view, 'action', None) == 'list' and isinstance(self.view, QueryBudgetListMixin)
+
     def get_response_serializers(self):
         response = super().get_response_serializers()
-        if self.method == 'GET' and getattr(self.view, 'action', None) == 'list' and isinstance(self.view, QueryBudgetListMixin):
+        if self.has_list_query_contract():
             responses = dict(response) if isinstance(response, dict) else {200: response}
+            responses.setdefault(400, MessageResponse)
             responses.setdefault(503, MessageResponse)
             return responses
         return response
+
+    def _get_filter_parameters(self):
+        parameters = super()._get_filter_parameters()
+        if not self.has_list_query_contract():
+            return parameters
+        from .list_queries import allowed_query_parameters, MAX_QUERY_VALUE_LENGTH
+        allowed = allowed_query_parameters(self.view)
+        parameters = [parameter for parameter in parameters if parameter['name'] in allowed]
+        for parameter in parameters:
+            if parameter.get('schema', {}).get('type') == 'string':
+                parameter['schema']['maxLength'] = MAX_QUERY_VALUE_LENGTH
+            if parameter['name'] == 'ordering':
+                parameter['description'] = ('逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：'
+                    + ', '.join(self.view.ordering_fields) + '。同值记录追加主键排序。')
+        for name, choices in self.view.list_query_choices.items():
+            parameters.append({'name': name, 'in': 'query', 'required': False,
+                'schema': {'type': 'string', 'enum': list(choices)},
+                'description': '资源查询视角；无此参数时使用默认范围。'})
+        return parameters
 
 
 class TokenPairSerializer(serializers.Serializer):

@@ -24,6 +24,7 @@ class DepartmentViewSet(OrganizationViewSet):
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     search_fields = ['name']
+    ordering_fields = ['order', 'name', 'created_at']
 
     def lock_tree(self):
         return {row.pk: row for row in Department.objects.select_for_update().order_by('pk')}
@@ -86,6 +87,7 @@ class MembershipViewSet(OrganizationViewSet):
     serializer_class = MembershipSerializer
     search_fields = ['user__username']
     filterset_fields = ['department', 'user']
+    ordering_fields = ['created_at', 'user__username', 'department__name']
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -133,6 +135,7 @@ class ScopeGrantViewSet(OrganizationViewSet):
     queryset = DataScopeGrant.objects.select_related('role').prefetch_related('departments').all()
     serializer_class = ScopeGrantSerializer
     filterset_fields = ['role', 'resource']
+    ordering_fields = ['created_at', 'resource', 'role__name']
     http_method_names = ['get', 'post', 'patch', 'put', 'head', 'options']
 
     def lock_departments(self, serializer):

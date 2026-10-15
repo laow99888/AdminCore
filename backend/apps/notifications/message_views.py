@@ -39,6 +39,7 @@ class MessageTemplateViewSet(PrivateMessagesMixin, EnvelopeResponseMixin, mixins
         queryset=MessageTemplateVersion.objects.filter(number=F('template__revision')), to_attr='current_versions')).all()
     filterset_fields = ['enabled']
     search_fields = ['code', 'name']
+    ordering_fields = ['code', 'name', 'created_at', 'updated_at']
     ordering = ['code']
     http_method_names = ['get', 'post', 'patch', 'head', 'options']
 
@@ -120,6 +121,7 @@ class MessageDeliveryViewSet(PrivateMessagesMixin, EnvelopeResponseMixin, mixins
     queryset = MessageDelivery.objects.select_related('version__template').defer('subject', 'body', 'email_binding').all()
     serializer_class = MessageDeliverySerializer
     filterset_fields = ['status', 'channel', 'recipient', 'version__template']
+    ordering_fields = ['created_at', 'updated_at', 'status', 'channel']
     ordering = ['-created_at', '-id']
 
     def initial(self, request, *args, **kwargs):

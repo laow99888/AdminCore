@@ -140,6 +140,7 @@ class UserPostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.Model
     serializer_class = UserPostSerializer
     search_fields = ['user__username', 'post__name', 'post__code']
     filterset_fields = ['user', 'post']
+    ordering_fields = ['created_at', 'user__username', 'post__code', 'post__order']
     ordering = ['user__username', 'post__order', 'id']
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
 

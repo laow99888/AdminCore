@@ -12,6 +12,8 @@ from apps.core.query_budget import QueryBudgetListMixin
 
 
 class ScopedLogViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
+    ordering_fields = ['created_at']
+
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
         response['Cache-Control'] = 'private, no-store'

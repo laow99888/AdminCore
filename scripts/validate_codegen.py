@@ -130,11 +130,15 @@ with override_settings(ADMINCORE_QUERY_STATEMENT_TIMEOUT_MS=100):
             assert dict(cursor.fetchall())==original
         assert client.get(path).status_code==200
         response_schema=SchemaGenerator().get_schema(request=None,public=True)['paths'][path]['get']['responses']
-        assert set(response_schema)>={'200','503'}
+        assert set(response_schema)>={'200','400','503'}
         assert 'Paginated' in response_schema['200']['content']['application/json']['schema']['$ref']
+        with patch.object(view,'get_queryset',side_effect=AssertionError('无效查询不应访问资源')):
+            for query in ['?unknown=1','?ordering=creator__username','?ordering=created_at,-created_at','?page=1&page=2']:
+                assert client.get(path+query).status_code==400
+        assert client.get(path,{'ordering':'created_at','page_size':2}).status_code==200
 print('generated budgets verified')
 """)
-    check('两个生成模块真实慢SQL取消、503、连接恢复及分页OpenAPI通过')
+    check('两个生成模块真实慢SQL取消、连接恢复、查询白名单及200/400/503分页OpenAPI通过')
 
 
 def main():
@@ -178,7 +182,7 @@ def main():
     backend_command('makemigrations', 'work_assets', 'core')
     run([sys.executable, '-X', 'utf8', '-m', 'pytest', 'tests/test_generated_work_assets.py'], cwd=WORK / 'backend')
     backend_command('spectacular', '--validate', '--fail-on-warn', '--file', str(FOLDER / 'generated-schema.yml'))
-    check('生成代码三项权限/CRUD/事务用例及严格OpenAPI通过')
+    check('生成代码权限/CRUD/事务/列表查询用例及严格OpenAPI通过')
     password = secrets.token_urlsafe(40)
     env_file = FOLDER / 'fixture.env'
     environment = {'DJANGO_SECRET_KEY': secrets.token_urlsafe(60), 'DB_PASSWORD': secrets.token_urlsafe(40),

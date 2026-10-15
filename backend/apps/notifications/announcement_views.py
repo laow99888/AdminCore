@@ -21,6 +21,13 @@ class AnnouncementPublicViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mi
     search_fields = ['title', 'content']
     ordering_fields = ['published_at']
     ordering = ['-published_at', '-id']
+    read_permission = None
+
+    def check_permissions(self, request):
+        super().check_permissions(request)
+        if self.action in ('list', 'retrieve'):
+            # 鉴权先于列表输入校验，保留未授权请求的401/403结果。
+            authorize(request, self.read_permission)
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
@@ -30,7 +37,6 @@ class AnnouncementPublicViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mi
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Announcement.objects.none()
-        authorize(self.request)
         return Announcement.objects.filter(status='published')
 
 
@@ -45,11 +51,11 @@ class AnnouncementManageViewSet(AnnouncementPublicViewSet):
     filterset_fields = ['status']
     ordering_fields = ['created_at', 'updated_at', 'published_at']
     ordering = ['-created_at', '-id']
+    read_permission = 'announcement:read'
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Announcement.objects.none()
-        authorize(self.request, 'announcement:read')
         return Announcement.objects.all()
 
     def _write(self, request, operation, pk=None):

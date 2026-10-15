@@ -301,5 +301,13 @@
   "只能撤回已发布公告": "Only published announcements can be withdrawn.",
   "已清理 {count} 条历史任务记录": "Deleted {count} historical task records.",
   "已将 {count} 条通知标记为已读": "Marked {count} notifications as read.",
-  "查询超时或等待锁过久，请缩小筛选范围后重试": "The query timed out or waited too long for a lock. Narrow your filters and try again."
+  "查询超时或等待锁过久，请缩小筛选范围后重试": "The query timed out or waited too long for a lock. Narrow your filters and try again.",
+  "存在不支持的查询参数": "Unsupported query parameters.",
+  "查询参数不能重复": "Query parameters must not be repeated.",
+  "查询参数最多200个字符": "Query parameter values must be at most 200 characters.",
+  "查询参数包含无效字符": "Query parameters contain invalid characters.",
+  "查询选项无效": "Invalid query option.",
+  "最多允许5个排序字段": "Use at most 5 ordering fields.",
+  "排序字段不受支持": "Unsupported ordering field.",
+  "排序字段不能重复": "Ordering fields must not be repeated."
 }

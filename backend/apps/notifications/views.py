@@ -37,6 +37,7 @@ class NotificationViewSet(QueryBudgetListMixin, mixins.ListModelMixin,
     search_fields = ['title', 'content']
     ordering_fields = ['created_at', 'read_at']
     ordering = ['-created_at']
+    list_query_choices = {'scope': ('', 'all')}
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):

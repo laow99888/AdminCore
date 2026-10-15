@@ -45,6 +45,19 @@ def query_budget(using='default'):
 
 
 class QueryBudgetListMixin:
+    # 未声明时不向客户端开放排序，禁止 DRF 按 serializer 字段隐式扩大白名单。
+    ordering_fields = ()
+    list_query_choices = {}
+
     def list(self, request, *args, **kwargs):
+        from .list_queries import validate_list_query
+        validate_list_query(request, self)
         with query_budget():
             return super().list(request, *args, **kwargs)
+
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+        if getattr(self, 'action', None) == 'list':
+            from .list_queries import stable_ordering
+            queryset = stable_ordering(queryset)
+        return queryset

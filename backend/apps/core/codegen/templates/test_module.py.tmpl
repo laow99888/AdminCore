@@ -65,6 +65,13 @@ def test_permissions_and_owner_scope(member_client, member_user, admin_user):
     assert member_client.post(URL, payload(), format='json').status_code == 403
 
 
+def test_list_query_contract(admin_client):
+    for query in ['?unknown=1', '?ordering=creator__username', '?page=1&page=2',
+                  '?ordering=created_at,-created_at']:
+        assert admin_client.get(URL + query).status_code == 400
+    assert admin_client.get(URL, {'ordering': '-created_at', 'page_size': 2}).status_code == 200
+
+
 def test_write_whitelist_and_audit_rollback(admin_client, settings):
     assert admin_client.post(URL, {**payload(), 'creator': 'spoof'}, format='json').status_code == 400
     with patch('apps.@@MODULE@@.services.write_audit', side_effect=RuntimeError('isolated audit fixture')):

@@ -75,6 +75,7 @@ class PermissionViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     filterset_fields = ['resource', 'action']
     search_fields = ['name', 'code']
+    ordering_fields = ['code', 'name', 'resource', 'action', 'created_at']
     ordering = ['code']
 
 
@@ -90,6 +91,7 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     """菜单维护及按权限过滤的导航树。"""
     queryset = Menu.objects.filter(is_visible=True, parent=None)
     serializer_class = MenuSerializer
+    ordering_fields = ['order', 'name', 'created_at']
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
