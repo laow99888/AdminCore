@@ -89,6 +89,15 @@ def test_builtin_errors_and_module_gate_use_language_without_changing_status(set
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize('language,message', [('en-US', 'The two passwords do not match.'), ('zh-CN', '两次输入的密码不一致')])
+def test_password_mismatch_keeps_field_error_list(admin_client, language, message):
+    response = admin_client.post('/api/v1/auth/change_password/', {
+        'old_password': 'isolated-not-checked-for-mismatch', 'new_password': 'Isolated-strong-password!7',
+        'new_password2': 'different-value'}, format='json', HTTP_ACCEPT_LANGUAGE=language)
+    assert response.status_code == 400 and response.json()['data']['new_password'] == [message]
+
+
+@pytest.mark.django_db
 def test_replay_preserves_stored_result_and_business_title(admin_client, settings):
     from apps.core.models import IdempotencyRecord
     settings.ADMINCORE_MODULES = ('example',)

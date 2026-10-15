@@ -76,7 +76,7 @@ def main():
             for language, message in [('en-US', 'The two passwords do not match.'), ('zh-CN', '两次输入的密码不一致')]:
                 errors = api(base, 'auth/change_password/', token=token, method='POST', expected=400, language=language,
                     data={'old_password': new_password, 'new_password': secrets.token_urlsafe(40), 'new_password2': 'mismatch'})
-                check(preset + '真实错误语言 ' + language, errors['data']['new_password'] == message)
+                check(preset + '真实错误语言 ' + language, errors['data']['new_password'] == [message])
             capabilities = api(base, 'modules/', token=token)['data']
             check(preset + '契约及预设', capabilities['contract_version'] == 1 and capabilities['preset'] == preset)
             if preset == 'standard':
