@@ -88,9 +88,13 @@ def custom_exception_handler(exc, context):
         return response
 
     # 处理其他异常
-    logger.exception(f'Unhandled exception: {exc}')
+    request = context.get('request')
+    logger.error('Unhandled API exception', extra={'event': 'http.exception',
+        'request_id': getattr(request, 'request_id', ''), 'exception_type': type(exc).__name__},
+        exc_info=(type(exc), exc, exc.__traceback__))
     return Response({
         'code': 500,
         'message': '服务器内部错误',
         'data': None,
+        'request_id': getattr(request, 'request_id', ''),
     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

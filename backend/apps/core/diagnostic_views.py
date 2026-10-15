@@ -28,6 +28,57 @@ class ServiceSerializer(DependencySerializer):
     latency_ms = serializers.FloatField(allow_null=True)
 
 
+class QueueMetricSerializer(serializers.Serializer):
+    counts = serializers.DictField(child=serializers.IntegerField(), allow_null=True)
+    oldest_pending_seconds = serializers.FloatField(allow_null=True)
+    oldest_failed_seconds = serializers.FloatField(allow_null=True)
+
+
+class NotificationMetricSerializer(QueueMetricSerializer):
+    status = serializers.ChoiceField(choices=['ok', 'unavailable', 'disabled'])
+
+
+class LostCandidateSerializer(serializers.Serializer):
+    pending = serializers.IntegerField()
+    running = serializers.IntegerField()
+    sampled = serializers.IntegerField()
+    unclassified = serializers.IntegerField()
+    truncated = serializers.BooleanField()
+
+
+class DurationMetricSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    average = serializers.FloatField(allow_null=True)
+    p95 = serializers.FloatField(allow_null=True)
+    max = serializers.FloatField(allow_null=True)
+
+
+class TaskRecordMetricSerializer(serializers.Serializer):
+    counts = serializers.DictField(child=serializers.IntegerField(), allow_null=True)
+    lost_candidates = LostCandidateSerializer(allow_null=True)
+    duration_seconds = DurationMetricSerializer(allow_null=True)
+
+
+class BrokerMetricSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=['ok', 'unavailable', 'disabled'])
+    ready = serializers.IntegerField(allow_null=True)
+
+
+class CorrelationMetricSerializer(serializers.Serializer):
+    outbox_request_linked = serializers.IntegerField(allow_null=True)
+    task_request_linked = serializers.IntegerField(allow_null=True)
+    notification_request_linked = serializers.IntegerField(allow_null=True)
+
+
+class TaskMetricSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=['ok', 'degraded', 'disabled'])
+    task_records = TaskRecordMetricSerializer()
+    outbox = QueueMetricSerializer()
+    notifications = NotificationMetricSerializer()
+    broker = BrokerMetricSerializer()
+    correlation = CorrelationMetricSerializer()
+
+
 class InformationSerializer(serializers.Serializer):
     sampled_at = serializers.DateTimeField()
     python = serializers.CharField()
@@ -42,6 +93,7 @@ class InformationSerializer(serializers.Serializer):
     storage = serializers.CharField()
     dependencies = DependencySerializer(many=True)
     services = ServiceSerializer(many=True)
+    task_metrics = TaskMetricSerializer()
 
 
 class CpuSerializer(serializers.Serializer):

@@ -31,6 +31,13 @@
             </article>
           </div>
         </BaseCard>
+        <BaseCard v-if="information.task_metrics" :title="uiText('任务与通知诊断')">
+          <p class="hint">{{ uiText('只读快照；队列条数不等于 worker 存活。失联候选仅检查最早 1000 条活跃任务的登记策略，不自动重试；耗时取最近 1000 条有起止时间的结束任务。') }}</p>
+          <el-alert v-if="information.task_metrics.status !== 'ok'" :title="uiText(information.task_metrics.status === 'disabled' ? '任务模块未启用，未采集业务队列指标。' : '部分指标未采集，请检查依赖状态后重试。')" type="warning" :closable="false" show-icon />
+          <dl class="facts" data-testid="task-diagnostics">
+            <div v-for="fact in taskFacts" :key="fact[0]"><dt>{{ uiText(fact[0]) }}</dt><dd>{{ fact[1] }}</dd></div>
+          </dl>
+        </BaseCard>
         <BaseCard :title="uiText('后端实际安装依赖')">
           <dl class="facts"><div v-for="dependency in information.dependencies" :key="dependency.name"><dt>{{ dependency.name }}</dt><dd>{{ dependency.version || uiText('未安装') }}</dd></div></dl>
         </BaseCard>
@@ -99,6 +106,26 @@ const facts = computed(() => information.value ? [
   ['启用预设', information.value.preset], ['时区', information.value.timezone],
   ['数据库', information.value.database], ['存储模式', information.value.storage], ['前端 Vue 运行版本', version],
 ] : [])
+const taskFacts = computed(() => {
+  const metrics = information.value?.task_metrics
+  if (!metrics) return []
+  const count = (value: number | null | undefined) => value == null ? uiText('未采集') : String(value)
+  const states = (value: Record<string, number> | null) => value === null ? uiText('未采集') : Object.entries(value).map(([key, total]) => `${key}: ${total}`).join(' · ') || uiText('暂无记录')
+  const duration = metrics.task_records.duration_seconds
+  const lost = metrics.task_records.lost_candidates
+  return [
+    ['代理队列待领取', metrics.broker.status === 'ok' ? count(metrics.broker.ready) : statusName(metrics.broker.status)],
+    ['任务状态计数', states(metrics.task_records.counts)],
+    ['失联候选（等待 / 运行）', lost ? `${lost.pending} / ${lost.running}` : uiText('未采集')],
+    ['候选采样 / 未分类 / 截断', lost ? `${lost.sampled} / ${lost.unclassified} / ${uiText(lost.truncated ? '是' : '否')}` : uiText('未采集')],
+    ['耗时样本 / 平均 / p95 / 最大（秒）', duration ? `${duration.count} / ${count(duration.average)} / ${count(duration.p95)} / ${count(duration.max)}` : uiText('未采集')],
+    ['可靠事件状态计数', states(metrics.outbox.counts)],
+    ['可靠事件最老等待 / 失败（秒）', `${count(metrics.outbox.oldest_pending_seconds)} / ${count(metrics.outbox.oldest_failed_seconds)}`],
+    ['通知投递状态计数', metrics.notifications.status === 'ok' ? states(metrics.notifications.counts) : statusName(metrics.notifications.status)],
+    ['通知最老等待 / 失败（秒）', `${count(metrics.notifications.oldest_pending_seconds)} / ${count(metrics.notifications.oldest_failed_seconds)}`],
+    ['已关联请求的事件 / 任务 / 通知', `${count(metrics.correlation.outbox_request_linked)} / ${count(metrics.correlation.task_request_linked)} / ${count(metrics.correlation.notification_request_linked)}`],
+  ]
+})
 function percentage(value: number | null) { return value === null ? uiText('未采集') : `${value.toFixed(2)}%` }
 function bytes(value: number | null) {
   if (value === null) return uiText('未采集')

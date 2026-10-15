@@ -12,15 +12,20 @@ class TaskRecordSerializer(serializers.ModelSerializer):
     creator_name = serializers.CharField(source='creator.username', read_only=True, default=None)
     duration = serializers.SerializerMethodField()
     execution = serializers.SerializerMethodField()
+    request_id = serializers.SerializerMethodField()
 
     class Meta:
         model = TaskRecord
         fields = [
             'id', 'name', 'task_type', 'status', 'celery_task_id', 'progress',
             'result', 'error', 'related_resource', 'creator', 'creator_name',
-            'started_at', 'completed_at', 'duration', 'created_at', 'execution',
+            'started_at', 'completed_at', 'duration', 'created_at', 'execution', 'request_id',
         ]
         read_only_fields = fields
+
+    def get_request_id(self, obj) -> str:
+        row = getattr(obj, 'import_execution', None) or getattr(obj, 'maintenance_request', None)
+        return row.request_id if row else ''
 
     def get_duration(self, obj) -> float | None:
         """执行耗时（秒），未完成任务返回 None"""

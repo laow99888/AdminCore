@@ -3,6 +3,7 @@ import { test, expect, type Page } from '@playwright/test'
 const envelope = (data: unknown) => ({ code: 200, message: 'success', data })
 const information = { sampled_at: '2026-10-14T00:00:00+08:00', python: '3.13.15', os: 'Linux', architecture: 'x86_64', environment: 'production', debug: false, preset: 'standard', modules: ['system', 'tasks'], timezone: 'Asia/Shanghai', database: 'postgresql', storage: 'local', dependencies: [{ name: 'Django', version: '5.2.18' }, { name: 'gunicorn', version: null }], services: [{ name: 'database', status: 'ok', version: '18.6', latency_ms: 1.2 }, { name: 'cache', status: 'unavailable', version: null, latency_ms: null }, { name: 'broker', status: 'disabled', version: null, latency_ms: null }] }
 const resources = { sampled_at: information.sampled_at, scope: 'container', cpu: { capacity_cores: 2, percent: 25, sample_seconds: 0.12 }, memory: { used_bytes: 104857600, total_bytes: null, percent: null }, disks: [{ name: 'media', status: 'ok', used_bytes: 1024, total_bytes: 4096, free_bytes: 3072, percent: 25 }], processes: [{ pid: 1, kind: 'python', state: 'S', cpu_seconds: 3.5, rss_bytes: 10485760, uptime_seconds: 600 }], processes_supported: true, processes_truncated: false }
+const taskMetrics = { status: 'ok', broker: { status: 'ok', ready: 7 }, task_records: { counts: { pending: 2, running: 1, failed: 3 }, lost_candidates: { pending: 1, running: 0, sampled: 3, unclassified: 1, truncated: false }, duration_seconds: { count: 12, average: 1.5, p95: 2.3, max: 3.4 } }, outbox: { counts: { pending: 2 }, oldest_pending_seconds: 30, oldest_failed_seconds: null }, notifications: { status: 'disabled', counts: null, oldest_pending_seconds: null, oldest_failed_seconds: null }, correlation: { outbox_request_linked: 4, task_request_linked: 2, notification_request_linked: null } }
 
 async function setup(page: Page, options: { member?: boolean; disabled?: boolean; english?: boolean } = {}) {
   await page.addInitScript(({ english }) => { localStorage.setItem('token', 'isolated-diagnostics-fixture'); if (english) { localStorage.setItem('language', 'en-US'); localStorage.setItem('theme', 'dark') } }, options)
@@ -94,4 +95,29 @@ test('英文深色模式与键盘刷新可用', async ({ page }, info) => {
   await expect(page.getByText('PID 1 · Python', { exact: true })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: info.outputPath('monitor-dark-en.png'), fullPage: true })
+})
+
+test('任务队列与候选边界可见，部分失败和未知值明确区分', async ({ page }, info) => {
+  await setup(page)
+  await page.route('**/system/information/', route => route.fulfill({ json: envelope({ ...information, task_metrics: taskMetrics }) }))
+  await page.goto('/system/information')
+  await expect(page.getByText('任务与通知诊断', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('task-diagnostics')).toContainText('12 / 1.5 / 2.3 / 3.4')
+  await expect(page.getByTestId('task-diagnostics')).toContainText('pending: 2 · running: 1 · failed: 3')
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.getByTestId('task-diagnostics').locator(':scope > div').nth(4).screenshot({ path: info.outputPath('task-diagnostics.png') })
+  await page.route('**/system/information/', route => route.fulfill({ json: envelope({ ...information, task_metrics: { ...taskMetrics, status: 'degraded', broker: { status: 'unavailable', ready: null }, task_records: { counts: null, lost_candidates: null, duration_seconds: null } } }) }))
+  await page.getByRole('button', { name: '刷新', exact: true }).click()
+  await expect(page.getByText('部分指标未采集，请检查依赖状态后重试。', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('task-diagnostics')).not.toContainText('12 / 1.5')
+  await expect(page.getByTestId('task-diagnostics')).toContainText('未采集')
+})
+
+test('英文深色任务诊断和模块关闭提示', async ({ page }) => {
+  await setup(page, { english: true })
+  await page.route('**/system/information/', route => route.fulfill({ json: envelope({ ...information, task_metrics: { ...taskMetrics, status: 'disabled' } }) }))
+  await page.goto('/system/information')
+  await expect(page.getByText('Task and Notification Diagnostics', { exact: true })).toBeVisible()
+  await expect(page.getByText('Task module disabled. Business queue metrics were not collected.', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

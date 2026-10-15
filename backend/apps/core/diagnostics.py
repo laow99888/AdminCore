@@ -1,6 +1,8 @@
 """管理员只读诊断：固定探针、白名单输出，不返回地址、路径或命令行。"""
 import importlib.metadata
+from datetime import timedelta
 from itertools import islice
+import math
 import os
 from pathlib import Path
 import platform
@@ -14,12 +16,165 @@ from redis import Redis
 from redis.backoff import NoBackoff
 from redis.retry import Retry
 
+from .models import OutboxEvent
+
 PROC = Path('/proc')
 CGROUP = Path('/sys/fs/cgroup')
 SAMPLE_SECONDS = 0.12
 PROCESS_LIMIT = 128
 DEPENDENCIES = ('Django', 'djangorestframework', 'celery', 'django-celery-beat',
                 'redis', 'django-redis', 'gunicorn', 'psycopg2-binary', 'Pillow', 'pypdf')
+
+
+def _percentile(values, percentile):
+    """Return a bounded nearest-rank percentile without exposing task data."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return round(ordered[max(0, min(len(ordered) - 1, math.ceil(len(ordered) * percentile) - 1))], 3)
+
+
+def _queue_snapshot():
+    """Read only Celery queue lengths with a hard connection timeout."""
+    if 'tasks' not in settings.ADMINCORE_MODULES:
+        return {'status': 'disabled', 'ready': None}
+    client = None
+    # Kombu's Redis transport uses these list names for the default queue and
+    # priority buckets.  They are implementation details, so the response
+    # exposes only counts and never the broker URL or key names.
+    queue_names = ('celery', 'celery\x06\x163', 'celery\x06\x166', 'celery\x06\x169')
+    try:
+        client = Redis.from_url(settings.CELERY_BROKER_URL, socket_connect_timeout=0.35,
+                                socket_timeout=0.35, retry=Retry(NoBackoff(), 0),
+                                retry_on_timeout=False)
+        client.connection_pool.connection_kwargs.update(socket_connect_timeout=0.35,
+                                                        socket_timeout=0.35,
+                                                        retry=Retry(NoBackoff(), 0),
+                                                        retry_on_timeout=False,
+                                                        health_check_interval=0)
+        values = []
+        for key in queue_names:
+            value = client.llen(key)
+            if type(value) is not int or value < 0:
+                raise ValueError('invalid_queue_length')
+            values.append(value)
+        return {'status': 'ok', 'ready': sum(values)}
+    except Exception:
+        return {'status': 'unavailable', 'ready': None}
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except Exception:
+                pass
+
+
+def _age_seconds(value, now):
+    return round(max(0.0, (now - value).total_seconds()), 3) if value else None
+
+
+def _empty_task_snapshot():
+    return {
+        'status': 'disabled' if 'tasks' not in settings.ADMINCORE_MODULES else 'ok',
+        'task_records': {'counts': None, 'lost_candidates': None,
+                         'duration_seconds': None},
+        'outbox': {'counts': None, 'oldest_pending_seconds': None, 'oldest_failed_seconds': None},
+        'notifications': {'status': 'disabled', 'counts': None, 'oldest_pending_seconds': None,
+                          'oldest_failed_seconds': None},
+        'broker': {'status': 'disabled', 'ready': None},
+        'correlation': {'outbox_request_linked': None, 'task_request_linked': None,
+                        'notification_request_linked': None},
+    }
+
+
+def task_snapshot():
+    """只读汇总；每条SQL最多500ms，数据失败时不将未知指标显示为0。"""
+    empty = _empty_task_snapshot()
+    empty['broker'] = _queue_snapshot()
+    if 'tasks' not in settings.ADMINCORE_MODULES:
+        return empty
+    try:
+        with transaction.atomic():
+            if connection.vendor == 'postgresql':
+                with connection.cursor() as cursor:
+                    cursor.execute("SET LOCAL statement_timeout = '500ms'")
+            return _database_task_snapshot(empty)
+    except Exception:
+        failed = _empty_task_snapshot()
+        failed['broker'] = empty['broker']
+        failed['status'] = 'degraded'
+        if 'notifications' in settings.ADMINCORE_MODULES:
+            failed['notifications']['status'] = 'unavailable'
+        return failed
+
+
+def _database_task_snapshot(empty):
+    now = timezone.now()
+    try:
+        from django.db.models import Count
+        from apps.tasks.models import TaskRecord, MaintenanceRequest, ImportExecution
+        records = TaskRecord.objects.all()
+        empty['task_records']['counts'] = dict(records.values('status').annotate(count=Count('id'))
+                                               .values_list('status', 'count'))
+        # 仅按持久化策略检测最早的1000条活跃任务；旧记录没有策略时不猜测。
+        active = list(records.filter(status__in=['pending', 'running'])
+                      .select_related('maintenance_request', 'import_execution')
+                      .only('id', 'status', 'created_at', 'started_at', 'maintenance_request__record_id',
+                            'maintenance_request__policy', 'import_execution__record_id', 'import_execution__policy')
+                      .order_by('created_at', 'pk')[:1001])
+        lost = {'pending': 0, 'running': 0, 'sampled': min(len(active), 1000),
+                'unclassified': 0, 'truncated': len(active) > 1000}
+        for row in active[:1000]:
+            execution = getattr(row, 'maintenance_request', None) or getattr(row, 'import_execution', None)
+            policy = execution.policy if execution and isinstance(execution.policy, dict) else {}
+            if (type(policy.get('queue_expiry')) is not int or type(policy.get('hard_timeout')) is not int
+                    or policy['queue_expiry'] <= 0 or policy['hard_timeout'] <= 0):
+                lost['unclassified'] += 1
+                continue
+            anchor = row.created_at if row.status == 'pending' else row.started_at
+            timeout = policy['queue_expiry'] if row.status == 'pending' else policy['hard_timeout'] + 60
+            if anchor is None:
+                lost['unclassified'] += 1
+            elif anchor < now - timedelta(seconds=timeout):
+                lost[row.status] += 1
+        empty['task_records']['lost_candidates'] = lost
+        durations = []
+        recent = records.filter(status__in=['success', 'failed', 'cancelled'],
+                                started_at__isnull=False, completed_at__isnull=False)
+        for started, completed in recent.order_by('-completed_at', 'pk').values_list('started_at', 'completed_at')[:1000]:
+            duration = (completed - started).total_seconds()
+            if duration >= 0:
+                durations.append(duration)
+        empty['task_records']['duration_seconds'] = {
+            'count': len(durations), 'average': round(sum(durations) / len(durations), 3) if durations else None,
+            'p95': _percentile(durations, .95), 'max': round(max(durations), 3) if durations else None,
+        }
+        outbox = OutboxEvent.objects.all()
+        empty['outbox']['counts'] = dict(outbox.values('status').annotate(count=Count('id'))
+                                         .values_list('status', 'count'))
+        for state in ('pending', 'failed'):
+            row = outbox.filter(status=state).order_by('created_at').values_list('created_at', flat=True).first()
+            empty['outbox'][f'oldest_{state}_seconds'] = _age_seconds(row, now)
+        empty['correlation']['outbox_request_linked'] = outbox.exclude(request_id='').count()
+        empty['correlation']['task_request_linked'] = (
+            MaintenanceRequest.objects.exclude(request_id='').count()
+            + ImportExecution.objects.exclude(request_id='').count())
+    except Exception:
+        empty['status'] = 'degraded'
+    if 'notifications' in settings.ADMINCORE_MODULES:
+        try:
+            from apps.notifications.models import MessageDelivery
+            deliveries = MessageDelivery.objects.all()
+            empty['notifications']['status'] = 'ok'
+            empty['notifications']['counts'] = dict(deliveries.values('status').annotate(count=Count('id'))
+                                                    .values_list('status', 'count'))
+            for state in ('pending', 'failed'):
+                row = deliveries.filter(status=state).order_by('created_at').values_list('created_at', flat=True).first()
+                empty['notifications'][f'oldest_{state}_seconds'] = _age_seconds(row, now)
+            empty['correlation']['notification_request_linked'] = deliveries.exclude(request_id='').count()
+        except Exception:
+            empty['notifications']['status'] = 'unavailable'
+    return empty
 
 
 def read(path):
@@ -212,4 +367,4 @@ def system_information():
             'debug': settings.DEBUG, 'preset': settings.ADMINCORE_PRESET,
             'modules': list(settings.ADMINCORE_MODULES), 'timezone': settings.TIME_ZONE,
             'database': connection.vendor, 'storage': settings.ADMINCORE_STORAGE_BACKEND,
-            'dependencies': versions, 'services': service_snapshot()}
+            'dependencies': versions, 'services': service_snapshot(), 'task_metrics': task_snapshot()}

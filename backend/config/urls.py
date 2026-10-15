@@ -8,7 +8,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 
-from apps.core.views import DashboardStatsView, health_check
+from apps.core.views import DashboardStatsView, health_check, liveness_check
 from apps.core.views import ModuleCapabilitiesView
 from apps.core.modules import MODULES, module_enabled
 from apps.core.system_views import BrandView
@@ -38,6 +38,7 @@ urlpatterns = [
 
     # 健康检查
     path('api/v1/health/', health_check, name='health-check'),
+    path('api/v1/health/live/', liveness_check, name='liveness-check'),
 ]
 
 # 静态文件和媒体文件服务

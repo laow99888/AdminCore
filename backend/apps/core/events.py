@@ -4,6 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import OutboxEvent
+from apps.logs.context import request_id as current_request_id, correlation_id
 logger = logging.getLogger(__name__)
 
 
@@ -12,7 +13,7 @@ def enqueue_event(topic, event_key, payload, request=None):
         event, created = OutboxEvent.objects.get_or_create(
             event_key=event_key,
             defaults={'topic': topic, 'payload': payload, 'available_at': timezone.now(),
-                      'request_id': str(getattr(request, 'request_id', ''))[:100]},
+                      'request_id': correlation_id(getattr(request, 'request_id', '') or current_request_id.get())},
         )
         if not created and (event.topic != topic or event.payload != payload):
             raise ValueError('事件键已用于另一份事件')

@@ -85,7 +85,7 @@ def test_registration_disabled_does_not_create_user(settings):
 def test_health_requires_database_and_redis(settings):
     settings.CACHES = {'default': {'BACKEND': 'django_redis.cache.RedisCache', 'LOCATION': 'redis://127.0.0.1:6379/0'}}
     client = APIClient()
-    with patch('django_redis.get_redis_connection') as redis_connection:
+    with patch('apps.core.diagnostics.Redis.from_url') as redis_connection:
         assert client.get('/api/v1/health/').status_code == 200
         redis_connection.return_value.ping.assert_called_once()
         redis_connection.return_value.ping.side_effect = ConnectionError('private connection details')

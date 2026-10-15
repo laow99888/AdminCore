@@ -16,6 +16,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.http import JsonResponse
 from django.conf import settings
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_safe
 from .modules import module_enabled, capabilities
 from .schema import ModuleCapabilitiesSerializer
 from .data_scope import scope_queryset
@@ -23,16 +25,28 @@ from .data_scope import scope_queryset
 User = get_user_model()
 
 
+@never_cache
+@require_safe
+def liveness_check(request):
+    """进程存活；不访问数据库、缓存或队列，不返回环境详情。"""
+    return JsonResponse({'status': 'ok'})
+
+
+@never_cache
+@require_safe
 def health_check(request):
     """就绪检查覆盖 DB/Redis；worker 由独立检查监控，避免启动循环。"""
-    from django.db import connection
-    from django_redis import get_redis_connection
+    from django.db import connection, transaction
+    from .diagnostics import redis_probe
     try:
-        with connection.cursor() as cursor:
+        with transaction.atomic(), connection.cursor() as cursor:
+            if connection.vendor == 'postgresql':
+                cursor.execute("SET LOCAL statement_timeout = '500ms'")
             cursor.execute('SELECT 1')
             cursor.fetchone()
         if settings.CACHES['default']['BACKEND'] == 'django_redis.cache.RedisCache':
-            get_redis_connection('default').ping()
+            if redis_probe('cache', settings.CACHES['default']['LOCATION'])['status'] != 'ok':
+                return JsonResponse({'status': 'unavailable'}, status=503)
     except Exception:
         return JsonResponse({'status': 'unavailable'}, status=503)
     return JsonResponse({'status': 'ok'})

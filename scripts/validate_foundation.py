@@ -197,6 +197,11 @@ def main():
               and next(item for item in details['services'] if item['name'] == 'database')['version'].startswith('18.6')
               and next(item for item in details['services'] if item['name'] == 'cache')['version'] == '8.10.2')
         check('诊断 HTTP 响应不缓存', info.headers['Cache-Control'] == 'private, no-store')
+        check('真实诊断队列与零样本明确区分', details['task_metrics']['status'] == 'ok'
+              and details['task_metrics']['broker'] == {'status': 'ok', 'ready': 0}
+              and details['task_metrics']['task_records']['duration_seconds']['average'] is None)
+        check('存活探针仅返回状态且禁止缓存', api('health/live/').json() == {'status': 'ok'}
+              and 'no-store' in api('health/live/').headers['Cache-Control'])
         snapshot = api('system/monitor/', token=token).json()['data']
         check('真实 Linux 容器 CPU、内存和进程采集', snapshot['scope'] == 'container'
               and 0 <= snapshot['cpu']['percent'] <= 100 and snapshot['memory']['used_bytes'] > 0
@@ -211,6 +216,9 @@ def main():
             degraded = api('system/information/', token=token).json()['data']
             check('Redis 无响应诊断仍返回数据库正常及缓存/代理不可用',
                   [item['status'] for item in degraded['services']] == ['ok', 'unavailable', 'unavailable'])
+            check('Redis 无响应队列指标为未知且进程仍存活',
+                  degraded['task_metrics']['broker'] == {'status': 'unavailable', 'ready': None}
+                  and api('health/live/').status_code == 200 and api('health/', expected=503).json() == {'status': 'unavailable'})
             elapsed = time.monotonic() - started
             check(f'本地 Redis 无响应时诊断在 3 秒内退化（实测 {elapsed:.3f} 秒）', elapsed < 3)
         finally:
@@ -499,7 +507,7 @@ assert record.error=='worker_lost_committed_rows_preserved'
         with ThreadPoolExecutor(max_workers=2) as pool:
             responses = list(pool.map(lambda _: api('tasks/schedules/notifications/run/', 'POST',
                 {'revision': entry['revision'], 'options': {'dry_run': True}}, None, token,
-                {'Idempotency-Key': 'postgres-celery-maintenance'}), range(2)))
+                {'Idempotency-Key': 'postgres-celery-maintenance', 'X-Request-ID': 'diagnostic-maintenance-http'}), range(2)))
         check('真实维护请求并发同键仅登记一次', all(response.status_code == 202 for response in responses)
               and len({response.json()['data']['id'] for response in responses}) == 1)
         identifier = responses[0].json()['data']['id']
@@ -512,6 +520,28 @@ assert record.error=='worker_lost_committed_rows_preserved'
             time.sleep(1)
         check('真实 Nginx/PostgreSQL/Redis/Celery 可靠事件至预览完成',
               result['status'] == 'success' and result['result']['dry_run'] is True and result['result']['deleted_notifications'] == 0)
+        log_text = compose('standard', 'logs', '--no-color', 'backend', 'worker').stdout
+        records = []
+        for line in log_text.splitlines():
+            start = line.find('{')
+            if start < 0:
+                continue
+            try:
+                row = json.loads(line[start:])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(row, dict):
+                records.append(row)
+        linked = [row for row in records if row.get('request_id') == 'diagnostic-maintenance-http']
+        check('真实 HTTP→outbox→Celery 日志关联 ID 连续',
+              any(row.get('event') == 'http.completed' for row in linked)
+              and any(row.get('event') == 'outbox.succeeded' and row.get('record_id') == identifier for row in linked)
+              and any(row.get('event') == 'task.started' and row.get('task_id') == identifier for row in linked)
+              and any(row.get('event') == 'task.finished' and row.get('task_id') == identifier and row.get('task_state') == 'SUCCESS' for row in linked))
+        task_metrics = api('system/information/', token=token).json()['data']['task_metrics']
+        check('真实任务耗时与关联计数进入只读诊断', task_metrics['task_records']['duration_seconds']['count'] > 0
+              and task_metrics['task_records']['duration_seconds']['p95'] is not None
+              and task_metrics['correlation']['task_request_linked'] > 0)
         check('暂停定时计划仍允许显式手动预览', not entry['enabled'])
         entry = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'notifications')
         cleanup = api('tasks/schedules/notifications/run/', 'POST', {'revision': entry['revision'],
@@ -613,11 +643,21 @@ assert record.error=='worker_lost_committed_rows_preserved'
         actor_id = api('auth/me/', token=token).json()['data']['id']
         message_send = api('notifications/templates/' + message_template['id'] + '/send/', 'POST', {'revision': 1,
             'values': {'name': 'fixture'}, 'recipient_ids': [actor_id], 'channels': ['inapp']}, 202, token,
-            {'Idempotency-Key': 'http-message-fixture'}).json()['data']
+            {'Idempotency-Key': 'http-message-fixture', 'X-Request-ID': 'diagnostic-notification-http'}).json()['data']
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 'from apps.core.tasks import dispatch_outbox; dispatch_outbox()')
         message_record = api('notifications/deliveries/' + message_send['delivery_ids'][0] + '/', token=token).json()['data']
         check('真实 Nginx HTTP 通知登记及站内派发', message_record['status'] == 'succeeded' and message_record['attempts'] == 1)
+        code = """from django.conf import settings
+assert settings.DATABASES['default']['NAME']=='foundation'
+from apps.notifications.models import MessageDelivery
+from apps.core.models import OutboxEvent
+row=MessageDelivery.objects.get(pk='""" + message_send['delivery_ids'][0] + """')
+assert row.request_id=='diagnostic-notification-http'
+assert OutboxEvent.objects.get(event_key='message:'+str(row.pk)).request_id==row.request_id
+"""
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', code)
+        check('真实请求→可靠事件→通知投递持久关联一致', True)
         admin_browser = requests.Session()
         admin_login_url = BASE.removesuffix('/api/v1/') + '/admin/login/'
         login_page = admin_browser.get(admin_login_url, timeout=20)

@@ -126,6 +126,7 @@ export const filesApi = {
 
 // ===== 任务中心 =====
 export interface TaskRow {
+  request_id?: string
   id: string
   name: string
   task_type: string

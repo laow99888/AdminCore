@@ -12,7 +12,7 @@ async function setup(page: Page, allowed = true) {
     if (path.endsWith('/menus/my_menu/')) return route.fulfill({ json: envelope([]) })
     if (path.endsWith('/resume/')) { state.resumes++; return route.fulfill({ status: 202, json: envelope({}) }) }
     if (path.endsWith('/cancel/')) { state.cancels++; return route.fulfill({ json: envelope({}) }) }
-    if (path.endsWith('/tasks/')) return route.fulfill({ json: envelope({ items: [{ id: 'resume1', name: '保留已提交行的导入', creator: 'owner', task_type: 'import', status: 'failed', progress: 50, result: { created: 1 }, error: 'worker_lost_committed_rows_preserved', created_at: '2026-10-15T00:00:00Z',
+    if (path.endsWith('/tasks/')) return route.fulfill({ json: envelope({ items: [{ id: 'resume1', request_id: 'task-origin-http-123', name: '保留已提交行的导入', creator: 'owner', task_type: 'import', status: 'failed', progress: 50, result: { created: 1 }, error: 'worker_lost_committed_rows_preserved', created_at: '2026-10-15T00:00:00Z',
       execution: { attempt: 1, can_resume: true, semantics: 'resume_uncommitted_rows', policy: { soft_timeout: 300, hard_timeout: 330, dispatch_attempts: 5 } } }], pagination: { total: 1, page: 1, page_size: 10, total_pages: 1 } }) })
     return route.fulfill({ json: envelope({ count: 0 }) })
   })
@@ -31,6 +31,7 @@ test('接续需要明确确认，拒绝时不提交，结果展示策略和已�
   await expect.poll(() => state.resumes).toBe(1)
   await page.getByRole('button', { name: '结果', exact: true }).click()
   await expect(page.getByText('300s / 330s')).toBeVisible()
+  await expect(page.getByText('task-origin-http-123', { exact: true })).toBeVisible()
   await expect(page.locator('.result-json')).toContainText('"created": 1')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   await page.screenshot({ path: info.outputPath('task-reliability.png'), fullPage: true, animations: 'disabled' })

@@ -1,11 +1,15 @@
 """核心可靠事件与幂等记录维护任务。"""
 from datetime import timedelta
+import logging
 
 from celery import shared_task
 from django.db import transaction
 from django.utils import timezone
 
 from .models import IdempotencyRecord, OutboxEvent
+from apps.logs.context import correlated_request
+
+logger = logging.getLogger(__name__)
 
 @shared_task(name='core.dispatch_outbox')
 def dispatch_outbox(limit=100):
@@ -24,10 +28,10 @@ def dispatch_outbox(limit=100):
     processed = failed = 0
     from django.db.models import Q
     eligible = (~Q(topic__in=['auth.email', 'notification.delivery', 'task.failed']) | Q(attempts__lt=5)) & ~Q(last_error='dispatch_exhausted')
-    for event_id in list(OutboxEvent.objects.filter(eligible,
+    for event_id, origin in list(OutboxEvent.objects.filter(eligible,
         status__in=['pending', 'failed'], available_at__lte=now,
-    ).order_by('created_at').values_list('id', flat=True)[:limit]):
-        with transaction.atomic():
+    ).order_by('created_at').values_list('id', 'request_id')[:limit]):
+        with transaction.atomic(), correlated_request(origin):
             event = OutboxEvent.objects.select_for_update().filter(eligible,
                 pk=event_id, status__in=['pending', 'failed'], available_at__lte=now,
             ).first()
@@ -62,6 +66,7 @@ def dispatch_outbox(limit=100):
                             raise ValueError('import_request_missing')
                         if request.record.status == 'pending':
                             run_data_import.apply_async(args=[str(request.pk)], task_id=str(request.pk),
+                                headers={'request_id': event.request_id},
                                 soft_time_limit=request.policy['soft_timeout'], time_limit=request.policy['hard_timeout'])
                     elif event.topic == 'maintenance.requested':
                         from apps.tasks.models import MaintenanceRequest
@@ -74,6 +79,7 @@ def dispatch_outbox(limit=100):
                         if request.record.status == 'pending':
                             limits = request.policy or current
                             run_maintenance.apply_async(args=[str(request.pk)], task_id=str(request.pk),
+                                headers={'request_id': event.request_id},
                                 soft_time_limit=limits['soft_timeout'], time_limit=limits['hard_timeout'])
                     elif event.topic == 'auth.email':
                         from apps.auth_app.recovery import deliver_challenge
@@ -110,6 +116,10 @@ def dispatch_outbox(limit=100):
                     event.last_error = ''
                     processed += 1
             event.save(update_fields=['status', 'attempts', 'last_error', 'available_at', 'published_at', 'updated_at'])
+            logger.log(logging.WARNING if event.status == 'failed' else logging.INFO,
+                'Reliable event processed', extra={'event': 'outbox.failed' if event.status == 'failed' else 'outbox.succeeded',
+                    'event_id': str(event.pk), 'record_id': str(event.payload.get('record_id', '')),
+                    'delivery_id': str(event.payload.get('delivery_id', ''))})
     return {'processed': processed, 'failed': failed}
 
 

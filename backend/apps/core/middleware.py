@@ -5,6 +5,7 @@
 import uuid
 import json
 import logging
+import time
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
@@ -47,7 +48,15 @@ class RequestTrackingMiddleware:
         if 0 < len(incoming) <= 100 and all(char.isascii() and (char.isalnum() or char in '-_.') for char in incoming):
             request.request_id = incoming
         from apps.logs.context import request_id
+        request._tracking_started = time.monotonic()
         return request_id.set(request.request_id)
+
+    def finish(self, request, response):
+        response['X-Request-ID'] = request.request_id
+        logger.info('HTTP request completed', extra={'event': 'http.completed',
+            'status_code': response.status_code,
+            'duration_ms': (time.monotonic() - request._tracking_started) * 1000})
+        return response
 
     def __call__(self, request):
         if self.is_async:
@@ -56,8 +65,7 @@ class RequestTrackingMiddleware:
         token = self.prepare(request)
         try:
             response = self.get_response(request)
-            response['X-Request-ID'] = request.request_id
-            return response
+            return self.finish(request, response)
         finally:
             request_id.reset(token)
 
@@ -66,8 +74,7 @@ class RequestTrackingMiddleware:
         token = self.prepare(request)
         try:
             response = await self.get_response(request)
-            response['X-Request-ID'] = request.request_id
-            return response
+            return self.finish(request, response)
         finally:
             request_id.reset(token)
 
@@ -77,13 +84,13 @@ class ErrorHandlingMiddleware(MiddlewareMixin):
 
     def process_exception(self, request, exception):
         logger.error(
-            f'Exception: {str(exception)}',
+            'Unhandled request exception',
             extra={
+                'event': 'http.exception',
                 'request_id': getattr(request, 'request_id', ''),
-                'method': request.method,
-                'path': request.path,
+                'exception_type': type(exception).__name__,
             },
-            exc_info=True
+            exc_info=(type(exception), exception, exception.__traceback__),
         )
 
         return JsonResponse({

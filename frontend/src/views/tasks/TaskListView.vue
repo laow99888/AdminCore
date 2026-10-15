@@ -46,6 +46,7 @@
           <el-descriptions :column="2" border size="small">
             <el-descriptions-item :label="uiText('状态')">{{ STATUS_LABELS[currentTask.status] || currentTask.status }}</el-descriptions-item>
             <el-descriptions-item :label="uiText('耗时')">{{ currentTask.duration != null ? `${currentTask.duration}s` : '—' }}</el-descriptions-item>
+            <el-descriptions-item v-if="currentTask.request_id" :label="uiText('请求关联 ID')" :span="2"><span class="correlation-id">{{ currentTask.request_id }}</span></el-descriptions-item>
             <el-descriptions-item v-if="currentTask.execution" :label="uiText('执行次数')">{{ currentTask.execution.attempt }}</el-descriptions-item>
             <el-descriptions-item v-if="currentTask.execution?.policy?.soft_timeout" :label="uiText('软 / 硬超时')">{{ currentTask.execution.policy.soft_timeout }}s / {{ currentTask.execution.policy.hard_timeout }}s</el-descriptions-item>
           </el-descriptions>
@@ -179,6 +180,7 @@ loadTasks()
 </script>
 
 <style scoped>
+.correlation-id { overflow-wrap: anywhere; word-break: break-all; }
 .task-container {
   width: 100%;
 }

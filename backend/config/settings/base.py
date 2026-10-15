@@ -225,6 +225,8 @@ SPECTACULAR_SETTINGS = {
     'VERSION': '1.0.0',
     'COMPONENT_SPLIT_REQUEST': True,
     'ENUM_NAME_OVERRIDES': {'OperationActionEnum': 'apps.logs.models.OperationLog.ACTION_CHOICES',
+                          'TaskMetricStatusEnum': ['ok', 'degraded', 'disabled'],
+                          'QueueMetricStatusEnum': ['ok', 'unavailable', 'disabled'],
                           'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS'},
     'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
     'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},
@@ -345,8 +347,7 @@ LOGGING = {
     'disable_existing_loggers': False,
     'formatters': {
         'verbose': {
-            'format': '[{levelname}] {asctime} {name} {message}',
-            'style': '{',
+            '()': 'apps.core.runtime_logging.SafeJSONFormatter',
         },
     },
     'handlers': {

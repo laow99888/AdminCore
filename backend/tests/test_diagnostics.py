@@ -21,6 +21,7 @@ def isolated_probes():
     DiagnosticThrottle.cache.clear()
     with patch.object(diag.Redis, 'from_url') as factory:
         factory.return_value.info.return_value = {'redis_version': '8.10.2', 'config_file': '/private', 'secret': 'credential'}
+        factory.return_value.llen.return_value = 0
         yield factory
     DiagnosticThrottle.cache.clear()
 
@@ -70,7 +71,77 @@ def test_redis_failure_is_partial_and_bounded_configuration(admin_client, isolat
 def test_tasks_disabled_does_not_connect_broker(admin_client, settings, isolated_probes):
     settings.ADMINCORE_MODULES = ['system']
     assert admin_client.get(INFO).json()['data']['services'][-1]['status'] == 'disabled'
+    metrics = admin_client.get(INFO).json()['data']['task_metrics']
+    assert metrics['status'] == metrics['broker']['status'] == 'disabled'
+    assert metrics['task_records']['counts'] is None
     isolated_probes.assert_not_called()
+
+
+def test_task_snapshot_counts_stored_policy_loss_and_recent_durations(admin_client, isolated_probes):
+    from datetime import timedelta
+    from django.utils import timezone
+    from apps.tasks.models import TaskRecord, MaintenanceRequest
+    from apps.core.models import OutboxEvent
+    now = timezone.now()
+    pending = TaskRecord.objects.create(name='private-business-content')
+    running = TaskRecord.objects.create(name='private-running', status='running', started_at=now - timedelta(seconds=100))
+    unknown = TaskRecord.objects.create(name='legacy-no-policy', status='running', started_at=now - timedelta(days=10))
+    TaskRecord.objects.filter(pk=pending.pk).update(created_at=now - timedelta(seconds=100))
+    for record in (pending, running):
+        MaintenanceRequest.objects.create(record=record, key='lifecycle', session_version=1,
+            request_id='linked-http-123', policy={'queue_expiry': 50, 'hard_timeout': 30})
+    for seconds in (1, 2, 4):
+        TaskRecord.objects.create(name='done', status='success', started_at=now - timedelta(seconds=seconds), completed_at=now)
+    OutboxEvent.objects.create(topic='fixture', event_key='diag-fixture', payload={'private': 'do-not-return'},
+        request_id='linked-http-123', available_at=now, status='failed')
+    isolated_probes.return_value.llen.side_effect = [1, 2, 3, 4]
+    result = admin_client.get(INFO).json()['data']['task_metrics']
+    assert result['status'] == 'ok'
+    assert result['broker'] == {'status': 'ok', 'ready': 10}
+    assert result['task_records']['counts'] == {'pending': 1, 'running': 2, 'success': 3}
+    assert result['task_records']['lost_candidates'] == {'pending': 1, 'running': 1, 'sampled': 3, 'unclassified': 1, 'truncated': False}
+    assert result['task_records']['duration_seconds'] == {'count': 3, 'average': 2.333, 'p95': 4.0, 'max': 4.0}
+    assert result['correlation']['task_request_linked'] == 2
+    assert result['correlation']['outbox_request_linked'] == 1
+    assert result['outbox']['counts'] == {'failed': 1}
+    assert result['outbox']['oldest_failed_seconds'] >= 0
+    assert not any(value in str(result) for value in ('private-business', 'private-running', 'do-not-return', 'linked-http-123'))
+    unknown.refresh_from_db()
+    assert unknown.status == 'running'  # 诊断不执行失联恢复。
+
+
+def test_metrics_database_failure_is_unknown_not_zero(admin_client):
+    with patch('apps.tasks.models.TaskRecord.objects.all', side_effect=RuntimeError('secret-db')):
+        result = admin_client.get(INFO).json()['data']['task_metrics']
+    assert result['status'] == 'degraded'
+    assert result['task_records']['counts'] is None
+    assert result['task_records']['duration_seconds'] is None
+    assert 'secret-db' not in str(result)
+
+
+def test_metrics_active_sample_is_bounded_and_reports_truncation():
+    from apps.tasks.models import TaskRecord
+    TaskRecord.objects.bulk_create([TaskRecord(name='old') for _ in range(1001)])
+    result = diag.task_snapshot()['task_records']['lost_candidates']
+    assert result == {'pending': 0, 'running': 0, 'sampled': 1000, 'unclassified': 1000, 'truncated': True}
+
+
+def test_broker_probe_failure_is_unknown_and_timeout_cannot_be_overridden(isolated_probes):
+    isolated_probes.side_effect = TimeoutError('redis://secret@internal')
+    assert diag._queue_snapshot() == {'status': 'unavailable', 'ready': None}
+    assert isolated_probes.call_args.kwargs['socket_timeout'] == .35
+
+
+def test_liveness_is_dependency_free_and_health_is_read_only(settings):
+    client = APIClient()
+    with patch('django.db.connection.cursor', side_effect=ConnectionError('secret-db')), \
+         patch.object(diag.Redis, 'from_url', side_effect=AssertionError('must-not-connect')):
+        response = client.get('/api/v1/health/live/')
+        assert response.status_code == 200 and response.json() == {'status': 'ok'}
+        assert 'no-store' in response['Cache-Control']
+        assert client.get('/api/v1/health/').status_code == 503
+    for path in ('/api/v1/health/', '/api/v1/health/live/'):
+        assert client.post(path).status_code == 405
 
 
 def test_url_query_cannot_override_timeout_or_retries(isolated_probes):
