@@ -101,6 +101,7 @@ const error = ref('')
 let generation = 0
 const sampledAt = computed(() => information.value?.sampled_at || resources.value?.sampled_at)
 const facts = computed(() => information.value ? [
+  ['底座版本', information.value.base_version || uiText('未采集')],
   ['Python', information.value.python], ['操作系统', `${information.value.os} / ${information.value.architecture}`],
   ['运行环境', information.value.environment], ['调试模式', information.value.debug ? uiText('开启') : uiText('关闭')],
   ['启用预设', information.value.preset], ['时区', information.value.timezone],

@@ -81,6 +81,7 @@ class TaskMetricSerializer(serializers.Serializer):
 
 class InformationSerializer(serializers.Serializer):
     sampled_at = serializers.DateTimeField()
+    base_version = serializers.CharField()
     python = serializers.CharField()
     os = serializers.CharField()
     architecture = serializers.CharField()

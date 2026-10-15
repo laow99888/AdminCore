@@ -15,6 +15,7 @@ export interface TaskMetrics {
   correlation: { outbox_request_linked: number | null; task_request_linked: number | null; notification_request_linked: number | null }
 }
 export interface SystemInformation {
+  base_version: string
   sampled_at: string; python: string; os: string; architecture: string; environment: string; debug: boolean
   preset: string; modules: string[]; timezone: string; database: string; storage: string
   dependencies: { name: string; version: string | null }[]; services: ServiceProbe[]

@@ -148,6 +148,7 @@ export const uiMessages: Record<string, string> = {
   '系统信息': 'System Information', '服务监控': 'Service Monitor',
   '只读诊断，手动刷新；未采集的数据不代表正常。': 'Read-only diagnostics. Refresh manually. Missing data does not indicate health.',
   '任务与通知诊断': 'Task and Notification Diagnostics',
+  '底座版本': 'Base version',
   '请求关联 ID': 'Request correlation ID',
   '只读快照；队列条数不等于 worker 存活。失联候选仅检查最早 1000 条活跃任务的登记策略，不自动重试；耗时取最近 1000 条有起止时间的结束任务。': 'Read-only snapshot. Queue size does not prove worker liveness. Lost candidates use stored policies for the oldest 1,000 active tasks, without retries. Durations use the latest 1,000 finished tasks with start and end times.',
   '任务模块未启用，未采集业务队列指标。': 'Task module disabled. Business queue metrics were not collected.',

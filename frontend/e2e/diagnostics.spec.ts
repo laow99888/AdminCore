@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
 const envelope = (data: unknown) => ({ code: 200, message: 'success', data })
-const information = { sampled_at: '2026-10-14T00:00:00+08:00', python: '3.13.15', os: 'Linux', architecture: 'x86_64', environment: 'production', debug: false, preset: 'standard', modules: ['system', 'tasks'], timezone: 'Asia/Shanghai', database: 'postgresql', storage: 'local', dependencies: [{ name: 'Django', version: '5.2.18' }, { name: 'gunicorn', version: null }], services: [{ name: 'database', status: 'ok', version: '18.6', latency_ms: 1.2 }, { name: 'cache', status: 'unavailable', version: null, latency_ms: null }, { name: 'broker', status: 'disabled', version: null, latency_ms: null }] }
+const information = { base_version: '0.1.0-dev.1', sampled_at: '2026-10-14T00:00:00+08:00', python: '3.13.15', os: 'Linux', architecture: 'x86_64', environment: 'production', debug: false, preset: 'standard', modules: ['system', 'tasks'], timezone: 'Asia/Shanghai', database: 'postgresql', storage: 'local', dependencies: [{ name: 'Django', version: '5.2.18' }, { name: 'gunicorn', version: null }], services: [{ name: 'database', status: 'ok', version: '18.6', latency_ms: 1.2 }, { name: 'cache', status: 'unavailable', version: null, latency_ms: null }, { name: 'broker', status: 'disabled', version: null, latency_ms: null }] }
 const resources = { sampled_at: information.sampled_at, scope: 'container', cpu: { capacity_cores: 2, percent: 25, sample_seconds: 0.12 }, memory: { used_bytes: 104857600, total_bytes: null, percent: null }, disks: [{ name: 'media', status: 'ok', used_bytes: 1024, total_bytes: 4096, free_bytes: 3072, percent: 25 }], processes: [{ pid: 1, kind: 'python', state: 'S', cpu_seconds: 3.5, rss_bytes: 10485760, uptime_seconds: 600 }], processes_supported: true, processes_truncated: false }
 const taskMetrics = { status: 'ok', broker: { status: 'ok', ready: 7 }, task_records: { counts: { pending: 2, running: 1, failed: 3 }, lost_candidates: { pending: 1, running: 0, sampled: 3, unclassified: 1, truncated: false }, duration_seconds: { count: 12, average: 1.5, p95: 2.3, max: 3.4 } }, outbox: { counts: { pending: 2 }, oldest_pending_seconds: 30, oldest_failed_seconds: null }, notifications: { status: 'disabled', counts: null, oldest_pending_seconds: null, oldest_failed_seconds: null }, correlation: { outbox_request_linked: 4, task_request_linked: 2, notification_request_linked: null } }
 
@@ -24,6 +24,7 @@ test('系统信息显示真实版本、部分故障和未安装，桌面手机�
   await page.goto('/system/information')
   await expect(page.getByRole('heading', { name: '系统信息' })).toBeVisible()
   await expect(page.getByText('3.13.15', { exact: true })).toBeVisible()
+  await expect(page.getByText('0.1.0-dev.1', { exact: true })).toBeVisible()
   await expect(page.getByText('5.2.18', { exact: true })).toBeVisible()
   await expect(page.getByText('不可用', { exact: true })).toBeVisible()
   await expect(page.getByText('未安装', { exact: true })).toBeVisible()

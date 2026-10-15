@@ -1,6 +1,7 @@
 """显式模块契约；保留所有 Django app 和迁移，只裁剪业务入口与执行。"""
 from .contracts import Module, validate_registry, scope_resources
 from apps.example.manifest import MODULE as EXAMPLE_MODULE
+from .version import MODULE_CONTRACT_VERSION
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -74,7 +75,7 @@ def require_task(name):
 
 def capabilities():
     return {
-        'contract_version': 1,
+        'contract_version': MODULE_CONTRACT_VERSION,
         'preset': settings.ADMINCORE_PRESET,
         'modules': [{'key': m.key, 'title': m.title, 'enabled': module_enabled(m.key),
                      'dependencies': list(m.dependencies), 'paths': list(m.paths),

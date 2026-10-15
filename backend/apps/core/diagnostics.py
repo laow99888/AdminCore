@@ -17,6 +17,7 @@ from redis.backoff import NoBackoff
 from redis.retry import Retry
 
 from .models import OutboxEvent
+from .version import BASE_VERSION
 
 PROC = Path('/proc')
 CGROUP = Path('/sys/fs/cgroup')
@@ -361,7 +362,7 @@ def system_information():
         except importlib.metadata.PackageNotFoundError:
             version = None
         versions.append({'name': name, 'version': version})
-    return {'sampled_at': timezone.now().isoformat(), 'python': platform.python_version(),
+    return {'sampled_at': timezone.now().isoformat(), 'base_version': BASE_VERSION, 'python': platform.python_version(),
             'os': platform.system(), 'architecture': platform.machine(),
             'environment': getattr(settings, 'ENV', None) or ('testing' if getattr(settings, 'TESTING', False) else os.getenv('DJANGO_ENV', 'development')),
             'debug': settings.DEBUG, 'preset': settings.ADMINCORE_PRESET,

@@ -46,6 +46,10 @@ def test_installed_versions_and_whitelist(admin_client, settings):
     settings.SECRET_KEY = 'private-secret-value'
     settings.CELERY_BROKER_URL = 'redis://name:private-password@private-host:6379/1'
     body = admin_client.get(INFO).json()['data']
+    from apps.core.version import BASE_VERSION, MODULE_CONTRACT_VERSION
+    from django.conf import settings
+    assert body['base_version'] == BASE_VERSION == settings.SPECTACULAR_SETTINGS['VERSION']
+    assert admin_client.get('/api/v1/modules/').json()['data']['contract_version'] == MODULE_CONTRACT_VERSION
     assert body['python'] == diag.platform.python_version()
     assert next(row for row in body['dependencies'] if row['name'] == 'Django')['version'] == diag.importlib.metadata.version('Django')
     assert body['database'] == 'sqlite'

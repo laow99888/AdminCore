@@ -12,6 +12,8 @@
 
 ## 快速开始
 
+要创建独立业务项目，可使用 `python scripts/create_project.py D:/Projects/my-admin --name my-admin --start`，从已提交源码导出并启动精简预设，生成独立随机凭据。目标必须是仓库外的新目录；标准版增加 `--preset standard`。详见[初始化及升级方法](docs/底座版本与项目升级.md)。
+
 ### 本地开发环境
 
 先按 [版本要求.md](版本要求.md) 安装固定版本。完整步骤见 [快速开始](./docs/快速开始.md)。

@@ -220,9 +220,11 @@ REST_FRAMEWORK = {
     'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
 }
 
+from apps.core.version import BASE_VERSION
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'AdminCore API',
-    'VERSION': '1.0.0',
+    'VERSION': BASE_VERSION,
     'COMPONENT_SPLIT_REQUEST': True,
     'ENUM_NAME_OVERRIDES': {'OperationActionEnum': 'apps.logs.models.OperationLog.ACTION_CHOICES',
                           'TaskMetricStatusEnum': ['ok', 'degraded', 'disabled'],
