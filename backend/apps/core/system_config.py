@@ -76,21 +76,14 @@ CONFIG_DEFINITIONS = {definition.key: definition for definition in (
     ConfigDefinition('brand.name', '产品名称', 'string', 'AdminCore', minimum=1, maximum=40),
     ConfigDefinition('brand.tagline', '登录页说明', 'string', '现代化中后台管理系统', minimum=0, maximum=120),
     ConfigDefinition('brand.logo', '产品 Logo', 'image', '', minimum=0, maximum=280000),
-    ConfigDefinition('files.retention_days', '软删除文件保留天数', 'integer', 30, 'FILE_SOFT_DELETE_RETENTION_DAYS', 1, 3650),
-    ConfigDefinition('notifications.retention_days', '已读通知保留天数', 'integer', 90, 'NOTIFICATION_RETENTION_DAYS', 1, 3650),
     ConfigDefinition('lifecycle.operation_days', '操作审计日志保留天数', 'integer', 365, minimum=180, maximum=3650),
     ConfigDefinition('lifecycle.login_days', '登录日志保留天数', 'integer', 180, minimum=30, maximum=3650),
     ConfigDefinition('lifecycle.exception_days', '异常日志保留天数', 'integer', 90, minimum=7, maximum=3650),
     ConfigDefinition('lifecycle.import_days', '导入源文件保留天数', 'integer', 30, minimum=1, maximum=3650),
-    ConfigDefinition('tasks.import_timeout', '导入软超时秒数（新任务）', 'integer', 300, minimum=30, maximum=1800),
-    ConfigDefinition('tasks.maintenance_timeout', '维护软超时秒数（新任务）', 'integer', 270, minimum=30, maximum=900),
-    ConfigDefinition('tasks.dispatch_attempts', '可靠入队最多尝试次数（新任务）', 'integer', 5, minimum=1, maximum=10),
-    ConfigDefinition('tasks.failure_alert', '任务失败站内告警（0关闭/1开启）', 'integer', 1, minimum=0, maximum=1),
-    ConfigDefinition('tasks.failure_email', '任务失败邮件告警（0关闭/1开启）', 'integer', 0, minimum=0, maximum=1),
 )}
 
-from .modules import MODULES
-PARAMETER_MODULES = {parameter.key: module.key for module in MODULES for parameter in module.parameters}
+from .modules import BUILTIN_MODULES, MODULES
+PARAMETER_MODULES = {parameter.key: module.key for module in MODULES if module not in BUILTIN_MODULES for parameter in module.parameters}
 for module in MODULES:
     for parameter in module.parameters:
         if parameter.key in CONFIG_DEFINITIONS:

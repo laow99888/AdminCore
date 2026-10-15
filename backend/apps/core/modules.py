@@ -2,35 +2,37 @@
 from .contracts import Module, validate_registry, scope_resources
 from apps.example.manifest import MODULE as EXAMPLE_MODULE
 from .version import MODULE_CONTRACT_VERSION
+from .task_declarations import CORE_TASKS
+from apps.files.manifest import MODULE as FILES_MODULE
+from apps.tasks.manifest import MODULE as TASKS_MODULE
+from apps.notifications.manifest import MODULE as NOTIFICATIONS_MODULE
+from apps.data_io.manifest import MODULE as DATA_IO_MODULE
+from apps.approvals.manifest import MODULE as APPROVALS_MODULE
+from apps.core.system_manifest import MODULE as SYSTEM_MODULE
+from apps.core.organization_manifest import MODULE as ORGANIZATION_MODULE
+from apps.core.realtime_manifest import MODULE as REALTIME_MODULE
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 
 
-MODULES = (
-    Module('files', '文件管理', 'files', 'apps.files.urls', ('/files',)),
-    Module('tasks', '任务中心', 'tasks', 'apps.tasks.urls', ('/tasks',)),
-    Module('notifications', '通知中心', 'notifications', 'apps.notifications.urls', ('/notifications',)),
-    Module('data_io', '数据导入导出', 'data-io', 'apps.data_io.urls', (), ('files', 'tasks'), ('data_io.run_data_import',)),
-    Module('approvals', '单级审批', 'approvals', 'apps.approvals.urls', ('/approvals',), ('notifications',)),
-    Module('system', '系统管理', 'system', 'apps.core.system_urls', ('/system/config', '/system/dictionaries', '/system/information', '/system/monitor', '/system/cache')),
-    Module('organization', '组织与数据权限', 'organization', 'apps.core.organization_urls', ('/organization',)),
-    Module('realtime', '实时通道', 'realtime', 'apps.core.realtime_urls', (), default_enabled=False),
-    EXAMPLE_MODULE,
+BUILTIN_MODULES = (
+    FILES_MODULE,
+    TASKS_MODULE,
+    NOTIFICATIONS_MODULE,
+    DATA_IO_MODULE,
+    APPROVALS_MODULE,
+    SYSTEM_MODULE,
+    ORGANIZATION_MODULE,
+    REALTIME_MODULE,
 )
+MODULES = BUILTIN_MODULES + (EXAMPLE_MODULE,)
 PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES if m.default_enabled),
            'demo': tuple(m.key for m in MODULES if m.default_enabled)}
 CORE_MODULES = ('core', 'auth_app', 'users', 'permissions', 'logs')
-MAINTENANCE_TASKS = {
-    'tasks.cleanup_lifecycle': ('tasks',),
-    'tasks.request_backup': ('tasks',),
-    'tasks.run_maintenance': ('tasks',),
-    'tasks.cleanup_soft_deleted_files': ('tasks', 'files'),
-    'tasks.cleanup_expired_notifications': ('tasks', 'notifications'),
-    'core.dispatch_outbox': (),
-    'core.cleanup_expired_idempotency': (),
-    'core.cleanup_expired_sessions': (),
-}
+MAINTENANCE_TASKS = dict(CORE_TASKS)
+MAINTENANCE_TASKS.update({name: (module.key, *dict(module.task_requires).get(name, ()))
+                          for module in MODULES for name in module.tasks})
 
 
 def resolve_modules(preset, explicit=None, production=False):
@@ -83,6 +85,7 @@ def capabilities():
                      'contract_version': m.contract_version, 'default_enabled': m.default_enabled,
                      'conflicts': list(m.conflicts),
                      'dependencies': list(m.dependencies), 'paths': list(m.paths),
-                     'page_permissions': {menu.path: menu.permission for menu in m.menus}} for m in MODULES],
+                     'page_permissions': {menu.path: menu.permission for menu in m.menus
+                                          if menu.permission is not None}} for m in MODULES],
         'scope_resources': [{'key': key, 'title': title} for key, title in scope_resources(MODULES)],
     }

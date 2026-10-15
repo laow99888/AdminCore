@@ -26,8 +26,10 @@ from apps.core.permission_declarations import PERMISSIONS as BASE_PERMISSIONS
 PERMISSIONS = list(BASE_PERMISSIONS)
 
 # 角色与权限码
-from apps.core.modules import MODULES, module_enabled
-MODULE_PERMISSION_CODES = {row[3] for module in MODULES for row in module.permissions}
+from apps.core.modules import BUILTIN_MODULES, MODULES, module_enabled
+# 仅移动声明来源；保留内置权限原有升级策略。新扩展仍不自动给旧角色扩权。
+MODULE_PERMISSION_CODES = {row[3] for module in MODULES if module not in BUILTIN_MODULES
+                           for row in module.permissions}
 PERMISSIONS += [row for module in MODULES for row in module.permissions]
 ROLES = {
     '系统管理员': ('全部权限', [code for *_, code in PERMISSIONS]),
@@ -36,30 +38,11 @@ ROLES = {
 }
 
 # 菜单树（与前端路由对应）
-MENUS = [
-    ('仪表盘', '/', 'layout-dashboard', 1, None, None),
-    ('用户管理', '/users', 'users', 2, None, 'user:read'),
-    ('角色权限', '/roles', 'shield-check', 3, None, 'role:read'),
-    ('菜单管理', '/menus', 'list-tree', 4, None, 'menu:read'),
-    ('文件管理', '/files', 'folder-open', 5, None, None),
-    ('审批工作流', '/approvals', 'clipboard-check', 6, None, None),
-    ('通知中心', '/notifications', 'bell', 7, None, None),
-    ('任务中心', '/tasks', 'list-checks', 8, None, 'task:read'),
-    ('操作日志', '/logs', 'file-text', 9, None, 'log:read'),
-    ('系统设置', '/settings', 'settings', 10, None, None),
-    ('系统参数', '/system/config', 'settings', 11, None, 'config:read'),
-    ('数据字典', '/system/dictionaries', 'list-tree', 12, None, 'dictionary:read'),
-    ('组织与数据权限', '/organization', 'users', 13, None, None),
-    ('可靠事件', '/reliability/events', 'list-checks', 14, None, None),
-    ('文件回收站', '/files/recycle', 'trash-2', 15, None, 'file:recycle'),
-    ('定时维护', '/tasks/schedules', 'clock', 16, None, 'schedule:read'),
-    ('系统信息', '/system/information', 'info', 17, None, 'diagnostics:read'),
-    ('服务监控', '/system/monitor', 'activity', 18, None, 'monitor:read'),
-    ('岗位与任职', '/organization/posts', 'briefcase-business', 19, None, 'post:read'),
-    ('缓存管理', '/system/cache', 'database', 20, None, 'cache:read'),
-    ('通知公告', '/notifications/announcements', 'bell', 21, None, None),
-    ('在线用户', '/system/online-users', 'users', 22, None, 'session:read'),
-]
+from apps.core.menu_declarations import MENUS as CORE_MENUS
+# 保留旧初始化批次和排序，已消费的标记不会重新播种被管理员删除的菜单。
+MENUS = sorted(list(CORE_MENUS) + [(menu.name, menu.path, menu.icon, menu.order, None, menu.permission)
+    for module in BUILTIN_MODULES for menu in module.menus if menu.path != "/notifications/templates"],
+    key=lambda row: row[3])
 
 
 class Command(BaseCommand):
@@ -157,96 +140,42 @@ class Command(BaseCommand):
                                         permission=permission_map.get(perm_code) if perm_code else None)
         self.stdout.write(f'  菜单就绪：{Menu.objects.count()} 项')
 
-        # 新模块菜单仅补录一次，之后保留管理员修改/删除。
-        with transaction.atomic():
-            _, first_system_init = BootstrapState.objects.get_or_create(key='system_menus_v1')
-            if first_system_init:
-                for name, path, icon, order, parent, perm_code in MENUS[10:12]:
-                    Menu.objects.get_or_create(path=path, defaults={'name': name, 'icon': icon, 'order': order,
-                                              'permission': permission_map[perm_code]})
-        with transaction.atomic():
-            _, first_org_init = BootstrapState.objects.get_or_create(key='organization_menu_v1')
-            if first_org_init:
-                Menu.objects.get_or_create(path='/organization', defaults={'name': '组织与数据权限', 'icon': 'users', 'order': 13})
-
-        # 6. 欢迎通知
-        with transaction.atomic():
-            _, first_events_init = BootstrapState.objects.get_or_create(key='reliability_menu_v1')
-            if first_events_init:
-                Menu.objects.get_or_create(path='/reliability/events', defaults={'name': '可靠事件', 'icon': 'list-checks', 'order': 14})
-
-        with transaction.atomic():
-            _, first_recycle_init = BootstrapState.objects.get_or_create(key='files_recycle_menu_v1')
-            if first_recycle_init:
-                Menu.objects.get_or_create(path='/files/recycle', defaults={
-                    'name': '文件回收站', 'icon': 'trash-2', 'order': 15,
-                    'permission': permission_map['file:recycle'],
-                })
-
-        with transaction.atomic():
-            _, first_schedule_init = BootstrapState.objects.get_or_create(key='maintenance_menu_v1')
-            if first_schedule_init:
-                Menu.objects.get_or_create(path='/tasks/schedules', defaults={
-                    'name': '定时维护', 'icon': 'clock', 'order': 16,
-                    'permission': permission_map['schedule:read'],
-                })
-
-        with transaction.atomic():
-            _, first_diagnostics_init = BootstrapState.objects.get_or_create(key='diagnostics_menus_v1')
-            if first_diagnostics_init:
-                for name, path, icon, order, parent, perm_code in MENUS[16:18]:
-                    Menu.objects.get_or_create(path=path, defaults={
-                        'name': name, 'icon': icon, 'order': order, 'permission': permission_map[perm_code],
-                    })
-
-        with transaction.atomic():
-            _, first_post_init = BootstrapState.objects.get_or_create(key='post_menu_v1')
-            if first_post_init:
-                Menu.objects.get_or_create(path='/organization/posts', defaults={
-                    'name': '岗位与任职', 'icon': 'briefcase-business', 'order': 19,
-                    'permission': permission_map['post:read'],
-                })
-
-        with transaction.atomic():
-            _, first_cache_init = BootstrapState.objects.get_or_create(key='cache_management_menu_v1')
-            if first_cache_init:
-                Menu.objects.get_or_create(path='/system/cache', defaults={
-                    'name': '缓存管理', 'icon': 'database', 'order': 20,
-                    'permission': permission_map['cache:read'],
-                })
-
-        with transaction.atomic():
-            _, first_announcements_init = BootstrapState.objects.get_or_create(key='announcements_menu_v1')
-            if first_announcements_init:
-                Menu.objects.get_or_create(path='/notifications/announcements', defaults={
-                    'name': '通知公告', 'icon': 'bell', 'order': 21,
-                })
-
-        with transaction.atomic():
-            _, first_sessions_init = BootstrapState.objects.get_or_create(key='online_users_menu_v1')
-            if first_sessions_init:
-                Menu.objects.get_or_create(path='/system/online-users', defaults={
-                    'name': '在线用户', 'icon': 'users', 'order': 22,
-                    'permission': permission_map['session:read'],
-                })
-
-        with transaction.atomic():
-            _, first_templates_init = BootstrapState.objects.get_or_create(key='message_templates_menu_v1')
-            if first_templates_init:
-                Menu.objects.get_or_create(path='/notifications/templates', defaults={
-                    'name': '通知模板', 'icon': 'mail', 'order': 23,
-                    'permission': permission_map['template:read'],
-                })
+        # 历史标记属于兼容边界：数据来自 manifest，不能改用新标记复活被删除的菜单。
+        menu_declarations = {row[1]: row for row in MENUS}
+        for module in BUILTIN_MODULES:
+            for menu in module.menus:
+                menu_declarations[menu.path] = (menu.name, menu.path, menu.icon, menu.order, None, menu.permission)
+        legacy_groups = (
+            ('system_menus_v1', ('/system/config', '/system/dictionaries')),
+            ('organization_menu_v1', ('/organization',)),
+            ('reliability_menu_v1', ('/reliability/events',)),
+            ('files_recycle_menu_v1', ('/files/recycle',)),
+            ('maintenance_menu_v1', ('/tasks/schedules',)),
+            ('diagnostics_menus_v1', ('/system/information', '/system/monitor')),
+            ('post_menu_v1', ('/organization/posts',)),
+            ('cache_management_menu_v1', ('/system/cache',)),
+            ('announcements_menu_v1', ('/notifications/announcements',)),
+            ('online_users_menu_v1', ('/system/online-users',)),
+            ('message_templates_menu_v1', ('/notifications/templates',)),
+        )
+        for key, paths in legacy_groups:
+            with transaction.atomic():
+                _, first = BootstrapState.objects.get_or_create(key=key)
+                if first:
+                    for path in paths:
+                        name, _, icon, order, _, code = menu_declarations[path]
+                        Menu.objects.get_or_create(path=path, defaults={'name': name, 'icon': icon,
+                            'order': order, 'permission': permission_map[code] if code else None})
 
         for module in MODULES:
-            if not module_enabled(module.key) or not module.menus:
+            if module in BUILTIN_MODULES or not module_enabled(module.key) or not module.menus:
                 continue
             with transaction.atomic():
                 _, first = BootstrapState.objects.get_or_create(key='module:' + module.key + ':menus:v1')
                 if first:
                     for menu in module.menus:
                         Menu.objects.get_or_create(path=menu.path, defaults={'name': menu.name, 'icon': menu.icon,
-                            'order': menu.order, 'permission': permission_map[menu.permission]})
+                            'order': menu.order, 'permission': permission_map[menu.permission] if menu.permission else None})
 
         Notification.push(
             recipient_ids=([admin.id] if admin_created else []) + ([demo.id] if demo_created else []),

@@ -8,30 +8,12 @@ from django.core.serializers.json import DjangoJSONEncoder
 from .models import OperationLog
 
 FIELDS = {
-    'message_template': ('id', 'code', 'enabled', 'revision', 'variables', 'content_sha256'),
-    'message_delivery': ('id', 'template_id', 'revision', 'channels', 'count', 'status', 'attempts'),
     'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids', 'group_ids', 'django_permission_ids'),
     'role': ('id', 'name', 'is_active', 'permission_ids'),
     'menu': ('id', 'name', 'path', 'icon', 'order', 'parent_id', 'permission_id', 'is_visible'),
     'permission': ('id', 'name', 'code', 'resource', 'action'),
     'user_role': ('id', 'user_id', 'role_id'),
     'user_profile': ('id', 'user_id', 'department', 'position'),
-    'notification': ('id', 'recipient_id', 'notification_type', 'is_read', 'read_at', 'content_length', 'content_sha256'),
-    'task': ('id', 'task_type', 'status', 'progress', 'creator_id', 'celery_task_id'),
-    'department': ('id', 'name', 'parent', 'order', 'is_active', 'version'),
-    'membership': ('id', 'user', 'department', 'version'),
-    'data_scope': ('id', 'role', 'resource', 'scope', 'departments', 'version'),
-    'post': ('id', 'code', 'name', 'order', 'is_active', 'version'),
-    'user_post': ('id', 'user', 'post', 'version'),
-    'system_config': ('value',),
-    'dictionary': ('id', 'code', 'name', 'is_active', 'version', 'items_count'),
-    'maintenance_schedule': ('task', 'enabled', 'cron', 'kwargs'),
-    'maintenance_run': ('key', 'options', 'preview_id', 'status'),
-    'approval': ('id', 'status', 'request_type', 'applicant_id', 'assignee_id', 'decided_by_id', 'decided_at'),
-    'announcement': ('id', 'version', 'status', 'content_format', 'content_length', 'content_sha256'),
-    'file': ('id', 'purpose', 'size', 'file_type', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version'),
-    'file_transform': ('id', 'lifecycle_version', 'source_sha256', 'width', 'height', 'format', 'quality',
-                       'watermark_sha256', 'opacity', 'position', 'output_sha256', 'size'),
     'lifecycle': ('category', 'count', 'ids'),
 }
 

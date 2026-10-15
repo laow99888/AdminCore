@@ -10,6 +10,7 @@ class Parameter:
     default: object
     minimum: int = 0
     maximum: int = 100
+    setting: str = ''
 
 
 @dataclass(frozen=True)
@@ -17,7 +18,7 @@ class MenuDeclaration:
     name: str
     path: str
     icon: str
-    permission: str
+    permission: str | None
     order: int = 100
 
 
@@ -38,6 +39,7 @@ class Module:
     audit_fields: tuple[tuple[str, tuple[str, ...]], ...] = ()
     contract_version: int = 1
     conflicts: tuple[str, ...] = ()
+    task_requires: tuple[tuple[str, tuple[str, ...]], ...] = ()
 
 
 def validate_registry(modules):
@@ -47,10 +49,12 @@ def validate_registry(modules):
     from .version import MODULE_CONTRACT_VERSION
     if not 1 <= len(modules) <= 128:
         raise ImproperlyConfigured('模块登记数量必须为1至128')
-    seen = {key: set() for key in ('key', 'api', 'path', 'permission', 'parameter', 'resource', 'audit')}
+    seen = {key: set() for key in ('key', 'api', 'path', 'permission', 'parameter', 'resource', 'audit', 'task')}
     from .permission_declarations import PERMISSIONS
     seen['permission'].update(row[3] for row in PERMISSIONS)
-    seen['resource'].update(('user', 'file', 'task', 'log'))
+    from .task_declarations import CORE_TASKS
+    seen['task'].update(CORE_TASKS)
+    seen['resource'].update(('user', 'log'))
     seen['api'].update(('auth', 'users', 'permissions', 'logs', 'reliability', 'modules', 'brand',
                         'schema', 'docs', 'redoc', 'dashboard', 'health'))
     core_paths = ('/', '/login', '/recover-password', '/change-password', '/users', '/roles',
@@ -68,7 +72,7 @@ def validate_registry(modules):
                         'permission': [row[3] for row in module.permissions],
                         'parameter': [row.key for row in module.parameters],
                         'resource': [row[0] for row in module.data_resources],
-                        'audit': [row[0] for row in module.audit_fields]}
+                        'audit': [row[0] for row in module.audit_fields], 'task': module.tasks}
         for kind, values in declarations.items():
             if len(set(values)) != len(values) or set(values) & seen[kind]:
                 raise ImproperlyConfigured('模块声明重复：' + kind)
@@ -77,6 +81,12 @@ def validate_registry(modules):
                 or not re.fullmatch(r'[a-z][a-z0-9-]{0,39}', module.api_prefix)
                 or not set(module.dependencies) <= known or module.key in module.dependencies):
             raise ImproperlyConfigured('模块标识或依赖无效')
+        task_names = [name for name, _ in module.task_requires]
+        if (len(set(task_names)) != len(task_names)
+                or not set(task_names) <= set(module.tasks)
+                or any(not set(required) <= known or module.key in required
+                       or len(set(required)) != len(required) for _, required in module.task_requires)):
+            raise ImproperlyConfigured('模块任务依赖声明无效')
         if any(not path.startswith('/') or path.endswith('/') for path in module.paths):
             raise ImproperlyConfigured('模块页面必须为无尾斜杠的绝对路径')
         if any(path == base or (base != '/' and path.startswith(base + '/'))
@@ -86,9 +96,13 @@ def validate_registry(modules):
         if any(code != resource + ':' + action or not re.fullmatch(r'[a-z][a-z0-9_]{0,49}:[a-z][a-z0-9_]{0,49}', code)
                for resource, action, _, code in module.permissions):
             raise ImproperlyConfigured('权限码与资源动作不一致')
-        if any(menu.path not in module.paths or menu.permission not in codes for menu in module.menus):
+        if any(not any(menu.path == base or menu.path.startswith(base + '/') for base in module.paths)
+               or (menu.permission is not None and menu.permission not in codes) for menu in module.menus):
             raise ImproperlyConfigured('模块菜单必须登记页面与权限')
+        setting_defaults = {'files.retention_days': 'FILE_SOFT_DELETE_RETENTION_DAYS',
+                            'notifications.retention_days': 'NOTIFICATION_RETENTION_DAYS'}
         if any(not row.key.startswith(module.key + '.') or row.kind not in ('string', 'integer')
+               or (row.setting and row.setting != setting_defaults.get(row.key))
                or row.minimum > row.maximum
                or (row.kind == 'integer' and (type(row.default) is not int or not row.minimum <= row.default <= row.maximum))
                or (row.kind == 'string' and (not isinstance(row.default, str) or not row.minimum <= len(row.default) <= row.maximum))
@@ -118,5 +132,7 @@ def validate_registry(modules):
 
 
 def scope_resources(modules):
-    return [('user', '用户'), ('file', '文件'), ('task', '任务'), ('log', '日志')] + [
-        row for module in modules for row in module.data_resources]
+    resources = [('user', '用户'), ('log', '日志')] + [row for module in modules for row in module.data_resources]
+    # 保留v1原有资源排序，扩展资源仍按显式登记顺序追加。
+    legacy_order = {'user': 0, 'file': 1, 'task': 2, 'log': 3}
+    return sorted(resources, key=lambda row: legacy_order.get(row[0], 4))

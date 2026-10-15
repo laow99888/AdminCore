@@ -704,6 +704,25 @@ assert OutboxEvent.objects.get(event_key='message:'+str(row.pk)).request_id==row
         check('真实 Nginx 审计详情与请求 ID 返回且禁止缓存',
               detail.headers['Cache-Control'] == 'private, no-store' and bool(detail.headers.get('X-Request-ID'))
               and detail.json()['audit_version'] in (0, 1))
+        # 仅更改本脚本的随机隔离库：重启播种不能复活已删除菜单或撤销的授权。
+        prepare_manifests = (
+            "from apps.permissions.models import Menu, RolePermission; "
+            "removed=['/files','/tasks/schedules','/system/config','/notifications/templates']; "
+            "assert Menu.objects.filter(path__in=removed).count()==4; "
+            "Menu.objects.filter(path__in=removed).delete(); "
+            "Menu.objects.filter(path='/organization').update(name='本项目组织',order=71,is_visible=False); "
+            "RolePermission.objects.order_by('id').first().delete()")
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', prepare_manifests)
+        manifest_state = (
+            "import json; from django.core.serializers.json import DjangoJSONEncoder; "
+            "from apps.permissions.models import Menu,RolePermission; "
+            "from apps.core.models import BootstrapState,SystemConfig; "
+            "print(json.dumps({'menus':list(Menu.objects.order_by('id').values()),"
+            "'grants':list(RolePermission.objects.order_by('id').values()),"
+            "'markers':list(BootstrapState.objects.order_by('key').values()),"
+            "'parameters':list(SystemConfig.objects.order_by('key').values())},cls=DjangoJSONEncoder))")
+        manifest_before = json.loads(compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py',
+            'shell', '-c', manifest_state).stdout.strip().splitlines()[-1])
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)
@@ -726,6 +745,11 @@ assert OutboxEvent.objects.get(event_key='message:'+str(row.pk)).request_id==row
         compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend', 'frontend')
         ready()
         token = login(password)
+        manifest_after = json.loads(compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py',
+            'shell', '-c', manifest_state).stdout.strip().splitlines()[-1])
+        for key, title in [('menus', '菜单删除和定制'), ('grants', '已撤销的角色授权'),
+                           ('markers', '历史初始化标记'), ('parameters', '参数覆盖与版本')]:
+            check('内置声明迁移后关闭和重启用保留' + title, manifest_after[key] == manifest_before[key])
         check('通知模块关闭/重新启用保留已发布公告',
               api(f'notifications/announcements/{announcement_id}/', token=token).json()['data']['status'] == 'published')
         check('通知模块关闭/重新启用保留富文本格式和消毒结果',
