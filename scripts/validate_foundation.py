@@ -179,6 +179,21 @@ def main():
         token = login(password)
         capabilities = api('modules/', token=token).json()['data']
         check('精简契约关闭全部可选模块', all(not module['enabled'] for module in capabilities['modules']))
+        check('每个内置模块声明版本默认状态和互斥元数据', all(module['contract_version'] == 1
+            and type(module['default_enabled']) is bool and isinstance(module['conflicts'], list)
+            for module in capabilities['modules']))
+        proposal = json.loads(compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py',
+            'check_modules', '--modules=files').stdout)
+        check('真实精简容器只读预检启用影响且不改运行配置', proposal['enable'] == ['files']
+            and proposal['disable'] == [] and proposal['requires_restart']
+            and proposal['retains_tables_and_data'] and api('files/', expected=404, token=token).status_code == 404)
+        invalid = compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+            "from django.core.management import call_command, CommandError\n"
+            "try:\n call_command('check_modules',modules='data_io')\n"
+            "except CommandError as exc:\n print(str(exc))\n"
+            "else:\n raise AssertionError('must reject missing dependencies')")
+        check('真实容器明确拒绝缺失文件和任务依赖', 'data_io' in invalid.stdout
+            and 'files' in invalid.stdout and 'tasks' in invalid.stdout)
         api('system/config/', expected=404, token=token)
         api('files/', expected=404, token=token)
         check('精简部署可编辑本人资料且头像关闭', not api('auth/profile/', token=token).json()['data']['avatar_enabled'])

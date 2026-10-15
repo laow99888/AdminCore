@@ -36,12 +36,17 @@ class Module:
     parameters: tuple[Parameter, ...] = ()
     data_resources: tuple[tuple[str, str], ...] = ()
     audit_fields: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    contract_version: int = 1
+    conflicts: tuple[str, ...] = ()
 
 
 def validate_registry(modules):
     """启动即拒绝重复声明、跨模块菜单/参数及缺失依赖。"""
     import re
     from django.core.exceptions import ImproperlyConfigured
+    from .version import MODULE_CONTRACT_VERSION
+    if not 1 <= len(modules) <= 128:
+        raise ImproperlyConfigured('模块登记数量必须为1至128')
     seen = {key: set() for key in ('key', 'api', 'path', 'permission', 'parameter', 'resource', 'audit')}
     from .permission_declarations import PERMISSIONS
     seen['permission'].update(row[3] for row in PERMISSIONS)
@@ -52,6 +57,13 @@ def validate_registry(modules):
                   '/menus', '/logs', '/settings', '/403', '/500', '/unavailable')
     known = {module.key for module in modules}
     for module in modules:
+        if (type(module.contract_version) is not int or module.contract_version != MODULE_CONTRACT_VERSION
+                or type(module.default_enabled) is not bool):
+            raise ImproperlyConfigured('模块契约版本或默认启用状态不受支持：' + module.key)
+        if (len(set(module.dependencies)) != len(module.dependencies)
+                or len(set(module.conflicts)) != len(module.conflicts)
+                or not set(module.conflicts) <= known or module.key in module.conflicts):
+            raise ImproperlyConfigured('模块依赖或冲突声明无效：' + module.key)
         declarations = {'key': [module.key], 'api': [module.api_prefix], 'path': module.paths,
                         'permission': [row[3] for row in module.permissions],
                         'parameter': [row.key for row in module.parameters],
@@ -86,13 +98,23 @@ def validate_registry(modules):
             raise ImproperlyConfigured('模块数据范围资源无效')
     # 防止闭环依赖；关闭再开启也不得依赖装载顺序。
     graph = {module.key: module.dependencies for module in modules}
+    complete = {}
     def walk(key, active):
         if key in active:
             raise ImproperlyConfigured('模块依赖存在循环')
+        if key in complete:
+            return complete[key]
+        required = set(graph[key])
         for dependency in graph[key]:
-            walk(dependency, active | {key})
+            required.update(walk(dependency, active | {key}))
+        complete[key] = required
+        return required
     for key in known:
         walk(key, set())
+    for module in modules:
+        required = complete[module.key] | {module.key}
+        if any(set(other.conflicts) & required for other in modules if other.key in required):
+            raise ImproperlyConfigured('模块依赖链包含互斥能力：' + module.key)
 
 
 def scope_resources(modules):

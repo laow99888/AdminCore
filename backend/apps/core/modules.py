@@ -46,6 +46,8 @@ def resolve_modules(preset, explicit=None, production=False):
     for module in MODULES:
         if module.key in selected and not set(module.dependencies) <= set(selected):
             raise ImproperlyConfigured(f'模块 {module.key} 需要：{", ".join(module.dependencies)}')
+        if module.key in selected and set(module.conflicts) & set(selected):
+            raise ImproperlyConfigured(f'模块 {module.key} 与已选模块互斥：{", ".join(sorted(set(module.conflicts) & set(selected)))}')
     return tuple(module.key for module in MODULES if module.key in selected)
 
 
@@ -78,6 +80,8 @@ def capabilities():
         'contract_version': MODULE_CONTRACT_VERSION,
         'preset': settings.ADMINCORE_PRESET,
         'modules': [{'key': m.key, 'title': m.title, 'enabled': module_enabled(m.key),
+                     'contract_version': m.contract_version, 'default_enabled': m.default_enabled,
+                     'conflicts': list(m.conflicts),
                      'dependencies': list(m.dependencies), 'paths': list(m.paths),
                      'page_permissions': {menu.path: menu.permission for menu in m.menus}} for m in MODULES],
         'scope_resources': [{'key': key, 'title': title} for key, title in scope_resources(MODULES)],
