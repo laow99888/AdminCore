@@ -220,8 +220,10 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         users.delete()
                         desc = f'Deleted {count} users'
 
+                    after_versions = dict(users.values_list('pk', 'profile_version')) if action != 'delete' else {}
                     for row in rows:
-                        after = {**before[row.pk], 'is_active': action == 'activate'} if action != 'delete' else None
+                        after = {**before[row.pk], 'is_active': action == 'activate',
+                                 'profile_version': after_versions[row.pk]} if action != 'delete' else None
                         write_audit(request=request, resource='user', identifier=row.pk, action=action,
                                     before=before[row.pk], after=after)
                     write_audit(request=request, resource='user', action=action,

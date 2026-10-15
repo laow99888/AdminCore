@@ -76,6 +76,37 @@ def test_self_profile_and_bulk_invalidate_admin_draft(admin_client, member_clien
     assert member_user.profile_version == 3 and not member_user.is_active
 
 
+@pytest.mark.parametrize('actions', [('deactivate', 'activate'), ('activate', 'activate')])
+def test_bulk_audit_versions_match_persisted_steps_and_form_continuous_chain(admin_client, member_user, actions):
+    from apps.logs.audit import snapshot
+    # Start above the default version: audit must use the persisted version, not a fixed value.
+    User.objects.filter(pk=member_user.pk).update(profile_version=7)
+    member_user.refresh_from_db()
+    original = snapshot('user', member_user)
+    previous = original
+    audit_steps = []
+    for index, action in enumerate(actions, start=1):
+        request_id = f'bulk-audit-version-{index}'
+        result = admin_client.post('/api/v1/users/bulk_action/',
+            {'user_ids': [str(member_user.pk)], 'action': action}, format='json',
+            HTTP_X_REQUEST_ID=request_id)
+        assert result.status_code == 200
+        member_user.refresh_from_db()
+        assert member_user.profile_version == 7 + index
+        audit = OperationLog.objects.get(resource='user', resource_id=str(member_user.pk), request_id=request_id)
+        actual = snapshot('user', member_user)
+        assert audit.before_values == previous
+        assert audit.after_values == actual
+        assert audit.after_values['profile_version'] == member_user.profile_version
+        assert audit.after_values['is_active'] == member_user.is_active == (action == 'activate')
+        summary = OperationLog.objects.get(resource='user', resource_id='', request_id=request_id)
+        assert summary.batch_results == [{'id': str(member_user.pk), 'status': 200}]
+        audit_steps.append(audit)
+        previous = actual
+    assert audit_steps[0].before_values == original
+    assert audit_steps[0].after_values == audit_steps[1].before_values
+
+
 @pytest.mark.parametrize('operation', ['create', 'update', 'destroy', 'reset', 'bulk'])
 def test_stale_admin_actor_cannot_write_after_staff_revocation(admin_user, member_user, operation):
     # force_authenticate intentionally holds the old actor; initial HasPermission passes.
