@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
-import { mount, shallowMount } from '@vue/test-utils'
+import { flushPromises, mount, shallowMount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { ElSwitch, ElWatermark } from 'element-plus'
+import { ElSwitch } from 'element-plus'
 import PageWatermark from '../src/components/common/PageWatermark.vue'
 import WatermarkSettings from '../src/components/settings/WatermarkSettings.vue'
 import { useWatermarkStore } from '../src/stores/watermark'
@@ -12,6 +12,7 @@ import { useThemeStore } from '../src/stores/theme'
 
 const key = 'admincore:page-watermark'
 const identity: CurrentUser = { id: 'watermark-member', username: '成员', email: 'private@example.test', avatar: '' }
+const watermarkEngine = { name: 'ElWatermark' }
 
 async function setup() {
   const router = createRouter({ history: createMemoryHistory(), routes: ['/settings', '/login', '/403', '/change-password'].map(path => ({
@@ -22,7 +23,9 @@ async function setup() {
   auth.token = 'isolated-watermark-fixture'
   auth.applyUser(identity)
   const store = useWatermarkStore()
-  const wrapper = shallowMount(PageWatermark, { global: { plugins: [router] } })
+  const wrapper = shallowMount(PageWatermark, { global: { plugins: [router], stubs: {
+    ElWatermark: { name: 'ElWatermark', props: ['content', 'font'], template: '<div />' },
+  } } })
   return { router, auth, store, wrapper }
 }
 
@@ -77,13 +80,13 @@ describe('页面水印的偏好与身份边界', () => {
 
   it('身份变更更新水印；退出及未加载身份立即移除，不保存用户名或邮箱', async () => {
     const { auth, store, wrapper } = await setup()
-    expect(wrapper.findComponent(ElWatermark).exists()).toBe(false)
-    store.setEnabled(true); await nextTick()
-    expect(wrapper.getComponent(ElWatermark).props('content')).toEqual(['AdminCore', '成员'])
+    expect(wrapper.findComponent(watermarkEngine).exists()).toBe(false)
+    store.setEnabled(true); await nextTick(); await flushPromises()
+    expect(wrapper.getComponent(watermarkEngine).props('content')).toEqual(['AdminCore', '成员'])
     auth.applyUser({ ...identity, id: 'next', username: '另一位' }); await nextTick()
-    expect(wrapper.getComponent(ElWatermark).props('content')).toEqual(['AdminCore', '另一位'])
+    expect(wrapper.getComponent(watermarkEngine).props('content')).toEqual(['AdminCore', '另一位'])
     auth.user = null; await nextTick()
-    expect(wrapper.findComponent(ElWatermark).exists()).toBe(false)
+    expect(wrapper.findComponent(watermarkEngine).exists()).toBe(false)
     auth.applyUser(identity); await nextTick()
     auth.clearSession(); await nextTick()
     expect(wrapper.find('[data-testid="page-watermark"]').exists()).toBe(false)
@@ -94,30 +97,30 @@ describe('页面水印的偏好与身份边界', () => {
 
   it('公共路由和强制改密隔离；不能在直接改密路由展示', async () => {
     const { auth, store, router, wrapper } = await setup()
-    store.setEnabled(true); await nextTick()
+    store.setEnabled(true); await nextTick(); await flushPromises()
     for (const path of ['/403', '/login', '/change-password']) {
       await router.push(path)
-      expect(wrapper.findComponent(ElWatermark).exists()).toBe(false)
+      expect(wrapper.findComponent(watermarkEngine).exists()).toBe(false)
     }
     await router.push('/settings')
     auth.applyUser({ ...identity, must_change_password: true }); await nextTick()
-    expect(wrapper.findComponent(ElWatermark).exists()).toBe(false)
+    expect(wrapper.findComponent(watermarkEngine).exists()).toBe(false)
     auth.applyUser(identity); await nextTick()
-    expect(wrapper.findComponent(ElWatermark).exists()).toBe(true)
+    expect(wrapper.findComponent(watermarkEngine).exists()).toBe(true)
   })
 
   it('用户名仅传入画布文本，截断异常长度并去掉控制符，深色切换更新绘制颜色', async () => {
     const { auth, store, wrapper } = await setup()
     store.setEnabled(true)
-    auth.applyUser({ ...identity, username: '<img onerror=alert(1)>\n\u202e' + '长'.repeat(150) }); await nextTick()
-    const content = wrapper.getComponent(ElWatermark).props('content') as string[]
+    auth.applyUser({ ...identity, username: '<img onerror=alert(1)>\n\u202e' + '长'.repeat(150) }); await nextTick(); await flushPromises()
+    const content = wrapper.getComponent(watermarkEngine).props('content') as string[]
     expect(content[1]).toHaveLength(33)
     expect(content[1]).toContain('<img onerror=alert(1)>')
     expect(content[1]).not.toMatch(/[\n\u202e]/)
     expect(wrapper.find('img').exists()).toBe(false)
     expect(wrapper.get('[data-testid="page-watermark"]').attributes('aria-hidden')).toBe('true')
-    const oldColor = wrapper.getComponent(ElWatermark).props('font')!.color
+    const oldColor = wrapper.getComponent(watermarkEngine).props('font')!.color
     useThemeStore().isDark = true; await nextTick()
-    expect(wrapper.getComponent(ElWatermark).props('font')!.color).not.toBe(oldColor)
+    expect(wrapper.getComponent(watermarkEngine).props('font')!.color).not.toBe(oldColor)
   })
 })

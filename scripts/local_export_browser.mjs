@@ -58,8 +58,21 @@ try {
         await expect(button).toBeEnabled()
       }
       expect(exports).toBe(0)
+      // 同一真实日志页验收可选虚拟视图；data_io关闭不影响独立日志读取能力。
+      const virtual = page.getByRole('checkbox', { name: '虚拟滚动（当前页）', exact: true })
+      await expect(virtual).not.toBeChecked()
+      await virtual.check()
+      const grid = page.locator('.base-virtual-table')
+      await expect(grid).toBeVisible()
+      await expect(grid.locator('.el-table-v2__row').first()).toBeVisible()
+      expect(await grid.locator('.el-table-v2__row').count()).toBeLessThan(30)
+      await grid.getByRole('region', { name: '系统日志', exact: true }).focus()
+      await page.keyboard.press('End')
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+      await virtual.uncheck()
+      await expect(page.locator('.base-table')).toBeVisible()
       await page.screenshot({ path: resolve(evidence, `local-export-${mode}-${name}.png`), fullPage: true })
-      checks.push(`${name}: ${mode}, real login and four lists; no server export; bounded layout`)
+      checks.push(`${name}: ${mode}, real login and four lists; no server export; optional virtual table and fallback; bounded layout`)
       await context.tracing.stop()
     } catch (error) {
       await page.screenshot({ path: resolve(evidence, `local-export-${mode}-${name}-failure.png`), fullPage: true })

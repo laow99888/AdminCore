@@ -27,6 +27,15 @@
           <el-tab-pane :label="uiText('异常日志')" name="exception" />
         </el-tabs>
 
+        <label class="virtual-toggle"><input v-model="virtual" type="checkbox" :disabled="loading" />{{ uiText('虚拟滚动（当前页）') }}</label>
+        <div v-if="loadError" role="alert" class="list-error"><p>{{ uiText('列表加载失败，请刷新重试') }}</p><BaseButton :disabled="loading" @click="loadLogs">{{ uiText('重试') }}</BaseButton></div>
+        <template v-if="virtual">
+          <BaseVirtualTable :data="printRows" :columns="activeTab === 'operation' ? operationColumns : activeTab === 'login' ? loginColumns : exceptionColumns" :loading="loading" :label="uiText('系统日志')" :context-key="`${printOwner}:${activeTab}:${currentPage}:${pageSize}`">
+            <template v-if="activeTab === 'operation'" #actions="{ row }"><el-button link type="primary" @click="openAudit(row.id)">{{ uiText('审计详情') }}</el-button></template>
+          </BaseVirtualTable>
+          <div v-if="total > 0" class="virtual-pagination"><el-pagination :current-page="currentPage" :page-size="pageSize" :page-sizes="[10,20,50,100]" :pager-count="isMobile ? 5 : 7" :total="total" layout="total, sizes, prev, pager, next, jumper" @current-change="handlePageChange" @size-change="handlePageSizeChange" /></div>
+        </template>
+        <template v-else>
         <BaseTable
           v-if="activeTab === 'operation'"
           :data="operationLogs"
@@ -54,7 +63,6 @@
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         />
-
         <BaseTable
           v-else
           :data="exceptionLogs"
@@ -67,6 +75,7 @@
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         />
+        </template>
       </BaseCard>
       <el-dialog :model-value="auditOpen" :title="uiText('审计详情')" :width="isMobile ? 'calc(100vw - 24px)' : '680px'" @close="closeAudit">
         <el-skeleton v-if="auditLoading" :rows="5" animated />
@@ -85,7 +94,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { computed, ref, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
+import { computed, defineAsyncComponent, ref, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { logsApi, type OperationLogRow } from '@/api'
@@ -99,7 +108,10 @@ import { useSidebar } from '@/composables/useSidebar'
 
 defineOptions({ name: 'OperationLogView' })
 
+const BaseVirtualTable = defineAsyncComponent(() => import('@/components/common/BaseVirtualTable.vue'))
+const virtual = ref(false)
 const loading = ref(false)
+const loadError = ref(false)
 const activeTab = ref('operation')
 const search = ref('')
 const total = ref(0)
@@ -124,7 +136,8 @@ async function openAudit(id: string) {
 const exportFilters = ref<{ search?: string }>({})
 const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
 watch(printOwner, () => {
-  closeAudit(); generation++; loading.value = false; exportReady.value = false
+  virtual.value = false
+  closeAudit(); generation++; loading.value = false; loadError.value = false; exportReady.value = false
   operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0
   if (active && auth.can('log:read')) void loadLogs()
 }, { flush: 'sync' })
@@ -192,6 +205,8 @@ const loadLogs = async () => {
   exportReady.value = false
   const current = ++generation
   const tab = activeTab.value
+  loadError.value = false
+  operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []
   loading.value = true
   const filters = search.value ? { search: search.value } : {}
   try {
@@ -217,7 +232,7 @@ const loadLogs = async () => {
     exportReady.value = true
     total.value = data.pagination.total
     exportFilters.value = filters
-  } catch { /* 请求拦截器显示错误，保持查询条件以便重试。 */ }
+  } catch { if (active && current === generation) loadError.value = true }
   finally {
     if (active && current === generation) loading.value = false
   }
@@ -247,7 +262,7 @@ const handlePageSizeChange = (size: number) => {
 
 onMounted(() => { void loadLogs() })
 onActivated(() => { active = true; if (!loading.value) void loadLogs() })
-onDeactivated(() => { closeAudit(); active = false; generation++; loading.value = false; exportReady.value = false; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
+onDeactivated(() => { virtual.value = false; closeAudit(); active = false; generation++; loading.value = false; exportReady.value = false; operationLogs.value = []; loginLogs.value = []; exceptionLogs.value = []; total.value = 0 })
 onBeforeUnmount(() => { closeAudit(); active = false; generation++ })
 </script>
 
@@ -279,4 +294,9 @@ onBeforeUnmount(() => { closeAudit(); active = false; generation++ })
 .audit-details { overflow-wrap: anywhere; }
 .audit-details dd { margin: 0 0 var(--spacing-sm); }
 .audit-details pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 240px; overflow: auto; background: var(--bg-secondary); padding: var(--spacing-sm); }
+.virtual-toggle{display:flex;align-items:center;gap:var(--spacing-sm);min-height:44px;max-width:100%;padding:var(--spacing-sm);cursor:pointer}
+.virtual-toggle input{width:20px;height:20px;accent-color:var(--color-primary)}
+.virtual-pagination{display:flex;justify-content:flex-end;padding:var(--spacing-sm);max-width:100%}
+.virtual-pagination :deep(.el-pagination){flex-wrap:wrap;justify-content:flex-end;row-gap:var(--spacing-sm);max-width:100%}
+@media(max-width:768px){.virtual-pagination :deep(button),.virtual-pagination :deep(.el-pager li){min-width:44px;min-height:44px}}
 </style>

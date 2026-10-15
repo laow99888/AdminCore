@@ -5,9 +5,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElWatermark } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { useWatermarkStore } from '@/stores/watermark'
@@ -16,6 +15,8 @@ const auth = useAuthStore()
 const theme = useThemeStore()
 const watermark = useWatermarkStore()
 const route = useRoute()
+// 默认关闭的水印引擎仅在获准业务页实际显示时加载。
+const ElWatermark = defineAsyncComponent(() => import('element-plus/es/components/watermark/index').then(module => module.ElWatermark))
 const visible = computed(() => watermark.enabled && auth.isAuthenticated && !!auth.user
   && !auth.user.must_change_password && route.meta.requiresAuth === true && route.path !== '/change-password')
 const content = computed(() => {

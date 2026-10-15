@@ -39,6 +39,7 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     minify: 'terser',
+    terserOptions: { compress: { passes: 3 } },
     manifest: true,
     rolldownOptions: {
       output: {
