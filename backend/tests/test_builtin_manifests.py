@@ -40,6 +40,12 @@ def test_declaration_move_preserves_2dac5c5_seed_and_audit_contracts():
         {'key': 'task', 'title': '任务'}, {'key': 'log', 'title': '日志'}]
 
 
+def test_capabilities_preserve_v1_exact_page_permission_path_contract():
+    for module in capabilities()['modules']:
+        assert set(module['page_permissions']) <= set(module['paths'])
+        assert len(module['paths']) == len(set(module['paths']))
+
+
 @pytest.mark.parametrize('module', BUILTIN_MODULES, ids=lambda row: row.key)
 def test_builtin_declarations_are_static_and_explicit(module):
     if module.key in ('system', 'organization', 'realtime'):

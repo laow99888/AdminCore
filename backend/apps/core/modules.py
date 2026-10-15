@@ -84,7 +84,9 @@ def capabilities():
         'modules': [{'key': m.key, 'title': m.title, 'enabled': module_enabled(m.key),
                      'contract_version': m.contract_version, 'default_enabled': m.default_enabled,
                      'conflicts': list(m.conflicts),
-                     'dependencies': list(m.dependencies), 'paths': list(m.paths),
+                     'dependencies': list(m.dependencies),
+                     # v1 客户端要求每条权限路径逐项登记；父级仍控制其全部子路由。
+                     'paths': list(dict.fromkeys((*m.paths, *(menu.path for menu in m.menus)))),
                      'page_permissions': {menu.path: menu.permission for menu in m.menus
                                           if menu.permission is not None}} for m in MODULES],
         'scope_resources': [{'key': key, 'title': title} for key, title in scope_resources(MODULES)],
