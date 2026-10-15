@@ -126,6 +126,9 @@ def main():
             api(endpoint,token,expected=404)
         for endpoint in ['users/','permissions/roles/','permissions/menus/','logs/operation/']:
             api(endpoint,token)
+        for endpoint in ['users/','permissions/roles/','logs/operation/']:
+            data = api(endpoint+'?page_size=100',token).json()['data']
+            check(endpoint+' 返回实际生效分页容量',data['pagination']['page_size']==100 and len(data['items'])<=100)
         snippet("from django.contrib.auth import get_user_model; from apps.files.models import FileModel; from django.core.files.base import ContentFile; from apps.core.models import SystemConfig; get_user_model().objects.create_user(username='minimal_retained',email='retained@example.test',password=None); FileModel.objects.create(original_name='retained.txt',file_type='txt',size=7,md5='0'*32,uploader=get_user_model().objects.get(username='admin'),file=ContentFile(b'fixture',name='retained.txt')); SystemConfig.objects.update_or_create(key='brand.name',defaults={'value':'精简迁移保留'})")
         original = snippet(retained)
         (FOLDER / 'browser-access.json').write_text(json.dumps({'password':changed}),encoding='utf-8')

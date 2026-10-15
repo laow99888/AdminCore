@@ -36,7 +36,7 @@ class StandardPagination(PageNumberPagination):
                 'pagination': {
                     'total': self.page.paginator.count,
                     'page': self.page.number,
-                    'page_size': self.page_size,
+                    'page_size': self.page.paginator.per_page,
                     'total_pages': self.page.paginator.num_pages,
                 }
             }
