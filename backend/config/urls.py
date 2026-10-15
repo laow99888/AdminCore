@@ -12,10 +12,12 @@ from apps.core.views import DashboardStatsView, health_check
 from apps.core.views import ModuleCapabilitiesView
 from apps.core.modules import MODULES, module_enabled
 from apps.core.system_views import BrandView
+from apps.core.api_lifecycle import api_versions
 
 urlpatterns = [
     # 管理后台
     path('admin/', admin.site.urls),
+    path('api/versions/', api_versions, name='api-versions'),
 
     # API 路由
     path('api/v1/auth/', include('apps.auth_app.urls')),

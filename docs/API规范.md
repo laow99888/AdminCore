@@ -3,6 +3,7 @@
 - 基础路径：`/api/v1/`
 - 交互式文档（Swagger）：`/api/v1/docs/`，ReDoc：`/api/v1/redoc/`，OpenAPI Schema：`/api/v1/schema/`（drf-spectacular 自动生成）
 - 实际验证状态见 [COMPATIBILITY.md](../COMPATIBILITY.md)
+- 版本状态：公开 `GET/HEAD /api/versions/`；当前仅 v1，默认无废弃计划。弃用公告、至少90天兼容期、响应头及发布/撤回步骤见[API版本与废弃流程](API版本与废弃流程-2026-10-15.md)。
 
 ## 认证
 

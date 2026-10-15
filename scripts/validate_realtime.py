@@ -78,6 +78,10 @@ def stream(token, *, expected=200, headers=None, suffix=''):
     response = requests.get(BASE + 'realtime/events/' + suffix,
         headers={'Authorization': 'Bearer ' + token, **(headers or {})}, stream=True, timeout=(5, 10))
     check('真实 SSE HTTP 状态 ' + str(expected) + '（实际 ' + str(response.status_code) + '）', response.status_code == expected)
+    check('独立 ASGI 的成功和拒绝响应透传标准版本通知', response.headers.get('X-API-Version') == 'v1'
+        and response.headers.get('Deprecation') == '@1577836800'
+        and response.headers.get('Sunset') == 'Wed, 01 Apr 2020 00:00:00 GMT'
+        and response.headers.get('Link') == '</api/versions/>; rel="deprecation"')
     STREAMS.append(response)
     return response
 
@@ -118,7 +122,9 @@ def main():
         'DB_NAME': 'realtime_fixture', 'DB_USER': 'postgres', 'ADMINCORE_ADMIN_PASSWORD': password,
         'DJANGO_ALLOWED_HOSTS': 'localhost,127.0.0.1,backend', 'DJANGO_ENV': 'production',
         'DJANGO_DEBUG': 'False', 'BACKEND_PORT': '18430', 'FRONTEND_PORT': '18431',
-        'ADMINCORE_MODULES': 'realtime', 'AUTH_LOGIN_CAPTCHA_ENABLED': 'False', 'USE_TLS': 'False'}
+        'ADMINCORE_MODULES': 'realtime', 'AUTH_LOGIN_CAPTCHA_ENABLED': 'False', 'USE_TLS': 'False',
+        'ADMINCORE_API_LIFECYCLE': json.dumps({'v1': {'deprecated_at': '2020-01-01T00:00:00Z',
+            'sunset_at': '2020-04-01T00:00:00Z', 'migration_url': '/api/versions/'}}, separators=(',', ':'))}
     env_file.write_text(''.join(key + '=' + value + '\n' for key, value in environment.items()), encoding='utf-8')
     override = 'services:\n'
     for service in ['backend', 'worker', 'beat', 'realtime']:

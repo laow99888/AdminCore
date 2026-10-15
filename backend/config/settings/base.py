@@ -16,6 +16,8 @@ from apps.core.modules import resolve_modules
 ADMINCORE_PRESET = os.getenv('ADMINCORE_PRESET', 'standard')
 ADMINCORE_MODULES = resolve_modules(ADMINCORE_PRESET, os.getenv('ADMINCORE_MODULES'),
                                   production=os.getenv('DJANGO_ENV') == 'production')
+from apps.core.api_lifecycle import load_configuration
+ADMINCORE_API_LIFECYCLE = load_configuration(os.getenv('ADMINCORE_API_LIFECYCLE', '{}'))
 
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -80,6 +82,8 @@ INSTALLED_APPS = [
 
 # 中间件
 MIDDLEWARE = [
+    # 只装饰响应头，也覆盖安全重定向、CSRF 和 CORS 的提前响应。
+    'apps.core.api_lifecycle.APILifecycleMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # 静态文件
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -224,6 +228,8 @@ SPECTACULAR_SETTINGS = {
                           'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS'},
     'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
     'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},
+    'POSTPROCESSING_HOOKS': ['drf_spectacular.hooks.postprocess_schema_enums',
+                           'apps.core.api_lifecycle.schema_lifecycle'],
 }
 
 # ===== JWT 配置 =====
@@ -284,7 +290,7 @@ CORS_ALLOWED_ORIGINS = os.getenv(
 CORS_ALLOW_CREDENTIALS = True
 from corsheaders.defaults import default_headers
 CORS_ALLOW_HEADERS = (*default_headers, 'idempotency-key', 'x-request-id')
-CORS_EXPOSE_HEADERS = ['X-Request-ID', 'Idempotency-Replayed']
+CORS_EXPOSE_HEADERS = ['X-Request-ID', 'Idempotency-Replayed', 'X-API-Version', 'Deprecation', 'Sunset', 'Link']
 
 # ===== Redis 配置 =====
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')

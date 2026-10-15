@@ -18,6 +18,7 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 from apps.core import realtime
 from apps.core.modules import module_enabled
+from apps.core.api_lifecycle import response_headers
 
 PATH = '/api/v1/realtime/events/'
 SAFE_ID = re.compile(r'[A-Za-z0-9._:-]{1,100}\Z')
@@ -121,6 +122,15 @@ async def _stream(raw_token, lease_id, request_id, send):
 
 
 async def application(scope, receive, send):
+    # 专用ASGI服务不经过Django中间件；仅装饰开始帧，不缓冲或消费事件流。
+    original_send = send
+    lifecycle = [(key.lower().encode('ascii'), value.encode('ascii'))
+                 for key, value in response_headers(scope.get('path', '')).items()]
+    async def send(message):
+        if message['type'] == 'http.response.start' and lifecycle:
+            message = {**message, 'headers': [*message.get('headers', []), *lifecycle]}
+        await original_send(message)
+
     if scope['type'] == 'lifespan':
         while True:
             message = await receive()
