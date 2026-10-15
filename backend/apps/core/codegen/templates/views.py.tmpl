@@ -6,6 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from apps.core.idempotency import with_idempotency
 from apps.core.schema import envelope, MessageResponse
+from apps.core.query_budget import QueryBudgetListMixin
 from apps.permissions.permissions import HasPermission
 from .serializers import @@MODEL@@Serializer as RecordSerializer, @@MODEL@@VersionSerializer as VersionSerializer
 from .services import visible, mutate, locked_actor
@@ -18,7 +19,7 @@ from .services import visible, mutate, locked_actor
     partial_update=extend_schema(responses=envelope('@@MODULE@@_@@MODEL@@PatchedResponse', RecordSerializer())),
     destroy=extend_schema(request=VersionSerializer, responses={200: MessageResponse}),
 )
-class RecordViewSet(viewsets.ModelViewSet):
+class RecordViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     serializer_class = RecordSerializer
     permission_classes = [IsAuthenticated, HasPermission]
     permission_map = {'list': '@@MODULE@@:read', 'retrieve': '@@MODULE@@:read', 'create': '@@MODULE@@:create',

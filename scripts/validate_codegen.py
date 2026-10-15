@@ -104,6 +104,37 @@ print(json.dumps(definition,ensure_ascii=False))
     api(detail, token, 'DELETE', {'version': 2})
     compose('exec', '-T', 'backend', 'python', 'manage.py', 'makemigrations', '--check', '--dry-run')
     check('两个生成模块均无遗漏迁移，已有表没有重复创建')
+    snippet("""from unittest.mock import patch
+from django.contrib.auth import get_user_model
+from django.db import connection
+from django.test import override_settings
+from rest_framework.test import APIClient
+from drf_spectacular.generators import SchemaGenerator
+from apps.work_assets.views import RecordViewSet as NewTableView
+from apps.catalog_items.views import RecordViewSet as ExistingTableView
+client=APIClient(HTTP_HOST='localhost')
+client.force_authenticate(get_user_model().objects.get(username='admin'))
+with connection.cursor() as cursor:
+    cursor.execute("SELECT name, setting FROM pg_settings WHERE name IN ('statement_timeout','lock_timeout')")
+    original=dict(cursor.fetchall())
+def slow_query(view):
+    with connection.cursor() as cursor: cursor.execute('SELECT pg_sleep(1)')
+    raise AssertionError('数据库没有取消慢SQL')
+with override_settings(ADMINCORE_QUERY_STATEMENT_TIMEOUT_MS=100):
+    for view,path in [(NewTableView,'/api/v1/work-assets/records/'),(ExistingTableView,'/api/v1/catalog-items/records/')]:
+        with patch.object(view,'get_queryset',slow_query):
+            response=client.get(path)
+        assert response.status_code==503 and response.json()=={'code':503,'message':'查询超时或等待锁过久，请缩小筛选范围后重试','data':None}
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT name, setting FROM pg_settings WHERE name IN ('statement_timeout','lock_timeout')")
+            assert dict(cursor.fetchall())==original
+        assert client.get(path).status_code==200
+        response_schema=SchemaGenerator().get_schema(request=None,public=True)['paths'][path]['get']['responses']
+        assert set(response_schema)>={'200','503'}
+        assert 'Paginated' in response_schema['200']['content']['application/json']['schema']['$ref']
+print('generated budgets verified')
+""")
+    check('两个生成模块真实慢SQL取消、503、连接恢复及分页OpenAPI通过')
 
 
 def main():
