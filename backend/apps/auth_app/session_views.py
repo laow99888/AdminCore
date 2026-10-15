@@ -13,6 +13,7 @@ from rest_framework.response import Response
 
 from apps.core.data_scope import scope_queryset
 from apps.core.schema import envelope
+from apps.core.query_budget import QueryBudgetListMixin
 from apps.permissions.permissions import HasPermission, IsAdmin
 from .models import AuthSession
 from .sessions import active_sessions, audit_session, locked_request_session, session_id
@@ -45,7 +46,7 @@ class PersonalSessionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class NoStoreSessionMixin:
+class NoStoreSessionMixin(QueryBudgetListMixin):
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
         response['Cache-Control'] = 'private, no-store'

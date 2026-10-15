@@ -6,6 +6,7 @@ from rest_framework.exceptions import NotFound
 from apps.core.idempotency import with_idempotency
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from apps.core.schema import envelope, MessageResponse
+from apps.core.query_budget import QueryBudgetListMixin
 from apps.permissions.permissions import HasPermission
 from .serializers import WorkItemSerializer, VersionSerializer
 from .services import mutate, visible, locked_actor
@@ -18,7 +19,7 @@ from .services import mutate, visible, locked_actor
     partial_update=extend_schema(responses=envelope('ExamplePatchedResponse', WorkItemSerializer())),
     destroy=extend_schema(request=VersionSerializer, responses={200: MessageResponse}),
 )
-class WorkItemViewSet(viewsets.ModelViewSet):
+class WorkItemViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     serializer_class = WorkItemSerializer
     permission_classes = [IsAuthenticated, HasPermission]
     permission_map = {'list': 'example:read', 'retrieve': 'example:read', 'create': 'example:create',

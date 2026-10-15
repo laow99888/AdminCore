@@ -143,6 +143,20 @@ DATABASES = {
     }
 }
 
+# 列表/安全导出按 SQL 限时，禁止 0（关闭）及无限放宽；不作用于迁移/任务。
+from django.core.exceptions import ImproperlyConfigured
+for _budget_name, _budget_default, _budget_max in [
+    ('ADMINCORE_QUERY_STATEMENT_TIMEOUT_MS', 30_000, 300_000),
+    ('ADMINCORE_QUERY_LOCK_TIMEOUT_MS', 2_000, 30_000),
+]:
+    try:
+        _budget_value = int(os.getenv(_budget_name, str(_budget_default)))
+    except ValueError:
+        raise ImproperlyConfigured(f'{_budget_name} 必须为整数毫秒') from None
+    if not 1 <= _budget_value <= _budget_max:
+        raise ImproperlyConfigured(f'{_budget_name} 必须在 1–{_budget_max} 毫秒之间')
+    globals()[_budget_name] = _budget_value
+
 # ===== 用户模型 =====
 # 使用 auth_app 中定义的自定义用户模型（UUID 主键 + 头像/电话/登录统计字段）
 AUTH_USER_MODEL = 'auth_app.User'
@@ -224,7 +238,7 @@ REST_FRAMEWORK = {
     # 默认直连只信任 REMOTE_ADDR；Compose 通过覆盖转发头的 Nginx 使用单层代理。
     'NUM_PROXIES': int(os.getenv('DRF_NUM_PROXIES', '0')),
     # 其他
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_SCHEMA_CLASS': 'apps.core.schema.QueryBudgetSchema',
     'EXCEPTION_HANDLER': 'apps.core.exceptions.custom_exception_handler',
 }
 

@@ -8,9 +8,10 @@ from .models import OperationLog, LoginLog, ExceptionLog
 from .serializers import OperationLogSerializer, OperationLogListSerializer, LoginLogSerializer, ExceptionLogSerializer
 from apps.permissions.permissions import HasPermission
 from apps.core.data_scope import scope_queryset
+from apps.core.query_budget import QueryBudgetListMixin
 
 
-class ScopedLogViewSet(viewsets.ReadOnlyModelViewSet):
+class ScopedLogViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)
         response['Cache-Control'] = 'private, no-store'

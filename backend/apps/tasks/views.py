@@ -7,6 +7,7 @@ import logging
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from apps.core.schema import envelope, MessageResponse
 from apps.core.schema import CleanupRequestSerializer
+from apps.core.query_budget import QueryBudgetListMixin
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
     cancel=extend_schema(request=None, responses=envelope('TaskCancelledResponse', TaskRecordSerializer())),
     cleanup_history=extend_schema(request=CleanupRequestSerializer, responses=MessageResponse),
 )
-class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
+class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
     """任务中心：查看任务记录、取消任务、清理历史"""
     serializer_class = TaskRecordSerializer
     permission_classes = [IsAuthenticated, HasPermission]

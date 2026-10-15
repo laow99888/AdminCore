@@ -5,6 +5,7 @@
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import serializers
 from apps.core.schema import envelope
+from apps.core.query_budget import QueryBudgetListMixin
 
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
@@ -26,7 +27,7 @@ from .serializers import NotificationCreateSerializer, NotificationSerializer
     mark_all_read=extend_schema(request=None, responses=envelope('NotificationsReadResponse', inline_serializer('UpdatedCount',fields={'updated':serializers.IntegerField()}))),
     unread_count=extend_schema(responses=envelope('UnreadCountResponse', inline_serializer('UnreadCount',fields={'count':serializers.IntegerField()}))),
 )
-class NotificationViewSet(mixins.ListModelMixin,
+class NotificationViewSet(QueryBudgetListMixin, mixins.ListModelMixin,
                           mixins.RetrieveModelMixin,
                           mixins.CreateModelMixin,
                           viewsets.GenericViewSet):

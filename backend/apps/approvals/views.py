@@ -4,6 +4,7 @@
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from apps.core.schema import envelope
+from apps.core.query_budget import QueryBudgetListMixin
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -27,7 +28,7 @@ from apps.core.personnel import candidates, people_response, picker_departments,
     reject=extend_schema(request=ApprovalDecisionSerializer, responses=envelope('ApprovalRejectedResponse', ApprovalRequestSerializer())),
     cancel=extend_schema(request=None, responses=envelope('ApprovalCancelledResponse', ApprovalRequestSerializer())),
 )
-class ApprovalRequestViewSet(viewsets.GenericViewSet,
+class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
                              viewsets.mixins.ListModelMixin,
                              viewsets.mixins.RetrieveModelMixin,
                              viewsets.mixins.CreateModelMixin):

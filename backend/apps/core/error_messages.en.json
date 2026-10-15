@@ -300,5 +300,6 @@
   "公告已经发布": "The announcement is already published.",
   "只能撤回已发布公告": "Only published announcements can be withdrawn.",
   "已清理 {count} 条历史任务记录": "Deleted {count} historical task records.",
-  "已将 {count} 条通知标记为已读": "Marked {count} notifications as read."
+  "已将 {count} 条通知标记为已读": "Marked {count} notifications as read.",
+  "查询超时或等待锁过久，请缩小筛选范围后重试": "The query timed out or waited too long for a lock. Narrow your filters and try again."
 }

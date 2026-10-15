@@ -2,6 +2,8 @@
 from drf_spectacular.contrib.rest_framework_simplejwt import SimpleJWTScheme
 from drf_spectacular.utils import extend_schema_serializer, inline_serializer
 from rest_framework import serializers
+from drf_spectacular.openapi import AutoSchema
+from .query_budget import QueryBudgetListMixin
 
 
 class SessionJWTScheme(SimpleJWTScheme):
@@ -17,6 +19,16 @@ def envelope(name, data=None):
 
 
 MessageResponse = envelope('MessageResponse')
+
+
+class QueryBudgetSchema(AutoSchema):
+    def get_response_serializers(self):
+        response = super().get_response_serializers()
+        if self.method == 'GET' and getattr(self.view, 'action', None) == 'list' and isinstance(self.view, QueryBudgetListMixin):
+            responses = dict(response) if isinstance(response, dict) else {200: response}
+            responses.setdefault(503, MessageResponse)
+            return responses
+        return response
 
 
 class TokenPairSerializer(serializers.Serializer):

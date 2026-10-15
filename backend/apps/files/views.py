@@ -22,6 +22,7 @@ from apps.logs.models import OperationLog
 from apps.permissions.permissions import IsAdmin, HasPermission, has_permission_code
 from apps.core.models import LifecycleConflict
 from apps.core.exceptions import APIError
+from apps.core.query_budget import QueryBudgetListMixin
 
 from .models import FileModel
 from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerializer,
@@ -34,7 +35,7 @@ from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerialize
     download=extend_schema(responses={(200, 'application/octet-stream'): OpenApiTypes.BINARY}),
     purge=extend_schema(responses=MessageResponse),
 )
-class FileViewSet(viewsets.ModelViewSet):
+class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     """文件管理：上传 / 列表 / 下载 / 软删除"""
     permission_classes = [IsAuthenticated]
     filterset_fields = ['file_type', 'uploader']

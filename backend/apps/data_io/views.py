@@ -9,6 +9,8 @@ import os
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
 from apps.core.schema import envelope
 from apps.core.error_i18n import error_text
+from apps.core.query_budget import query_budget
+from apps.core.schema import MessageResponse
 
 from django.http import HttpResponse
 from rest_framework import status
@@ -188,13 +190,14 @@ class ImportTemplateView(DataModuleView):
 
 
 @extend_schema_view(
-    get=extend_schema(parameters=[OpenApiParameter('resource', str), OpenApiParameter('export_format', str, enum=['csv', 'xlsx'])], responses={(200, 'text/csv'): OpenApiTypes.BINARY, (200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY}),
+    get=extend_schema(parameters=[OpenApiParameter('resource', str), OpenApiParameter('export_format', str, enum=['csv', 'xlsx'])], responses={(200, 'text/csv'): OpenApiTypes.BINARY, (200, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'): OpenApiTypes.BINARY, 503: MessageResponse}),
 )
 class DataExportView(DataModuleView):
     """导出数据（csv / xlsx）"""
     permission_classes = [IsAuthenticated, HasPermission]
     required_permission = 'data_io:export'
 
+    @query_budget()
     def get(self, request):
         from apps.core.modules import module_enabled
         from apps.core.exceptions import APIError

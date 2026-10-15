@@ -3,6 +3,7 @@
 """
 
 from rest_framework.response import Response
+from .query_budget import QueryBudgetListMixin
 
 SUCCESS_MESSAGES = {
     'create': '创建成功',
@@ -12,7 +13,7 @@ SUCCESS_MESSAGES = {
 }
 
 
-class EnvelopeResponseMixin:
+class EnvelopeResponseMixin(QueryBudgetListMixin):
     """把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
 
     list 已由 StandardPagination.get_paginated_response 统一包装；

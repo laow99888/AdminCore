@@ -677,6 +677,10 @@ assert record.error=='worker_lost_committed_rows_preserved'
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 审计事务回滚、并发快照连续和只读边界', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_query_budget.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 查询取消、锁等待预算、嵌套恢复及列表/导出503边界', True)
         encoded = base64.b64encode((ROOT / 'scripts/validate_bulk_results.py').read_bytes()).decode('ascii')
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
