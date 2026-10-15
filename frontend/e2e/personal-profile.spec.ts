@@ -110,20 +110,53 @@ test('资料保存白名单和版本，字段错误不发请求，手机无溢�
   await page.screenshot({ path: testInfo.outputPath('personal-profile.png'), fullPage: true })
 })
 
-test('版本冲突保留输入，重新加载需要确认', async ({ page }) => {
+test('资料版本冲突保留输入，白名单比较后显式载入并使用新版本保存', async ({ page }) => {
   const state = await setup(page); state.conflict = true
   await page.goto('/settings')
   await page.getByLabel('名字', { exact: true }).fill('未保存的名字')
   await page.getByRole('button', { name: '保存资料' }).click()
-  await expect(page.getByRole('alert').filter({ hasText: '当前输入已保留' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: '输入已保留' })).toBeVisible()
   await expect(page.getByLabel('名字', { exact: true })).toHaveValue('未保存的名字')
-  await page.getByRole('button', { name: '重新加载资料' }).click()
-  await page.getByRole('button', { name: '取消', exact: true }).click()
+  state.profile = { ...state.profile, first_name: '其他窗口', bio: '<script>比较只作文字</script>', profile_version: 2 }
+  Object.assign(state.profile, { password: 'private-password-fixture', access_token: 'private-token-fixture', totp_secret: 'private-totp-fixture' })
+  const panel = page.getByRole('region', { name: '编辑冲突' })
+  await expect(page.getByRole('button', { name: '保存资料' })).toBeDisabled()
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.getByRole('table')).toContainText('未保存的名字')
+  await expect(panel.getByRole('table')).toContainText('其他窗口')
+  await expect(panel.locator('tbody tr')).toHaveCount(5)
+  await expect(panel.getByRole('table')).toContainText('<script>比较只作文字</script>')
+  for (const value of ['private-password-fixture', 'private-token-fixture', 'private-totp-fixture']) await expect(panel.getByRole('table')).not.toContainText(value)
   await expect(page.getByLabel('名字', { exact: true })).toHaveValue('未保存的名字')
-  state.profile = { ...state.profile, first_name: '其他窗口', profile_version: 2 }
-  await page.getByRole('button', { name: '重新加载资料' }).click()
-  await page.getByRole('button', { name: '确定', exact: true }).click()
+  expect(state.saves).toHaveLength(1)
+  await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
   await expect(page.getByLabel('名字', { exact: true })).toHaveValue('其他窗口')
+  state.conflict = false
+  await page.getByLabel('名字', { exact: true }).fill('审阅后名字')
+  await page.getByRole('button', { name: '保存资料' }).click()
+  await expect.poll(() => state.saves.length).toBe(2)
+  expect(state.saves[1]).toMatchObject({ first_name: '审阅后名字', profile_version: 2 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+})
+
+test('个人资料比较失败可重试，查看成功仍不覆盖草稿或自动提交', async ({ page }) => {
+  const state = await setup(page); state.conflict = true
+  await page.goto('/settings')
+  const input = page.getByLabel('名字', { exact: true })
+  await input.fill('保留读取失败的草稿')
+  await page.getByRole('button', { name: '保存资料' }).click()
+  const panel = page.getByRole('region', { name: '编辑冲突' })
+  state.loadFailed = true
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.getByRole('alert').last()).toContainText('最新值加载失败或已无权限')
+  await expect(input).toHaveValue('保留读取失败的草稿')
+  await expect(panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true })).toHaveCount(0)
+  state.loadFailed = false; state.profile = { ...state.profile, first_name: '重试服务器值', profile_version: 2 }
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.getByRole('table')).toContainText('重试服务器值')
+  await expect(input).toHaveValue('保留读取失败的草稿'); expect(state.saves).toHaveLength(1)
+  await expect(page.getByRole('button', { name: '保存资料' })).toBeDisabled()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
 test('上传头像保留未保存资料，共享私有 Blob，更换及删除释放资源', async ({ page }) => {
