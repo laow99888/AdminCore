@@ -7,14 +7,14 @@
 | 覆盖入口 | 验收内容 | 本次交付状态 |
 |---|---|---|
 | `tests/post-example-conflicts.test.ts` | 真实岗位/工单页面连接共享面板：全部业务字段、409 阻止重存、比较不覆盖、显式应用后携新版本保存、读取失败重试、HTML 转义、撤权/模块关闭/卸载取消、岗位与任职切换取消 | 11 项通过；连共享冲突和 API 契约共 28 项通过，日志 `.codex-validation/post-example-conflict-unit.log` |
-| `e2e/edit-conflicts.spec.ts` | 用户、角色、菜单、字典、部门及新增岗位/工单同窗比较、显式应用、新版本保存和页面无横向溢出；既有读取失败重试 | 新增岗位/工单共 4 个桌面/移动用例；等待主代理统一构建运行 |
-| `e2e/posts-personnel.spec.ts` | 原岗位表单用例改为先比较，再点击明确替换动作；保留编码不可修改和草稿断言 | 交互适配已写；等待主代理运行 |
-| `e2e/example-module.spec.ts` | 原工单冲突、读取失败恢复用例改为显式比较/应用；保留草稿和重试断言 | 交互适配已写；等待主代理运行 |
-| `e2e/extended-edit-conflicts.spec.ts` | 系统参数、定时计划、公告、模板的同窗比较、显式应用和最新版本保存；公告已发布时必须撤回后再编辑 | 既有专项沿用；最终运行结果由主代理补充 |
-| `tests/profile-conflicts.test.ts` | 个人资料五字段比较、旧版本/草稿保持、显式载入后新版本提交、失败/异常身份/版本重试、额外安全字段不展示且不更新权限、7 类身份/权限/模块/卸载变化隔离迟到响应 | 新增 10 项通过；连岗位/工单/共享冲突/API/头像/草稿生命周期 7 文件共 61 项通过，日志 `.codex-validation/all-edit-comparison-unit.log` |
-| `e2e/personal-profile.spec.ts` | 资料冲突比较、显式应用、新版本保存、服务器文本转义及额外安全字段不显示；新增读取失败重试且不自动保存 | 新增 2 个桌面/移动用例，既有冲突用例适配；等待主代理统一运行 |
-| `scripts/codegen_browser.mjs` | 真生成页与真 HTTP 写入形成409；比较本地/服务器全部字段，保留草稿，显式应用，断言保存请求携新版本且数据库版本递增 | 真实隔离 PostgreSQL/Nginx/桌面/移动集成由主代理执行；不以静态检查代替 |
+| `e2e/edit-conflicts.spec.ts` | 用户、角色、菜单、字典、部门及新增岗位/工单同窗比较、显式应用、新版本保存和页面无横向溢出；既有读取失败重试 | 最终590项全量通过，含岗位/工单4项桌面/移动用例 |
+| `e2e/posts-personnel.spec.ts` | 原岗位表单用例改为先比较，再点击明确替换动作；保留编码不可修改和草稿断言 | 最终590项全量中通过 |
+| `e2e/example-module.spec.ts` | 原工单冲突、读取失败恢复用例改为显式比较/应用；保留草稿和重试断言 | 最终590项全量中通过 |
+| `e2e/extended-edit-conflicts.spec.ts` | 系统参数、定时计划、公告、模板的同窗比较、显式应用和最新版本保存；公告已发布时必须撤回后再编辑 | 最终590项全量中通过 |
+| `tests/profile-conflicts.test.ts` | 个人资料五字段比较、旧版本/草稿保持、显式载入后新版本提交、失败/异常身份/版本重试、额外安全字段不展示且不更新权限、7 类身份/权限/模块/卸载变化隔离迟到响应 | 12项通过（含邮箱父子冲突2例）；最终全量388项/48文件通过，日志 `.codex-validation/next-final-frontend-unit-complete.log` |
+| `e2e/personal-profile.spec.ts` | 资料冲突比较、显式应用、新版本保存、服务器文本转义及额外安全字段不显示；新增读取失败重试且不自动保存 | 最终590项全量中通过，含读取失败重试及既有冲突用例 |
+| `scripts/codegen_browser.mjs` | 真生成页与真 HTTP 写入形成409；比较本地/服务器全部字段，保留草稿，显式应用，断言保存请求携新版本且数据库版本递增 | 157864e远端真实隔离PostgreSQL/Nginx：32项外层检查及桌面/移动通过，证据`.codex-validation/next-ci-codegen-verified/` |
 
-本批前端完整测试类型检查、专项 ESLint、浏览器脚本语法检查通过；现有后端生成器 60 项通过（`.codex-validation/post-example-codegen-tests.log`）。岗位、工单和个人资料新增共享组件依赖，最终产物必须重新完整构建并检查包体预算，不能沿用旧 dist。
+最终lint、生产/测试类型检查、388项Vitest、590项桌面/手机Playwright均通过；full/minimal构建及原包体预算通过，登录JS gzip184,009/179,297字节，已恢复full。相关邮箱/个人资料44项先行通过，完整日志`.codex-validation/email-recovery-full-browser.log`。
 
-当前子任务未启动 preview 或 Playwright 服务。截图、trace 与实际浏览器统计以主代理重新构建后的执行结果为准；本矩阵不把已编写或静态检查写为浏览器通过。
+Playwright预览由测试自行管理，最终运行后确认18411释放。原旧选择器失败证据已独立保存在`.codex-validation/email-recovery-original-failure/`，后续成功运行没有覆盖失败截图和trace。浏览器API夹具交互不代替真实PG/HTTP生成模块及存储集成，见主集成报告。

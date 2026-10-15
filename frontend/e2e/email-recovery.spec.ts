@@ -4,7 +4,7 @@ const envelope = (data: unknown) => ({ code: 200, message: 'success', data })
 const code = 'a'.repeat(32) + '.' + 'b'.repeat(64)
 async function setup(page: Page, authenticated = false, english = false) {
   const state = { enabled: true, configFail: false, failRequest: false, failReset: false, failVerify: false, conflict: false, passwordError: false, versionConflict: false,
-    requests: [] as unknown[], resets: [] as unknown[], sends: [] as unknown[], confirms: [] as unknown[],
+    requests: [] as unknown[], resets: [] as unknown[], sends: [] as unknown[], confirms: [] as unknown[], saves: [] as Record<string, unknown>[], profileReads: 0,
     hold: undefined as Promise<void> | undefined,
     profile: { id: 'member', username: 'member', email: 'm@example.com', first_name: '', last_name: '', phone: '', bio: '', avatar: '', profile_version: 1, has_avatar: false, avatar_enabled: false, email_verified: false, recovery_enabled: true, permissions: [] },
   }
@@ -36,7 +36,10 @@ async function setup(page: Page, authenticated = false, english = false) {
     }
     if (path.endsWith('/auth/me/')) return route.fulfill({ json: envelope(state.profile) })
     if (path.endsWith('/auth/profile/')) {
-      if (req.method() === 'PATCH') state.profile = { ...state.profile, ...req.postDataJSON(), email_verified: false, profile_version: state.profile.profile_version + 1 }
+      if (req.method() === 'PATCH') {
+        state.saves.push(req.postDataJSON())
+        state.profile = { ...state.profile, ...req.postDataJSON(), email_verified: false, profile_version: state.profile.profile_version + 1 }
+      } else state.profileReads++
       return route.fulfill({ json: envelope(state.profile) })
     }
     if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'minimal', modules: [] }) })
@@ -156,9 +159,29 @@ test('验证失败保留资料草稿并清代码，冲突不给旧资料覆盖�
   state.failVerify = false; state.conflict = true
   await page.getByRole('textbox', { name: '邮箱验证代码' }).fill(code)
   await page.getByRole('button', { name: '确认邮箱验证' }).click()
-  await expect(page.getByRole('button', { name: '重新加载资料' })).toBeVisible()
+  const panel = page.getByRole('region', { name: '编辑冲突', exact: true })
+  await expect(panel).toBeVisible()
   await expect(page.getByRole('textbox', { name: '名字', exact: true })).toHaveValue('unsaved-name')
   await expect(page.getByRole('textbox', { name: '邮箱', exact: true })).toHaveValue('m@example.com')
+  await expect(page.getByRole('textbox', { name: '邮箱验证代码' })).toHaveValue('')
+  await expect(page.getByRole('button', { name: '保存资料' })).toBeDisabled()
+  expect(state.profileReads).toBe(1); expect(state.saves).toHaveLength(0)
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.locator('tbody tr')).toHaveCount(5)
+  await expect(panel.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '邮箱', exact: true }) })).toContainText('other@example.com')
+  await expect(page.getByRole('textbox', { name: '名字', exact: true })).toHaveValue('unsaved-name')
+  await expect(page.getByRole('textbox', { name: '邮箱', exact: true })).toHaveValue('m@example.com')
+  await expect(page.getByRole('button', { name: '保存资料' })).toBeDisabled()
+  await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: '名字', exact: true })).toHaveValue('')
+  await expect(page.getByRole('textbox', { name: '邮箱', exact: true })).toHaveValue('other@example.com')
+  await expect(page.getByText('已验证', { exact: true })).toBeVisible()
+  await page.getByRole('textbox', { name: '名字', exact: true }).fill('reviewed-name')
+  await page.getByRole('button', { name: '保存资料' }).click()
+  await expect.poll(() => state.saves).toEqual([{ first_name: 'reviewed-name', last_name: '', email: 'other@example.com', phone: '', bio: '', profile_version: 2 }])
+  expect(await secretStorage(page)).not.toContain(code)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
 test('保存邮箱更改使验证失效，空邮箱和禁用邮件无验证表单', async ({ page }) => {
@@ -218,9 +241,30 @@ test('另一窗口先改资料再验证时，版本跳跃会保护当前草稿�
   await page.getByRole('textbox', { name: '个人简介' }).fill('unsaved-local-bio')
   await page.getByRole('textbox', { name: '邮箱验证代码' }).fill(code)
   await page.getByRole('button', { name: '确认邮箱验证' }).click()
-  await expect(page.getByRole('button', { name: '重新加载资料' })).toBeVisible()
+  const panel = page.getByRole('region', { name: '编辑冲突', exact: true })
+  await expect(panel).toBeVisible()
   await expect(page.getByRole('textbox', { name: '个人简介' })).toHaveValue('unsaved-local-bio')
   await expect(page.getByRole('textbox', { name: '姓氏', exact: true })).toHaveValue('')
   await expect(page.getByRole('button', { name: '保存资料' })).toBeDisabled()
   expect(state.profile.last_name).toBe('changed-in-other-window')
+  expect(state.profileReads).toBe(1); expect(state.saves).toHaveLength(0)
+  await expect(page.getByRole('textbox', { name: '邮箱验证代码' })).toHaveValue('')
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.locator('tbody tr')).toHaveCount(5)
+  await expect(panel).toContainText('当前编辑版本：1；服务器版本：3')
+  await expect(panel.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '姓氏', exact: true }) })).toContainText('changed-in-other-window')
+  await expect(panel.getByRole('row').filter({ has: page.getByRole('rowheader', { name: '个人简介', exact: true }) })).toContainText('unsaved-local-bio')
+  await expect(page.getByRole('textbox', { name: '个人简介' })).toHaveValue('unsaved-local-bio')
+  await expect(page.getByRole('textbox', { name: '姓氏', exact: true })).toHaveValue('')
+  await expect(page.getByRole('button', { name: '保存资料' })).toBeDisabled()
+  await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
+  await expect(panel).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: '姓氏', exact: true })).toHaveValue('changed-in-other-window')
+  await expect(page.getByRole('textbox', { name: '个人简介' })).toHaveValue('')
+  await expect(page.getByText('已验证', { exact: true })).toBeVisible()
+  await page.getByRole('textbox', { name: '个人简介' }).fill('reviewed-bio')
+  await page.getByRole('button', { name: '保存资料' }).click()
+  await expect.poll(() => state.saves).toEqual([{ first_name: '', last_name: 'changed-in-other-window', email: 'm@example.com', phone: '', bio: 'reviewed-bio', profile_version: 3 }])
+  expect(await secretStorage(page)).not.toContain(code)
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })

@@ -22,7 +22,7 @@ const initial: PersonalProfile = { id: 'actor', username: 'actor', email: 'old@e
   first_name: 'original', last_name: 'family', phone: '+86 12345678', bio: 'original biography', profile_version: 1, has_avatar: false, avatar_enabled: false }
 const latest = { ...initial, first_name: 'server latest', last_name: 'new family', email: 'latest@example.test', email_verified: false, phone: '+86 87654321', bio: '<img src=x onerror=alert(1)>', profile_version: 2 }
 const button = (wrapper: VueWrapper, text: string) => wrapper.findAll('button').find(value => value.text() === text)!
-async function setup() {
+async function setup(writeConflict = true) {
   const pinia = createPinia(), auth = useAuthStore(pinia), modules = useModuleStore(pinia)
   auth.token = 'isolated-profile-unit'; auth.applyUser({ ...initial })
   modules.config = { contract_version: 1, preset: 'minimal', modules: [] }
@@ -33,12 +33,30 @@ async function setup() {
   const wrapper = mount(ProfileEditor, { global: { plugins: [pinia, router], stubs } })
   await flushPromises()
   const input = () => wrapper.get<HTMLInputElement>('input[aria-label="名字"]')
-  await input().setValue('retained draft'); await wrapper.get('form').trigger('submit'); await flushPromises()
+  await input().setValue('retained draft')
+  if (writeConflict) { await wrapper.get('form').trigger('submit'); await flushPromises() }
   return { wrapper, auth, modules, input, router }
 }
 beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); sessionStorage.clear() })
 
 describe('个人资料白名单冲突比较', () => {
+  it.each(['email', 'version'])('邮箱验证%s冲突通过父组件比较，未显式载入不覆盖草稿或更新版本', async reason => {
+    const { wrapper, input } = await setup(false)
+    const server = { ...initial, email_verified: true, ...(reason === 'email' ? { email: 'other@example.test', profile_version: 2 } : { last_name: 'other-window', profile_version: 3 }) }
+    vi.mocked(authApi.profile).mockResolvedValueOnce(server)
+    wrapper.findComponent({ name: 'EmailVerification' }).vm.$emit('conflict'); await flushPromises()
+    expect(authApi.profile).toHaveBeenCalledTimes(1); expect(authApi.saveProfile).not.toHaveBeenCalled()
+    expect(input().element.value).toBe('retained draft'); expect(button(wrapper, '保存资料').attributes('disabled')).toBeDefined()
+    await button(wrapper, '查看服务器最新值').trigger('click'); await flushPromises()
+    expect(wrapper.findAll('tbody tr')).toHaveLength(5); expect(input().element.value).toBe('retained draft')
+    expect(authApi.saveProfile).not.toHaveBeenCalled()
+    await button(wrapper, '载入服务器最新值（替换当前输入）').trigger('click'); await flushPromises()
+    expect(input().element.value).toBe(initial.first_name)
+    expect(wrapper.findComponent({ name: 'EmailVerification' }).props('profile').email_verified).toBe(true)
+    vi.mocked(authApi.saveProfile).mockReset().mockResolvedValue({ ...server, first_name: 'reviewed', profile_version: server.profile_version + 1 })
+    await input().setValue('reviewed'); await wrapper.get('form').trigger('submit'); await flushPromises()
+    expect(authApi.saveProfile).toHaveBeenCalledExactlyOnceWith({ first_name: 'reviewed', last_name: server.last_name, email: server.email, phone: server.phone, bio: server.bio, profile_version: server.profile_version })
+  })
   it('409和比较都保留原版本与草稿，仅显式载入后携新版本保存', async () => {
     const { wrapper, input } = await setup()
     expect(authApi.profile).toHaveBeenCalledTimes(1); expect(input().element.value).toBe('retained draft')
