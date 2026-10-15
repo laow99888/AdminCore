@@ -1,0 +1,11 @@
+# 编译时裁剪，与运行时 compose.minimal.yml 一起使用。
+# 去掉本文件并重新构建完整镜像后，才可重新启用可选模块；不得删除数据卷。
+services:
+  backend:
+    build:
+      args:
+        ADMINCORE_BUILD_PROFILE: minimal
+  frontend:
+    build:
+      args:
+        ADMINCORE_BUILD_PROFILE: minimal

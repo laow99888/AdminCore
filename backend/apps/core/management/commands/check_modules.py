@@ -32,5 +32,7 @@ class Command(BaseCommand):
             'enable': sorted(set(selected) - current), 'disable': sorted(current - set(selected)),
             'dependencies': {module.key: list(module.dependencies) for module in MODULES if module.key in selected},
             'requires_restart': current != set(selected) or preset != settings.ADMINCORE_PRESET,
+            'build_profile': settings.ADMINCORE_BUILD_PROFILE,
+            'requires_full_build': settings.ADMINCORE_BUILD_PROFILE == 'minimal' and bool(selected),
             'retains_tables_and_data': True,
         }, ensure_ascii=False, indent=2))

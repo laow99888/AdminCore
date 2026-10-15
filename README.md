@@ -33,6 +33,8 @@ bash scripts/health_check.sh
 
 访问 http://localhost （Nginx 前端 + API 反代）。使用 `.env` 中明确设置的管理员账号和密码登录；生产环境不创建演示账号。
 
+小项目可选物理精简构建：`docker compose -f docker-compose.yml -f compose.minimal.yml -f compose.build-minimal.yml up -d --build db backend frontend`，只启动三服务，并裁剪可选 Python 依赖和业务前端资源。恢复完整能力须移除精简覆盖、同步重建前后端并保留数据卷；运行时启停与构建裁剪的区别见[精简构建](docs/精简构建与完整恢复-2026-10-15.md)。
+
 #### 方式 B：本地分进程启动
 
 ```bash

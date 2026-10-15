@@ -12,7 +12,7 @@ SPEC.loader.exec_module(module)
 
 @pytest.fixture
 def copied(tmp_path):
-    for name in ['backend/requirements.txt', 'backend/requirements.lock', 'backend/Dockerfile',
+    for name in ['backend/requirements.txt', 'backend/requirements.lock', 'backend/requirements.minimal.txt', 'backend/requirements.minimal.lock', 'backend/Dockerfile',
                  'frontend/package.json', 'frontend/package-lock.json', 'frontend/.npmrc', 'frontend/Dockerfile',
                  'frontend/vendor/xlsx-0.20.3.tgz', '.python-version', '.nvmrc']:
         target = tmp_path / name
@@ -73,4 +73,33 @@ def test_vendor_tampering(copied):
 def test_runtime_drift(copied):
     (copied / '.nvmrc').write_text('24.22.0', encoding='utf-8')
     with pytest.raises(ValueError, match='Node运行时'):
+        module.check(copied)
+
+
+def test_minimal_direct_drift(copied):
+    target = copied / 'backend/requirements.minimal.txt'
+    target.write_text(target.read_text(encoding='utf-8').replace('Django==5.2.18', 'Django==5.2.19'), encoding='utf-8')
+    with pytest.raises(ValueError, match='完整清单同版本'):
+        module.check(copied)
+
+
+def test_minimal_lock_drift(copied):
+    target = copied / 'backend/requirements.minimal.lock'
+    target.write_text(target.read_text(encoding='utf-8').replace('django==5.2.18', 'django==5.2.19'), encoding='utf-8')
+    with pytest.raises(ValueError, match='精简直接依赖与哈希锁不一致'):
+        module.check(copied)
+
+
+def test_minimal_rejects_heavy_packages(copied):
+    target = copied / 'backend/requirements.minimal.lock'
+    target.write_text(target.read_text(encoding='utf-8') + '\nnh3==0.3.3 --hash=sha256:' + '0' * 64 + '\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='精简哈希锁'):
+        module.check(copied)
+
+
+def test_minimal_lock_uses_only_reviewed_hashes(copied):
+    target = copied / 'backend/requirements.minimal.lock'
+    content = target.read_text(encoding='utf-8')
+    target.write_text(module.re.sub(r'sha256:[0-9a-f]{64}', 'sha256:' + '0' * 64, content, count=1), encoding='utf-8')
+    with pytest.raises(ValueError, match='已审核的包摘要'):
         module.check(copied)

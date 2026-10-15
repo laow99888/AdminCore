@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus'
 import { useModuleStore } from '@/stores/modules'
 import { canAccessPage } from './access'
 import { frontendExtensions } from '@/modules/registry'
+import { moduleRoutes } from '@/router/moduleRoutes'
 
 // 懒加载视图
 const LoginView = () => import('../views/auth/LoginView.vue')
@@ -13,35 +14,21 @@ const DashboardView = () => import('../views/dashboard/DashboardView.vue')
 const UserListView = () => import('../views/users/UserListView.vue')
 const RoleListView = () => import('../views/system/RoleListView.vue')
 const MenuListView = () => import('../views/system/MenuListView.vue')
-const FileListView = () => import('../views/files/FileListView.vue')
-const ApprovalListView = () => import('../views/approvals/ApprovalListView.vue')
-const NotificationListView = () => import('../views/notifications/NotificationListView.vue')
-const TaskListView = () => import('../views/tasks/TaskListView.vue')
 const OperationLogView = () => import('../views/logs/OperationLogView.vue')
 const SettingsView = () => import('../views/settings/SettingsView.vue')
 const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : moduleRoutes),
   ...frontendExtensions.map(extension => ({ path: extension.path, name: 'Extension-' + extension.key, component: extension.component,
     meta: { title: extension.title, requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } })),
   { path: '/settings/two-factor', name: 'TwoFactor', component: () => import('../views/settings/TwoFactorView.vue'), meta: { title: '双因素认证', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/recover-password', name: 'RecoverPassword', component: () => import('../views/auth/RecoverPasswordView.vue'), meta: { title: '找回密码', requiresAuth: false, preserveOnLocaleChange: true } },
   { path: '/settings/sessions', name: 'DeviceSessions', component: () => import('../views/settings/SessionManagementView.vue'), meta: { title: '会话与设备', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/system/online-users', name: 'OnlineUsers', component: () => import('../views/settings/SessionManagementView.vue'), props: { admin: true }, meta: { title: '在线用户', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/notifications/announcements', name: 'Announcements', component: () => import('../views/notifications/AnnouncementView.vue'), meta: { title: '通知公告', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/notifications/templates', name: 'MessageTemplates', component: () => import('../views/notifications/MessageTemplatesView.vue'), meta: { title: '通知模板', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/system/cache', name: 'CacheManagement', component: () => import('../views/system/CacheManagementView.vue'), meta: { title: '缓存管理', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/organization/posts', name: 'PostManagement', component: () => import('../views/system/PostManagementView.vue'), meta: { title: '岗位与任职', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/system/information', name: 'SystemInformation', component: () => import('../views/system/SystemDiagnosticsView.vue'), meta: { title: '系统信息', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/system/monitor', name: 'SystemMonitor', component: () => import('../views/system/SystemDiagnosticsView.vue'), props: { monitor: true }, meta: { title: '服务监控', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
-  { path: '/tasks/schedules', name: 'MaintenanceSchedules', component: () => import('../views/tasks/MaintenanceScheduleView.vue'), meta: { title: '定时维护', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/change-password', component: () => import('../views/auth/ChangePasswordView.vue'), meta: { requiresAuth: true } },
-  { path: '/files/recycle', name: 'RecycleBin', component: () => import('../views/files/RecycleBinView.vue'), meta: { title: '文件回收站', requiresAuth: true } },
   { path: '/reliability/events', name: 'ReliableEvents', component: () => import('../views/system/ReliableEventsView.vue'), meta: { title: '可靠事件', requiresAuth: true } },
-  { path: '/organization', name: 'Organization', component: () => import('../views/system/OrganizationView.vue'), meta: { title: '组织与数据权限', requiresAuth: true, hasPageHeading: true } },
-  { path: '/system/config', name: 'SystemConfig', component: () => import('../views/system/SystemConfigView.vue'), meta: { title: '系统参数', requiresAuth: true } },
-  { path: '/system/dictionaries', name: 'Dictionaries', component: () => import('../views/system/DictionaryListView.vue'), meta: { title: '数据字典', requiresAuth: true } },
   { path: '/403', component: ServiceErrorView },
   { path: '/500', component: ServiceErrorView },
   { path: '/unavailable', component: ServiceErrorView },
@@ -80,30 +67,6 @@ const routes: RouteRecordRaw[] = [
     name: 'MenuList',
     component: MenuListView,
     meta: { title: "菜单管理", requiresAuth: true },
-  },
-  {
-    path: '/files',
-    name: 'FileList',
-    component: FileListView,
-    meta: { title: "文件管理", requiresAuth: true },
-  },
-  {
-    path: '/approvals',
-    name: 'ApprovalList',
-    component: ApprovalListView,
-    meta: { title: "审批工作流", requiresAuth: true },
-  },
-  {
-    path: '/notifications',
-    name: 'NotificationList',
-    component: NotificationListView,
-    meta: { title: "通知中心", requiresAuth: true },
-  },
-  {
-    path: '/tasks',
-    name: 'TaskList',
-    component: TaskListView,
-    meta: { title: "任务中心", requiresAuth: true },
   },
   {
     path: '/logs',
@@ -151,7 +114,8 @@ router.beforeEach(async (to, _from, next) => {
       if (to.path === '/change-password') { next('/settings'); return }
       try {
         await modules.load()
-      } catch {
+      } catch (error) {
+        if (__ADMINCORE_MINIMAL_BUILD__ && error instanceof Error && error.message === '精简前端无法加载已启用的可选模块，请同步重新构建完整前后端镜像') ElMessage.error(error.message)
         next('/unavailable')
         return
       }

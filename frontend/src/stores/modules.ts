@@ -34,6 +34,7 @@ export const useModuleStore = defineStore('modules', () => {
             !Array.isArray(module.dependencies) || module.dependencies.some(key => typeof key !== 'string')) ||
           new Set(value.modules.map(module => module.key)).size !== value.modules.length) throw new Error('不支持的模块契约')
       if (value.scope_resources !== undefined && (!Array.isArray(value.scope_resources) || value.scope_resources.some(row => !row || typeof row.key !== 'string' || typeof row.title !== 'string') || new Set(value.scope_resources.map(row => row.key)).size !== value.scope_resources.length)) throw new Error('不支持的数据范围契约')
+      if (__ADMINCORE_MINIMAL_BUILD__ && value.modules.some(module => module.enabled)) throw new Error('精简前端无法加载已启用的可选模块，请同步重新构建完整前后端镜像')
       config.value = value
       fetchedAt = Date.now()
     }).catch(error => { config.value = null; throw error }).finally(() => { pending = undefined })

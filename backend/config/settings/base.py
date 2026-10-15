@@ -16,6 +16,11 @@ from apps.core.modules import resolve_modules
 ADMINCORE_PRESET = os.getenv('ADMINCORE_PRESET', 'standard')
 ADMINCORE_MODULES = resolve_modules(ADMINCORE_PRESET, os.getenv('ADMINCORE_MODULES'),
                                   production=os.getenv('DJANGO_ENV') == 'production')
+from config.build_profile import load_profile, validate_profile
+ADMINCORE_BUILD_PROFILE = load_profile()
+validate_profile(ADMINCORE_BUILD_PROFILE, ADMINCORE_MODULES,
+                 os.getenv('ADMINCORE_STORAGE_BACKEND', 'local'),
+                 os.getenv('ADMINCORE_IMAGE_PROCESSING_ENABLED', 'False').lower() == 'true')
 from apps.core.api_lifecycle import load_configuration
 ADMINCORE_API_LIFECYCLE = load_configuration(os.getenv('ADMINCORE_API_LIFECYCLE', '{}'))
 

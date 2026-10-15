@@ -96,3 +96,19 @@ def test_preflight_preset_defaults_empty_selection_and_production_guard(settings
     monkeypatch.setenv('DJANGO_ENV', 'production')
     with pytest.raises(CommandError, match='生产环境禁止'):
         call_command('check_modules', preset='demo', stdout=StringIO())
+
+
+@pytest.mark.parametrize('profile, selection, requires_full', [
+    ('minimal', 'files', True), ('minimal', '', False), ('full', 'files', False),
+])
+def test_preflight_reports_build_requirement_without_changing_runtime(settings, profile, selection, requires_full):
+    settings.ADMINCORE_BUILD_PROFILE = profile
+    settings.ADMINCORE_PRESET = 'minimal'
+    settings.ADMINCORE_MODULES = ()
+    output = StringIO()
+    call_command('check_modules', modules=selection, stdout=output)
+    result = json.loads(output.getvalue())
+    assert result['build_profile'] == profile
+    assert result['requires_full_build'] is requires_full
+    assert settings.ADMINCORE_MODULES == ()
+    assert settings.ADMINCORE_BUILD_PROFILE == profile

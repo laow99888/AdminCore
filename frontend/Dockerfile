@@ -9,7 +9,8 @@ COPY vendor/ ./vendor/
 RUN npm ci
 
 COPY . .
-RUN npm run build
+ARG ADMINCORE_BUILD_PROFILE=full
+RUN ADMINCORE_BUILD_PROFILE="$ADMINCORE_BUILD_PROFILE" npm run build
 
 # ---- 运行阶段 ----
 FROM nginx:1.29.8-alpine

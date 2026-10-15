@@ -1,14 +1,23 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
-import { cpSync, mkdirSync } from 'node:fs'
+import { cpSync, mkdirSync, writeFileSync } from 'node:fs'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 
+const profile = process.env.ADMINCORE_BUILD_PROFILE ?? 'full'
+if (!['full', 'minimal'].includes(profile)) throw new Error('ADMINCORE_BUILD_PROFILE must be full or minimal')
+const minimal = profile === 'minimal'
+
 export default defineConfig({
+  define: { __ADMINCORE_MINIMAL_BUILD__: JSON.stringify(minimal) },
   plugins: [vue(), Components({ dts: false, resolvers: [ElementPlusResolver()] }), {
     name: 'pdf-preview-assets',
     closeBundle() {
+      const output = path.resolve(import.meta.dirname, 'dist')
+      mkdirSync(output, { recursive: true })
+      writeFileSync(path.join(output, 'build-profile.json'), JSON.stringify({ profile }))
+      if (minimal) return
       // 与锁定的 PDF.js 版本一起发布 CMap/字体/解码器及许可证，不使用第三方 CDN。
       const source = path.resolve(import.meta.dirname, 'node_modules/pdfjs-dist')
       const target = path.resolve(import.meta.dirname, 'dist/pdf-assets')
@@ -20,9 +29,11 @@ export default defineConfig({
     },
   }],
   resolve: {
-    alias: {
-      '@': path.resolve(import.meta.dirname, './src'),
-    },
+    alias: [
+      ...(minimal ? ['@/router/moduleRoutes', '@/modules/registry'].map(find => ({ find, replacement: path.resolve(import.meta.dirname, './src/modules/minimal.ts') })) : []),
+      ...(minimal ? [{ find: '@/components/common/LocalExportButton.vue', replacement: path.resolve(import.meta.dirname, './src/components/common/OmittedLocalExport.ts') }] : []),
+      { find: '@', replacement: path.resolve(import.meta.dirname, './src') },
+    ],
   },
   server: {
     port: 5173,

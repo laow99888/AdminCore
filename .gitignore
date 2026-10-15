@@ -67,3 +67,4 @@ htmlcov/
 frontend/coverage/
 frontend/test-results/
 frontend/playwright-report/
+backend/config/build-profile.json

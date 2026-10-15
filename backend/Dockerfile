@@ -14,13 +14,19 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # 依赖单独一层，充分利用构建缓存（lock 含 gunicorn/whitenoise 等全部依赖）
-COPY requirements.txt requirements.lock ./
-RUN pip install --no-cache-dir --require-hashes -r requirements.lock
+ARG ADMINCORE_BUILD_PROFILE=full
+COPY requirements.txt requirements.lock requirements.minimal.txt requirements.minimal.lock ./
+RUN case "$ADMINCORE_BUILD_PROFILE" in \
+      full) pip install --no-cache-dir --require-hashes -r requirements.lock ;; \
+      minimal) pip install --no-cache-dir --require-hashes -r requirements.minimal.lock ;; \
+      *) echo 'ADMINCORE_BUILD_PROFILE must be full or minimal' >&2; exit 1 ;; \
+    esac
 
 COPY . .
+RUN printf '{"profile":"%s"}\n' "$ADMINCORE_BUILD_PROFILE" > /app/config/build-profile.json
 
 # 构建期收集静态文件（不依赖数据库；production settings 要求显式 key）
-RUN python -c "import os, secrets; os.environ['DJANGO_SECRET_KEY'] = secrets.token_urlsafe(64); os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'; from django.core.management import execute_from_command_line; execute_from_command_line(['manage.py', 'collectstatic', '--noinput'])"
+RUN python -c "import os, secrets; os.environ['DJANGO_SECRET_KEY'] = secrets.token_urlsafe(64); os.environ['ADMINCORE_PRESET'] = 'minimal'; os.environ['ADMINCORE_MODULES'] = ''; os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'; from django.core.management import execute_from_command_line; execute_from_command_line(['manage.py', 'collectstatic', '--noinput'])"
 
 EXPOSE 8000
 
