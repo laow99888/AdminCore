@@ -31,7 +31,7 @@ test('创建本人只读凭证必须密码确认；密钥只在临时窗口展�
   await page.goto('/integrations/credentials')
   await expect(page.getByRole('heading', { name: '开放凭证', exact: true })).toBeVisible()
   await page.getByRole('textbox', { name: '名称', exact: true }).fill('Browser integration')
-  await page.getByRole('checkbox', { name: '读取任务摘要' }).check()
+  await page.getByText('读取任务摘要', { exact: true }).click()
   await page.getByRole('button', { name: '确认创建', exact: true }).click()
   const confirmation = page.getByRole('dialog')
   await expect(confirmation.getByRole('button', { name: '确认', exact: true })).toBeDisabled()
@@ -55,7 +55,7 @@ test('签发失败清密码可重试；撤销只针对所选本人凭证并需�
   const state = await setup(page)
   await page.goto('/integrations/credentials')
   await page.getByRole('textbox', { name: '名称', exact: true }).fill('Retry fixture')
-  await page.getByRole('checkbox', { name: '读取任务摘要' }).check()
+  await page.getByText('读取任务摘要', { exact: true }).click()
   await page.getByRole('button', { name: '确认创建', exact: true }).click()
   const dialog = page.getByRole('dialog')
   state.fail = true
@@ -81,5 +81,6 @@ test('只有读取权限不显示创建与撤销；模块关闭拒绝页面', as
   await expect(page.getByRole('button', { name: '撤销凭证' })).toHaveCount(0)
   state.enabled = false
   await page.reload()
-  await expect(page).toHaveURL(/\/unavailable$/)
+  await expect(page).toHaveURL('http://127.0.0.1:18411/')
+  await expect(page.getByRole('heading', { name: '开放凭证', exact: true })).toHaveCount(0)
 })

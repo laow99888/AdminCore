@@ -287,7 +287,7 @@ jobs:
       - run: npm install -g npm@11.19.0
       - run: npm ci && npm run lint && npm run build
         working-directory: frontend
-      - run: npm run test:typecheck && npm run test:coverage && npm run check:bundle
+      - run: npm run test:typecheck && node node_modules/vue-tsc/bin/vue-tsc.js --noEmit -p docs/tsconfig.json && npm run test:coverage && npm run check:bundle
         working-directory: frontend
       - run: npx playwright install --with-deps chromium && npm run test:e2e
         working-directory: frontend
