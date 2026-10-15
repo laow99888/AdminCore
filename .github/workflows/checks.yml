@@ -282,8 +282,9 @@ jobs:
           docker run --detach --name "$OFFICE_REGISTRY_CONTAINER" \
             --label "io.admincore.office-ci=$OFFICE_CI_OWNER" \
             --publish 127.0.0.1:18590:5000 registry:3.0.0
-          curl --fail --silent --show-error --retry 10 --retry-connrefused \
-            --retry-delay 1 --max-time 3 http://127.0.0.1:18590/v2/ > /dev/null
+          timeout 45s curl --fail --silent --show-error --noproxy 127.0.0.1 \
+            --retry 30 --retry-all-errors --retry-max-time 40 --retry-delay 1 \
+            --connect-timeout 2 --max-time 3 http://127.0.0.1:18590/v2/ > /dev/null
       - name: 构建固定LibreOffice包并取得真实仓库摘要
         id: converter
         shell: bash
@@ -346,7 +347,7 @@ jobs:
         working-directory: backend
       - run: python -m pytest && python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yml
         working-directory: backend
-      - run: python -m pytest -q scripts/tests/test_backup_runner.py scripts/tests/test_office_preview_runner.py scripts/tests/test_office_preview_fixtures.py
+      - run: python -m pytest -q scripts/tests/test_backup_runner.py scripts/tests/test_office_preview_runner.py scripts/tests/test_office_preview_fixtures.py scripts/tests/test_codegen_installation.py scripts/tests/test_office_preview_validation_http.py
   frontend:
     runs-on: ubuntu-latest
     steps:

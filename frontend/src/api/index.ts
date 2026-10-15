@@ -27,7 +27,7 @@ export interface ExampleWorkItem {
 export type ExampleWrite = Pick<ExampleWorkItem, 'title' | 'notes' | 'status' | 'priority' | 'version'>
 export const exampleApi = {
   list: (params?: ListParams) => getPaged<ExampleWorkItem>('/example/items/', params),
-  detail: async (id: string) => (await request.get<ApiResponse<ExampleWorkItem>>(`/example/items/${id}/`)).data.data,
+  detail: async (id: string, signal?: AbortSignal) => (await request.get<ApiResponse<ExampleWorkItem>>(`/example/items/${id}/`, { signal })).data.data,
   save: (id: string, data: ExampleWrite, key: string) => id ? request.patch(`/example/items/${id}/`, data)
     : request.post('/example/items/', data, { headers: { 'Idempotency-Key': key } }),
   remove: (id: string, version: number) => request.delete(`/example/items/${id}/`, { data: { version } }),

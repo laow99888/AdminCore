@@ -12,9 +12,9 @@
         <template #actions="{ row }"><el-button link :disabled="busy" @click="inspect(row)">{{ uiText('详情') }}</el-button><el-button v-if="auth.can('example:update')" link type="primary" :disabled="busy" @click="edit(row)">{{ uiText('编辑') }}</el-button><el-button v-if="auth.can('example:delete')" link type="danger" :disabled="busy" @click="remove(row)">{{ uiText('删除') }}</el-button></template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="editOpen" :title="uiText(form.id ? '编辑工单' : '新增工单')" width="600px" :loading="formBusy" :before-close="formGuard.confirmDiscard" :confirm-text="uiText('保存')" @confirm="save">
+    <BaseDialog v-model="editOpen" :title="uiText(form.id ? '编辑工单' : '新增工单')" width="600px" :loading="formBusy" :confirm-disabled="conflict.active.value" :before-close="formGuard.confirmDiscard" :confirm-text="uiText('保存')" @confirm="save">
       <p v-if="formError" role="alert" class="form-error">{{ formError }}</p>
-      <el-button v-if="conflict" :disabled="formBusy" @click="reloadForm">{{ uiText('重新加载') }}</el-button>
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || !formGuard.isCurrent()" :version="form.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-form :model="form" :disabled="formBusy" label-position="top" @submit.prevent="save">
         <el-form-item :label="uiText('工单标题')" required><el-input v-model="form.title" :aria-label="uiText('工单标题')" maxlength="120" /></el-form-item>
         <el-form-item :label="uiText('工单说明')"><el-input v-model="form.notes" :aria-label="uiText('工单说明')" type="textarea" :rows="4" maxlength="2000" /></el-form-item>
@@ -38,21 +38,35 @@ import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useErrorSummary } from '@/composables/useErrorSummary'
+import { useEditConflict } from '@/composables/useEditConflict'
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { uiText } from '@/i18n/uiText'
 
 const auth = useAuthStore(), modules = useModuleStore()
 const rows = ref<ExampleWorkItem[]>([]), total = ref(0), page = ref(1), pageSize = ref(10)
 const search = ref(''), appliedSearch = ref(''), status = ref(''), loading = ref(false), loadError = ref(false)
 const editOpen = ref(false), detailOpen = ref(false), selected = ref<ExampleWorkItem | null>(null)
-const saving = ref(false), reloading = ref(false), removing = ref(false)
-const formBusy = computed(() => saving.value || reloading.value), busy = computed(() => formBusy.value || removing.value)
+const saving = ref(false), removing = ref(false)
+const formBusy = computed(() => saving.value || conflict.loading.value), busy = computed(() => formBusy.value || removing.value)
 const initial = (): ExampleWrite & { id: string } => ({ id: '', title: '', notes: '', status: 'open', priority: 'normal', version: 0 })
-const form = reactive(initial()), formError = ref(''), conflict = ref(false)
+const form = reactive(initial()), formError = ref('')
 let key = '', submitted = '', generation = 0, alive = true
 const canRead = () => auth.can('example:read') && modules.enabled('example')
 const canWrite = () => canRead() && auth.can(form.id ? 'example:update' : 'example:create')
 const formGuard = useUnsavedChanges({ source: () => form, active: () => editOpen.value, busy: () => formBusy.value,
-  canEdit: canWrite, clear: () => { editOpen.value = false; Object.assign(form, initial()); formError.value = ''; conflict.value = false; key = ''; submitted = '' } })
+  canEdit: canWrite, clear: () => { editOpen.value = false; Object.assign(form, initial()); formError.value = ''; key = ''; submitted = '' } })
+const conflict = useEditConflict<ExampleWorkItem>({ identifier: () => editOpen.value ? form.id : '', current: () => formGuard.isCurrent(), fetch: exampleApi.detail,
+  apply: row => { Object.assign(form, { title: row.title, notes: row.notes, status: row.status, priority: row.priority, version: row.version }); formError.value = ''; key = newIdempotencyKey('example'); submitted = ''; formGuard.markClean() } })
+const conflictRows = computed(() => {
+  const server = conflict.latest.value
+  if (!server) return []
+  return [
+    { label: uiText('工单标题'), local: form.title, server: server.title },
+    { label: uiText('工单说明'), local: form.notes, server: server.notes },
+    { label: uiText('工单状态'), local: uiText(form.status === 'open' ? '待处理' : '已完成'), server: uiText(server.status === 'open' ? '待处理' : '已完成') },
+    { label: uiText('优先级'), local: uiText(form.priority === 'high' ? '高' : '普通'), server: uiText(server.priority === 'high' ? '高' : '普通') },
+  ]
+})
 const actionGuard = useUnsavedChanges({ source: () => null, busy: () => removing.value,
   canEdit: () => canRead() && auth.can('example:delete'), clear: () => {} })
 useErrorSummary(formError)
@@ -76,18 +90,11 @@ function changeSize(value: number) { page.value = 1; pageSize.value = value; voi
 function edit(row?: ExampleWorkItem) {
   if (busy.value || !canRead() || !auth.can(row ? 'example:update' : 'example:create')) return
   Object.assign(form, row ? { id: row.id, title: row.title, notes: row.notes, status: row.status, priority: row.priority, version: row.version } : initial())
-  formError.value = ''; conflict.value = false; key = newIdempotencyKey('example'); submitted = ''; editOpen.value = true
+  formError.value = ''; conflict.reset(); key = newIdempotencyKey('example'); submitted = ''; editOpen.value = true
 }
 function inspect(row: ExampleWorkItem) { if (canRead()) { selected.value = { ...row }; detailOpen.value = true } }
-async function reloadForm() {
-  if (!formGuard.isCurrent() || busy.value) return
-  reloading.value = true
-  try { await ElMessageBox.confirm(uiText('重新加载会丢弃当前输入，确定继续？'), uiText('提示')); if (!formGuard.isCurrent()) return; const row = await exampleApi.detail(form.id); if (!formGuard.isCurrent()) return; Object.assign(form, { title: row.title, notes: row.notes, status: row.status, priority: row.priority, version: row.version }); formGuard.markClean(); conflict.value = false; formError.value = '' }
-  catch (error) { if (formGuard.isCurrent() && error !== 'cancel' && error !== 'close') formError.value = uiText('重新加载失败，输入已保留，请重试') }
-  finally { reloading.value = false }
-}
 async function save() {
-  if (busy.value || !formGuard.isCurrent()) return
+  if (busy.value || conflict.active.value || !formGuard.isCurrent()) return
   formError.value = ''
   if (!form.title.trim()) { formError.value = uiText('请填写工单标题'); return }
   const { id, ...data } = form, payload = { ...data, title: data.title.trim() }
@@ -95,7 +102,7 @@ async function save() {
   if (submitted && submitted !== digest) key = newIdempotencyKey('example')
   submitted = digest; saving.value = true
   try { await exampleApi.save(id, payload, key); if (!formGuard.isCurrent()) return; formGuard.markClean(); editOpen.value = false; ElMessage.success(uiText('保存成功')); await loadRows() }
-  catch (error: any) { if (!formGuard.isCurrent()) return; conflict.value = error.response?.status === 409; formError.value = uiText(conflict.value ? '记录已被修改，输入已保留；请重新加载后再提交' : '保存失败，输入已保留；请检查字段或刷新选项后重试') }
+  catch (error: any) { if (!formGuard.isCurrent()) return; if (error.response?.status === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，输入已保留；请检查字段或刷新选项后重试') }
   finally { saving.value = false }
 }
 async function remove(row: ExampleWorkItem) {

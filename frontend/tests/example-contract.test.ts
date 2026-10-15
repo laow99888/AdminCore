@@ -5,9 +5,18 @@ vi.mock('../src/api/request', () => ({ default: calls }))
 import { exampleApi, newIdempotencyKey } from '../src/api'
 import { canAccessPage } from '../src/router/access'
 import { useModuleStore } from '../src/stores/modules'
+import { postsApi } from '../src/api/posts'
 
 beforeEach(() => { vi.clearAllMocks(); setActivePinia(createPinia()) })
 describe('示例模块声明与API约束', () => {
+  it('岗位和工单的比较读取携带取消信号并使用详情入口', async () => {
+    const controller = new AbortController(), record = { id: 'record', version: 2 }
+    calls.get.mockResolvedValue({ data: { data: record } })
+    expect(await postsApi.detail('record', controller.signal)).toEqual(record)
+    expect(calls.get).toHaveBeenLastCalledWith('/organization/posts/record/', { signal: controller.signal })
+    expect(await exampleApi.detail('record', controller.signal)).toEqual(record)
+    expect(calls.get).toHaveBeenLastCalledWith('/example/items/record/', { signal: controller.signal })
+  })
   it('创建复用显式幂等键，更新与删除携带版本且不提交操作者字段', async () => {
     const data = { title: 'fixture', notes: '', status: 'open' as const, priority: 'normal' as const, version: 0 }
     const key = newIdempotencyKey('example')

@@ -55,6 +55,41 @@ def export_fixture(source, image, extension, containers):
         containers.remove(name)
 
 
+class ValidationHTTP:
+    """Keep real rotating sessions valid across slow conversions; never recover revoked sessions."""
+    def __init__(self, base_url, check):
+        self.base_url, self.check = base_url, check
+
+    def __call__(self, path, *, token=None, data=None, method='GET', expected=200, files=None, key=None):
+        def send():
+            headers = {'Authorization': 'Bearer ' + token['access']} if token else {}
+            if key:
+                headers['Idempotency-Key'] = key
+            return requests.request(method, self.base_url + path, headers=headers,
+                json=data, files=files, timeout=35)
+
+        response = send()
+        if response.status_code == 401 and token and expected != 401:
+            refreshed = requests.request('POST', self.base_url + 'auth/refresh/',
+                json={'refresh': token['refresh']}, timeout=35)
+            self.check('auth/refresh/ HTTP 200 (actual ' + str(refreshed.status_code) + ')',
+                refreshed.status_code == 200)
+            pair = refreshed.json().get('data', {})
+            self.check('refresh 返回轮换凭据', isinstance(pair, dict) and all(
+                isinstance(pair.get(name), str) and pair[name] for name in ('access', 'refresh')))
+            token.update(access=pair['access'], refresh=pair['refresh'])
+            response = send()  # Authentication rejected the first attempt before any business write.
+        self.check(path + ' HTTP ' + str(expected) + ' (actual ' + str(response.status_code) + ')',
+            response.status_code == expected)
+        return response
+
+    def login(self, username, password):
+        pair = self('auth/login/', method='POST', data={'username': username, 'password': password}).json()
+        self.check('login 返回完整凭据', all(isinstance(pair.get(name), str) and pair[name]
+            for name in ('access', 'refresh')))
+        return {name: pair[name] for name in ('access', 'refresh')}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, help='main 审查并准备的 image@sha256 仓库摘要')
@@ -110,17 +145,8 @@ def main():
             payload=json.dumps(data).encode() if data else None, expected=expected)
         return json.loads(output) if expected == 0 else None
 
-    def http(path, *, token=None, data=None, method='GET', expected=200, files=None, key=None):
-        headers = {'Authorization': 'Bearer ' + token} if token else {}
-        if key:
-            headers['Idempotency-Key'] = key
-        response = requests.request(method, base_url + path, headers=headers,
-            json=data, files=files, timeout=35)
-        check(path + ' HTTP ' + str(expected), response.status_code == expected)
-        return response
-
-    def login(username, password):
-        return http('auth/login/', method='POST', data={'username': username, 'password': password}).json()['access']
+    http = ValidationHTTP(base_url, check)
+    login = http.login
 
     def upload(content, extension, token):
         response = http('files/', method='POST', token=token, expected=201,

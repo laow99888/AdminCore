@@ -61,6 +61,18 @@ def backend_command(*arguments):
         env={**os.environ, 'DJANGO_SETTINGS_MODULE': 'config.settings.testing', 'DJANGO_ENV': 'testing'})
 
 
+def register_frontend_extension(registry, module, title):
+    """在隔离副本的显式数组入口登记页面，不依赖最后一个可选页面的写法。"""
+    source = registry.read_text(encoding='utf-8')
+    anchor = 'export const frontendExtensions = ['
+    if source.count(anchor) != 1:
+        raise RuntimeError('前端扩展登记入口不唯一，隔离安装已停止')
+    entry = ('{ key: ' + json.dumps(module) + ', path: ' + json.dumps('/' + module.replace('_', '-'))
+        + ', permission: ' + json.dumps(module + ':read') + ', title: ' + json.dumps(title, ensure_ascii=False)
+        + ', component: () => import(' + json.dumps('../views/' + module + '/RecordListView.vue') + ') }, ')
+    registry.write_text(source.replace(anchor, anchor + entry, 1), encoding='utf-8')
+
+
 def existing_table_acceptance(token):
     # 从真实元数据生成第二模块，在原隔离表上运行managed=False CRUD。
     output = snippet("""import json
@@ -86,7 +98,7 @@ print(json.dumps(definition,ensure_ascii=False))
     settings = WORK / 'backend/config/settings/base.py'
     settings.write_text(settings.read_text(encoding='utf-8').replace("    'apps.work_assets',", "    'apps.work_assets',\n    'apps.catalog_items',", 1), encoding='utf-8')
     registry = WORK / 'frontend/src/modules/registry.ts'
-    registry.write_text(registry.read_text(encoding='utf-8').replace('}] as const', "}, { key: 'catalog_items', path: '/catalog-items', permission: 'catalog_items:read', title: '目录记录', component: () => import('../views/catalog_items/RecordListView.vue') }] as const"), encoding='utf-8')
+    register_frontend_extension(registry, 'catalog_items', '目录记录')
     backend_command('makemigrations', 'catalog_items', 'core')
     run([sys.executable, '-X', 'utf8', '-m', 'pytest', 'tests/test_generated_catalog_items.py'], cwd=WORK / 'backend')
     backend_command('spectacular', '--validate', '--fail-on-warn', '--file', str(FOLDER / 'two-module-schema.yml'))
@@ -178,7 +190,7 @@ def main():
     settings = WORK / 'backend/config/settings/base.py'
     settings.write_text(settings.read_text(encoding='utf-8').replace("    'apps.example',", "    'apps.example',\n    'apps.work_assets',", 1), encoding='utf-8')
     registry = WORK / 'frontend/src/modules/registry.ts'
-    registry.write_text(registry.read_text(encoding='utf-8').replace('}] as const', "}, { key: 'work_assets', path: '/work-assets', permission: 'work_assets:read', title: '资产记录', component: () => import('../views/work_assets/RecordListView.vue') }] as const"), encoding='utf-8')
+    register_frontend_extension(registry, 'work_assets', '资产记录')
     backend_command('makemigrations', 'work_assets', 'core')
     run([sys.executable, '-X', 'utf8', '-m', 'pytest', 'tests/test_generated_work_assets.py'], cwd=WORK / 'backend')
     backend_command('spectacular', '--validate', '--fail-on-warn', '--file', str(FOLDER / 'generated-schema.yml'))

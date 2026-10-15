@@ -35,17 +35,36 @@ try {
         headers: { Authorization: 'Bearer ' + token }, data: { version: row.version, quantity: row.quantity + 1 },
       })
       expect(changed.status()).toBe(200)
+      const latest = (await changed.json()).data
       await dialog.getByRole('button', { name: '保存', exact: true }).click()
       await expect(dialog.getByRole('alert')).toContainText('输入已保留')
       await expect(dialog.getByRole('textbox', { name: '名称', exact: true })).toHaveValue('保留未提交输入')
       await page.screenshot({ path: resolve(evidence, 'generated-' + name + '-conflict.png'), fullPage: true })
-      await dialog.getByRole('button', { name: '重新加载', exact: true }).click()
-      await page.getByRole('button', { name: '确定', exact: true }).click()
-      await expect(page.getByRole('dialog', { name: '提示', exact: true })).toHaveCount(0)
-      await expect(dialog.getByRole('button', { name: '重新加载', exact: true })).toHaveCount(0)
+      const panel = dialog.getByRole('region', { name: '编辑冲突' })
+      await expect(dialog.getByRole('button', { name: '保存', exact: true })).toBeDisabled()
+      await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+      await expect(panel.getByRole('table')).toContainText('隔离资产')
+      await expect(panel.getByRole('table')).toContainText('保留未提交输入')
+      await expect(panel.locator('tbody tr')).toHaveCount(4)
+      for (const [label, local, server] of [
+        ['名称', '保留未提交输入', latest.label], ['备注', row.remarks, latest.remarks],
+        ['数量', String(row.quantity), String(latest.quantity)], ['可用', row.available ? '是' : '否', latest.available ? '是' : '否'],
+      ]) {
+        const comparison = panel.getByRole('row').filter({ has: page.getByRole('rowheader', { name: label, exact: true }) })
+        await expect(comparison.getByRole('cell').nth(0)).toHaveText(local)
+        await expect(comparison.getByRole('cell').nth(1)).toHaveText(server)
+      }
+      await expect(dialog.getByRole('textbox', { name: '名称', exact: true })).toHaveValue('保留未提交输入')
+      await expect(panel).toContainText('服务器版本：' + latest.version)
+      await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
+      await expect(panel).toHaveCount(0)
       await expect(dialog.getByRole('textbox', { name: '名称', exact: true })).toHaveValue('隔离资产')
-      await dialog.getByRole('button', { name: '取消', exact: true }).click()
+      const savedRequest = page.waitForRequest(request => request.method() === 'PATCH' && request.url().endsWith('/work-assets/records/' + row.id + '/'))
+      await dialog.getByRole('button', { name: '保存', exact: true }).click()
+      expect((await savedRequest).postDataJSON().version).toBe(latest.version)
       await expect(dialog).toHaveCount(0)
+      const persisted = await context.request.get('/api/v1/work-assets/records/' + row.id + '/', { headers: { Authorization: 'Bearer ' + token } })
+      expect((await persisted.json()).data.version).toBe(latest.version + 1)
       await page.getByRole('row').filter({ hasText: '隔离资产' }).getByRole('button', { name: '详情', exact: true }).click()
       await expect(page.getByRole('dialog').getByText('<script>正文只作文字</script>', { exact: true })).toBeVisible()
       expect(await page.evaluate(() => document.querySelector('script')?.textContent?.includes('正文只作文字') ?? false)).toBe(false)
@@ -60,7 +79,7 @@ try {
       const after = await context.request.get('/api/v1/work-assets/records/', { headers: { Authorization: 'Bearer ' + token } })
       expect((await after.json()).data.items.filter(item => item.label === '浏览器新增-' + name)).toHaveLength(1)
       await page.screenshot({ path: resolve(evidence, 'generated-' + name + '-list.png'), fullPage: true })
-      checks.push(name + ': real sign-in, bound fields, version conflict/input retention/reload, escaped details, create')
+      checks.push(name + ': real sign-in, bound fields, version conflict/input retention/server comparison/explicit apply/current-version save, escaped details, create')
       await context.tracing.stop()
     } catch (error) {
       await page.screenshot({ path: resolve(evidence, 'generated-' + name + '-failure.png'), fullPage: true })

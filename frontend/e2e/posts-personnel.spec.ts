@@ -37,7 +37,7 @@ async function openAssignee(page: Page) {
   return picker
 }
 
-test('岗位表单验证与冲突保留输入，重新加载需要确认', async ({ page }, info) => {
+test('岗位表单验证与冲突保留输入，先比较再显式载入服务器字段', async ({ page }, info) => {
   await setup(page)
   await page.goto('/organization/posts')
   await expect(page.getByText('内容编辑', { exact: true })).toBeVisible()
@@ -50,8 +50,12 @@ test('岗位表单验证与冲突保留输入，重新加载需要确认', async
   await expect(dialog.getByRole('alert')).toContainText('记录已被修改')
   await expect(dialog.getByRole('textbox', { name: '岗位名称', exact: true })).toHaveValue('保留我的修改')
   await page.route('**/organization/posts/post-one/', route => route.fulfill({ json: envelope({ ...post, version: 2 }) }))
-  await dialog.getByRole('button', { name: '重新加载当前记录' }).click()
-  await page.getByRole('button', { name: '确定', exact: true }).click()
+  const panel = dialog.getByRole('region', { name: '编辑冲突' })
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.getByRole('table')).toContainText('编辑岗位')
+  await expect(panel.getByRole('table')).toContainText('保留我的修改')
+  await expect(dialog.getByRole('textbox', { name: '岗位名称', exact: true })).toHaveValue('保留我的修改')
+  await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
   await expect(dialog.getByRole('textbox', { name: '岗位名称', exact: true })).toHaveValue('编辑岗位')
   await expect(page.locator('.el-overlay.is-message-box')).toHaveCount(0)
   await settleDialogs(page)

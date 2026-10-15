@@ -19,6 +19,7 @@ from django.utils import timezone
 from apps.core.media_storage import copy_exact, export_media, media_keys
 from apps.files.models import FileModel
 from config.storage import storage_settings
+from tests.file_permissions import grant_files
 
 pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
@@ -90,7 +91,7 @@ def test_real_s3_private_profile_avatar_lifecycle(s3_storage, member_client, mem
     assert not s3_storage.exists(old.file.name) and not FileModel.objects.exists()
 
 
-def test_real_s3_authenticated_image_and_pdf_preview(s3_storage, admin_client, member_client):
+def test_real_s3_authenticated_image_and_pdf_preview(s3_storage, admin_client, member_client, member_user):
     from tests.test_file_preview import image_bytes, pdf_bytes, upload, preview
     for name, content, mime in [('private.png', image_bytes(), 'image/png'),
                                 ('private.pdf', pdf_bytes(), 'application/pdf')]:
@@ -98,6 +99,9 @@ def test_real_s3_authenticated_image_and_pdf_preview(s3_storage, admin_client, m
         result = preview(admin_client, id)
         assert result.status_code == 200 and result['Content-Type'] == mime
         assert result['Cache-Control'] == 'private, no-store'
+        if name == 'private.png':
+            assert preview(member_client, id).status_code == 403
+            grant_files(member_user, 'file:download')
         assert preview(member_client, id).status_code == 404
         assert admin_client.delete(f'/api/v1/files/{id}/').status_code == 204
         assert preview(admin_client, id).status_code == 404
@@ -126,7 +130,7 @@ def s3_storage():
     client.delete_bucket(Bucket=environment['S3_BUCKET_NAME'])
 
 
-def test_real_s3_upload_authorization_cleanup_backup_restore(s3_storage, admin_client, member_client, tmp_path, monkeypatch):
+def test_real_s3_upload_authorization_cleanup_backup_restore(s3_storage, admin_client, member_client, member_user, tmp_path, monkeypatch):
     storage = s3_storage
     upload = io.BytesIO(b'actual-s3-file')
     upload.name = 'private.txt'
@@ -137,6 +141,8 @@ def test_real_s3_upload_authorization_cleanup_backup_restore(s3_storage, admin_c
     assert storage.open(record.file.name).read() == b'actual-s3-file'
     assert '/download/' in response.json()['file'] and 'X-Amz' not in json.dumps(response.json())
     download = f'/api/v1/files/{record.pk}/download/'
+    assert member_client.get(download).status_code == 403
+    grant_files(member_user, 'file:download')
     assert member_client.get(download).status_code == 404
     from rest_framework.test import APIClient
     assert APIClient().get(download).status_code == 401

@@ -45,7 +45,7 @@ test('新建双击只有一次请求，提交版本和幂等键', async ({ page 
   expect(state.saves[0].key).toMatch(/^example-/)
 })
 
-test('冲突保留输入，加载当前版本需先确认', async ({ page }, info) => {
+test('冲突保留输入，先比较再显式载入当前版本', async ({ page }, info) => {
   const state = await setup(page); state.fail = true; await page.goto('/example')
   await page.getByRole('button', { name: '编辑', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -54,8 +54,12 @@ test('冲突保留输入，加载当前版本需先确认', async ({ page }, inf
   await expect(dialog.getByRole('alert')).toContainText('输入已保留')
   await expect(dialog.getByRole('textbox', { name: '工单标题', exact: true })).toHaveValue('unsaved title')
   await page.screenshot({ path: info.outputPath('example-conflict.png'), fullPage: true, animations: 'disabled' })
-  await dialog.getByRole('button', { name: '重新加载', exact: true }).click()
-  await page.getByRole('button', { name: '确定', exact: true }).click()
+  const panel = dialog.getByRole('region', { name: '编辑冲突' })
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.getByRole('table')).toContainText('复用基座的真实业务契约')
+  await expect(panel.getByRole('table')).toContainText('unsaved title')
+  await expect(dialog.getByRole('textbox', { name: '工单标题', exact: true })).toHaveValue('unsaved title')
+  await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
   await expect(dialog.getByRole('textbox', { name: '工单标题', exact: true })).toHaveValue('复用基座的真实业务契约')
 })
 
@@ -83,12 +87,13 @@ test('冲突重新加载失败保留输入并允许再次恢复', async ({ page 
   await dialog.getByRole('textbox', { name: '工单标题', exact: true }).fill('retained after read failure')
   await dialog.getByRole('button', { name: '保存', exact: true }).click()
   await expect(dialog.getByRole('alert')).toContainText('输入已保留')
-  await dialog.getByRole('button', { name: '重新加载', exact: true }).click()
-  await page.getByRole('button', { name: '确定', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toContainText('重新加载失败')
+  const panel = dialog.getByRole('region', { name: '编辑冲突' })
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(panel.getByRole('alert').last()).toContainText('最新值加载失败或已无权限')
   await expect(dialog.getByRole('textbox', { name: '工单标题', exact: true })).toHaveValue('retained after read failure')
   state.detailFail = false
-  await dialog.getByRole('button', { name: '重新加载', exact: true }).click()
-  await page.getByRole('button', { name: '确定', exact: true }).click()
+  await panel.getByRole('button', { name: '查看服务器最新值', exact: true }).click()
+  await expect(dialog.getByRole('textbox', { name: '工单标题', exact: true })).toHaveValue('retained after read failure')
+  await panel.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click()
   await expect(dialog.getByRole('textbox', { name: '工单标题', exact: true })).toHaveValue('复用基座的真实业务契约')
 })
