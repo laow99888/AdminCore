@@ -87,6 +87,8 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',  # 静态文件
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
+    'apps.core.error_i18n.APIErrorI18nMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # CORS
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -150,6 +152,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # ===== 国际化 =====
 LANGUAGE_CODE = 'zh-hans'
+LANGUAGES = [('zh-hans', '简体中文'), ('en', 'English')]
 TIME_ZONE = 'Asia/Shanghai'
 USE_I18N = True
 USE_TZ = True

@@ -12,6 +12,8 @@ import { ElMessage } from 'element-plus'
 import router from '../router'
 import { useAuthStore } from '../stores/auth'
 import { refreshSessionTokens, tokensBelongToSameSession } from './tokenRefresh'
+import { apiLanguage } from './language'
+import publicRequest from './publicRequest'
 
 export interface ApiResponse<T = any> {
   code: number
@@ -38,6 +40,7 @@ const request = axios.create({
 
 // 请求拦截器：附加认证头
 request.interceptors.request.use((config) => {
+  config.headers['Accept-Language'] = apiLanguage()
   const token = localStorage.getItem('token')
   if ((config as any)._retried && !tokensBelongToSameSession((config as any)._sessionToken, token)) {
     // Re-login between refresh completion and dispatch must not replay prior work as the new actor.
@@ -56,8 +59,8 @@ let refreshingToken: string | null = null
 
 function refreshAccessToken(failedAccess: string | null) {
   return refreshSessionTokens(failedAccess, async refreshToken => {
-    // 用裸 axios：不带过期的 access，也不走本实例拦截器避免递归
-    const res = await axios.post(`${request.defaults.baseURL}/auth/refresh/`, {
+    // 独立公开传输只携带当前语言，不带过期 access、不递归刷新，并限制超时。
+    const res = await publicRequest.post('/auth/refresh/', {
       refresh: refreshToken,
     })
     const body = res.data

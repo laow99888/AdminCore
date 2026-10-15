@@ -19,6 +19,8 @@ from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 from apps.core import realtime
 from apps.core.modules import module_enabled
 from apps.core.api_lifecycle import response_headers
+from apps.core.error_i18n import error_text
+from django.utils import translation
 
 PATH = '/api/v1/realtime/events/'
 SAFE_ID = re.compile(r'[A-Za-z0-9._:-]{1,100}\Z')
@@ -83,8 +85,8 @@ async def _json(send, status, request_id):
         headers.append((b'retry-after', b'60'))
     await _send(send, {'type': 'http.response.start', 'status': status, 'headers': headers})
     await _send(send, {'type': 'http.response.body', 'body': json.dumps(
-        {'code': status, 'message': {400: '实时请求无效', 401: '登录凭据已失效', 403: '实时连接被拒绝',
-         200: 'success', 404: '未找到', 405: '只允许 GET', 429: '实时连接达到上限', 503: '实时服务暂不可用'}.get(status, '服务暂不可用'),
+        {'code': status, 'message': error_text({400: '实时请求无效', 401: '登录凭据已失效', 403: '实时连接被拒绝',
+         200: 'success', 404: '未找到', 405: '只允许 GET', 429: '实时连接达到上限', 503: '实时服务暂不可用'}.get(status, '服务暂不可用')),
          'data': None}).encode()})
 
 
@@ -122,6 +124,22 @@ async def _stream(raw_token, lease_id, request_id, send):
 
 
 async def application(scope, receive, send):
+    if scope['type'] != 'http':
+        return await localized_application(scope, receive, send)
+    request = HttpRequest()
+    request.META['HTTP_ACCEPT_LANGUAGE'] = ','.join(value.decode('latin1') for name, value
+        in scope.get('headers', []) if name.lower() == b'accept-language')
+    language = translation.get_language_from_request(request)
+    async def localized_send(message):
+        if message['type'] == 'http.response.start':
+            message = {**message, 'headers': [*message.get('headers', []),
+                (b'content-language', language.encode('ascii')), (b'vary', b'Accept-Language')]}
+        await send(message)
+    with translation.override(language):
+        return await localized_application(scope, receive, localized_send)
+
+
+async def localized_application(scope, receive, send):
     # 专用ASGI服务不经过Django中间件；仅装饰开始帧，不缓冲或消费事件流。
     original_send = send
     lifecycle = [(key.lower().encode('ascii'), value.encode('ascii'))

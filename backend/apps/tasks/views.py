@@ -95,9 +95,10 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
                 # broker 不可用时仅标记记录，不阻断取消流程
                 logger.warning('Revoke celery task %s failed: %s', record.celery_task_id, exc)
 
+        from apps.core.error_i18n import error_text
         return Response({
             'code': 200,
-            'message': '已请求取消；已完成的导入行保留，后续行停止执行' + ('（已发送撤销指令）' if revoked else ''),
+            'message': error_text('已请求取消；已完成的导入行保留，后续行停止执行') + (error_text('（已发送撤销指令）') if revoked else ''),
             'data': TaskRecordSerializer(record).data,
         })
 
@@ -115,4 +116,5 @@ class TaskRecordViewSet(viewsets.ReadOnlyModelViewSet):
             status__in=['success', 'failed', 'cancelled'],
             created_at__lt=cutoff,
         ).delete()
-        return Response({'code': 200, 'message': f'已清理 {deleted} 条历史任务记录', 'data': None})
+        from apps.core.error_i18n import error_text
+        return Response({'code': 200, 'message': error_text('已清理 {count} 条历史任务记录', count=deleted), 'data': None})

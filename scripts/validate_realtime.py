@@ -78,6 +78,9 @@ def stream(token, *, expected=200, headers=None, suffix=''):
     response = requests.get(BASE + 'realtime/events/' + suffix,
         headers={'Authorization': 'Bearer ' + token, **(headers or {})}, stream=True, timeout=(5, 10))
     check('真实 SSE HTTP 状态 ' + str(expected) + '（实际 ' + str(response.status_code) + '）', response.status_code == expected)
+    language = 'en' if (headers or {}).get('Accept-Language') == 'en-US' else 'zh-hans'
+    check('独立 ASGI 语言协商及缓存区分 ' + language, response.headers.get('Content-Language') == language
+        and 'Accept-Language' in response.headers.get('Vary', ''))
     check('独立 ASGI 的成功和拒绝响应透传标准版本通知', response.headers.get('X-API-Version') == 'v1'
         and response.headers.get('Deprecation') == '@1577836800'
         and response.headers.get('Sunset') == 'Wed, 01 Apr 2020 00:00:00 GMT'
@@ -164,6 +167,10 @@ def main():
         ready()
         services = compose('minimal', 'ps', '--status', 'running', '--services').stdout.split()
         check('精简 SSE 四服务无需 Redis/worker/beat', set(services) == {'db', 'backend', 'frontend', 'realtime'})
+        for language, message in [('en-US', 'The sign-in credentials have expired.'), ('zh-CN', '登录凭据已失效')]:
+            denied = stream('', expected=401, headers={'Accept-Language': language})
+            check('真实 Nginx/SSE 拒绝消息本地化 ' + language, denied.json()['message'] == message)
+            denied.close()
         token = login('admin', password)
         api('auth/change_password/', token=token, method='POST', data={'old_password': password, 'new_password': member_password, 'new_password2': member_password})
         token = login('admin', member_password)

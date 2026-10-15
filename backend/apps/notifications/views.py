@@ -84,7 +84,8 @@ class NotificationViewSet(mixins.ListModelMixin,
         """标记全部通知为已读"""
         now = timezone.now()
         updated = Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True, read_at=now)
-        return Response({'code': 200, 'message': f'已将 {updated} 条通知标记为已读', 'data': {'updated': updated}})
+        from apps.core.error_i18n import error_text
+        return Response({'code': 200, 'message': error_text('已将 {count} 条通知标记为已读', count=updated), 'data': {'updated': updated}})
 
     @action(detail=False, methods=['get'])
     def unread_count(self, request):

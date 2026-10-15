@@ -1,10 +1,9 @@
-import axios from 'axios'
+import publicRequest from './publicRequest'
 import type { ApiResponse } from './request'
 
 export interface LoginCaptchaProof { captcha_id: string; captcha_code: string }
 export type LoginCaptchaChallenge = { required: false } | { required: true; challenge_id: string; image: string; expires_in: number }
 // Anonymous challenges do not attach JWTs or enter the authenticated refresh flow.
-const publicRequest = axios.create({ baseURL: (import.meta.env.VITE_API_BASE_URL as string) || '/api/v1', timeout: 30000 })
 export function validateLoginCaptcha(value: unknown): LoginCaptchaChallenge {
   const data = value as Partial<Extract<LoginCaptchaChallenge, { required: true }>>
   if ((value as { required?: unknown })?.required === false) return { required: false }

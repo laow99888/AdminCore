@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-const publicClient = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }))
+const publicClient = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn(), interceptors: { request: { use: vi.fn() } } }))
 vi.mock('axios', () => ({ default: { create: vi.fn(() => publicClient) } }))
 vi.mock('../src/api/request', () => ({ default: { post: vi.fn() } }))
 import request from '../src/api/request'

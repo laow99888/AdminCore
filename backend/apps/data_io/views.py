@@ -8,6 +8,7 @@ import os
 
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiTypes, OpenApiParameter
 from apps.core.schema import envelope
+from apps.core.error_i18n import error_text
 
 from django.http import HttpResponse
 from rest_framework import status
@@ -84,7 +85,7 @@ class DataImportView(DataModuleView):
         if ext not in IMPORT_ALLOWED_EXTENSIONS:
             return Response({
                 'code': 400,
-                'message': f'仅支持 {", ".join(IMPORT_ALLOWED_EXTENSIONS)} 格式',
+                'message': error_text('仅支持 {extensions} 格式', extensions=', '.join(IMPORT_ALLOWED_EXTENSIONS)),
                 'data': None,
             }, status=status.HTTP_400_BAD_REQUEST)
 
@@ -163,7 +164,7 @@ class ImportTemplateView(DataModuleView):
         resource_name = request.query_params.get('resource', 'users')
         config = get_resource(resource_name)
         if config is None or not config['importable']:
-            return Response({'code': 400, 'message': f'未注册的资源：{resource_name}', 'data': None},
+            return Response({'code': 400, 'message': error_text('未注册的资源：{resource}', resource=resource_name), 'data': None},
                             status=status.HTTP_400_BAD_REQUEST)
 
         wb = Workbook()

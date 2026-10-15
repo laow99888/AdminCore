@@ -64,9 +64,11 @@ class ConfigDefinition:
             return validate_logo(value)
         if self.kind == 'integer':
             if type(value) is not int or not self.minimum <= value <= self.maximum:
-                raise serializers.ValidationError({'value': f'必须为 {self.minimum}–{self.maximum} 的整数'})
+                from .error_i18n import error_text
+                raise serializers.ValidationError({'value': error_text('必须为 {minimum}–{maximum} 的整数', minimum=self.minimum, maximum=self.maximum)})
         elif not isinstance(value, str) or not self.minimum <= len(value.strip()) <= self.maximum:
-            raise serializers.ValidationError({'value': f'文本长度必须为 {self.minimum}–{self.maximum}'})
+            from .error_i18n import error_text
+            raise serializers.ValidationError({'value': error_text('文本长度必须为 {minimum}–{maximum}', minimum=self.minimum, maximum=self.maximum)})
         return value.strip() if isinstance(value, str) else value
 
 

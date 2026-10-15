@@ -33,10 +33,14 @@ def main():
         if result.returncode:
             raise RuntimeError('隔离Compose命令失败，见docker.log')
 
-    def api(base, path, *, token=None, method='GET', data=None, expected=200):
+    def api(base, path, *, token=None, method='GET', data=None, expected=200, language=None):
         response = requests.request(method, base + path, json=data,
-            headers={'Authorization': 'Bearer ' + token} if token else {}, timeout=20)
+            headers={**({'Authorization': 'Bearer ' + token} if token else {}),
+                     **({'Accept-Language': language} if language else {})}, timeout=20)
         check(path + ' → ' + str(expected), response.status_code == expected)
+        if language:
+            check('语言响应及缓存变体 ' + language, response.headers.get('Content-Language') == ('en' if language == 'en-US' else 'zh-hans')
+                  and 'Accept-Language' in response.headers.get('Vary', ''))
         return response.json()
 
     try:
@@ -69,6 +73,10 @@ def main():
             api(base, 'auth/change_password/', token=token, method='POST', data={
                 'old_password': password, 'new_password': new_password, 'new_password2': new_password})
             token = api(base, 'auth/login/', method='POST', data={'username': 'admin', 'password': new_password})['access']
+            for language, message in [('en-US', 'The two passwords do not match.'), ('zh-CN', '两次输入的密码不一致')]:
+                errors = api(base, 'auth/change_password/', token=token, method='POST', expected=400, language=language,
+                    data={'old_password': new_password, 'new_password': secrets.token_urlsafe(40), 'new_password2': 'mismatch'})
+                check(preset + '真实错误语言 ' + language, errors['data']['new_password'] == message)
             capabilities = api(base, 'modules/', token=token)['data']
             check(preset + '契约及预设', capabilities['contract_version'] == 1 and capabilities['preset'] == preset)
             if preset == 'standard':

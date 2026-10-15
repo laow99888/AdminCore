@@ -104,7 +104,8 @@ class ApprovalRequestViewSet(viewsets.GenericViewSet,
         application = self.get_object()
         application = ApprovalRequest.objects.select_for_update().get(pk=application.pk)
         if application.status != 'pending':
-            return Response({'code': 400, 'message': f'该申请当前状态为 {application.get_status_display()}，无法处理',
+            from apps.core.error_i18n import error_text
+            return Response({'code': 400, 'message': error_text('该申请当前状态为 {status}，无法处理', status=error_text(application.get_status_display())),
                              'data': None}, status=status.HTTP_400_BAD_REQUEST)
         if application.assignee_id != request.user.id:
             return Response({'code': 403, 'message': '只有当前审批人可以处理该申请', 'data': None},

@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({ rejected: undefined as ((error: unknown) => Pr
   request: Object.assign(vi.fn(), { defaults: { baseURL: '/api/v1' }, interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } }),
   post: vi.fn(), clear: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
 vi.mock('axios', () => ({ default: { create: () => mocks.request, post: mocks.post, isCancel: () => false } }))
+vi.mock('../src/api/publicRequest', () => ({ default: { post: mocks.post } }))
 vi.mock('../src/router', () => ({ default: { currentRoute: { value: { path: '/settings/sessions' } }, push: mocks.push } }))
 vi.mock('../src/stores/auth', () => ({ useAuthStore: () => ({ clearSession: mocks.clear }) }))
 vi.mock('../src/api/tokenRefresh', async importOriginal => ({ ...(await importOriginal<typeof import('../src/api/tokenRefresh')>()), refreshSessionTokens: mocks.refresh }))
@@ -22,6 +23,22 @@ describe('401 拦截器刷新与会话边界', () => {
     mocks.request.mockResolvedValue({ data: 'retried' })
   })
   const failure = (token = old) => ({ response: { status: 401 }, config: { url: '/auth/sessions/', headers: { Authorization: `Bearer ${token}` } } })
+  it('刷新通过无JWT的独立公开传输发送，保留返回令牌兼容性', async () => {
+    mocks.refresh.mockImplementation(async (_token, exchange) => {
+      expect(await exchange('isolated-refresh')).toEqual({ access: fresh, refresh: 'rotated-refresh' })
+      return { access: fresh, stale: false }
+    })
+    mocks.post.mockResolvedValue({ data: { data: { access: fresh, refresh: 'rotated-refresh' } } })
+    await mocks.rejected!(failure())
+    expect(mocks.post).toHaveBeenCalledWith('/auth/refresh/', { refresh: 'isolated-refresh' })
+  })
+  it.each([['en-US', 'en'], ['zh-CN', 'zh-Hans'], ['unsupported', 'zh-Hans']])('请求采用当前界面语言 %s', (language, expected) => {
+    const handler = mocks.request.interceptors.request.use.mock.calls[0]![0]
+    localStorage.setItem('language', language!)
+    const config = handler({ headers: {} })
+    expect(config.headers['Accept-Language']).toBe(expected)
+    expect(config.headers.Authorization).toBe(`Bearer ${old}`)
+  })
   it.each([400, 401, 429, 503, undefined])('登录%s错误由登录页反馈，不refresh、不清会话、不发重复全局message', async status => {
     const error = { config: { url: '/auth/login/' }, ...(status ? { response: { status } } : {}) }
     await expect(mocks.rejected!(error)).rejects.toBe(error)

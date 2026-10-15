@@ -1,8 +1,7 @@
-import axios from 'axios'
+import publicRequest from './publicRequest'
 import type { ApiResponse } from './request'
 
 // Public recovery never attaches a stored JWT or enters the authenticated refresh flow.
-const publicRequest = axios.create({ baseURL: (import.meta.env.VITE_API_BASE_URL as string) || '/api/v1', timeout: 30000 })
 export function passwordResetError(reason: unknown): string | undefined {
   const response = (reason as { response?: { status?: number; data?: { data?: Record<string, unknown> } } })?.response
   if (response?.status !== 400) return undefined
