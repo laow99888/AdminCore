@@ -61,10 +61,10 @@ const form = reactive({ first_name: '', last_name: '', email: '', phone: '', bio
 let request: AbortController | undefined
 let alive = true
 const profileFields = [['first_name', '名字'], ['last_name', '姓氏'], ['email', '邮箱'], ['phone', '电话'], ['bio', '个人简介']] as const
-type ProfileSnapshot = Pick<PersonalProfile, 'id' | 'profile_version' | typeof profileFields[number][0]>
+type ProfileSnapshot = Pick<PersonalProfile, 'id' | 'profile_version' | 'email_verified' | typeof profileFields[number][0]>
 function snapshot(value: PersonalProfile): ProfileSnapshot {
   if (!value || value.id !== auth.user?.id || !Number.isInteger(value.profile_version) || value.profile_version < 1 || profileFields.some(([field]) => typeof value[field] !== 'string')) throw new Error('Invalid profile')
-  return { id: value.id, profile_version: value.profile_version, first_name: value.first_name, last_name: value.last_name, email: value.email, phone: value.phone, bio: value.bio }
+  return { id: value.id, profile_version: value.profile_version, email_verified: value.email_verified === true, first_name: value.first_name, last_name: value.last_name, email: value.email, phone: value.phone, bio: value.bio }
 }
 const formGuard = useUnsavedChanges({ source: () => form, active: () => !!profile.value, busy: () => busy.value, message: () => uiText('尚有未保存的资料，确定放弃修改吗？'), clear: () => { profile.value = undefined; error.value = ''; for (const [field] of profileFields) form[field] = '' } })
 const conflict = useEditConflict<ProfileSnapshot>({ identifier: () => profile.value?.id || '', current: () => formGuard.isCurrent(),

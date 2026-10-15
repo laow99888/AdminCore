@@ -18,9 +18,9 @@ const stubs = {
   'el-form-item': defineComponent({ template: '<div><slot /></div>' }),
   'el-alert': defineComponent({ props: ['title'], template: '<p role="alert">{{ title }}</p>' }),
 }
-const initial: PersonalProfile = { id: 'actor', username: 'actor', email: 'old@example.test', avatar: '', permissions: [], is_staff: false,
+const initial: PersonalProfile = { id: 'actor', username: 'actor', email: 'old@example.test', email_verified: true, avatar: '', permissions: [], is_staff: false,
   first_name: 'original', last_name: 'family', phone: '+86 12345678', bio: 'original biography', profile_version: 1, has_avatar: false, avatar_enabled: false }
-const latest = { ...initial, first_name: 'server latest', last_name: 'new family', email: 'latest@example.test', phone: '+86 87654321', bio: '<img src=x onerror=alert(1)>', profile_version: 2 }
+const latest = { ...initial, first_name: 'server latest', last_name: 'new family', email: 'latest@example.test', email_verified: false, phone: '+86 87654321', bio: '<img src=x onerror=alert(1)>', profile_version: 2 }
 const button = (wrapper: VueWrapper, text: string) => wrapper.findAll('button').find(value => value.text() === text)!
 async function setup() {
   const pinia = createPinia(), auth = useAuthStore(pinia), modules = useModuleStore(pinia)
@@ -51,6 +51,7 @@ describe('个人资料白名单冲突比较', () => {
     expect(wrapper.find('img').exists()).toBe(false); expect(wrapper.get('table').text()).toContain('<img src=x onerror=alert(1)>')
     await button(wrapper, '载入服务器最新值（替换当前输入）').trigger('click')
     expect(input().element.value).toBe('server latest'); expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'EmailVerification' }).props('profile').email_verified).toBe(false)
     await input().setValue('reviewed'); await wrapper.get('form').trigger('submit'); await flushPromises()
     expect(authApi.saveProfile).toHaveBeenNthCalledWith(1, { first_name: 'retained draft', last_name: initial.last_name, email: initial.email, phone: initial.phone, bio: initial.bio, profile_version: 1 })
     expect(authApi.saveProfile).toHaveBeenNthCalledWith(2, { first_name: 'reviewed', last_name: latest.last_name, email: latest.email, phone: latest.phone, bio: latest.bio, profile_version: 2 })
