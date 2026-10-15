@@ -49,7 +49,7 @@ def test_management_list_detail_and_updates_are_always_masked(admin_client, sens
     listing = admin_client.get('/api/v1/users/')
     row = next(item for item in listing.json()['data']['items'] if item['id'] == str(sensitive_member.pk))
     detail = admin_client.get(f'/api/v1/users/{sensitive_member.pk}/').json()['data']
-    patched = admin_client.patch(f'/api/v1/users/{sensitive_member.pk}/', {'first_name': 'safe'}, format='json').json()['data']
+    patched = admin_client.patch(f'/api/v1/users/{sensitive_member.pk}/', {'version': 1, 'first_name': 'safe'}, format='json').json()['data']
     for item in (row, detail, patched):
         assert item['email'] != EMAIL and '*' in item['email']
         if 'phone' in item:
@@ -166,7 +166,7 @@ def test_private_email_is_not_an_indirect_search_oracle(admin_client, sensitive_
 
 @pytest.mark.parametrize('field,value', [('phone', '138****3210'), ('email', 'pe***@example.test')])
 def test_masked_placeholder_cannot_be_written_back(admin_client, sensitive_member, field, value):
-    response = admin_client.patch(f'/api/v1/users/{sensitive_member.pk}/', {field: value}, format='json')
+    response = admin_client.patch(f'/api/v1/users/{sensitive_member.pk}/', {'version': 1, field: value}, format='json')
     assert response.status_code == 400
     sensitive_member.refresh_from_db()
     assert sensitive_member.email == EMAIL and sensitive_member.phone == PHONE
@@ -175,7 +175,7 @@ def test_masked_placeholder_cannot_be_written_back(admin_client, sensitive_membe
 def test_valid_new_contact_input_writes_raw_but_returns_mask(admin_client, sensitive_member):
     email, phone = 'replacement@example.test', '+86 13654321098'
     response = admin_client.patch(f'/api/v1/users/{sensitive_member.pk}/',
-        {'email': email, 'phone': phone}, format='json')
+        {'version': 1, 'email': email, 'phone': phone}, format='json')
     assert response.status_code == 200
     assert email not in str(response.json()) and phone not in str(response.json())
     sensitive_member.refresh_from_db()

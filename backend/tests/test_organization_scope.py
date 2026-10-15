@@ -3,6 +3,7 @@ from django.test import override_settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from apps.core.models import Department, OrganizationMembership, DataScopeGrant
 from apps.permissions.models import Role, UserRole, Permission, RolePermission
+from tests.file_permissions import grant_files
 from apps.files.models import FileModel
 from apps.logs.models import OperationLog
 from apps.tasks.models import TaskRecord
@@ -66,7 +67,8 @@ def test_user_scope_list_detail_write_and_export(member_client, member_user, sco
         assert member_client.get(detail).status_code == (200 if permitted else 404)
         if not permitted:
             assert member_client.delete(detail).status_code == 404
-        assert member_client.patch(detail, {'first_name': '范围内'}, format='json').status_code == (200 if permitted else 404)
+        target.refresh_from_db()
+        assert member_client.patch(detail, {'first_name': '范围内', 'version': target.profile_version}, format='json').status_code == (200 if permitted else 404)
         # 本用例验证数据范围；显式不强制改密，避免自重置后中断后续范围断言。
         assert member_client.post(detail + 'reset_password/', {'password': 'ChangedSecure#7824', 'must_change_password': False}, format='json').status_code == (200 if permitted else 404)
         if target.pk == member_user.pk and permitted:
@@ -95,12 +97,15 @@ def test_mixed_bulk_rejects_without_partial_changes(member_client, member_user, 
 
 
 def test_scope_file_download_delete_task_cancel_logs_and_dashboard(member_client, member_user, scoped_users):
+    grant_files(member_user, 'file:download')
     root, child, outside, team, stranger, role = scoped_users
     for resource in ['file', 'task', 'log']:
         DataScopeGrant.objects.create(role=role, resource=resource, scope='department_tree')
     owned = FileModel.objects.create(uploader=team, original_name='team.txt', file=SimpleUploadedFile('team.txt', b'owned'))
     hidden = FileModel.objects.create(uploader=stranger, original_name='outside.txt', file=SimpleUploadedFile('outside.txt', b'outside'))
-    assert member_client.get(f'/api/v1/files/{owned.pk}/download/').status_code == 200
+    downloaded = member_client.get(f'/api/v1/files/{owned.pk}/download/')
+    assert downloaded.status_code == 200
+    downloaded.close()
     assert member_client.get(f'/api/v1/files/{hidden.pk}/download/').status_code == 404
     assert member_client.delete(f'/api/v1/files/{hidden.pk}/').status_code == 404
     assert member_client.delete(f'/api/v1/files/{owned.pk}/').status_code == 204

@@ -11,8 +11,9 @@
         <template #actions="{ row }"><el-button v-if="auth.can('dictionary:update')" link type="primary" @click="edit(row)">{{ uiText('编辑') }}</el-button></template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑字典' : '新增字典')" :loading="saving" @confirm="save">
+    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑字典' : '新增字典')" :loading="saving || conflict.loading.value" :confirm-disabled="conflict.active.value" @confirm="save">
       <div v-if="formError" ref="errorSummary" role="alert" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" class="notice" /></div>
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :version="form.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-form label-position="top" :disabled="saving">
         <el-form-item :label="uiText('编码')" required><el-input v-model="form.code" :disabled="!!form.id" maxlength="64" /></el-form-item>
         <el-form-item :label="uiText('名称')" required><el-input v-model="form.name" maxlength="100" /></el-form-item>
@@ -35,6 +36,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -59,7 +62,13 @@ const error = ref('')
 const formError = ref('')
 useErrorSummary(formError)
 const form = reactive<DictionaryRow>({ id: '', code: '', name: '', description: '', is_active: true, items: [], version: 0 })
-const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value, canEdit: () => auth.can('dictionary:update'), clear: () => { visible.value = false; Object.assign(form, { id: '', code: '', name: '', description: '', is_active: true, items: [], version: 0 }) } })
+const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => auth.can('dictionary:update'), clear: () => { visible.value = false; Object.assign(form, { id: '', code: '', name: '', description: '', is_active: true, items: [], version: 0 }) } })
+function applyDictionary(row: DictionaryRow) { Object.assign(form, JSON.parse(JSON.stringify(row))); formError.value = ''; formGuard.markClean() }
+const conflict = useEditConflict<DictionaryRow>({ identifier: () => visible.value ? form.id : '', current: () => formGuard.isCurrent(), fetch: systemApi.dictionary, apply: applyDictionary })
+const conflictRows = computed(() => {
+  const server = conflict.latest.value
+  return server ? ['name', 'description', 'is_active', 'items'].map(key => ({ label: uiText(({ name: '名称', description: '描述', is_active: '启用', items: '字典项' } as Record<string, string>)[key]!), local: JSON.stringify(form[key as keyof DictionaryRow]), server: JSON.stringify(server[key as keyof DictionaryRow]) })) : []
+})
 const columns = computed(() => [{ prop: 'code', label: uiText('编码'), width: 180 }, { prop: 'name', label: uiText('名称'), width: 200 },
   { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '启用' : '停用') }])
 async function load() {
@@ -73,13 +82,14 @@ function changePage(value: number) { page.value = value; load() }
 function changeSize(value: number) { pageSize.value = value; page.value = 1; load() }
 function search() { page.value = 1; load() }
 function edit(row?: DictionaryRow) {
+  conflict.reset()
   Object.assign(form, row ? JSON.parse(JSON.stringify(row)) : { id: '', code: '', name: '', description: '', is_active: true, items: [], version: 0 })
   formError.value = ''
   visible.value = true
 }
 function addItem() { form.items.push({ label: '', value: '', order: form.items.length, is_active: true }) }
 async function save() {
-  if (saving.value || !auth.can('dictionary:update')) return
+  if (saving.value || conflict.active.value || !auth.can('dictionary:update')) return
   formError.value = ''
   if (!/^[a-z][a-z0-9_]{0,63}$/.test(form.code) || !form.name.trim()) { formError.value = uiText('请填写有效编码和名称'); return }
   if (form.items.some(item => !item.label.trim() || !item.value) || new Set(form.items.map(item => item.value)).size !== form.items.length) {
@@ -91,11 +101,14 @@ async function save() {
     const { id, ...data } = form
     if (id) await systemApi.updateDictionary(id, data)
     else await systemApi.createDictionary(data)
+    if (!formGuard.isCurrent()) return
     visible.value = false
     ElMessage.success(uiText('保存成功'))
     await load()
   } catch (exception: any) {
-    formError.value = uiText(exception?.response?.status === 409 ? '内容已被其他人修改，已保留输入，请重新打开编辑窗口' : '保存失败，已保留输入')
+    if (!formGuard.isCurrent()) return
+    if (exception?.response?.status === 409 && form.id) conflict.mark()
+    else formError.value = uiText('保存失败，已保留输入')
   } finally { saving.value = false }
 }
 onMounted(load)

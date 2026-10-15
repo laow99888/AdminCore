@@ -14,6 +14,7 @@ MODULE = Module('files', '文件管理', 'files', 'apps.files.urls', ('/files',)
     audit_fields=(
         ('file', ('id', 'purpose', 'size', 'file_type', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version')),
         ('file_transform', ('id', 'lifecycle_version', 'source_sha256', 'width', 'height', 'format', 'quality', 'watermark_sha256', 'opacity', 'position', 'output_sha256', 'size')),
+        ('file_office_preview', ('job_id', 'lifecycle_version', 'source_sha256', 'output_sha256', 'status', 'engine')),
     ),
     menus=(
         MenuDeclaration('文件管理', '/files', 'folder-open', None, 5),

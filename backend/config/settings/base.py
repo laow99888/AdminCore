@@ -44,6 +44,12 @@ if ADMINCORE_FIELD_ENCRYPTION_ENABLED or ADMINCORE_FIELD_ENCRYPTION_KEY:
         raise ImproperlyConfigured('手机号加密要求有效的 ADMINCORE_FIELD_ENCRYPTION_KEY') from None
 # 独立于 JWT 签名密钥；缺失时不允许绑定，已有设备认证保持失败关闭。
 AUTH_TOTP_ENCRYPTION_KEY = os.getenv('AUTH_TOTP_ENCRYPTION_KEY', '')
+# 企业身份源显式配置；未启用 sso 模块时不发起身份源请求。
+for _sso_setting in ('ISSUER', 'AUTHORIZATION_ENDPOINT', 'TOKEN_ENDPOINT', 'JWKS_URI', 'CLIENT_ID',
+                     'CLIENT_SECRET', 'REDIRECT_URI', 'FRONTEND_ORIGIN', 'ENCRYPTION_KEY'):
+    globals()['SSO_' + _sso_setting] = os.getenv('SSO_' + _sso_setting, '')
+SSO_LABEL = os.getenv('SSO_LABEL', '企业身份登录')
+SSO_SESSION_SECONDS = int(os.getenv('SSO_SESSION_SECONDS', '3600'))
 if AUTH_TOTP_ENCRYPTION_KEY:
     from cryptography.fernet import Fernet
     try:
@@ -84,6 +90,7 @@ INSTALLED_APPS = [
     'apps.approvals',
     'apps.example',
     'apps.api_credentials',
+    'apps.sso',
 ]
 
 # 中间件
@@ -194,12 +201,21 @@ FILE_PREVIEW_MAX_PIXELS = 16_000_000
 FILE_PREVIEW_MAX_PDF_PAGES = 100
 # 按需启用的内存图片处理；不改写原件，不生成持久化派生文件。
 ADMINCORE_IMAGE_PROCESSING_ENABLED = os.getenv('ADMINCORE_IMAGE_PROCESSING_ENABLED', 'False').lower() == 'true'
+# Office 转换由宿主专属沙箱执行；Web 服务不挂载 Docker socket。
+ADMINCORE_OFFICE_PREVIEW_ENABLED = os.getenv('ADMINCORE_OFFICE_PREVIEW_ENABLED', 'False').lower() == 'true'
+ADMINCORE_OFFICE_IMAGE = os.getenv('ADMINCORE_OFFICE_IMAGE', '')
+if ADMINCORE_OFFICE_PREVIEW_ENABLED:
+    import re
+    from django.core.exceptions import ImproperlyConfigured
+    if (ADMINCORE_BUILD_PROFILE != 'full' or not {'files', 'tasks'} <= set(ADMINCORE_MODULES)
+            or not re.fullmatch(r'[a-z0-9][a-z0-9./:_-]{0,180}@sha256:[a-f0-9]{64}', ADMINCORE_OFFICE_IMAGE)):
+        raise ImproperlyConfigured('Office 预览要求完整构建、文件与任务模块及固定摘要转换镜像')
 # 允许的文件扩展名白名单（不含点，统一小写比较）
 FILE_UPLOAD_ALLOWED_EXTENSIONS = [
     # 图片
     'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp',
     # 文档
-    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'md', 'csv', 'json',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'txt', 'md', 'csv', 'json',
     # 压缩包
     'zip', 'gz', 'tar', 'tgz', '7z', 'rar',
 ]

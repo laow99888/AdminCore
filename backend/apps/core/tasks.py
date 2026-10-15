@@ -157,6 +157,10 @@ def cleanup_expired_sessions(batch_size=1000):
                      .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
     # 领取ID后可能被并发登录重新使用；删除时再次检查保留期。
     guards_deleted, _ = LoginCaptchaGuard.objects.filter(pk__in=guard_ids, expires_at__lt=captcha_cutoff).delete()
+    from apps.sso.models import LoginFlow
+    flow_ids = list(LoginFlow.objects.filter(expires_at__lt=captcha_cutoff)
+                    .order_by('expires_at', 'pk').values_list('pk', flat=True)[:batch_size])
+    flows_deleted, _ = LoginFlow.objects.filter(pk__in=flow_ids, expires_at__lt=captcha_cutoff).delete()
     return {'deleted_sessions': sessions, 'deleted_refresh_records': len(token_ids),
             'deleted_email_challenges': len(challenge_ids), 'deleted_login_captchas': len(captcha_ids),
-            'deleted_captcha_guards': guards_deleted}
+            'deleted_captcha_guards': guards_deleted, 'deleted_sso_flows': flows_deleted}

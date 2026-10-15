@@ -88,7 +88,7 @@ def test_department_scope_restore_does_not_change_owner(admin_client, member_cli
     department = Department.objects.create(name='共享部门')
     OrganizationMembership.objects.create(user=admin_user, department=department)
     OrganizationMembership.objects.create(user=member_user, department=department)
-    role = grant(member_user, 'file:recycle', 'file:restore')
+    role = grant(member_user, 'file:recycle', 'file:restore', 'file:download')
     DataScopeGrant.objects.create(role=role, resource='file', scope='department')
     row = file_for(admin_user)
     assert batch(member_client, 'restore', row).json()['data']['succeeded'] == 1
@@ -160,7 +160,7 @@ def test_policy_respects_disabled_schedule(admin_client):
 
 
 @pytest.mark.django_db
-def test_legacy_purge_rechecks_version_if_restore_wins(admin_client, admin_user, monkeypatch):
+def test_legacy_purge_conflict_rolls_back_in_transaction_state_change(admin_client, admin_user, monkeypatch):
     row = file_for(admin_user)
     original = FileModel.hard_delete
     def restore_first(self, **kwargs):
@@ -169,7 +169,8 @@ def test_legacy_purge_rechecks_version_if_restore_wins(admin_client, admin_user,
     monkeypatch.setattr(FileModel, 'hard_delete', restore_first)
     assert admin_client.delete(f'/api/v1/files/{row.pk}/purge/').status_code == 409
     row.refresh_from_db()
-    assert not row.is_deleted and row.file.storage.exists(row.file.name)
+    # 文件锁已在 hard_delete 前取得；此钩子发生在同一事务，409 必须回滚该事务内的修改。
+    assert row.is_deleted and row.lifecycle_version == 2 and row.file.storage.exists(row.file.name)
 
 
 @pytest.mark.django_db

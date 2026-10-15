@@ -13,6 +13,7 @@ export default defineConfig({
   define: { __ADMINCORE_MINIMAL_BUILD__: JSON.stringify(minimal) },
   plugins: [vue(), Components({ dts: false, resolvers: [ElementPlusResolver()] }), {
     name: 'pdf-preview-assets',
+    apply: 'build',
     closeBundle() {
       const output = path.resolve(import.meta.dirname, 'dist')
       mkdirSync(output, { recursive: true })

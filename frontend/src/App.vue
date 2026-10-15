@@ -41,7 +41,7 @@ function returnHome() { void router.push('/').catch(() => {}) }
 const cacheIncludes = computed(() => navigation.tabs.some(tab => tab.path === '/logs') ? ['OperationLogView'] : [])
 watch(() => JSON.stringify([auth.token, auth.user?.id, auth.user?.must_change_password,
   auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, modules.config]), () => {
-  if (auth.preservingSecuritySession && ['/settings/two-factor', '/login'].includes(router.currentRoute.value.path)) return
+  if (auth.preservingSecuritySession && ['/settings/two-factor', '/login', '/enterprise-login'].includes(router.currentRoute.value.path)) return
   navigation.clear()
 }, { flush: 'sync' })
 let refreshTimer: ReturnType<typeof setInterval> | undefined

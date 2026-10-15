@@ -89,7 +89,7 @@ test('校验无写入，提交同步锁，409保留输入，修正后保存草�
   await expect(dialog.getByLabel('标题', { exact: true })).toBeDisabled()
   await dialog.locator('form').dispatchEvent('submit')
   expect(state.writes).toBe(1); release()
-  await expect(dialog.getByRole('alert')).toContainText('公告已变化，已保留输入')
+  await expect(dialog.getByRole('alert')).toContainText('保存失败，已保留输入')
   await expect(dialog.getByLabel('公告正文', { exact: true })).toHaveValue('草稿正文')
   state.status = 200; state.delay = undefined
   await dialog.getByRole('button', { name: '确认', exact: true }).click()

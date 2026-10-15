@@ -14,6 +14,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F
 from django.http import FileResponse, HttpResponse
 from rest_framework import status, viewsets
+from rest_framework.exceptions import APIException
+from apps.auth_app.write_authorization import authorize_write
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -38,12 +40,20 @@ from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerialize
 class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     """文件管理：上传 / 列表 / 下载 / 软删除"""
     permission_classes = [IsAuthenticated]
+    # 文件元数据全部只读；不提供可能保存旧实例的空 PUT/PATCH 写入口。
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
     filterset_fields = ['file_type', 'uploader']
     search_fields = ['original_name', 'description']
     ordering_fields = ['created_at', 'size', 'download_count']
     ordering = ['-created_at']
-    permission_map = {'recycle': 'file:recycle', 'recycle_policy': 'file:recycle', 'restore': 'file:restore',
+    permission_map = {'create': 'file:upload', 'download': 'file:download', 'preview': 'file:download', 'recycle': 'file:recycle', 'recycle_policy': 'file:recycle', 'restore': 'file:restore',
                       'transform': 'file:process', 'processing_config': 'file:process'}
+
+    def get_permissions(self):
+        permissions = super().get_permissions()
+        if self.action in ('create', 'download', 'preview'):
+            permissions.append(HasPermission())
+        return permissions
 
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
@@ -67,9 +77,11 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                               (200, 'application/pdf'): OpenApiTypes.BINARY,
                               413: MessageResponse, 415: MessageResponse, 422: MessageResponse})
     @action(detail=True, methods=['get'])
+    @transaction.atomic
     def preview(self, request, pk=None):
         from .preview import preview_content
-        instance = self.get_object()
+        authorize_write(request, 'file:download')
+        instance = self._locked_file(pk)
         content, content_type = preview_content(instance)
         self._log('read', instance, f'Preview file {instance.original_name}')
         response = HttpResponse(content, content_type=content_type)
@@ -173,11 +185,34 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        file_obj = serializer.save()
-        self._log('upload', file_obj, f'Uploaded file {file_obj.original_name}')
+        from .serializers import cleanup_failed_upload
+        file_obj = None
+        try:
+            with transaction.atomic():
+                # 已登记的上传权限必须在存储和业务写入前执行。
+                authorize_write(self.request, 'file:upload')
+                file_obj = serializer.save()
+                self._log('upload', file_obj, f'Uploaded file {file_obj.original_name}')
+        except Exception:
+            # 数据库回滚不回滚对象存储；只补偿本次新生成的键。
+            if file_obj is not None:
+                cleanup_failed_upload(file_obj)
+            raise
+
+    def _locked_file(self, identifier):
+        """调用者已在 atomic 内授权用户，锁后重新计算目标范围。"""
+        try:
+            row = self.get_queryset().select_for_update(of=('self',)).filter(pk=identifier).first()
+        except DjangoValidationError as exc:
+            raise APIError('文件不存在', status_code=404) from exc
+        if row is None or not self.get_queryset().filter(pk=row.pk).exists():
+            raise APIError('文件不存在', status_code=404)
+        return row
 
     def perform_destroy(self, instance):
         with transaction.atomic():
+            authorize_write(self.request)
+            instance = self._locked_file(instance.pk)
             before = self._snapshot(instance)
             try:
                 instance.soft_delete(actor=self.request.user)
@@ -224,13 +259,8 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         serializer = RestoreSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         with transaction.atomic():
-            # 必须先按数据范围查询，再锁定；不能从全表按 ID 取回文件。
-            try:
-                instance = self.get_queryset().select_for_update(of=('self',)).filter(pk=pk).first()
-            except DjangoValidationError as exc:
-                raise APIError('文件不存在', status_code=404) from exc
-            if instance is None:
-                raise APIError('文件不存在', status_code=404)
+            authorize_write(request, 'file:restore')
+            instance = self._locked_file(pk)
             before = self._snapshot(instance)
             try:
                 instance.restore(serializer.validated_data['lifecycle_version'])
@@ -256,9 +286,8 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
             result = {'id': str(item['id'])}
             try:
                 with transaction.atomic():
-                    instance = self.get_queryset().select_for_update(of=('self',)).filter(pk=item['id']).first()
-                    if instance is None:
-                        raise APIError('文件不存在', status_code=404)
+                    authorize_write(request, 'file:' + operation)
+                    instance = self._locked_file(item['id'])
                     instance.check_lifecycle_version(item['lifecycle_version'])
                     if not instance.is_deleted:
                         raise LifecycleConflict('文件不在回收站，请刷新后重试')
@@ -274,7 +303,7 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                                   original_name=instance.original_name, size=instance.size)
             except LifecycleConflict as exc:
                 result.update(status=409, message=str(exc))
-            except APIError as exc:
+            except APIException as exc:
                 result.update(status=exc.status_code, message=str(exc.detail))
             except OSError:
                 # 外部存储错误不泄露服务器路径、签名或凭据；记录和失败项可重试。
@@ -295,9 +324,11 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         }})
 
     @action(detail=True, methods=['get'])
+    @transaction.atomic
     def download(self, request, pk=None):
         """下载文件（记录下载次数）"""
-        file_obj = self.get_object()
+        authorize_write(request, 'file:download')
+        file_obj = self._locked_file(pk)
         if not file_obj.file or not file_obj.file.storage.exists(file_obj.file.name):
             return Response({'code': 404, 'message': '文件不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
 
@@ -308,14 +339,11 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         return response
 
     @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated, IsAdmin])
+    @transaction.atomic
     def purge(self, request, pk=None):
-        """物理删除文件（仅管理员）"""
-        try:
-            file_obj = self.get_queryset().filter(pk=pk).first()
-        except DjangoValidationError as exc:
-            raise APIError('文件不存在', status_code=404) from exc
-        if not file_obj:
-            return Response({'code': 404, 'message': '文件不存在', 'data': None}, status=status.HTTP_404_NOT_FOUND)
+        """物理删除文件：用户/设备先于文件锁，锁内重新判断权限和范围。"""
+        authorize_write(request, 'file:purge', admin=True)
+        file_obj = self._locked_file(pk)
         try:
             file_obj.hard_delete(expected_version=file_obj.lifecycle_version,
                                  audit=lambda row: self._lifecycle_log(row, 'purge', self._snapshot(row)))

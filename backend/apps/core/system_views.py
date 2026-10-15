@@ -8,6 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from apps.permissions.permissions import HasPermission
+from apps.auth_app.write_authorization import authorize_write
 from .mixins import EnvelopeResponseMixin
 from .schema import envelope
 from .models import SystemConfig, DataDictionary
@@ -66,6 +67,7 @@ class SystemConfigView(APIView):
         expected = serializer.validated_data['version']
         try:
             with transaction.atomic():
+                authorize_write(request, 'config:update')
                 row = SystemConfig.objects.select_for_update().filter(key=key).first()
                 if expected != (row.version if row else 0):
                     raise VersionConflict()
@@ -109,6 +111,7 @@ class DictionaryViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        authorize_write(self.request, 'dictionary:update')
         if serializer.validated_data['version'] != 0:
             raise ValidationError({'version': '新建字典版本必须为 0'})
         try:
@@ -120,6 +123,7 @@ class DictionaryViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
+        authorize_write(self.request, 'dictionary:update')
         current = DataDictionary.objects.select_for_update().get(pk=serializer.instance.pk)
         expected = serializer.validated_data.get('version')
         if expected is None:

@@ -12,6 +12,7 @@ from rest_framework.test import APIClient
 
 from apps.approvals.models import ApprovalRequest
 from apps.data_io.tasks import run_data_import
+from tests.file_permissions import grant_files
 from apps.files.models import FileModel
 from apps.notifications.models import Notification
 from apps.permissions.models import Menu, Permission, Role, RolePermission, UserRole
@@ -106,7 +107,7 @@ def test_duplicate_role_permissions_preserve_original(admin_client):
     role = Role.objects.create(name='Reader')
     RolePermission.objects.create(role=role, permission=permission)
     result = admin_client.patch(f'/api/v1/permissions/roles/{role.pk}/', {
-        'name': 'MustNotChange', 'permission_ids': [str(permission.pk), str(permission.pk)],
+        'version': 1, 'name': 'MustNotChange', 'permission_ids': [str(permission.pk), str(permission.pk)],
     }, format='json')
     assert result.status_code == 400
     role.refresh_from_db()
@@ -182,7 +183,7 @@ def test_user_edit_payload_preserves_names(admin_client, member_user):
     member_user.first_name, member_user.last_name = 'Original', 'Name'
     member_user.save()
     row = next(row for row in admin_client.get('/api/v1/users/').json()['data']['items'] if row['id'] == str(member_user.pk))
-    payload = {key: row[key] for key in ('first_name', 'last_name', 'is_active')}
+    payload = {key: row[key] for key in ('first_name', 'last_name', 'is_active', 'version')}
     payload['email'] = 'updated@example.com'
     assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', payload, format='json').status_code == 200
     member_user.refresh_from_db()
@@ -206,7 +207,8 @@ def test_export_does_not_emit_formula(admin_client, member_user):
     assert "'=1+1" in next(row for row in csv.reader(io.StringIO(text)) if row[0] == 'member')
 
 
-def test_raw_media_unavailable_and_download_obeys_soft_delete(member_client, settings):
+def test_raw_media_unavailable_and_download_obeys_soft_delete(member_client, member_user, settings):
+    grant_files(member_user, 'file:upload', 'file:download')
     response = member_client.post('/api/v1/files/', {'file': SimpleUploadedFile('private.txt', b'private')}, format='multipart')
     file = FileModel.objects.get(pk=response.json()['id'])
     assert '/download/' in response.json()['file']

@@ -36,7 +36,7 @@ def test_role_inline_permission_is_recorded_after_related_save(browser):
     assert row.description == 'django_admin:create'
     link = RolePermission.objects.get(role=role)
     payload = role_form('admin-audit-updated', permission)
-    payload.update({'permissions-INITIAL_FORMS': '1', 'permissions-0-id': str(link.pk),
+    payload.update({'edit_version': role.version, 'permissions-INITIAL_FORMS': '1', 'permissions-0-id': str(link.pk),
                     'permissions-0-role': str(role.pk), 'permissions-0-DELETE': 'on'})
     response = browser.post(f'/admin/permissions/role/{role.pk}/change/', payload, HTTP_X_REQUEST_ID='admin-update-role')
     assert response.status_code == 302
@@ -141,3 +141,34 @@ def test_admin_bulk_partial_audit_failure_rolls_back_prior_log(browser):
     assert response.status_code == 500 and attempts == 2
     assert Role.objects.filter(pk__in=[row.pk for row in roles]).count() == 2
     assert OperationLog.objects.count() == count
+
+
+@pytest.mark.parametrize('kind', ['role', 'menu'])
+@pytest.mark.parametrize('submitted', [None, 1])
+def test_admin_requires_current_edit_version_and_advances_it(browser, kind, submitted):
+    from apps.permissions.models import Menu
+    model = Role if kind == 'role' else Menu
+    row = model.objects.create(name='admin-version-fixture', **({'path': '/admin-version-fixture'} if kind == 'menu' else {}))
+    url = f'/admin/permissions/{kind}/{row.pk}/change/'
+    initial = browser.get(url)
+    assert initial.status_code == 200 and 'name="edit_version" value="1"' in initial.content.decode()
+    model.objects.filter(pk=row.pk).update(name='concurrent latest', version=2)
+    payload = {'name': 'local draft', 'description': '', 'is_active': 'on', '_save': '保存',
+               'permissions-TOTAL_FORMS': '0', 'permissions-INITIAL_FORMS': '0',
+               'permissions-MIN_NUM_FORMS': '0', 'permissions-MAX_NUM_FORMS': '1000'} if kind == 'role' else {
+               'name': 'local draft', 'path': row.path, 'icon': '', 'order': 0, 'parent': '',
+               'permission': '', 'is_visible': 'on', '_save': '保存'}
+    if submitted is not None:
+        payload['edit_version'] = submitted
+    response = browser.post(url, payload, HTTP_X_REQUEST_ID='admin-stale-version')
+    assert response.status_code == 200
+    assert '内容已被其他人修改' in response.content.decode()
+    row.refresh_from_db()
+    assert row.name == 'concurrent latest' and row.version == 2
+    assert not OperationLog.objects.filter(request_id='admin-stale-version').exists()
+    payload['edit_version'] = 2
+    response = browser.post(url, payload, HTTP_X_REQUEST_ID='admin-current-version')
+    assert response.status_code == 302
+    row.refresh_from_db()
+    assert row.name == 'local draft' and row.version == 3
+    assert OperationLog.objects.filter(request_id='admin-current-version', resource=kind).exists()

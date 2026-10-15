@@ -27,7 +27,7 @@ class TestUserCrudEnvelope:
     def test_partial_update_returns_unified_envelope(self, admin_client, member_user):
         res = admin_client.patch(
             f'/api/v1/users/{member_user.id}/',
-            {'first_name': '成'},
+            {'version': 1, 'first_name': '成'},
             format='json',
         )
         assert res.status_code == 200

@@ -68,7 +68,9 @@
       </BaseCard>
 
       <!-- 用户编辑对话框 -->
-      <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="dialogTitle" :loading="saving || rolesLoading" :confirm-disabled="rolesFailed" @confirm="handleSaveUser">
+      <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="dialogTitle" :loading="saving || rolesLoading || conflict.loading.value" :confirm-disabled="rolesFailed || conflict.active.value" @confirm="handleSaveUser">
+        <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
+        <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || !formGuard.isCurrent()" :version="formData.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
         <el-form :model="formData" label-width="100px" :disabled="saving">
           <el-form-item :label="uiText('用户名')" required>
             <el-input v-model="formData.username" :disabled="!!formData.id" />
@@ -144,6 +146,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
@@ -154,7 +158,7 @@ import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
-import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type RoleRow } from '@/api'
+import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type UserDetail, type RoleRow } from '@/api'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
 import LocalExportButton from '@/components/common/LocalExportButton.vue'
@@ -164,6 +168,7 @@ import type { PrintColumn } from '@/utils/printDocument'
 
 const loading = ref(false)
 const saving = ref(false)
+const formError = ref('')
 const dialogVisible = ref(false)
 const importResultVisible = ref(false)
 const auth = useAuthStore()
@@ -220,6 +225,7 @@ const searchForm = reactive({
 usePageState({ searchForm, currentPage, pageSize })
 const formData = reactive({
   id: '' as string,
+  version: 0,
   username: '',
   email: '',
   phone: '',
@@ -232,7 +238,25 @@ const formData = reactive({
   role_ids: [] as string[],
 })
 
-const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can(formData.id ? 'user:update' : 'user:create'), clear: () => { dialogVisible.value = false; Object.assign(maskedContact, { email: '', phone: '' }); Object.assign(formData, { id: '', username: '', email: '', phone: '', clear_phone: false, first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true }) } })
+const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => auth.can(formData.id ? 'user:update' : 'user:create'), clear: () => { dialogVisible.value = false; Object.assign(maskedContact, { email: '', phone: '' }); Object.assign(formData, { id: '', version: 0, username: '', email: '', phone: '', clear_phone: false, first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true }) } })
+function applyUser(detail: UserDetail) {
+  Object.assign(maskedContact, { email: detail.email, phone: detail.phone || '' })
+  Object.assign(formData, { id: detail.id, version: detail.version, username: detail.username, email: '', phone: '', clear_phone: false, first_name: detail.first_name, last_name: detail.last_name, is_active: detail.is_active, password: '', role_ids: detail.roles.map(role => role.role__id) })
+  formError.value = ''; formGuard.markClean()
+}
+const conflict = useEditConflict<UserDetail>({ identifier: () => dialogVisible.value ? formData.id : '', current: () => formGuard.isCurrent(), fetch: usersApi.detail, apply: applyUser })
+const conflictRows = computed(() => {
+  const server = conflict.latest.value
+  if (!server) return []
+  return [
+    { label: uiText('名字'), local: formData.first_name, server: server.first_name },
+    { label: uiText('姓氏'), local: formData.last_name, server: server.last_name },
+    { label: uiText('邮箱'), local: formData.email || maskedContact.email, server: server.email },
+    { label: uiText('电话'), local: formData.clear_phone ? '' : formData.phone || maskedContact.phone, server: server.phone || '' },
+    { label: uiText('状态'), local: String(formData.is_active), server: String(server.is_active) },
+    { label: uiText('角色'), local: formData.role_ids.join(', '), server: server.roles.map(role => role.role__id).join(', ') },
+  ]
+})
 const tableColumns = [
   { prop: 'username', label: uiText("用户名") },
   { prop: 'email', label: uiText("邮箱") },
@@ -290,8 +314,9 @@ const handleReset = () => {
 }
 
 const handleCreate = () => {
+  conflict.reset(); formError.value = ''
   Object.assign(formData, {
-    id: '', username: '', email: '', phone: '', clear_phone: false, first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true,
+    id: '', version: 0, username: '', email: '', phone: '', clear_phone: false, first_name: '', last_name: '', is_active: true, password: '', role_ids: [], must_change_password: true,
   })
   dialogVisible.value = true
   loadRoleOptions()
@@ -303,9 +328,7 @@ const handleEdit = async (row: UserRow) => {
   try {
     const detail = await usersApi.detail(row.id)
     if (auth.user?.id !== owner || !auth.can('user:update') || !formGuard.isSessionCurrent()) return
-    Object.assign(maskedContact, { email: detail.email, phone: detail.phone || '' })
-    Object.assign(formData, { id: detail.id, username: detail.username, email: '', phone: '', clear_phone: false, first_name: detail.first_name, last_name: detail.last_name, is_active: detail.is_active, password: '' })
-    formData.role_ids = detail.roles.map((role) => role.role__id)
+    conflict.reset(); applyUser(detail)
     dialogVisible.value = true
     loadRoleOptions()
   } catch {
@@ -314,7 +337,7 @@ const handleEdit = async (row: UserRow) => {
 }
 
 const handleSaveUser = async () => {
-  if (saving.value || rolesLoading.value || rolesFailed.value || !auth.can(formData.id ? 'user:update' : 'user:create')) return
+  if (saving.value || conflict.active.value || rolesLoading.value || rolesFailed.value || !auth.can(formData.id ? 'user:update' : 'user:create')) return
   if (!formData.username || (!formData.id && (!formData.email.trim() || !formData.password))) {
     ElMessage.warning(uiText("请填写必填项（用户名、邮箱、初始密码）"))
     return
@@ -326,12 +349,14 @@ const handleSaveUser = async () => {
   try {
     if (formData.id) {
       await usersApi.update(formData.id, {
+        version: formData.version,
         ...contacts,
         first_name: formData.first_name,
         last_name: formData.last_name,
         is_active: formData.is_active,
         ...((auth.user?.is_staff || auth.user?.is_superuser) ? { role_ids: formData.role_ids } : {}),
       })
+      if (!formGuard.isCurrent()) return
       ElMessage.success(uiText("修改成功"))
     } else {
       await usersApi.create({
@@ -344,12 +369,16 @@ const handleSaveUser = async () => {
         must_change_password: formData.must_change_password,
         ...((auth.user?.is_staff || auth.user?.is_superuser) ? { role_ids: formData.role_ids } : {}),
       })
+      if (!formGuard.isCurrent()) return
       ElMessage.success(uiText("创建成功"))
     }
     dialogVisible.value = false
     loadUsers()
-  } catch {
-    // 拦截器已提示
+  } catch (error: any) {
+    if (formGuard.isCurrent()) {
+      if (error.response?.status === 409 && formData.id) conflict.mark()
+      else formError.value = uiText('保存失败，已保留输入')
+    }
   } finally {
     saving.value = false
   }

@@ -28,6 +28,7 @@
       <router-link v-if="auth.can('task:read')" to="/tasks">{{ uiText('任务中心') }}</router-link>
     </BaseCard>
     <el-dialog :model-value="!!editor" :title="uiText('编辑计划')" :width="dialogWidth" :close-on-click-modal="false" :before-close="closeEditor">
+      <EditConflictPanel v-if="conflict.active.value && editor" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="busy || !formGuard.isCurrent()" :version="editor.revision" :server-version="conflict.latest.value?.revision" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-form v-if="editor" label-position="top" :disabled="busy" class="editor">
         <el-form-item :label="uiText('计划启用')"><el-switch v-model="editor.enabled" :aria-label="uiText('计划启用')" /></el-form-item>
         <div class="cron-fields"><el-form-item v-for="field in cronFields" :key="field.key" :label="uiText(field.label)"><el-input v-model="editor.cron[field.key]" :aria-label="uiText(field.label)" maxlength="64" /></el-form-item></div>
@@ -38,7 +39,7 @@
         <el-alert :title="uiText(editor.key === 'backup' ? '启用备份计划会按时登记备份，执行器将短暂停写。请先配置备份目标和宿主执行器。关闭计划不阻止已开始或已提交的手动任务。' : '启用实际清理会按保留期永久删除过期数据。关闭计划不阻止已开始或已提交的手动任务。')" type="warning" :closable="false" />
         <p v-if="editorError" role="alert">{{ editorError }}</p>
       </el-form>
-      <template #footer><div class="actions"><el-button :disabled="busy" @click="closeEditor()">{{ uiText('取消') }}</el-button><el-button :disabled="busy" @click="reloadEditor">{{ uiText('重新载入计划') }}</el-button><el-button type="primary" :loading="busyKey === 'save'" :disabled="busy" @click="save">{{ uiText('保存') }}</el-button></div></template>
+      <template #footer><div class="actions"><el-button :disabled="busy" @click="closeEditor()">{{ uiText('取消') }}</el-button><el-button :disabled="busy" @click="reloadEditor">{{ uiText('重新载入计划') }}</el-button><el-button type="primary" :loading="busyKey === 'save'" :disabled="busy || conflict.active.value || conflict.loading.value" @click="save">{{ uiText('保存') }}</el-button></div></template>
     </el-dialog>
     <el-dialog :model-value="!!execution" :title="uiText(execution?.confirmation || '执行清理')" :width="dialogWidth" :close-on-click-modal="false" :before-close="closeExecution">
       <p>{{ uiText(execution?.key === 'backup' ? '备份执行时会短暂停写，宿主备份执行器需要保持运行。失败记录见任务中心。请输入“执行备份”确认。' : '清理会永久删除符合保留期的数据，不能撤销。请输入“执行清理”确认。') }}</p>
@@ -50,6 +51,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { ElMessage } from 'element-plus'
@@ -74,7 +77,15 @@ const execution = ref<MaintenanceSchedule | null>(null)
 const confirmation = ref('')
 const busyKey = ref('')
 const busy = computed(() => !!busyKey.value)
-const formGuard = useUnsavedChanges({ source: () => editor.value, active: () => !!editor.value, busy: () => busy.value, canEdit: () => auth.can('schedule:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), message: () => uiText('计划有未保存内容，确定放弃吗？'), clear: () => { editor.value = null } })
+const formGuard = useUnsavedChanges({ source: () => editor.value, active: () => !!editor.value, busy: () => busy.value || conflict.loading.value, canEdit: () => auth.can('schedule:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), message: () => uiText('计划有未保存内容，确定放弃吗？'), clear: () => { editor.value = null } })
+const conflict = useEditConflict<MaintenanceSchedule>({ identifier: () => editor.value?.key || '', current: () => formGuard.isCurrent(),
+  fetch: async (key, signal) => { const rows = await maintenanceApi.list(signal); const row = rows.find(item => item.key === key); if (!row) throw new Error('Missing registered schedule'); return row },
+  apply: row => { editor.value = JSON.parse(JSON.stringify(row)); editorError.value = ''; formGuard.markClean() } })
+const conflictRows = computed(() => editor.value && conflict.latest.value ? [
+  { label: uiText('计划启用'), local: String(editor.value.enabled), server: String(conflict.latest.value.enabled) },
+  { label: 'Cron', local: JSON.stringify(editor.value.cron), server: JSON.stringify(conflict.latest.value.cron) },
+  { label: uiText('参数'), local: JSON.stringify(editor.value.options), server: JSON.stringify(conflict.latest.value.options) },
+] : [])
 const attempts = new Map<string, string>()
 let alive = true
 let loadGeneration = 0
@@ -97,21 +108,22 @@ async function load() {
   finally { if (alive && generation === loadGeneration) loading.value = false }
 }
 function edit(row: MaintenanceSchedule) {
+  conflict.reset()
   editor.value = JSON.parse(JSON.stringify(row)); formGuard.markClean(); editorError.value = ''
 }
 function beginExecution(row: MaintenanceSchedule) { execution.value = row; confirmation.value = ''; runError.value = '' }
 const discard = formGuard.confirmDiscard
-async function closeEditor(done?: () => void) { if (!busy.value && await discard()) { editor.value = null; done?.() } }
+async function closeEditor(done?: () => void) { if (!busy.value && !conflict.loading.value && await discard()) { editor.value = null; done?.() } }
 function closeExecution(done: () => void) { if (!busy.value) { execution.value = null; done() } }
 async function reloadEditor() {
-  if (!editor.value || busy.value || !await discard()) return
+  if (!editor.value || busy.value || conflict.loading.value || !await discard()) return
   const key = editor.value.key
   await load()
   const current = rows.value.find(row => row.key === key)
   if (current) edit(current)
 }
 async function save() {
-  if (!editor.value || busy.value) return
+  if (!editor.value || busy.value || conflict.active.value || conflict.loading.value || !formGuard.isCurrent()) return
   const value = JSON.parse(JSON.stringify(editor.value)) as MaintenanceSchedule
   if (Object.values(value.cron).some(field => !field.trim()) || (value.key === 'files' && (!Number.isInteger(value.options.batch_size) || value.options.batch_size! < 1 || value.options.batch_size! > 100))) {
     editorError.value = uiText('请填写合法的周期、时区和参数'); return
@@ -119,8 +131,8 @@ async function save() {
   busyKey.value = 'save'; editorError.value = ''
   try {
     await maintenanceApi.save(value)
-    if (alive) { editor.value = null; ElMessage.success(uiText('保存成功')); await load() }
-  } catch (exception: any) { if (alive) editorError.value = uiText(exception?.response?.status === 409 ? '内容已被其他人修改，已保留输入，请刷新后重试' : '计划保存失败，已保留输入，请检查 Cron 和时区') }
+    if (alive && formGuard.isCurrent()) { editor.value = null; ElMessage.success(uiText('保存成功')); await load() }
+  } catch (exception: any) { if (alive && formGuard.isCurrent()) { if (exception?.response?.status === 409) conflict.mark(); else editorError.value = uiText('计划保存失败，已保留输入，请检查 Cron 和时区') } }
   finally { busyKey.value = '' }
 }
 async function submit(row: MaintenanceSchedule, dryRun: boolean) {

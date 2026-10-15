@@ -7,6 +7,7 @@ export interface ScopeRow { id: string; role: string; role_name: string; resourc
 export type OrganizationSection = 'departments' | 'memberships' | 'scopes'
 export const organizationApi = {
   list: async <T>(section: OrganizationSection, params?: ListParams) => (await request.get<ApiResponse<PagedData<T>>>(`/organization/${section}/`, { params })).data.data,
+  detail: async <T>(section: OrganizationSection, id: string, signal?: AbortSignal) => (await request.get<ApiResponse<T>>(`/organization/${section}/${id}/`, { signal })).data.data,
   save: (section: OrganizationSection, id: string, data: object) => id
     ? request.patch(`/organization/${section}/${id}/`, data) : request.post(`/organization/${section}/`, data),
   remove: (section: OrganizationSection, id: string) => request.delete(`/organization/${section}/${id}/`),

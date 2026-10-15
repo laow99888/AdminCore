@@ -10,6 +10,7 @@ from PIL.PngImagePlugin import PngInfo
 from rest_framework.test import APIClient
 
 from apps.files.image_processing import BoundedOutput, MAX_BYTES
+from tests.file_permissions import grant_files
 from apps.files.models import FileModel
 from apps.logs.models import OperationLog
 from apps.permissions.models import Permission, Role, RolePermission, UserRole
@@ -78,6 +79,7 @@ def test_default_off_keeps_original_download(admin_client):
 
 @pytest.mark.parametrize('codes', [(), ('file:process',), ('file:download',)])
 def test_requires_both_permissions(member_client, member_user, codes):
+    grant_files(member_user, 'file:upload')
     row = upload(member_client)
     if codes:
         grant(member_user, *codes)
@@ -85,6 +87,7 @@ def test_requires_both_permissions(member_client, member_user, codes):
 
 
 def test_auth_scope_deleted_and_private_purpose(admin_client, member_client, member_user):
+    grant_files(member_user, 'file:upload')
     own = upload(member_client)
     other = upload(admin_client)
     grant(member_user, 'file:process', 'file:download')
@@ -249,6 +252,7 @@ def test_compression_quality_changes_real_encoding(admin_client):
 def test_authorization_rechecked_after_encoding(member_client, member_user, boundary, status):
     from apps.files.image_processing import transform_content
     from apps.core.models import DataScopeGrant
+    grant_files(member_user, 'file:upload')
     row = upload(member_client)
     grant(member_user, 'file:process', 'file:download')
     role = Role.objects.get(name='Image processor')

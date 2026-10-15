@@ -31,8 +31,40 @@ def test_declaration_move_preserves_2dac5c5_seed_and_audit_contracts():
     templates = next(menu for module in BUILTIN_MODULES for menu in module.menus if menu.path == '/notifications/templates')
     menus = MENUS + [(templates.name, templates.path, templates.icon, templates.order, None, templates.permission)]
     assert digest(sorted(menus)) == '074c7cf5b4c73f4aa4935e5384c00732a8527841cc6a8db903aa243970ea9c04'
-    assert digest({key: value for key, value in FIELDS.items()
-                   if key not in {'example', 'api_credential'}}) == 'cbaca682f802aaa9330b0d9f1414a8036543e0836946d9b3fda3b85bca923089'
+    # Fixed projection from 2dac5c5, not an open-ended list of new resources to exclude.
+    # New fields belong to their own feature tests; no original field may disappear or reorder.
+    legacy_audit_fields = {
+        'message_template': ('id', 'code', 'enabled', 'revision', 'variables', 'content_sha256'),
+        'message_delivery': ('id', 'template_id', 'revision', 'channels', 'count', 'status', 'attempts'),
+        'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids', 'group_ids', 'django_permission_ids'),
+        'role': ('id', 'name', 'is_active', 'permission_ids'),
+        'menu': ('id', 'name', 'path', 'icon', 'order', 'parent_id', 'permission_id', 'is_visible'),
+        'permission': ('id', 'name', 'code', 'resource', 'action'),
+        'user_role': ('id', 'user_id', 'role_id'),
+        'user_profile': ('id', 'user_id', 'department', 'position'),
+        'notification': ('id', 'recipient_id', 'notification_type', 'is_read', 'read_at', 'content_length', 'content_sha256'),
+        'task': ('id', 'task_type', 'status', 'progress', 'creator_id', 'celery_task_id'),
+        'department': ('id', 'name', 'parent', 'order', 'is_active', 'version'),
+        'membership': ('id', 'user', 'department', 'version'),
+        'data_scope': ('id', 'role', 'resource', 'scope', 'departments', 'version'),
+        'post': ('id', 'code', 'name', 'order', 'is_active', 'version'),
+        'user_post': ('id', 'user', 'post', 'version'),
+        'system_config': ('value',),
+        'dictionary': ('id', 'code', 'name', 'is_active', 'version', 'items_count'),
+        'maintenance_schedule': ('task', 'enabled', 'cron', 'kwargs'),
+        'maintenance_run': ('key', 'options', 'preview_id', 'status'),
+        'approval': ('id', 'status', 'request_type', 'applicant_id', 'assignee_id', 'decided_by_id', 'decided_at'),
+        'announcement': ('id', 'version', 'status', 'content_format', 'content_length', 'content_sha256'),
+        'file': ('id', 'purpose', 'size', 'file_type', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version'),
+        'file_transform': ('id', 'lifecycle_version', 'source_sha256', 'width', 'height', 'format', 'quality', 'watermark_sha256', 'opacity', 'position', 'output_sha256', 'size'),
+        'lifecycle': ('category', 'count', 'ids'),
+    }
+    assert set(legacy_audit_fields) <= set(FIELDS)
+    for resource, fields in legacy_audit_fields.items():
+        assert set(fields) <= set(FIELDS[resource])
+    projected = {resource: tuple(field for field in FIELDS[resource] if field in fields)
+                 for resource, fields in legacy_audit_fields.items()}
+    assert digest(projected) == 'cbaca682f802aaa9330b0d9f1414a8036543e0836946d9b3fda3b85bca923089'
     parameters = [asdict(row) for key, row in CONFIG_DEFINITIONS.items() if not key.startswith('example.')]
     assert digest(sorted(parameters, key=lambda row: row['key'])) == '9c5839150a66142744affffeb8b49bc555cd0bf82b12b38f935697105f124243'
     assert digest(MAINTENANCE_TASKS) == 'edc6bcc36bfacea8a61d6ed8350e4dc430d41b54091367c277db8f1e31ceb612'

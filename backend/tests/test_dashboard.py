@@ -43,7 +43,7 @@ class TestAdminPermissionBoundary:
         role_id = data['id']
         assert len(data['permissions']) == 1  # 权限分配已生效
 
-        res = admin_client.patch(f'/api/v1/permissions/roles/{role_id}/', {'description': '改'}, format='json')
+        res = admin_client.patch(f'/api/v1/permissions/roles/{role_id}/', {'version': 1, 'description': '改'}, format='json')
         assert res.status_code == 200
         assert admin_client.delete(f'/api/v1/permissions/roles/{role_id}/').status_code == 200
 

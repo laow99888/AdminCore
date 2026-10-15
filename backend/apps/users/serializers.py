@@ -26,11 +26,12 @@ class UserDetailSerializer(MaskedContactSerializerMixin, serializers.ModelSerial
     """用户详细序列化器"""
     profile = UserProfileSerializer(read_only=True)
     roles = serializers.SerializerMethodField()
+    version = serializers.IntegerField(source='profile_version', read_only=True)
 
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone',
-                  'is_active', 'login_count', 'created_at', 'profile', 'roles')
+                  'is_active', 'login_count', 'created_at', 'profile', 'roles', 'version')
         read_only_fields = ('id', 'created_at', 'login_count')
 
     def get_roles(self, obj) -> list[dict]:
@@ -42,9 +43,11 @@ class UserDetailSerializer(MaskedContactSerializerMixin, serializers.ModelSerial
 
 class UserListSerializer(MaskedContactSerializerMixin, serializers.ModelSerializer):
     """用户列表序列化器"""
+    version = serializers.IntegerField(source='profile_version', read_only=True)
+
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'phone', 'first_name', 'last_name', 'is_active', 'login_count', 'created_at')
+        fields = ('id', 'username', 'email', 'phone', 'first_name', 'last_name', 'is_active', 'login_count', 'created_at', 'version')
         read_only_fields = ('id', 'created_at')
 
 
@@ -103,19 +106,28 @@ class UserCreateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin
 class UserUpdateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin, serializers.ModelSerializer):
     """用户修改序列化器"""
     phone = phone_input_field()
+    version = serializers.IntegerField(source='profile_version', min_value=1, required=False, help_text='更新时必填：读取详情返回的 version；版本过期返回 409 且不写入。')
     role_ids = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(),
                                                   many=True, required=False, write_only=True, source='assigned_roles')
 
     class Meta:
         model = User
-        fields = ('email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'role_ids')
+        fields = ('email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'role_ids', 'version')
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if 'profile_version' not in attrs:
+            raise serializers.ValidationError({'version': '更新必须传入当前版本'})
+        return attrs
 
     @transaction.atomic
     def update(self, instance, validated_data):
         instance = User.objects.select_for_update().get(pk=instance.pk)
+        if validated_data.pop('profile_version') != instance.profile_version:
+            from apps.core.system_views import VersionConflict
+            raise VersionConflict()
         roles = validated_data.pop('assigned_roles', None)
-        if {'email', 'first_name', 'last_name', 'phone', 'avatar'} & validated_data.keys():
-            validated_data['profile_version'] = instance.profile_version + 1
+        validated_data['profile_version'] = instance.profile_version + 1
         instance = super().update(instance, validated_data)
         self.save_roles(instance, roles)
         return instance

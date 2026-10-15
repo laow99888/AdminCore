@@ -63,7 +63,7 @@ def check(root=ROOT):
         return result
     full_hashes = hashes(read('backend/requirements.lock'))
     require(all(values == full_hashes.get(name) for name, values in hashes(read('backend/requirements.minimal.lock')).items()), '精简依赖哈希必须复用完整锁已审核的包摘要')
-    require(not {'pandas', 'numpy', 'openpyxl', 'pypdf', 'boto3', 'botocore', 'django-storages', 'nh3', 'pytest', 'ipython', 'django-extensions'} & minimal_locked.keys(), '精简哈希锁不能包含可选重依赖或开发工具')
+    require(not {'pandas', 'numpy', 'openpyxl', 'pypdf', 'boto3', 'botocore', 'django-storages', 'nh3', 'authlib', 'joserfc', 'pytest', 'ipython', 'django-extensions'} & minimal_locked.keys(), '精简哈希锁不能包含可选重依赖或开发工具')
     package = json.loads(read('frontend/package.json'))
     lock = json.loads(read('frontend/package-lock.json'))
     require(lock.get('lockfileVersion') == 3, '前端锁文件必须为v3')

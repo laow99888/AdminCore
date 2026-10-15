@@ -17,8 +17,9 @@
         <template #actions="{ row }"><el-button v-if="canSend && row.status === 'failed'" link type="primary" :disabled="saving || row.attempts >= 5 || Date.parse(row.expires_at) <= Date.now()" @click="retry(row)">{{ uiText('重试') }}</el-button></template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="editorOpen" :title="uiText(form.id ? '编辑模板' : '新增模板')" :before-close="guard.confirmDiscard" :loading="saving" :confirm-disabled="!canUpdate" @confirm="save">
+    <BaseDialog v-model="editorOpen" :title="uiText(form.id ? '编辑模板' : '新增模板')" :before-close="guard.confirmDiscard" :loading="saving || conflict.loading.value" :confirm-disabled="!canUpdate || conflict.active.value" @confirm="save">
       <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || !guard.isCurrent()" :version="form.revision" :server-version="conflict.latest.value?.revision" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-form label-position="top" :disabled="saving" @submit.prevent="save">
         <el-form-item :label="uiText('模板编码')" required><el-input v-model="form.code" :disabled="!!form.id" maxlength="40" /></el-form-item>
         <el-form-item :label="uiText('模板名称')" required><el-input v-model="form.name" maxlength="100" /></el-form-item>
@@ -53,6 +54,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
@@ -97,7 +100,16 @@ function clearDraft() {
   values.value = {}; recipients.value = []; picked.value = null; channels.value = ['inapp']; formError.value = ''; sendBody = ''; sendKey = ''
   invalidatePreview(); channelGeneration++; channelController?.abort(); available.value = { inapp: false, email: false, webhook: false, sms: false }; channelLoading.value = false
 }
-const guard = useUnsavedChanges({ source: () => editorOpen.value ? form : { values: values.value, recipients: recipients.value.map(person => person.id), channels: channels.value }, active: () => editorOpen.value || sendOpen.value, busy: () => saving.value, canEdit: () => canRead.value && (editorOpen.value ? canUpdate.value : canSend.value), clear: clearDraft })
+const guard = useUnsavedChanges({ source: () => editorOpen.value ? form : { values: values.value, recipients: recipients.value.map(person => person.id), channels: channels.value }, active: () => editorOpen.value || sendOpen.value, busy: () => saving.value || conflict.loading.value, canEdit: () => canRead.value && (editorOpen.value ? canUpdate.value : canSend.value), clear: clearDraft })
+const conflict = useEditConflict<MessageTemplate>({ identifier: () => editorOpen.value ? form.id : '', current: () => guard.isCurrent(), fetch: messagesApi.detail,
+  apply: row => { Object.assign(form, { id: row.id, code: row.code, name: row.name, enabled: row.enabled, revision: row.revision, subject: row.current.subject, body: row.current.body, variablesText: row.current.variables.join(', ') }); formError.value = ''; guard.markClean() } })
+const conflictRows = computed(() => conflict.latest.value ? [
+  { label: uiText('模板名称'), local: form.name, server: conflict.latest.value.name },
+  { label: uiText('标题模板'), local: form.subject, server: conflict.latest.value.current.subject },
+  { label: uiText('正文模板'), local: form.body, server: conflict.latest.value.current.body },
+  { label: uiText('变量名（逗号分隔）'), local: form.variablesText, server: conflict.latest.value.current.variables.join(', ') },
+  { label: uiText('启用'), local: String(form.enabled), server: String(conflict.latest.value.enabled) },
+] : [])
 watch(values, invalidatePreview, { deep: true, flush: 'sync' })
 async function load() {
   const current = ++generation; listController?.abort(); listController = new AbortController()
@@ -120,10 +132,10 @@ function changePage(value: number) { page.value = value; void load() }
 function changeSize(value: number) { pageSize.value = value; resetList() }
 function edit(row?: MessageTemplate) {
   if (!canUpdate.value || saving.value) return
-  clearDraft(); Object.assign(form, row ? { id: row.id, code: row.code, name: row.name, subject: row.current.subject, body: row.current.body, variablesText: row.current.variables.join(', '), enabled: row.enabled, revision: row.revision } : blank()); editorOpen.value = true
+  conflict.reset(); clearDraft(); Object.assign(form, row ? { id: row.id, code: row.code, name: row.name, subject: row.current.subject, body: row.current.body, variablesText: row.current.variables.join(', '), enabled: row.enabled, revision: row.revision } : blank()); editorOpen.value = true
 }
 async function save() {
-  if (saving.value || !editorOpen.value || !guard.isCurrent() || !canUpdate.value) return
+  if (saving.value || conflict.active.value || !editorOpen.value || !guard.isCurrent() || !canUpdate.value) return
   const variables = form.variablesText.split(',').map(value => value.trim()).filter(Boolean)
   if (!/^[a-z][a-z0-9_-]{0,39}$/.test(form.code) || !form.name.trim() || !form.subject.trim() || variables.length > 20 || new Set(variables).size !== variables.length || variables.some(value => !/^[a-z][a-z0-9_]{0,31}$/.test(value))) { formError.value = uiText('请填写有效编码、名称、标题和不重复的变量'); return }
   saving.value = true; formError.value = ''
@@ -131,7 +143,7 @@ async function save() {
     await messagesApi.save(form.id, { code: form.code, name: form.name.trim(), enabled: form.enabled, revision: form.revision, subject: form.subject, body: form.body, variables })
     if (!guard.isCurrent()) return
     guard.markClean(); editorOpen.value = false; ElMessage.success(uiText('保存成功')); await load()
-  } catch (exception: any) { if (guard.isCurrent()) formError.value = uiText(exception?.response?.status === 409 ? '模板已变化，已保留输入，请重新打开编辑窗口' : '保存失败，已保留输入；请检查占位符与声明变量') }
+  } catch (exception: any) { if (guard.isCurrent()) { if (exception?.response?.status === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入；请检查占位符与声明变量') } }
   finally { saving.value = false }
 }
 async function compose(row: MessageTemplate) {

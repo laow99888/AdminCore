@@ -1,6 +1,8 @@
 from django.db import transaction, IntegrityError
+from django.shortcuts import get_object_or_404
 from rest_framework import viewsets
 from rest_framework.exceptions import ValidationError
+from apps.auth_app.write_authorization import authorize_write
 from apps.permissions.permissions import IsAdmin
 from .mixins import EnvelopeResponseMixin
 from .models import Department, OrganizationMembership, DataScopeGrant
@@ -43,6 +45,7 @@ class DepartmentViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        authorize_write(self.request, admin=True)
         rows = self.lock_tree()
         self.validate_tree(serializer, rows)
         if serializer.validated_data['version'] != 0:
@@ -52,6 +55,7 @@ class DepartmentViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
+        authorize_write(self.request, admin=True)
         rows = self.lock_tree()
         row = rows.get(serializer.instance.pk)
         if row is None or serializer.validated_data.get('version') != row.version:
@@ -66,6 +70,7 @@ class DepartmentViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
+        authorize_write(self.request, admin=True)
         rows = self.lock_tree()
         row = rows.get(instance.pk)
         if row is None:
@@ -91,6 +96,7 @@ class MembershipViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        authorize_write(self.request, admin=True, related_users=(serializer.validated_data['user'].pk,))
         if serializer.validated_data['version'] != 0:
             raise ValidationError({'version': '新建归属版本必须为 0'})
         department = Department.objects.select_for_update().get(pk=serializer.validated_data['department'].pk)
@@ -105,8 +111,10 @@ class MembershipViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
+        authorize_write(self.request, admin=True, related_users=(serializer.instance.user_id,
+            serializer.validated_data.get('user', serializer.instance.user).pk))
         list(Department.objects.select_for_update().order_by('pk'))
-        current = OrganizationMembership.objects.select_for_update().get(pk=serializer.instance.pk)
+        current = get_object_or_404(OrganizationMembership.objects.select_for_update(), pk=serializer.instance.pk)
         if serializer.validated_data.get('version') != current.version:
             raise VersionConflict()
         serializer.instance = current
@@ -121,9 +129,12 @@ class MembershipViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_destroy(self, instance):
-        before = MembershipSerializer(instance).data
-        identifier = instance.pk
-        instance.delete()
+        authorize_write(self.request, admin=True, related_users=(instance.user_id,))
+        list(Department.objects.select_for_update().order_by('pk'))
+        current = get_object_or_404(OrganizationMembership.objects.select_for_update(), pk=instance.pk)
+        before = MembershipSerializer(current).data
+        identifier = current.pk
+        current.delete()
         audit(self.request, 'membership', identifier, before, None)
 
 
@@ -150,6 +161,7 @@ class ScopeGrantViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
+        authorize_write(self.request, admin=True)
         self.lock_departments(serializer)
         if serializer.validated_data['version'] != 0:
             raise ValidationError({'version': '新建规则版本必须为 0'})
@@ -162,8 +174,9 @@ class ScopeGrantViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
+        authorize_write(self.request, admin=True)
         self.lock_departments(serializer)
-        current = DataScopeGrant.objects.select_for_update().get(pk=serializer.instance.pk)
+        current = get_object_or_404(DataScopeGrant.objects.select_for_update(), pk=serializer.instance.pk)
         if serializer.validated_data.get('version') != current.version:
             raise VersionConflict()
         before = ScopeGrantSerializer(current).data

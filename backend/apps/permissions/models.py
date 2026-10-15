@@ -14,6 +14,7 @@ class Role(BaseModel):
     name = models.CharField(max_length=100, unique=True, verbose_name='角色名')
     description = models.TextField(blank=True, verbose_name='描述')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
+    version = models.PositiveIntegerField(default=1)
 
     class Meta:
         verbose_name = '角色'
@@ -90,6 +91,7 @@ class Menu(BaseModel):
         verbose_name='所需权限'
     )
     is_visible = models.BooleanField(default=True, verbose_name='是否可见')
+    version = models.PositiveIntegerField(default=1)
 
     class Meta:
         verbose_name = '菜单'

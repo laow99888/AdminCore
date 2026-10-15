@@ -7,6 +7,9 @@ from rest_framework import serializers
 from apps.core.schema import envelope
 from apps.core.query_budget import QueryBudgetListMixin
 
+import hashlib
+
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
@@ -14,6 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.permissions.permissions import IsAdmin
+from apps.auth_app.write_authorization import authorize_write
 from apps.core.idempotency import with_idempotency
 
 from .models import Notification
@@ -59,12 +63,23 @@ class NotificationViewSet(QueryBudgetListMixin, mixins.ListModelMixin,
             return [IsAuthenticated(), IsAdmin()]
         return super().get_permissions()
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         """发送通知（仅管理员）"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        authorize_write(request, admin=True,
+                        related_users=tuple(user.pk for user in serializer.validated_data['recipient_ids']))
+
         def action():
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
             result = serializer.save()
+            from apps.logs.audit import write_audit
+            content = serializer.validated_data.get('content', '')
+            write_audit(request=request, resource='notification', action='create',
+                        after={'notification_type': serializer.validated_data['notification_type'],
+                               'content_length': len(content),
+                               'content_sha256': hashlib.sha256(content.encode()).hexdigest()},
+                        description='sent_count=' + str(result['sent_count']))
             return Response({'code': 200, 'message': '发送成功', 'data': result}, status=status.HTTP_201_CREATED)
         return with_idempotency(request, 'notifications:create', action)
 

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 @extend_schema_view(
     cancel=extend_schema(request=None, responses=envelope('TaskCancelledResponse', TaskRecordSerializer())),
-    cleanup_history=extend_schema(request=CleanupRequestSerializer, responses=MessageResponse),
+    cleanup_history=extend_schema(request=CleanupRequestSerializer, responses=envelope('TaskHistoryCleanupResponse')),
 )
 class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
     """任务中心：查看任务记录、取消任务、清理历史"""
@@ -105,17 +105,8 @@ class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='cleanup')
     def cleanup_history(self, request):
-        """清理已完成的历史任务记录（默认保留 30 天）"""
-        from datetime import timedelta
-        from django.utils import timezone
-
+        """默认只预览；实际执行绑定15分钟内的范围/设备/记录快照，最多100项。"""
         serializer = CleanupRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        days = serializer.validated_data['days']
-        cutoff = timezone.now() - timedelta(days=days)
-        deleted, _ = self.get_queryset().filter(
-            status__in=['success', 'failed', 'cancelled'],
-            created_at__lt=cutoff,
-        ).delete()
-        from apps.core.error_i18n import error_text
-        return Response({'code': 200, 'message': error_text('已清理 {count} 条历史任务记录', count=deleted), 'data': None})
+        from .history_cleanup import clean
+        return Response({'code': 200, 'message': 'success', 'data': clean(request, serializer.validated_data)})

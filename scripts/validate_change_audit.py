@@ -26,30 +26,37 @@ def client():
 
 def update(suffix):
     try:
-        response = client().patch(f'/api/v1/permissions/roles/{role.pk}/', {'name': name + suffix},
+        response = client().patch(f'/api/v1/permissions/roles/{role.pk}/', {'name': name + suffix, 'version': 1},
                                   format='json', HTTP_X_REQUEST_ID='pg-audit-' + suffix)
-        assert response.status_code == 200
+        return response.status_code
     finally:
         connections.close_all()
 
 
 with ThreadPoolExecutor(max_workers=2) as pool:
-    list(pool.map(update, ['A', 'B']))
+    assert sorted(pool.map(update, ['A', 'B'])) == [200, 409]
 rows = list(OperationLog.objects.filter(resource='role', resource_id=str(role.pk)).order_by('created_at'))
-assert len(rows) == 2
+assert len(rows) == 1
 assert rows[0].before_values['name'] == name
-assert rows[1].before_values['name'] == rows[0].after_values['name']
 role.refresh_from_db()
-assert rows[1].after_values['name'] == role.name
-assert {row.request_id for row in rows} == {'pg-audit-A', 'pg-audit-B'}
-print('通过：PostgreSQL 并发角色变更快照连续，不读取过期前值', flush=True)
+assert rows[0].after_values['name'] == role.name and role.version == 2
+assert rows[0].request_id in {'pg-audit-A', 'pg-audit-B'}
+# An explicit reload may submit the new version; its audit must start at the committed value.
+response = client().patch(f'/api/v1/permissions/roles/{role.pk}/',
+    {'name': name + 'RELOADED', 'version': role.version}, format='json', HTTP_X_REQUEST_ID='pg-audit-reloaded')
+assert response.status_code == 200
+rows = list(OperationLog.objects.filter(resource='role', resource_id=str(role.pk)).order_by('created_at'))
+assert len(rows) == 2 and rows[1].before_values['name'] == rows[0].after_values['name']
+role.refresh_from_db()
+assert rows[1].after_values['name'] == role.name and role.version == 3
+print('通过：PostgreSQL 并发旧版本一成功一冲突；显式重读后审计快照连续', flush=True)
 
 previous = role.name
 with patch('apps.logs.audit.write_audit', side_effect=RuntimeError('isolated audit failure')):
-    response = client().patch(f'/api/v1/permissions/roles/{role.pk}/', {'name': name + 'FAIL'}, format='json')
+    response = client().patch(f'/api/v1/permissions/roles/{role.pk}/', {'name': name + 'FAIL', 'version': role.version}, format='json')
 assert response.status_code == 500
 role.refresh_from_db()
-assert role.name == previous and OperationLog.objects.filter(resource='role', resource_id=str(role.pk)).count() == 2
+assert role.name == previous and role.version == 3 and OperationLog.objects.filter(resource='role', resource_id=str(role.pk)).count() == 2
 print('通过：PostgreSQL 审计写入失败回滚角色变更', flush=True)
 
 response = client().get('/api/v1/logs/operation/', {'request_id': rows[0].request_id})

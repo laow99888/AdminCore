@@ -10,6 +10,7 @@ from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 from apps.core.models import LifecycleConflict
+from tests.file_permissions import grant_files
 from apps.files.models import FileModel, FileStorageError
 from apps.logs.models import OperationLog
 from apps.tasks.tasks import cleanup_soft_deleted_files
@@ -70,7 +71,7 @@ def test_non_object_payload_returns_validation_error(member_client, payload):
 def test_old_version_preserves_latest_and_admin_edits_invalidate(member_client, admin_client, member_user):
     assert member_client.patch(PROFILE, {'profile_version': 1, 'bio': 'new'}, format='json').status_code == 200
     assert member_client.patch(PROFILE, {'profile_version': 1, 'bio': 'stale'}, format='json').status_code == 409
-    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'email': 'admin-edit@example.com'}, format='json').status_code == 200
+    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 2, 'email': 'admin-edit@example.com'}, format='json').status_code == 200
     assert member_client.patch(PROFILE, {'profile_version': 2, 'email': 'stale@example.com'}, format='json').status_code == 409
     assert member_client.get(PROFILE).json()['data']['bio'] == 'new'
 
@@ -84,6 +85,7 @@ def test_requires_authenticated_unrestricted_account(member_client, member_user,
 
 
 def test_avatar_private_normalized_and_hidden_from_general_files(member_client, member_user, admin_client):
+    grant_files(member_user, 'file:download')
     assert upload(member_client).status_code == 200
     member_user.refresh_from_db()
     asset = member_user.avatar_file

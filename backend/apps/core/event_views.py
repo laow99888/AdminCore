@@ -1,5 +1,5 @@
 """管理员诊断可靠事件；响应不包含业务 payload 或完整请求响应。"""
-from django.db import transaction
+from django.db import transaction, OperationalError
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import mixins, serializers, viewsets
@@ -12,7 +12,10 @@ from apps.permissions.permissions import IsAdmin
 from .mixins import EnvelopeResponseMixin
 from .events import _dispatch_after_commit
 from .models import OutboxEvent
+from apps.auth_app.write_authorization import authorize_write
+from django.shortcuts import get_object_or_404
 from .schema import envelope
+from .exceptions import APIError
 
 
 class OutboxEventSerializer(serializers.ModelSerializer):
@@ -38,7 +41,15 @@ class OutboxEventViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mixins.Re
     @action(detail=True, methods=['post'])
     def retry(self, request, pk=None):
         with transaction.atomic():
-            event = self.get_queryset().select_for_update().get(pk=self.get_object().pk)
+            authorize_write(request, admin=True)
+            try:
+                # 消费者先锁事件再锁通知接收人。人工入口已先锁身份，不能再等待事件锁。
+                event = get_object_or_404(self.get_queryset().select_for_update(nowait=True), pk=pk)
+            except OperationalError as exc:
+                cause = exc.__cause__
+                if getattr(cause, 'sqlstate', None) == '55P03' or getattr(cause, 'pgcode', None) == '55P03':
+                    raise APIError('事件正在处理，请稍后重试', status_code=409) from exc
+                raise
             if event.status != 'failed':
                 return Response({'code': 409, 'message': '只能重试失败事件', 'data': None}, status=409)
             if event.topic == 'notification.delivery':

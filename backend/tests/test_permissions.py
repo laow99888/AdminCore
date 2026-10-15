@@ -88,7 +88,7 @@ class TestRoleApi:
         role_id = res.json()['data']['id']
         res = admin_client.patch(
             f'/api/v1/permissions/roles/{role_id}/',
-            {'permission_ids': [str(perms[1].id)]},
+            {'version': 1, 'permission_ids': [str(perms[1].id)]},
             format='json',
         )
         assert res.status_code == 200

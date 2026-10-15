@@ -57,9 +57,9 @@ test('系统参数携带版本保存，冲突保留输入', async ({ page }) => 
   const request = page.waitForRequest(request => request.method() === 'PATCH')
   await page.getByRole('button', { name: '保存', exact: true }).click()
   expect((await request).postDataJSON()).toEqual({ value: 45, version: 0 })
-  await expect(page.getByText('内容已被其他人修改，已保留输入，请刷新后重试')).toBeVisible()
+  await expect(page.getByRole('region', { name: '编辑冲突' })).toBeVisible()
   await expect(input).toHaveValue('45')
-  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeEnabled()
+  await expect(page.getByRole('button', { name: '保存', exact: true })).toBeDisabled()
 })
 
 test('字典新增校验、字段提交与窄屏暗色弹窗', async ({ page }, testInfo) => {
@@ -120,7 +120,7 @@ test('部门编辑排除自身及下级，版本冲突保留输入', async ({ pa
   const request = page.waitForRequest(request => request.method() === 'PATCH')
   await dialog.getByRole('button', { name: '确认', exact: true }).click()
   expect((await request).postDataJSON()).toMatchObject({ parent: 'd3', name: '新总部', version: 1 })
-  await expect(dialog.getByRole('alert').filter({ hasText: '内容已被其他人修改' }).first()).toBeVisible()
+  await expect(dialog.getByRole('region', { name: '编辑冲突' })).toBeVisible()
   await expect(dialog.getByLabel('部门名称')).toHaveValue('新总部')
   const bounds = await dialog.boundingBox()
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width)

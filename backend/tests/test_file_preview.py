@@ -10,6 +10,7 @@ from pypdf import PdfWriter
 from pypdf.generic import DictionaryObject, NameObject, TextStringObject
 from rest_framework.test import APIClient
 
+from tests.file_permissions import grant_files
 from apps.files.models import FileModel
 from apps.logs.models import OperationLog
 
@@ -55,7 +56,8 @@ def preview(client, id):
     return client.get(f'/api/v1/files/{id}/preview/')
 
 
-def test_preview_auth_scope_deleted_and_restore(admin_client, member_client):
+def test_preview_auth_scope_deleted_and_restore(admin_client, member_client, member_user):
+    grant_files(member_user, 'file:upload', 'file:download')
     id = upload(member_client)
     assert preview(APIClient(), id).status_code == 401
     assert preview(member_client, id).status_code == 200

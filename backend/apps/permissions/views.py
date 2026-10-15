@@ -14,13 +14,14 @@ from apps.core.mixins import EnvelopeResponseMixin
 from .models import Role, Permission, Menu
 from .serializers import RoleSerializer, PermissionSerializer, MenuSerializer
 from .permissions import HasPermission, IsAdmin, permission_codes
+from apps.auth_app.write_authorization import authorize_write
 
 
 @extend_schema_view(
     retrieve=extend_schema(responses=envelope('RoleDetailResponse', RoleSerializer())),
     create=extend_schema(responses={201: envelope('RoleCreatedResponse', RoleSerializer())}),
-    update=extend_schema(responses=envelope('RoleUpdatedResponse', RoleSerializer())),
-    partial_update=extend_schema(responses=envelope('RolePatchedResponse', RoleSerializer())),
+    update=extend_schema(responses={200: envelope('RoleUpdatedResponse', RoleSerializer()), 400: MessageResponse, 409: MessageResponse}),
+    partial_update=extend_schema(responses={200: envelope('RolePatchedResponse', RoleSerializer()), 400: MessageResponse, 409: MessageResponse}),
     destroy=extend_schema(responses={200: MessageResponse}),
 )
 class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
@@ -46,12 +47,14 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         from apps.logs.audit import snapshot, write_audit
+        authorize_write(self.request, 'role:update', admin=True)
         row = serializer.save()
         write_audit(request=self.request, resource='role', identifier=row.pk, action='create', after=snapshot('role', row))
 
     @transaction.atomic
     def perform_update(self, serializer):
         from apps.logs.audit import snapshot, write_audit
+        authorize_write(self.request, 'role:update', admin=True)
         serializer.instance = Role.objects.select_for_update().get(pk=serializer.instance.pk)
         before = snapshot('role', serializer.instance)
         row = serializer.save()
@@ -60,6 +63,7 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_destroy(self, instance):
         from apps.logs.audit import snapshot, write_audit
+        authorize_write(self.request, 'role:update', admin=True)
         row = Role.objects.select_for_update().get(pk=instance.pk)
         write_audit(request=self.request, resource='role', identifier=row.pk, action='delete', before=snapshot('role', row))
         row.delete()
@@ -82,8 +86,8 @@ class PermissionViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
 @extend_schema_view(
     retrieve=extend_schema(responses=envelope('MenuDetailResponse', MenuSerializer())),
     create=extend_schema(responses={201: envelope('MenuCreatedResponse', MenuSerializer())}),
-    update=extend_schema(responses=envelope('MenuUpdatedResponse', MenuSerializer())),
-    partial_update=extend_schema(responses=envelope('MenuPatchedResponse', MenuSerializer())),
+    update=extend_schema(responses={200: envelope('MenuUpdatedResponse', MenuSerializer()), 400: MessageResponse, 409: MessageResponse}),
+    partial_update=extend_schema(responses={200: envelope('MenuPatchedResponse', MenuSerializer()), 400: MessageResponse, 409: MessageResponse}),
     destroy=extend_schema(responses={200: MessageResponse}),
     my_menu=extend_schema(responses=envelope('MyMenuResponse', MenuSerializer(many=True)), filters=False),
 )
@@ -141,6 +145,7 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def perform_create(self, serializer):
         from .services import save_menu
         from apps.logs.audit import snapshot, write_audit
+        authorize_write(self.request, 'menu:update')
         row = save_menu(serializer)
         write_audit(request=self.request, resource='menu', identifier=row.pk, action='create', after=snapshot('menu', row))
 
@@ -148,6 +153,7 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         from .services import save_menu
         from apps.logs.audit import snapshot, write_audit
+        authorize_write(self.request, 'menu:update')
         # 与菜单服务统一锁顺序，避免并发树修改/审计快照不一致。
         list(Menu.objects.select_for_update().order_by('id'))
         serializer.instance.refresh_from_db()
@@ -159,6 +165,7 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         from .services import delete_menu
         from apps.logs.audit import snapshot, write_audit
+        authorize_write(self.request, 'menu:update')
         list(Menu.objects.select_for_update().order_by('id'))
         instance.refresh_from_db()
         before, identifier = snapshot('menu', instance), instance.pk

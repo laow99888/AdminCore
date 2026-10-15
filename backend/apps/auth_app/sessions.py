@@ -44,9 +44,11 @@ def idle_cutoff():
 
 
 def active_sessions():
-    return AuthSession.objects.filter(revoked_at__isnull=True, expires_at__gt=timezone.now(),
+    from apps.sso.sessions import filter_active_linked_sessions
+    current = AuthSession.objects.filter(revoked_at__isnull=True, expires_at__gt=timezone.now(),
         last_seen_at__gt=idle_cutoff(), user__is_active=True,
         session_version=F('user__session_version'), password_hash=Upper(MD5('user__password')))
+    return filter_active_linked_sessions(current)
 
 
 def session_id(token):
@@ -66,6 +68,8 @@ def validate_session(session, user, token):
             or session.session_version != user.session_version
             or session.password_hash != password_hash or token.get('hash_password') != password_hash):
         raise AuthenticationFailed('登录凭据已撤销，请重新登录', code='session_revoked')
+    from apps.sso.sessions import validate_linked_session
+    validate_linked_session(session, user, token)
     return session
 
 

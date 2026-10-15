@@ -3,7 +3,7 @@
     width="min(960px, calc(100vw - 48px))" :show-cancel="false" :confirm-text="uiText('关闭')"
     @update:model-value="value => { if (!value) emit('close') }" @confirm="emit('close')">
     <div class="preview-body" :aria-busy="busy" aria-live="polite">
-      <p v-if="busy" role="status">{{ uiText('正在加载预览…') }}</p>
+      <p v-if="busy" role="status">{{ uiText(file && isOfficeFormat(file.file_type) ? '正在安全转换 Office 文件…' : '正在加载预览…') }}</p>
       <div v-if="error" role="alert">
         <p>{{ error }}</p>
         <BaseButton :disabled="busy" @click="load">{{ uiText('重试') }}</BaseButton>
@@ -30,6 +30,7 @@ import { BaseDialog, BaseButton } from '@/components'
 import { uiText } from '@/i18n/uiText'
 import type { FileRow } from '@/api'
 import { fetchPreview } from '@/api/filePreview'
+import { fetchOfficePreview, isOfficeFormat } from '@/api/officePreview'
 
 const props = defineProps<{ file: FileRow | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -103,7 +104,9 @@ async function load() {
   controller = new AbortController()
   busy.value = true
   try {
-    const blob = await fetchPreview(file.id, controller.signal)
+    const blob = isOfficeFormat(file.file_type)
+      ? await fetchOfficePreview(file, controller.signal)
+      : await fetchPreview(file.id, controller.signal)
     if (current !== generation) return
     if (blob.type === 'image/png') {
       imageUrl.value = URL.createObjectURL(blob)

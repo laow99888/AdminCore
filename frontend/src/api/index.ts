@@ -49,6 +49,7 @@ async function getPaged<T>(url: string, params?: ListParams): Promise<PagedData<
 
 // ===== 用户管理 =====
 export interface UserRow {
+  version: number
   id: string
   username: string
   email: string
@@ -73,11 +74,11 @@ export interface AtomicUserBulkResult {
 
 export const usersApi = {
   list: (params?: ListParams) => getPaged<UserRow>('/users/', params),
-  detail: async (id: string): Promise<UserDetail> => (await request.get<ApiResponse<UserDetail>>(`/users/${id}/`)).data.data,
+  detail: async (id: string, signal?: AbortSignal): Promise<UserDetail> => (await request.get<ApiResponse<UserDetail>>(`/users/${id}/`, { signal })).data.data,
   sensitive: async (id: string, currentPassword: string, signal?: AbortSignal): Promise<{ email: string; phone: string }> =>
     (await request.post<ApiResponse<{ email: string; phone: string }>>(`/users/${id}/sensitive/`, { current_password: currentPassword }, { signal })).data.data,
   create: (data: Partial<UserRow> & { password: string; role_ids?: string[]; must_change_password?: boolean }) => request.post('/users/', data),
-  update: (id: string, data: Partial<UserRow> & { role_ids?: string[] }) => request.patch(`/users/${id}/`, data),
+  update: (id: string, data: Partial<UserRow> & { version: number; role_ids?: string[] }) => request.patch(`/users/${id}/`, data),
   remove: (id: string) => request.delete(`/users/${id}/`),
   resetPassword: (id: string, password: string, mustChangePassword = true) =>
     request.post(`/users/${id}/reset_password/`, { password, must_change_password: mustChangePassword }),
@@ -153,7 +154,8 @@ export const tasksApi = {
   list: (params?: ListParams) => getPaged<TaskRow>('/tasks/', params),
   cancel: (id: string) => request.post(`/tasks/${id}/cancel/`),
   resume: (id: string) => request.post(`/tasks/${id}/resume/`),
-  cleanupHistory: (days = 30) => request.post('/tasks/cleanup/', { days }),
+  cleanupHistory: (days = 30, options: { dry_run?: boolean; batch_size?: number; preview_token?: string; confirmation?: string } = {}) =>
+    request.post('/tasks/cleanup/', { days, dry_run: true, ...options }),
 }
 
 // ===== 通知中心 =====
@@ -245,6 +247,7 @@ export const dataIoApi = {
 
 // ===== 角色与菜单 =====
 export interface RoleRow {
+  version: number
   id: string
   name: string
   description: string
@@ -254,6 +257,7 @@ export interface RoleRow {
 }
 
 export interface MenuRow {
+  version: number
   id: string
   name: string
   path: string
@@ -266,10 +270,11 @@ export interface MenuRow {
 }
 
 export const rolesApi = {
+  detail: async (id: string, signal?: AbortSignal): Promise<RoleRow> => (await request.get<ApiResponse<RoleRow>>(`/permissions/roles/${id}/`, { signal })).data.data,
   list: (params?: ListParams) => getPaged<RoleRow>('/permissions/roles/', params),
   create: (data: Partial<RoleRow> & { permission_ids?: string[] }) =>
     request.post('/permissions/roles/', data),
-  update: (id: string, data: Partial<RoleRow> & { permission_ids?: string[] }) =>
+  update: (id: string, data: Partial<RoleRow> & { version: number; permission_ids?: string[] }) =>
     request.patch(`/permissions/roles/${id}/`, data),
   remove: (id: string) => request.delete(`/permissions/roles/${id}/`),
 }
@@ -279,8 +284,9 @@ export const permissionsApi = {
 }
 
 export const menusApi = {
+  detail: async (id: string, signal?: AbortSignal): Promise<MenuRow> => (await request.get<ApiResponse<MenuRow>>(`/permissions/menus/${id}/`, { signal })).data.data,
   create: (data: Partial<MenuRow>) => request.post('/permissions/menus/', data),
-  update: (id: string, data: Partial<MenuRow>) => request.patch(`/permissions/menus/${id}/`, data),
+  update: (id: string, data: Partial<MenuRow> & { version: number }) => request.patch(`/permissions/menus/${id}/`, data),
   remove: (id: string) => request.delete(`/permissions/menus/${id}/`),
   myMenu: async (): Promise<MenuRow[]> => {
     const res = await request.get<ApiResponse<MenuRow[]>>('/permissions/menus/my_menu/')

@@ -5,9 +5,11 @@ import json
 from django.conf import settings
 from django.core import signing
 from django.core.cache import cache
+from django.db import transaction
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 
 from apps.logs.models import OperationLog
+from apps.auth_app.write_authorization import authorize_write
 from apps.permissions.permissions import has_permission_code
 from .cache_keys import config_cache_key, dictionary_cache_key
 from .models import SystemConfig, DataDictionary
@@ -53,46 +55,65 @@ def snapshot(namespace):
 
 
 def authorize(request, namespace):
+    authorize_write(request, 'cache:clear', admin=True)
     if not has_permission_code(request.user, NAMESPACES[namespace]):
         raise PermissionDenied()
     if backend_mode() == 'unsupported':
         raise CacheUnavailable('当前缓存后端不支持此清理入口')
 
 
+def identity(request):
+    from apps.auth_app.sessions import session_id
+    return {'user': str(request.user.pk), 'session': request.user.session_version,
+            'sid': str(session_id(request.auth)) if request.auth is not None else None}
+
+
+@transaction.atomic
 def preview(request, namespace):
     authorize(request, namespace)
     keys, digest = snapshot(namespace)
     if len(keys) > LIMIT:
         raise ValidationError({'namespace': '候选数量超过单次 1000 项上限，此入口拒绝清理'})
-    token = signing.dumps({'user': str(request.user.pk), 'session': request.user.session_version,
+    token = signing.dumps({**identity(request),
                            'namespace': namespace, 'digest': digest, 'backend': backend_mode()}, salt=SALT)
     return {'namespace': namespace, 'candidate_count': len(keys), 'backend': backend_mode(),
             'expires_in': MAX_AGE, 'token': token}
 
 
-def clear(request, namespace, token):
+def confirmed(request, namespace, token):
     authorize(request, namespace)
     try:
         data = signing.loads(token, salt=SALT, max_age=MAX_AGE)
     except signing.BadSignature as exc:
         raise CacheConflict() from exc
     keys, digest = snapshot(namespace)
-    expected = {'user': str(request.user.pk), 'session': request.user.session_version,
+    expected = {**identity(request),
                 'namespace': namespace, 'digest': digest, 'backend': backend_mode()}
     if data != expected or len(keys) > LIMIT:
         raise CacheConflict()
+    return keys
+
+
+def clear(request, namespace, token):
+    with transaction.atomic():
+        keys = confirmed(request, namespace, token)
     # Persist an uncertain outcome BEFORE touching the separate cache service.
     audit_data = {'namespace': namespace, 'candidate_count': len(keys), 'backend': backend_mode(), 'outcome': 'unconfirmed'}
     log = OperationLog.objects.create(user=request.user, action='delete', resource='business_cache',
                                      resource_id=namespace, status=503, description=json.dumps(audit_data),
                                      ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1')
     try:
-        if keys:
-            result = cache.delete_many(keys)
-            # django-redis may suppress connection errors if a deployment enables
-            # IGNORE_EXCEPTIONS; its successful delete_many always returns an int.
-            if backend_mode() == 'shared' and type(result) is not int:
-                raise CacheUnavailable()
+        # The durable uncertain audit stays outside this transaction. Keep the
+        # freshly authorized actor/device locked through the external deletion.
+        with transaction.atomic():
+            keys = confirmed(request, namespace, token)
+            if keys:
+                result = cache.delete_many(keys)
+                # Suppressed Redis errors must not become successful deletion.
+                if backend_mode() == 'shared' and type(result) is not int:
+                    raise CacheUnavailable()
+    except APIException:
+        raise
     except Exception as exc:
         raise CacheUnavailable() from exc
     audit_data['outcome'] = 'completed'

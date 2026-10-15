@@ -3,6 +3,7 @@
     <BaseCard>
       <template #header><div class="card-header-row"><h2>{{ uiText('系统参数') }}</h2><BaseButton :loading="loading" :disabled="saving" @click="reload">{{ uiText('刷新') }}</BaseButton></div></template>
       <div v-if="error" ref="errorSummary" role="alert" tabindex="-1"><el-alert :title="error" type="error" :closable="false" class="notice" /></div>
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || readingLogo || !formGuard.isCurrent()" :version="conflictRow?.version ?? 0" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-skeleton v-if="loading" :rows="5" animated />
       <el-empty v-else-if="!rows.length && !error" :description="uiText('暂无数据')" />
       <el-form v-else label-position="top" class="config-form" :disabled="saving || readingLogo">
@@ -15,7 +16,7 @@
             </template>
             <el-input-number v-else-if="row.kind === 'integer'" v-model="values[row.key]" :min="row.minimum" :max="row.maximum" :disabled="!auth.can('config:update')" />
             <el-input v-else v-model="values[row.key]" :maxlength="row.maximum" show-word-limit :disabled="!auth.can('config:update')" />
-            <BaseButton v-if="auth.can('config:update')" variant="primary" :loading="savingKey === row.key" @click="save(row)">{{ uiText('保存') }}</BaseButton>
+            <BaseButton v-if="auth.can('config:update')" variant="primary" :loading="savingKey === row.key" :disabled="conflict.active.value || conflict.loading.value" @click="save(row)">{{ uiText('保存') }}</BaseButton>
           </div>
           <div class="help">{{ row.key }} · {{ uiText(row.effective) }}</div>
         </el-form-item>
@@ -25,6 +26,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton } from '@/components'
@@ -44,7 +47,12 @@ const savingKey = ref('')
 const saving = computed(() => !!savingKey.value)
 const error = ref('')
 const readingLogo = ref(false)
-const formGuard = useUnsavedChanges({ source: () => rows.value.filter(row => JSON.stringify(values[row.key]) !== JSON.stringify(row.value)).map(row => ({ key: row.key, value: values[row.key] })), active: () => !!rows.value.length, busy: () => saving.value || loading.value || readingLogo.value, canEdit: () => auth.can('config:update'), clear: () => { for (const key of Object.keys(values)) delete values[key] } })
+const formGuard = useUnsavedChanges({ source: () => rows.value.filter(row => JSON.stringify(values[row.key]) !== JSON.stringify(row.value)).map(row => ({ key: row.key, value: values[row.key] })), active: () => !!rows.value.length, busy: () => saving.value || loading.value || readingLogo.value || conflict.loading.value, canEdit: () => auth.can('config:update'), clear: () => { for (const key of Object.keys(values)) delete values[key] } })
+const conflictKey = ref('')
+const conflictRow = computed(() => rows.value.find(row => row.key === conflictKey.value))
+const conflict = useEditConflict<ConfigRow>({ identifier: () => conflictKey.value, current: () => formGuard.isCurrent(), fetch: systemApi.config,
+  apply: latest => { const row = rows.value.find(item => item.key === latest.key); if (row) Object.assign(row, latest); values[latest.key] = latest.value; conflictKey.value = ''; error.value = '' } })
+const conflictRows = computed(() => conflict.latest.value ? [{ label: conflictRow.value ? uiText(conflictRow.value.label) : conflictKey.value, local: String(values[conflictKey.value] ?? ''), server: String(conflict.latest.value.value) }] : [])
 useErrorSummary(error)
 async function selectLogo(event: Event, key: string) {
   const input = event.target as HTMLInputElement
@@ -65,7 +73,7 @@ async function selectLogo(event: Event, key: string) {
   } catch { error.value = uiText('图片读取失败，请重试') }
   finally { readingLogo.value = false }
 }
-async function reload() { if (saving.value || loading.value || readingLogo.value || !await formGuard.confirmDiscard()) return; await load() }
+async function reload() { if (saving.value || loading.value || readingLogo.value || conflict.loading.value || !await formGuard.confirmDiscard()) return; conflict.reset(); conflictKey.value = ''; await load() }
 async function load() {
   loading.value = true
   error.value = ''
@@ -77,7 +85,7 @@ async function load() {
   finally { loading.value = false }
 }
 async function save(row: ConfigRow) {
-  if (saving.value || loading.value || readingLogo.value || !auth.can('config:update')) return
+  if (saving.value || loading.value || readingLogo.value || conflict.active.value || conflict.loading.value || !auth.can('config:update')) return
   const value = values[row.key]
   if ((row.kind === 'integer' && (!Number.isInteger(value) || value < row.minimum || value > row.maximum)) ||
       (row.kind === 'string' && (typeof value !== 'string' || value.trim().length < row.minimum || value.trim().length > row.maximum))) {
@@ -97,7 +105,9 @@ async function save(row: ConfigRow) {
     ElMessage.success(uiText('保存成功'))
     if (row.key.startsWith('brand.')) await brand.load()
   } catch (exception: any) {
-    error.value = uiText(exception?.response?.status === 409 ? '内容已被其他人修改，已保留输入，请刷新后重试' : '保存失败，已保留输入')
+    if (!formGuard.isCurrent()) return
+    if (exception?.response?.status === 409) { conflictKey.value = row.key; conflict.mark() }
+    else error.value = uiText('保存失败，已保留输入')
   } finally { savingKey.value = '' }
 }
 onMounted(load)

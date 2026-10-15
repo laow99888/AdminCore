@@ -31,12 +31,12 @@ def test_admin_reset_rejects_weak_password(admin_client, member_user, password):
 
 def test_admin_role_assignment_and_omitted_roles_preserved(admin_client, member_user):
     role = Role.objects.create(name='测试角色')
-    response = admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'role_ids': [str(role.pk)]}, format='json')
+    response = admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 1, 'role_ids': [str(role.pk)]}, format='json')
     assert response.status_code == 200
     assert UserRole.objects.filter(user=member_user, role=role).exists()
-    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'first_name': '保留'}, format='json').status_code == 200
+    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 2, 'first_name': '保留'}, format='json').status_code == 200
     assert UserRole.objects.filter(user=member_user, role=role).exists()
-    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'role_ids': []}, format='json').status_code == 200
+    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 3, 'role_ids': []}, format='json').status_code == 200
     assert not UserRole.objects.filter(user=member_user).exists()
 
 
@@ -54,10 +54,10 @@ def test_user_manager_cannot_grant_roles(member_client, member_user):
 def test_role_assignment_rejects_duplicates_and_disabled_additions(admin_client, member_user):
     role = Role.objects.create(name='停用角色', is_active=False)
     url = f'/api/v1/users/{member_user.pk}/'
-    assert admin_client.patch(url, {'role_ids': [str(role.pk)]}, format='json').status_code == 400
+    assert admin_client.patch(url, {'version': 1, 'role_ids': [str(role.pk)]}, format='json').status_code == 400
     UserRole.objects.create(user=member_user, role=role)
-    assert admin_client.patch(url, {'role_ids': [str(role.pk)]}, format='json').status_code == 200
-    assert admin_client.patch(url, {'role_ids': [str(role.pk), str(role.pk)]}, format='json').status_code == 400
+    assert admin_client.patch(url, {'version': 1, 'role_ids': [str(role.pk)]}, format='json').status_code == 200
+    assert admin_client.patch(url, {'version': 2, 'role_ids': [str(role.pk), str(role.pk)]}, format='json').status_code == 400
     assert UserRole.objects.filter(user=member_user, role=role).count() == 1
 
 
@@ -79,7 +79,7 @@ def test_menu_crud_cycle_hidden_and_parent_deletion(admin_client, member_client)
     assert child_response.status_code == 201
     child_id = child_response.json()['data']['id']
     assert member_client.patch(base + child_id + '/', {'name': '越权'}, format='json').status_code == 403
-    assert admin_client.patch(base + root_id + '/', {'parent': child_id}, format='json').status_code == 400
+    assert admin_client.patch(base + root_id + '/', {'version': 1, 'parent': child_id}, format='json').status_code == 400
     assert admin_client.delete(base + root_id + '/').status_code == 400
     assert admin_client.get(base).json()['data']['items'][0]['children'][0]['id'] == child_id
     assert admin_client.get(base + 'my_menu/').json()['data'][0]['children'] == []

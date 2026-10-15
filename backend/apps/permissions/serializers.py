@@ -31,6 +31,7 @@ class RoleSerializer(serializers.ModelSerializer):
     """角色序列化器"""
     # Role 与 Permission 通过 RolePermission 中间表关联，显式取权限明细
     permissions = serializers.SerializerMethodField()
+    version = serializers.IntegerField(min_value=0, required=False, help_text='更新时必须传当前 version；新建省略或传 0；版本过期返回 409 且不写入。')
     permission_ids = serializers.PrimaryKeyRelatedField(
         queryset=Permission.objects.all(),
         many=True,
@@ -41,7 +42,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Role
-        fields = ('id', 'name', 'description', 'is_active', 'permissions', 'permission_ids', 'created_at')
+        fields = ('id', 'name', 'description', 'is_active', 'permissions', 'permission_ids', 'created_at', 'version')
         read_only_fields = ('id', 'created_at')
 
     @extend_schema_field(PermissionSerializer(many=True))
@@ -55,6 +56,14 @@ class RoleSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('权限不能重复')
         return permissions
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance is not None and 'version' not in attrs:
+            raise serializers.ValidationError({'version': '更新必须传入当前版本'})
+        if self.instance is None and attrs.get('version', 0) != 0:
+            raise serializers.ValidationError({'version': '新建版本必须为 0'})
+        return attrs
+
     def _save_permissions(self, role, permission_objects):
         """重建角色-权限关联（RolePermission 显式中间表）"""
         from .models import RolePermission
@@ -65,6 +74,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
     @transaction.atomic
     def create(self, validated_data):
+        validated_data.pop('version', None)
         permission_objects = validated_data.pop('permission_objects', [])
         role = Role.objects.create(**validated_data)
         self._save_permissions(role, permission_objects)
@@ -73,6 +83,10 @@ class RoleSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         instance = Role.objects.select_for_update().get(pk=instance.pk)
+        if validated_data.pop('version') != instance.version:
+            from apps.core.system_views import VersionConflict
+            raise VersionConflict()
+        validated_data['version'] = instance.version + 1
         permission_objects = validated_data.pop('permission_objects', None)
         instance = super().update(instance, validated_data)
         if permission_objects is not None:
@@ -83,10 +97,32 @@ class RoleSerializer(serializers.ModelSerializer):
 class MenuSerializer(serializers.ModelSerializer):
     """菜单序列化器"""
     children = serializers.SerializerMethodField()
+    version = serializers.IntegerField(min_value=0, required=False, help_text='更新时必须传当前 version；新建省略或传 0；版本过期返回 409 且不写入。')
 
     class Meta:
         model = Menu
-        fields = ('id', 'name', 'path', 'icon', 'order', 'parent', 'permission', 'is_visible', 'children')
+        fields = ('id', 'name', 'path', 'icon', 'order', 'parent', 'permission', 'is_visible', 'children', 'version')
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance is not None and 'version' not in attrs:
+            raise serializers.ValidationError({'version': '更新必须传入当前版本'})
+        if self.instance is None and attrs.get('version', 0) != 0:
+            raise serializers.ValidationError({'version': '新建版本必须为 0'})
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('version', None)
+        return super().create(validated_data)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        instance = Menu.objects.select_for_update().get(pk=instance.pk)
+        if validated_data.pop('version') != instance.version:
+            from apps.core.system_views import VersionConflict
+            raise VersionConflict()
+        validated_data['version'] = instance.version + 1
+        return super().update(instance, validated_data)
 
     def validate_path(self, value):
         if not value.startswith('/') or value.startswith('//') or any(char in value for char in ('?', '#', '\\')):

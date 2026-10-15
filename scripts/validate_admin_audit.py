@@ -24,8 +24,8 @@ def browser():
     return result
 
 
-def form(name):
-    return {'name': name, 'description': '', 'is_active': 'on', '_save': '保存',
+def form(name, version=1):
+    return {'name': name, 'edit_version': str(version), 'description': '', 'is_active': 'on', '_save': '保存',
             'permissions-TOTAL_FORMS': '0', 'permissions-INITIAL_FORMS': '0',
             'permissions-MIN_NUM_FORMS': '0', 'permissions-MAX_NUM_FORMS': '1000'}
 
@@ -34,20 +34,31 @@ def update(suffix):
     try:
         response = browser().post(f'/admin/permissions/role/{role.pk}/change/', form(prefix + suffix),
                                   HTTP_X_REQUEST_ID=prefix + suffix)
-        assert response.status_code == 302
+        assert response.status_code in (200, 302)
+        return response.status_code, suffix
     finally:
         connections.close_all()
 
 
 with ThreadPoolExecutor(max_workers=2) as pool:
-    list(pool.map(update, ['A', 'B']))
+    outcomes = list(pool.map(update, ['A', 'B']))
+assert sorted(status for status, _ in outcomes) == [200, 302]
+role.refresh_from_db()
+assert role.version == 2
+assert OperationLog.objects.filter(resource='role', resource_id=str(role.pk)).count() == 1
+stale_suffix = next(suffix for status, suffix in outcomes if status == 200)
+response = browser().post(f'/admin/permissions/role/{role.pk}/change/',
+                          form(prefix + stale_suffix, version=2),
+                          HTTP_X_REQUEST_ID=prefix + '-retry')
+assert response.status_code == 302
 rows = list(OperationLog.objects.filter(resource='role', resource_id=str(role.pk)).order_by('created_at'))
 assert len(rows) == 2
 assert rows[0].before_values['name'] == prefix
 assert rows[1].before_values['name'] == rows[0].after_values['name']
 role.refresh_from_db()
+assert role.version == 3
 assert rows[1].after_values['name'] == role.name
-print('通过：PostgreSQL Django admin 并发修改前值链连续', flush=True)
+print('通过：PostgreSQL Django admin 并发版本冲突阻止覆盖，重载后修改前值链连续', flush=True)
 
 other = Role.objects.create(name=prefix + 'other')
 ids = [role.pk, other.pk]

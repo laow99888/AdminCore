@@ -139,6 +139,22 @@ def main():
             check('真实容器日志有界轮转 ' + service, configuration == {
                 'Type': 'json-file', 'Config': {'max-size': '10m', 'max-file': '3'}})
         api('health/')
+        # Gateway logs must never retain OIDC codes/state, including upstream failure.
+        marker = 'oidc-log-fixture-' + uuid.uuid4().hex
+        callback = BASE + 'sso/callback/?code=' + marker + '&state=' + marker
+        response = requests.get(callback, headers={'Referer': 'https://example.invalid/' + marker},
+                                allow_redirects=False, timeout=15)
+        check('关闭SSO回调仍不开放业务入口', response.status_code == 404)
+        try:
+            compose('minimal', 'stop', 'backend')
+            response = requests.get(callback, allow_redirects=False, timeout=15)
+            check('隔离后端停止时回调返回受控网关错误', response.status_code in (502, 503, 504))
+        finally:
+            compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'backend')
+            ready()
+        gateway_logs = compose('minimal', 'logs', '--no-color', 'frontend').stdout
+        check('真实Nginx正常与故障日志保留回调路径但不含code/state/Referer',
+              '/api/v1/sso/callback/' in gateway_logs and marker not in gateway_logs)
         token = login(password)
         check('新初始化账号必须改密', api('auth/me/', token=token).json()['data']['must_change_password'])
         blocked = api('users/', expected=403, token=token).json()
@@ -702,6 +718,10 @@ assert record.error=='worker_lost_committed_rows_preserved'
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 通用通知版本、SMTP 字节及有限重试', True)
         for filename, label in [
+            ('validate_outbox_retry_concurrency.py', '真实 PostgreSQL事件消费者与管理员重试交错无死锁且不重复投递'),
+            ('validate_office_concurrency.py', '真实 PostgreSQL Office领取/完成/取消/清理与历史删除锁竞争'),
+            ('validate_sso_postgres.py', '真实 PostgreSQL OIDC/PKCE/RSA、单次回调及完成、解绑会话撤销'),
+            ('validate_write_boundaries.py', '真实 PostgreSQL 1000项批量、5000行导入与锁等待撤权/范围/设备失效'),
             ('validate_resource_imports.py', '真实 PostgreSQL 角色/岗位导入、逐行回滚及撤权边界'),
             ('validate_api_credentials.py', '真实 PostgreSQL 独立凭证、只读范围、限流及撤销'),
             ('validate_external_channels.py', '真实 PostgreSQL/TLS Webhook签名及短信崩溃防重复提交'),
@@ -710,6 +730,7 @@ assert record.error=='worker_lost_committed_rows_preserved'
             compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                     "import base64; exec(base64.b64decode('" + encoded + "'))")
             check(label, True)
+            token = renew_access(token)
         message_template = api('notifications/templates/', 'POST', {'code': 'http-message-fixture', 'name': 'HTTP 通知验收',
             'enabled': True, 'revision': 0, 'subject': 'HTTP ${name}', 'body': 'Body ${name}', 'variables': ['name']}, 201, token).json()['data']
         api('notifications/templates/' + message_template['id'] + '/preview/', 'POST', {'revision': 1, 'values': {'name': 'fixture'}}, token=token)

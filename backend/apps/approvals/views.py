@@ -14,6 +14,7 @@ from rest_framework.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from django.db import transaction
 
+from apps.auth_app.write_authorization import authorize_write
 from apps.core.events import enqueue_event
 from apps.core.idempotency import with_idempotency
 
@@ -79,15 +80,18 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
         write_audit(request=request, resource='approval', identifier=instance.pk, action=action,
                     before=before, after=snapshot('approval', instance))
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        authorize_write(request, related_users=(serializer.validated_data['assignee'].pk,))
+        assignee = get_user_model().objects.filter(pk=serializer.validated_data['assignee'].pk, is_active=True).first()
+        if assignee is None or not candidates(request.user).filter(pk=assignee.pk).exists():
+            raise ValidationError({'assignee_id': '审批人不在可选范围内，请重新选择'})
+        serializer.validated_data['assignee'] = assignee
+
         def action():
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
             with transaction.atomic():
-                assignee = get_user_model().objects.select_for_update().filter(pk=serializer.validated_data['assignee'].pk, is_active=True).first()
-                if assignee is None or not candidates(request.user).filter(pk=assignee.pk).exists():
-                    raise ValidationError({'assignee_id': '审批人不在可选范围内，请重新选择'})
-                serializer.validated_data['assignee'] = assignee
                 application = ApprovalRequest.objects.create(applicant=request.user, **serializer.validated_data)
                 enqueue_event(
                     topic='notification.created', event_key=f'approval:{application.id}:submitted',
@@ -126,15 +130,19 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
                          'data': ApprovalRequestSerializer(application).data})
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def approve(self, request, pk=None):
         """通过申请"""
+        authorize_write(request)
         if self.get_object().assignee_id != request.user.id:
             return Response({'code': 403, 'message': '只有当前审批人可以处理该申请', 'data': None}, status=403)
         return with_idempotency(request, f'approvals:{pk}:approve', lambda: self._decide(request, approved=True))
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def reject(self, request, pk=None):
         """驳回申请"""
+        authorize_write(request)
         if self.get_object().assignee_id != request.user.id:
             return Response({'code': 403, 'message': '只有当前审批人可以处理该申请', 'data': None}, status=403)
         return with_idempotency(request, f'approvals:{pk}:reject', lambda: self._decide(request, approved=False))
@@ -143,6 +151,7 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
     @transaction.atomic
     def cancel(self, request, pk=None):
         """撤回自己的待审批申请"""
+        authorize_write(request)
         application = self.get_object()
         application = ApprovalRequest.objects.select_for_update().get(pk=application.pk)
         if application.applicant_id != request.user.id:

@@ -279,7 +279,7 @@ def test_profile_and_admin_user_write_revoke_claim(member_user, member_client, a
     member_user.refresh_from_db()
     assert member_user.verified_email is None
     verify_stored_email(member_user)
-    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'email': 'last@example.com'}, format='json').status_code == 200
+    assert admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': member_user.profile_version, 'email': 'last@example.com'}, format='json').status_code == 200
     member_user.refresh_from_db()
     assert member_user.verified_email is None
 

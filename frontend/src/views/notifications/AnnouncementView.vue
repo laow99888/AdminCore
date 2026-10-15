@@ -20,13 +20,15 @@
         </template>
       </BaseTable>
     </BaseCard>
-    <BaseDialog v-model="visible" :title="uiText(form.id ? '编辑公告' : '新增公告')" :before-close="guard.confirmDiscard" :loading="saving || formatSwitching" :confirm-disabled="!canUpdate || (form.content_format === 'html' && (!richReady || !!editorError))" @confirm="save">
+    <BaseDialog v-model="visible" :title="uiText(form.id ? '编辑公告' : '新增公告')" :before-close="guard.confirmDiscard" :loading="saving || formatSwitching || conflict.loading.value" :confirm-disabled="!canUpdate || conflict.active.value || serverPublished || (form.content_format === 'html' && (!richReady || !!editorError))" @confirm="save">
       <div v-if="formError" ref="errorSummary" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" /></div>
-      <el-form label-position="top" :disabled="saving" @submit.prevent="save">
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || formatSwitching || !guard.isCurrent()" :version="form.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
+      <el-alert v-if="serverPublished" :title="uiText('已发布内容须先撤回才能编辑。')" type="warning" :closable="false" />
+      <el-form label-position="top" :disabled="saving || serverPublished" @submit.prevent="save">
         <el-form-item :label="uiText('标题')" required><el-input v-model="form.title" maxlength="200" show-word-limit /></el-form-item>
-        <el-form-item :label="uiText('正文格式')"><el-radio-group :model-value="form.content_format" :aria-label="uiText('正文格式')" :disabled="saving || formatSwitching" @change="switchFormat"><el-radio-button value="plain">{{ uiText('纯文本') }}</el-radio-button><el-radio-button value="html">{{ uiText('富文本') }}</el-radio-button></el-radio-group></el-form-item>
+        <el-form-item :label="uiText('正文格式')"><el-radio-group :model-value="form.content_format" :aria-label="uiText('正文格式')" :disabled="saving || formatSwitching || serverPublished" @change="switchFormat"><el-radio-button value="plain">{{ uiText('纯文本') }}</el-radio-button><el-radio-button value="html">{{ uiText('富文本') }}</el-radio-button></el-radio-group></el-form-item>
         <el-form-item v-if="form.content_format === 'plain'" :label="uiText('公告正文')" required><el-input v-model="form.content" type="textarea" :rows="8" maxlength="20000" show-word-limit /></el-form-item>
-        <el-form-item v-else :label="uiText('公告正文')" required><BaseRichTextEditor v-if="visible" v-model="form.content" :label="uiText('公告富文本正文')" :disabled="saving || !canUpdate" @ready="richReady = $event" @invalid="editorError = $event" /></el-form-item>
+        <el-form-item v-else :label="uiText('公告正文')" required><BaseRichTextEditor v-if="visible" v-model="form.content" :label="uiText('公告富文本正文')" :disabled="saving || !canUpdate || serverPublished" @ready="richReady = $event" @invalid="editorError = $event" /></el-form-item>
         <el-button :disabled="saving" :aria-expanded="previewVisible" @click="previewVisible = !previewVisible">{{ uiText('预览正文') }}</el-button>
         <SafeRichText v-if="previewVisible" class="body-preview" :content="form.content" :format="form.content_format" :label="uiText('正文预览')" />
       </el-form>
@@ -40,6 +42,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { computed, onMounted, onScopeDispose, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
@@ -71,8 +75,17 @@ let formatGeneration = 0, ownsModeConfirmation = false
 const states = ['draft', 'published', 'withdrawn'] as const
 const label = (value: string) => uiText(({ draft: '草稿', published: '已发布', withdrawn: '已撤回' } as Record<string, string>)[value] || value)
 const columns = computed(() => [{ prop: 'title', label: uiText('标题') }, { prop: 'status', label: uiText('状态'), width: 100, render: label }, { prop: 'published_at', label: uiText('发布时间'), width: 190 }])
-const guard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || formatSwitching.value, canEdit: () => canUpdate.value,
+const guard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || formatSwitching.value || conflict.loading.value, canEdit: () => canUpdate.value,
   clear: () => { formatGeneration++; if (ownsModeConfirmation) ElMessageBox.close(); visible.value = false; Object.assign(form, { id: '', title: '', content: '', content_format: 'plain', version: 0 }); formError.value = ''; previewVisible.value = false; richReady.value = false; editorError.value = '' } })
+const serverPublished = ref(false)
+const conflict = useEditConflict<AnnouncementRow>({ identifier: () => visible.value ? form.id : '', current: () => guard.isCurrent(), fetch: (id, signal) => announcementsApi.detail(id, true, signal),
+  apply: row => { formatGeneration++; previewVisible.value = false; editorError.value = ''; richReady.value = false; serverPublished.value = row.status === 'published'; Object.assign(form, { id: row.id, title: row.title, content: row.content, content_format: row.content_format || 'plain', version: row.version }); saveKey = ''; saveBody = ''; formError.value = ''; guard.markClean() } })
+const conflictRows = computed(() => conflict.latest.value ? [
+  { label: uiText('标题'), local: form.title, server: conflict.latest.value.title },
+  { label: uiText('公告正文'), local: form.content, server: conflict.latest.value.content },
+  { label: uiText('正文格式'), local: form.content_format, server: conflict.latest.value.content_format || 'plain' },
+  { label: uiText('状态'), local: uiText('草稿'), server: label(conflict.latest.value.status) },
+] : [])
 let generation = 0, listRequest: AbortController | undefined, detailRequest: AbortController | undefined
 let saveKey = '', saveBody = ''
 async function load() {
@@ -91,12 +104,13 @@ function changePage(value: number) { page.value = value; void load() }
 function changeSize(value: number) { pageSize.value = value; resetList() }
 function edit(row?: AnnouncementRow) {
   if (!canUpdate.value || saving.value) return
+  conflict.reset(); serverPublished.value = false
   formatGeneration++; previewVisible.value = false; richReady.value = false; editorError.value = ''
   Object.assign(form, row ? { id: row.id, title: row.title, content: row.content, content_format: row.content_format || 'plain', version: row.version } : { id: '', title: '', content: '', content_format: 'plain', version: 0 })
   saveKey = ''; saveBody = ''; formError.value = ''; visible.value = true
 }
 async function switchFormat(value: unknown) {
-  if ((value !== 'plain' && value !== 'html') || value === form.content_format || saving.value || formatSwitching.value || !guard.isCurrent()) return
+  if ((value !== 'plain' && value !== 'html') || value === form.content_format || saving.value || formatSwitching.value || serverPublished.value || !guard.isCurrent()) return
   const current = ++formatGeneration, original = form.content
   formatSwitching.value = true
   try {
@@ -111,7 +125,7 @@ async function switchFormat(value: unknown) {
   finally { ownsModeConfirmation = false; formatSwitching.value = false }
 }
 async function save() {
-  if (saving.value || formatSwitching.value || !visible.value || !guard.isCurrent() || (form.content_format === 'html' && (!richReady.value || !!editorError.value))) return
+  if (saving.value || formatSwitching.value || conflict.active.value || serverPublished.value || !visible.value || !guard.isCurrent() || (form.content_format === 'html' && (!richReady.value || !!editorError.value))) return
   saving.value = true; formError.value = ''
   try {
     if (form.content.length > RICH_TEXT_LIMIT) { formError.value = uiText('正文原文或清洗后的 HTML 超过 20000 字符，请缩短内容。'); return }
@@ -127,7 +141,9 @@ async function save() {
     if (!guard.isCurrent()) return
     guard.markClean(); visible.value = false; ElMessage.success(uiText('保存成功')); await load()
   } catch (exception: any) {
-    if (guard.isCurrent()) formError.value = uiText(exception?.response?.status === 409 ? '公告已变化，已保留输入，请重新打开编辑窗口' : '保存失败，已保留输入')
+    if (!guard.isCurrent()) return
+    if (exception?.response?.status === 409 && form.id) conflict.mark()
+    else formError.value = uiText('保存失败，已保留输入')
   } finally { saving.value = false }
 }
 async function detail(row: AnnouncementRow) {

@@ -4,6 +4,7 @@
 
 import hashlib
 import os
+import logging
 from collections.abc import Mapping
 
 from django.conf import settings
@@ -122,6 +123,16 @@ class RecycleResultSerializer(serializers.Serializer):
     failed = serializers.IntegerField()
 
 
+def cleanup_failed_upload(instance):
+    """仅用于刚创建的上传对象；不接受客户端提供或历史记录中的存储键。"""
+    if instance.file and instance.file._committed:
+        try:
+            instance.file.storage.delete(instance.file.name)
+        except Exception:
+            # 不记录存储地址或凭据；清理失败需由运维清点孤立上传对象。
+            logging.getLogger(__name__).error('Failed to clean newly created upload after rollback')
+
+
 class FileUploadSerializer(serializers.ModelSerializer):
     """文件上传序列化（校验白名单和大小限制）"""
     file = serializers.FileField(write_only=True)
@@ -161,7 +172,7 @@ class FileUploadSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         uploaded = validated_data.pop('file')
         request = self.context['request']
-        return FileModel.objects.create(
+        instance = FileModel(
             original_name=os.path.basename(uploaded.name),
             file=uploaded,
             file_type=os.path.splitext(uploaded.name)[1].lower().lstrip('.'),
@@ -171,3 +182,9 @@ class FileUploadSerializer(serializers.ModelSerializer):
             description=validated_data.get('description', ''),
             uploader=request.user if request.user.is_authenticated else None,
         )
+        try:
+            instance.save()
+        except Exception:
+            cleanup_failed_upload(instance)
+            raise
+        return instance

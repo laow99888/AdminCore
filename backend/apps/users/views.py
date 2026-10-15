@@ -12,9 +12,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from django.contrib.auth import get_user_model
 from django.db import transaction
+from django.db.models import F
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, APIException
 import logging
 from .serializers import (
     UserDetailSerializer, UserListSerializer, UserCreateSerializer,
@@ -43,8 +44,8 @@ def bulk_user_result(user_ids, status_code):
 @extend_schema_view(
     retrieve=extend_schema(responses=envelope('UserDetailResponse', UserDetailSerializer())),
     create=extend_schema(responses={201: envelope('UserCreatedResponse', UserCreateSerializer())}),
-    update=extend_schema(responses=envelope('UserUpdatedResponse', UserUpdateSerializer())),
-    partial_update=extend_schema(responses=envelope('UserPatchedResponse', UserUpdateSerializer())),
+    update=extend_schema(responses={200: envelope('UserUpdatedResponse', UserUpdateSerializer()), 400: MessageResponse, 409: MessageResponse}),
+    partial_update=extend_schema(responses={200: envelope('UserPatchedResponse', UserUpdateSerializer()), 400: MessageResponse, 409: MessageResponse}),
     destroy=extend_schema(responses={200: MessageResponse}),
     bulk_action=extend_schema(request=BulkUserActionSerializer, responses={
         200: BulkUserActionResponse, 400: MessageResponse, 403: BulkUserActionResponse,
@@ -115,10 +116,53 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         return Response({'code': 200, 'message': '原值仅供本次查看',
                          'data': SensitiveContactSerializer(target).data})
 
+    def _authorize_locked(self, targets=(), extra_codes=()):
+        """atomic 内按用户 pk 统一加锁，再复核身份、设备、权限和数据范围。
+
+        用户行是本模块全部写入的第一层锁；撤权不打断已完成锁内授权的事务。
+        """
+        actor_id = self.request.user.pk
+        rows = list(User.objects.select_for_update().filter(
+            pk__in={actor_id, *targets}).order_by('pk'))
+        actor = next((row for row in rows if row.pk == actor_id), None)
+        if actor is None or not actor.is_active:
+            raise AuthenticationFailed('登录凭据已撤销，请重新登录')
+        if self.request.auth is not None:
+            from apps.auth_app.sessions import locked_request_session
+            locked_request_session(self.request, actor)
+        codes = (self.permission_map[self.action], *extra_codes)
+        if actor.must_change_password or not all(has_permission_code(actor, code) for code in codes):
+            raise PermissionDenied('没有用户操作权限或需要修改初始密码')
+        self.request.user = actor
+        # 必须重新构建 queryset，不能沿用锁前的数据范围或目标状态。
+        return list(self.get_queryset().filter(pk__in=targets).order_by('pk')) if targets else []
+
+    def _fresh_target(self, identifier):
+        rows = self._authorize_locked((identifier,))
+        if not rows:
+            from rest_framework.exceptions import NotFound
+            raise NotFound()
+        self.check_object_permissions(self.request, rows[0])
+        return rows[0]
+
+    def _revalidate_locked_roles(self, serializer):
+        """角色选项校验发生在锁前；写入前用 fresh actor 和 fresh 角色重做。"""
+        roles = serializer.validated_data.get('assigned_roles')
+        if roles is not None:
+            from apps.permissions.models import Role
+            ids = [role.pk for role in roles]
+            fresh = list(Role.objects.select_for_update().filter(pk__in=ids).order_by('pk'))
+            if len(fresh) != len(ids):
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({'role_ids': '角色不存在或已删除'})
+            serializer.validated_data['assigned_roles'] = fresh
+        serializer.validate(serializer.validated_data)
+
     @transaction.atomic
     def perform_create(self, serializer):
         from apps.core.data_scope import unrestricted_user_creation
-        from rest_framework.exceptions import PermissionDenied
+        self._authorize_locked()
+        self._revalidate_locked_roles(serializer)
         if not unrestricted_user_creation(self.request.user):
             raise PermissionDenied('受限数据范围不能创建未分配部门的用户，请由管理员创建并分配')
         user = serializer.save()
@@ -129,7 +173,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_destroy(self, instance):
         from apps.logs.audit import snapshot, write_audit
-        instance = User.objects.select_for_update().get(pk=instance.pk)
+        instance = self._fresh_target(instance.pk)
         write_audit(request=self.request, resource='user', identifier=instance.pk, action='delete',
                     before=snapshot('user', instance))
         instance.delete()
@@ -137,7 +181,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_update(self, serializer):
         from apps.logs.audit import snapshot, write_audit
-        serializer.instance = User.objects.select_for_update().get(pk=serializer.instance.pk)
+        serializer.instance = self._fresh_target(serializer.instance.pk)
+        self._revalidate_locked_roles(serializer)
         before = snapshot('user', serializer.instance)
         user = serializer.save()
         write_audit(request=self.request, resource='user', identifier=user.pk,
@@ -150,16 +195,12 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         if serializer.is_valid():
             user_ids = serializer.validated_data['user_ids']
             action = serializer.validated_data['action']
-            from apps.permissions.permissions import has_permission_code
-            if action == 'delete' and not has_permission_code(request.user, 'user:delete'):
-                return Response({'code': 403, 'message': '没有删除用户的权限',
-                                 'data': bulk_user_result(user_ids, 403)}, status=403)
-
             try:
                 with transaction.atomic():
                     from apps.logs.audit import snapshot, write_audit
-                    users = self.get_queryset().filter(id__in=user_ids).select_for_update(of=('self',)).order_by('pk')
-                    rows = list(users.prefetch_related('roles', 'groups', 'user_permissions'))
+                    rows = self._authorize_locked(user_ids, ('user:delete',) if action == 'delete' else ())
+                    # 仅使用锁内重新授权后确认的目标；不重用任何锁前 queryset。
+                    users = User.objects.filter(pk__in=[row.pk for row in rows])
                     if len(set(user_ids)) != len(user_ids) or len(rows) != len(user_ids):
                         write_audit(request=request, resource='user', action='other', status=403,
                             description='batch_rejected', results=[{'id': identifier, 'status': 403} for identifier in user_ids])
@@ -169,10 +210,10 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                     before = {row.pk: snapshot('user', row) for row in rows}
 
                     if action == 'activate':
-                        users.update(is_active=True)
+                        users.update(is_active=True, profile_version=F('profile_version') + 1)
                         desc = 'Activated users'
                     elif action == 'deactivate':
-                        users.update(is_active=False)
+                        users.update(is_active=False, profile_version=F('profile_version') + 1)
                         desc = 'Deactivated users'
                     elif action == 'delete':
                         count = users.count()
@@ -192,6 +233,9 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         'message': f'{action} success',
                         'data': bulk_user_result(user_ids, 200),
                     })
+            except APIException as exc:
+                return Response({'code': exc.status_code, 'message': str(exc.detail),
+                                 'data': bulk_user_result(user_ids, exc.status_code)}, status=exc.status_code)
             except ProtectedError:
                 return Response({'code': 409, 'message': '用户仍被业务数据引用，批量操作未执行',
                                  'data': bulk_user_result(user_ids, 409)}, status=409)
@@ -213,8 +257,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def reset_password(self, request, pk=None):
         """重置用户密码"""
-        user = self.get_object()
-        user = User.objects.select_for_update().get(pk=user.pk)
+        user = self._fresh_target(self.get_object().pk)
         from apps.logs.audit import snapshot, write_audit
         before = snapshot('user', user)
         serializer = ResetPasswordRequestSerializer(data=request.data, context={'user': user})
@@ -222,7 +265,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         user.set_password(serializer.validated_data['password'])
         user.must_change_password = serializer.validated_data['must_change_password']
         user.session_version += 1
-        user.save(update_fields=['password', 'must_change_password', 'session_version', 'updated_at'])
+        user.profile_version += 1
+        user.save(update_fields=['password', 'must_change_password', 'session_version', 'profile_version', 'updated_at'])
 
         write_audit(request=request, resource='user', identifier=user.pk,
                     before=before, after=snapshot('user', user), description='reset_password')

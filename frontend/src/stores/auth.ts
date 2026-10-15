@@ -115,6 +115,26 @@ export const useAuthStore = defineStore('auth', () => {
   }
   function cancelPendingLogin() { sessionGeneration++ }
 
+  async function loginSSO(proof: import('../api/sso').SSOLocalProof, signal?: AbortSignal) {
+    if (__ADMINCORE_MINIMAL_BUILD__) throw new Error('Enterprise sign-in is unavailable in this build')
+    else {
+      if (token.value || localStorage.getItem('token')) throw new Error('Already signed in')
+      const generation = ++sessionGeneration
+      const { ssoApi } = await import('../api/sso')
+      if (generation !== sessionGeneration || signal?.aborted) throw new Error('Login session changed')
+      const data = await ssoApi.complete(proof, signal)
+      if (generation !== sessionGeneration || signal?.aborted || localStorage.getItem('token')) throw new Error('Login session changed')
+      preservingSecuritySession.value = true
+      try { installSession(data) } finally { preservingSecuritySession.value = false }
+      const installedGeneration = sessionGeneration
+      const current = await authApi.me()
+      if (installedGeneration !== sessionGeneration) throw new Error('Login session changed')
+      preservingSecuritySession.value = true
+      try { user.value = current; fetchedAt = Date.now() } finally { preservingSecuritySession.value = false }
+      return data.user
+    }
+  }
+
   async function fetchUser(force = false) {
     if (!token.value) return null
     if (!force && user.value && Date.now() - fetchedAt < 30000) return user.value
@@ -155,6 +175,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, refreshToken, user, isAuthenticated, login, fetchUser, logout, clearSession, can,
+  return { token, refreshToken, user, isAuthenticated, login, loginSSO, fetchUser, logout, clearSession, can,
            avatarUrl, avatarLoading, avatarError, loadAvatar, avatarDecodeFailed, applyUser, replaceSecuritySession, preservingSecuritySession, cancelPendingLogin }
 })

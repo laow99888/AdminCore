@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.auth_app.write_authorization import authorize_write
 from apps.permissions.permissions import HasPermission, IsAdmin
 from .mixins import EnvelopeResponseMixin
 from .models import Post, UserPost
@@ -89,6 +90,7 @@ class PostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.ModelView
 
     @transaction.atomic
     def perform_create(self, serializer):
+        authorize_write(self.request, 'post:update', admin=True)
         if serializer.validated_data['version'] != 0:
             raise ValidationError({'version': '新建岗位版本必须为 0'})
         try:
@@ -100,6 +102,7 @@ class PostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.ModelView
 
     @transaction.atomic
     def perform_update(self, serializer):
+        authorize_write(self.request, 'post:update', admin=True)
         row = get_object_or_404(Post.objects.select_for_update(), pk=serializer.instance.pk)
         if serializer.validated_data.get('version') != row.version:
             raise VersionConflict()
@@ -112,6 +115,7 @@ class PostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.ModelView
 
     @transaction.atomic
     def perform_destroy(self, instance):
+        authorize_write(self.request, 'post:update', admin=True)
         row = get_object_or_404(Post.objects.select_for_update(), pk=instance.pk)
         if self.delete_version() != row.version:
             raise VersionConflict()
@@ -146,11 +150,13 @@ class UserPostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.Model
 
     @transaction.atomic
     def perform_create(self, serializer):
+        authorize_write(self.request, 'post:update', admin=True,
+                        related_users=(serializer.validated_data['user'].pk,))
         if serializer.validated_data['version'] != 0:
             raise ValidationError({'version': '新建任职版本必须为 0'})
-        # 岗位 -> 用户 -> 任职，停用/删除岗位与新增任职采用相同顺序。
+        # 用户（含操作者）按主键 -> 岗位 -> 任职，与其他写入口保持一致。
         post = get_object_or_404(Post.objects.select_for_update(), pk=serializer.validated_data['post'].pk)
-        user = get_object_or_404(get_user_model().objects.select_for_update(), pk=serializer.validated_data['user'].pk)
+        user = get_object_or_404(get_user_model(), pk=serializer.validated_data['user'].pk)
         if not post.is_active or not user.is_active:
             raise ValidationError({'post': '只能为启用账号分配启用岗位'})
         try:
@@ -162,6 +168,7 @@ class UserPostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.Model
 
     @transaction.atomic
     def perform_destroy(self, instance):
+        authorize_write(self.request, 'post:update', admin=True, related_users=(instance.user_id,))
         get_object_or_404(Post.objects.select_for_update(), pk=instance.post_id)
         row = get_object_or_404(UserPost.objects.select_for_update(), pk=instance.pk)
         if self.delete_version() != row.version:

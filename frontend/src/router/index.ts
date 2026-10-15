@@ -20,6 +20,7 @@ const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
 
 const routes: RouteRecordRaw[] = [
+  ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : [{ path: '/enterprise-login', name: 'EnterpriseLogin', component: () => import('../views/auth/EnterpriseLoginView.vue'), meta: { title: '企业身份登录', requiresAuth: false, preserveOnLocaleChange: true } }]),
   ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : moduleRoutes),
   ...frontendExtensions.map(extension => ({ path: extension.path, name: 'Extension-' + extension.key, component: extension.component,
     meta: { title: extension.title, requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } })),
@@ -98,7 +99,7 @@ router.beforeEach(async (to, _from, next) => {
 
   if (to.meta.requiresAuth && !isAuthenticated && to.path !== '/login') {
     next('/login')
-  } else if (to.path === '/login' && isAuthenticated) {
+  } else if (['/login', '/enterprise-login'].includes(to.path) && isAuthenticated) {
     next('/')
   } else {
     if (to.meta.requiresAuth) {

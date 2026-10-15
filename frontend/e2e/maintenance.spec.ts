@@ -116,7 +116,7 @@ test('版本冲突保留输入，明确重新载入或取消会提示未保存',
   await page.getByRole('button', { name: '编辑计划' }).click()
   await page.getByLabel('分钟', { exact: true }).fill('*/20')
   await page.getByRole('button', { name: '保存', exact: true }).click()
-  await expect(page.getByText('内容已被其他人修改，已保留输入，请刷新后重试')).toBeVisible()
+  await expect(page.getByRole('region', { name: '编辑冲突' })).toBeVisible()
   await expect(page.getByLabel('分钟', { exact: true })).toHaveValue('*/20')
   await page.getByRole('button', { name: '重新载入计划' }).click()
   await expect(page.getByText('计划有未保存内容，确定放弃吗？')).toBeVisible()

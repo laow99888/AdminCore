@@ -35,6 +35,8 @@ bash scripts/health_check.sh
 
 小项目可选物理精简构建：`docker compose -f docker-compose.yml -f compose.minimal.yml -f compose.build-minimal.yml up -d --build db backend frontend`，只启动三服务，并裁剪可选 Python 依赖和业务前端资源。恢复完整能力须移除精简覆盖、同步重建前后端并保留数据卷；运行时启停与构建裁剪的区别见[精简构建](docs/精简构建与完整恢复-2026-10-15.md)。
 
+企业登录和 Office 转换均为可选能力，默认关闭。配置、支持范围和执行器部署分别见[企业 OIDC 登录](docs/企业OIDC登录与显式身份绑定-2026-10-16.md)与[Office 预览](docs/OFFICE_PREVIEW.md)；小项目可以保留关闭状态。
+
 #### 方式 B：本地分进程启动
 
 ```bash

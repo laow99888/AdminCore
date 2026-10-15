@@ -3,6 +3,7 @@
 只启动本任务的进程；凭据随机且仅存在于子进程环境，不访问正式桶。
 """
 import hashlib
+import argparse
 import json
 import os
 import platform
@@ -32,6 +33,13 @@ def free_port():
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--office-image', help='可选：受审查的 Office image@sha256，额外运行真实隔离转换')
+    options = parser.parse_args()
+    if options.office_image:
+        from office_preview_runner import IMAGE
+        if not IMAGE.fullmatch(options.office_image):
+            parser.error('Office 转换镜像必须是固定仓库摘要')
     if platform.machine().lower() not in ('amd64', 'x86_64'):
         raise RuntimeError('该验收程序固定使用官方 amd64 发布产物')
     name, checksum = ASSETS[platform.system()]
@@ -89,11 +97,15 @@ def main():
                         'STORAGE_CONTRACT_ENDPOINT': endpoint,
                         'STORAGE_CONTRACT_ACCESS': environment['MINIO_ROOT_USER'],
                         'STORAGE_CONTRACT_SECRET': environment['MINIO_ROOT_PASSWORD']}
+            tests = ['integration/test_s3_storage.py']
+            if options.office_image:
+                test_env['OFFICE_CONTRACT_IMAGE'] = options.office_image
+                tests.append('integration/test_s3_office_preview.py')
             with (fixture / 'contract.log').open('wb') as output:
-                result = subprocess.run([sys.executable, '-X', 'utf8', '-m', 'pytest', 'integration/test_s3_storage.py',
+                result = subprocess.run([sys.executable, '-X', 'utf8', '-m', 'pytest', *tests,
                                          '-q', '--junitxml', str(fixture / 'junit.xml')],
                                         cwd=ROOT / 'backend', env=test_env, stdout=output,
-                                        stderr=subprocess.STDOUT, timeout=180)
+                                        stderr=subprocess.STDOUT, timeout=600 if options.office_image else 180)
             report['passed'] = result.returncode == 0
             if not report['passed']:
                 raise RuntimeError('S3 实测失败，详见隔离 contract.log')

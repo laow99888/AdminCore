@@ -20,6 +20,7 @@ async function setup(page: Page, admin = true) {
     if (path.endsWith('/send/')) { state.sends++; state.keys.push(req.headers()['idempotency-key'] || ''); return route.fulfill({ status: state.sendStatus, json: state.sendStatus === 202 ? env({ count: 1 }) : { code: 503, message: 'fixture unavailable', data: null } }) }
     if (path.endsWith('/versions/')) return route.fulfill({ json: env(paged([{ ...state.row.current, body: '<img src=x onerror=window.messageInjected=1>' }])) })
     if (path.endsWith('/templates/')) return route.fulfill({ status: state.readStatus, json: state.readStatus === 200 ? env(paged([state.row])) : { code: 503, message: 'fixture read failed', data: null } })
+    if (path.endsWith('/templates/template-1/') && req.method() === 'GET') return route.fulfill({ json: env(state.row) })
     if (path.endsWith('/templates/template-1/') && req.method() === 'PATCH') {
       state.writes++
       if (state.saveStatus !== 200) return route.fulfill({ status: state.saveStatus, json: { code: state.saveStatus, message: 'fixture conflict', data: null } })
@@ -49,10 +50,10 @@ test('版本冲突保留输入、取消编辑需确认、成功保存新版本',
   const dialog = page.getByRole('dialog', { name: '编辑模板', exact: true })
   await dialog.getByLabel('模板名称', { exact: true }).fill('private template draft')
   state.saveStatus = 409; await dialog.getByRole('button', { name: '确认', exact: true }).click()
-  await expect(dialog.getByRole('alert')).toContainText('模板已变化，已保留输入'); await expect(dialog.getByLabel('模板名称', { exact: true })).toHaveValue('private template draft')
+  await expect(dialog.getByRole('region', { name: '编辑冲突' })).toBeVisible(); await expect(dialog.getByLabel('模板名称', { exact: true })).toHaveValue('private template draft')
   await dialog.getByRole('button', { name: '取消', exact: true }).click()
   const prompt = page.getByRole('dialog').filter({ hasText: '尚有未保存的修改，确定放弃吗？' }); await prompt.getByRole('button', { name: '取消', exact: true }).click()
-  await expect(dialog).toBeVisible(); state.saveStatus = 200; await dialog.getByRole('button', { name: '确认', exact: true }).click()
+  await expect(dialog).toBeVisible(); state.saveStatus = 200; await dialog.getByRole('button', { name: '查看服务器最新值', exact: true }).click(); await dialog.getByRole('button', { name: '载入服务器最新值（替换当前输入）', exact: true }).click(); await dialog.getByLabel('模板名称', { exact: true }).fill('reviewed draft'); await dialog.getByRole('button', { name: '确认', exact: true }).click()
   await expect(dialog).not.toBeVisible(); expect(state.writes).toBe(2)
   expect(await page.evaluate(() => Object.values(localStorage).some(value => value.includes('private template draft')))).toBe(false)
 })

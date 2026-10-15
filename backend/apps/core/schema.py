@@ -83,6 +83,10 @@ class ResetPasswordRequestSerializer(serializers.Serializer):
 
 class CleanupRequestSerializer(serializers.Serializer):
     days = serializers.IntegerField(default=30, min_value=1, max_value=3650)
+    dry_run = serializers.BooleanField(default=True)
+    batch_size = serializers.IntegerField(default=100, min_value=1, max_value=100)
+    preview_token = serializers.CharField(required=False, max_length=32768, trim_whitespace=False)
+    confirmation = serializers.CharField(required=False, max_length=20)
 
 
 class DashboardTotalsSerializer(serializers.Serializer):

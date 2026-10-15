@@ -18,7 +18,7 @@ pytestmark = pytest.mark.django_db
 
 def test_update_records_safe_before_after_and_response_request_id(admin_client, member_user):
     response = admin_client.patch(f'/api/v1/users/{member_user.pk}/',
-        {'is_active': False, 'email': 'private@example.test', 'phone': '13812345678'}, format='json', HTTP_X_REQUEST_ID='audit-fixture-1')
+        {'version': 1, 'is_active': False, 'email': 'private@example.test', 'phone': '13812345678'}, format='json', HTTP_X_REQUEST_ID='audit-fixture-1')
     assert response.status_code == 200
     row = OperationLog.objects.get(resource='user', resource_id=str(member_user.pk))
     assert row.audit_version == 1 and row.request_id == response['X-Request-ID'] == 'audit-fixture-1'
@@ -29,8 +29,8 @@ def test_update_records_safe_before_after_and_response_request_id(admin_client, 
 
 
 def test_request_context_not_reused_after_request(admin_client, member_user):
-    admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'is_active': False}, format='json', HTTP_X_REQUEST_ID='first-request')
-    response = admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'is_active': True}, format='json')
+    admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 1, 'is_active': False}, format='json', HTTP_X_REQUEST_ID='first-request')
+    response = admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 2, 'is_active': True}, format='json')
     row = OperationLog.objects.filter(resource='user').latest('created_at')
     assert row.request_id == response['X-Request-ID'] and row.request_id != 'first-request'
     assert request_id.get() == ''
@@ -68,7 +68,7 @@ def test_user_change_rolls_back_if_audit_unavailable(admin_client, member_user, 
             response = admin_client.post('/api/v1/users/', {'username': 'audit-rollback', 'password': 'A-Safe-Test#Password9137'}, format='json')
             assert not get_user_model().objects.filter(username='audit-rollback').exists()
         elif operation == 'update':
-            response = admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'is_active': False}, format='json')
+            response = admin_client.patch(f'/api/v1/users/{member_user.pk}/', {'version': 1, 'is_active': False}, format='json')
             member_user.refresh_from_db()
             assert member_user.is_active
         else:
@@ -84,7 +84,7 @@ def test_role_permission_assignment_and_deletion_have_snapshots(admin_client):
     identifier = response.json()['data']['id']
     created = OperationLog.objects.get(resource='role', resource_id=identifier)
     assert created.before_values is None and created.after_values['permission_ids'] == [str(permission.pk)]
-    assert admin_client.patch(f'/api/v1/permissions/roles/{identifier}/', {'permission_ids': [], 'is_active': False}, format='json').status_code == 200
+    assert admin_client.patch(f'/api/v1/permissions/roles/{identifier}/', {'version': 1, 'permission_ids': [], 'is_active': False}, format='json').status_code == 200
     updated = OperationLog.objects.filter(resource='role').latest('created_at')
     assert updated.before_values['permission_ids'] == [str(permission.pk)] and updated.after_values['permission_ids'] == []
     assert admin_client.delete(f'/api/v1/permissions/roles/{identifier}/').status_code == 200
@@ -178,7 +178,7 @@ def test_role_assignment_rolls_back_with_failed_audit(admin_client):
     permission = Permission.objects.create(name='Audit fixture', resource='fixture', action='read', code='fixture:read')
     with patch('apps.logs.audit.write_audit', side_effect=RuntimeError('audit unavailable')):
         response = admin_client.patch(f'/api/v1/permissions/roles/{role.pk}/',
-            {'permission_ids': [str(permission.pk)], 'is_active': False}, format='json')
+            {'version': 1, 'permission_ids': [str(permission.pk)], 'is_active': False}, format='json')
     role.refresh_from_db()
     assert response.status_code == 500 and role.is_active
     assert not RolePermission.objects.filter(role=role).exists()

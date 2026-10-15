@@ -21,7 +21,7 @@ export interface MaintenanceSchedule {
 }
 
 export const maintenanceApi = {
-  list: async () => (await request.get<ApiResponse<MaintenanceSchedule[]>>('/tasks/schedules/')).data.data,
+  list: async (signal?: AbortSignal) => (await request.get<ApiResponse<MaintenanceSchedule[]>>('/tasks/schedules/', { signal })).data.data,
   save: async (row: MaintenanceSchedule) => (await request.patch<ApiResponse<MaintenanceSchedule>>(`/tasks/schedules/${row.key}/`, {
     revision: row.revision, enabled: row.enabled, ...row.cron,
     options: row.key === 'files' ? { dry_run: row.options.dry_run, batch_size: row.options.batch_size } : { dry_run: row.options.dry_run },

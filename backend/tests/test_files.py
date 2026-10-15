@@ -8,6 +8,7 @@ import pytest
 from django.core.files.storage import default_storage
 from django.test import override_settings
 
+from tests.file_permissions import grant_files
 from apps.files.models import FileModel
 
 
@@ -43,7 +44,8 @@ class TestVisibility:
         assert res.status_code == 200
         assert res.json()['data']['items'] == []
 
-    def test_admin_sees_all_files(self, admin_client, member_client):
+    def test_admin_sees_all_files(self, admin_client, member_client, member_user):
+        grant_files(member_user, 'file:upload')
         member_client.post('/api/v1/files/', {'file': make_file('member.txt')}, format='multipart')
         res = admin_client.get('/api/v1/files/')
         assert len(res.json()['data']['items']) == 1

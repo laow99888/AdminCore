@@ -83,3 +83,6 @@ class FileModel(SoftDeleteModel):
                     raise FileStorageError('存储暂时不可用，请稍后重试') from exc
             row.delete()
         return True
+
+
+from .office_models import OfficePreview  # noqa: E402,F401

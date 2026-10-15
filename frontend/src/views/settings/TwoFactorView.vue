@@ -51,7 +51,9 @@ import { BaseButton, BaseCard } from '@/components'
 import { totpApi, type TotpSetup, type TotpStatus, type TotpSession } from '@/api/totp'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { useAuthStore } from '@/stores/auth'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { twoFactorMessages } from '@/i18n/twoFactorMessages'
+registerUiMessages(twoFactorMessages)
 
 const auth = useAuthStore()
 const router = useRouter()

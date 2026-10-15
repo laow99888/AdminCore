@@ -24,7 +24,9 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import authApi, { type PersonalProfile } from '@/api/auth'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { emailVerificationMessages } from '@/i18n/emailVerificationMessages'
+registerUiMessages(emailVerificationMessages)
 const props = defineProps<{ profile: PersonalProfile; changed: boolean; disabled: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean]; updated: [profile: PersonalProfile]; conflict: [] }>()
 const password = ref(''), code = ref(''), notice = ref(''), error = ref(''), sending = ref(false), confirming = ref(false)

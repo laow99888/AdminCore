@@ -116,7 +116,7 @@ def test_reset_revokes_even_same_password_and_can_require_change(admin_client, m
 
 
 def test_profile_patch_cannot_clear_flag_or_permissions(admin_client, pending_user):
-    assert admin_client.patch(f'/api/v1/users/{pending_user.pk}/', {'must_change_password': False}, format='json').status_code == 200
+    assert admin_client.patch(f'/api/v1/users/{pending_user.pk}/', {'version': 1, 'must_change_password': False}, format='json').status_code == 200
     pending_user.refresh_from_db()
     assert pending_user.must_change_password
 

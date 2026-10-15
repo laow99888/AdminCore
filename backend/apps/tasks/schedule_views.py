@@ -162,6 +162,8 @@ class ScheduleView(APIView):
                 raise ValidationError('需先启用宿主备份执行器与 ADMINCORE_BACKUP_ENABLED')
         try:
             with transaction.atomic():
+                from apps.auth_app.write_authorization import authorize_write
+                authorize_write(request, 'schedule:update', admin=True)
                 row = PeriodicTask.objects.select_for_update().filter(name=job['schedule']).first()
                 if data['revision'] != revision(row):
                     raise VersionConflict()

@@ -18,8 +18,9 @@
       </BaseTable>
       <BaseButton v-if="referencesFailed" @click="loadReferences">{{ uiText('重新加载选项') }}</BaseButton>
     </BaseCard>
-    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑' : '新增')" :loading="saving" @confirm="save">
+    <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑' : '新增')" :loading="saving || conflict.loading.value" :confirm-disabled="conflict.active.value || referencesFailed || referencesLoading" @confirm="save">
       <div v-if="formError" ref="errorSummary" role="alert" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" class="notice" /></div>
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :version="form.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-form label-position="top" :disabled="saving">
         <template v-if="section === 'departments'">
           <el-form-item :label="uiText('部门名称')" required><el-input v-model="form.name" maxlength="100" /></el-form-item>
@@ -43,6 +44,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
@@ -75,7 +78,21 @@ const pageSize = ref(20)
 const total = ref(0)
 usePageState({ section, page, pageSize })
 const form = reactive<any>({})
-const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
+const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
+function applyOrganization(row: any) {
+  for (const key of Object.keys(form)) delete form[key]
+  Object.assign(form, JSON.parse(JSON.stringify(row)))
+  if (section.value === 'memberships') userOptions.value = [{ id: row.user, username: row.username }]
+  formError.value = ''; formGuard.markClean()
+}
+const conflict = useEditConflict<any>({ identifier: () => visible.value && form.id ? section.value + '/' + form.id : '', current: () => formGuard.isCurrent(), fetch: (_, signal) => organizationApi.detail(section.value, form.id, signal), apply: applyOrganization })
+const conflictRows = computed(() => {
+  const server = conflict.latest.value
+  if (!server) return []
+  const keys = section.value === 'departments' ? ['name', 'parent', 'order', 'is_active'] : section.value === 'memberships' ? ['user', 'department'] : ['role', 'resource', 'scope', 'departments']
+  const labels: Record<string, string> = { name: '部门名称', parent: '上级部门', order: '排序', is_active: '启用', user: '用户', department: '部门', role: '角色', resource: '资源', scope: '数据范围', departments: '授权部门' }
+  return keys.map(key => ({ label: uiText(labels[key]!), local: JSON.stringify(form[key] ?? null), server: JSON.stringify(server[key] ?? null) }))
+})
 const modules = useModuleStore()
 const resources = computed<Record<string, string>>(() => Object.fromEntries((modules.config?.scope_resources || [{ key: 'user', title: '用户' }, { key: 'file', title: '文件' }, { key: 'task', title: '任务' }, { key: 'log', title: '日志' }]).map(row => [row.key, row.title])))
 const scopes: Record<string, string> = { self: '本人', department: '本部门', department_tree: '部门及下级', custom: '自定义部门', all: '全部' }
@@ -105,7 +122,7 @@ const columns = computed(() => section.value === 'departments' ? [
 ])
 let listVersion = 0
 watch(section, () => {
-  listVersion++
+  listVersion++; conflict.reset(); visible.value = false
   rows.value = []; total.value = 0; error.value = ''
 }, { flush: 'sync' })
 async function load() {
@@ -154,6 +171,7 @@ function changeSection() { page.value = 1; load() }
 function changePage(value: number) { page.value = value; load() }
 function changeSize(value: number) { pageSize.value = value; page.value = 1; load() }
 function edit(row?: any) {
+  conflict.reset()
   Object.assign(form, { id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [] }, row ? JSON.parse(JSON.stringify(row)) : {})
   formError.value = ''; visible.value = true
   if (section.value === 'memberships') {
@@ -162,7 +180,7 @@ function edit(row?: any) {
   }
 }
 async function save() {
-  if (saving.value || !(auth.user?.is_staff || auth.user?.is_superuser)) return
+  if (saving.value || conflict.active.value || referencesFailed.value || referencesLoading.value || !(auth.user?.is_staff || auth.user?.is_superuser)) return
   formError.value = ''
   let data: object
   if (section.value === 'departments') {
@@ -176,8 +194,8 @@ async function save() {
     data = { role: form.role, resource: form.resource, scope: form.scope, departments: form.departments, version: form.version }
   }
   saving.value = true; formError.value = ''
-  try { await organizationApi.save(section.value, form.id, data); visible.value = false; ElMessage.success(uiText('保存成功')); await load(); await loadReferences() }
-  catch (exception: any) { formError.value = uiText(exception?.response?.status === 409 ? '内容已被其他人修改，已保留输入，请重新打开编辑窗口' : '保存失败，已保留输入') }
+  try { await organizationApi.save(section.value, form.id, data); if (!formGuard.isCurrent()) return; visible.value = false; ElMessage.success(uiText('保存成功')); await load(); await loadReferences() }
+  catch (exception: any) { if (!formGuard.isCurrent()) return; if (exception?.response?.status === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入') }
   finally { saving.value = false }
 }
 async function remove(row: any) {

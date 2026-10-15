@@ -29,8 +29,8 @@
         >
           <template #actions="{ row }">
             <div class="file-row-actions">
-            <el-button link type="primary" size="small" :disabled="!canPreview(row.file_type) || row.size > 10 * 1024 * 1024"
-              :title="uiText('支持 10 MiB 内的图片和 PDF 预览')" @click="previewFile = row">{{ uiText('预览') }}</el-button>
+            <el-button link type="primary" size="small" :disabled="!(canPreview(row.file_type) || (officeAvailable && isOfficeFormat(row.file_type))) || row.size > 10 * 1024 * 1024"
+              :title="uiText('支持 10 MiB 内的图片、PDF 和已启用的 Office 转换预览')" @click="previewFile = row">{{ uiText('预览') }}</el-button>
             <el-button link type="primary" size="small" @click="handleDownload(row)">{{ uiText("下载") }}</el-button>
             <el-button v-if="processingEnabled" link type="primary" size="small"
               :disabled="!canProcessImage(row.file_type) || row.size > 10 * 1024 * 1024" @click="processingFile = row">{{ uiText('图片处理') }}</el-button>
@@ -58,6 +58,7 @@ import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
 import FilePreviewDialog from '@/components/files/FilePreviewDialog.vue'
 import { canPreview } from '@/api/filePreview'
+import { isOfficeFormat, officePreviewConfig } from '@/api/officePreview'
 import ImageProcessingDialog from '@/components/files/ImageProcessingDialog.vue'
 import { canProcessImage, imageProcessingConfig } from '@/api/imageProcessing'
 import DataExportButton from '@/components/common/DataExportButton.vue'
@@ -71,6 +72,19 @@ const previewFile = ref<FileRow | null>(null)
 const router = useRouter()
 const auth = useAuthStore()
 const modules = useModuleStore()
+const officeAvailable = ref(false)
+let officeController: AbortController | null = null, officeGeneration = 0
+watch(() => JSON.stringify([auth.user?.id, auth.can('file:download'), modules.enabled('files')]), async () => {
+  const current = ++officeGeneration
+  officeController?.abort(); officeAvailable.value = false; previewFile.value = null
+  if (!auth.can('file:download') || !modules.enabled('files')) return
+  officeController = new AbortController()
+  try {
+    const enabled = await officePreviewConfig(officeController.signal)
+    if (current === officeGeneration) officeAvailable.value = enabled
+  } catch { /* 配置读取失败保持转换入口关闭。 */ }
+}, { immediate: true })
+onBeforeUnmount(() => { officeGeneration++; officeController?.abort() })
 const processingFile = ref<FileRow | null>(null), processingAvailable = ref(false)
 const processingAllowed = computed(() => auth.can('file:process') && auth.can('file:download') && modules.enabled('files'))
 const processingEnabled = computed(() => processingAllowed.value && processingAvailable.value)

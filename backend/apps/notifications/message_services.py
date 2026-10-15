@@ -172,10 +172,9 @@ def deliver(payload):
 
 
 def valid_sender_session(row, actor):
-    from apps.auth_app.models import AuthSession
-    from apps.auth_app.sessions import idle_cutoff
+    from apps.auth_app.sessions import active_sessions, idle_cutoff
     from rest_framework_simplejwt.utils import get_md5_hash_password
-    session = AuthSession.objects.select_for_update().filter(pk=row.actor_session_id, user=actor).first()
+    session = active_sessions().select_for_update().filter(pk=row.actor_session_id, user=actor).first()
     return bool(session and not session.revoked_at and session.expires_at > timezone.now()
                 and session.last_seen_at > idle_cutoff()
                 and session.session_version == actor.session_version and session.password_hash == get_md5_hash_password(actor.password))

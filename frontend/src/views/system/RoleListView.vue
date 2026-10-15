@@ -35,7 +35,9 @@
       </BaseCard>
 
       <!-- 角色编辑 -->
-      <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="formData.id ? uiText('编辑角色') : uiText('新增角色')" :loading="saving" @confirm="handleSave">
+      <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="formData.id ? uiText('编辑角色') : uiText('新增角色')" :loading="saving || conflict.loading.value" :confirm-disabled="conflict.active.value" @confirm="handleSave">
+        <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
+        <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || !formGuard.isCurrent()" :version="formData.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
         <el-form :model="formData" label-width="90px" :disabled="saving">
           <el-form-item :label="uiText('角色名')" required>
             <el-input v-model="formData.name" />
@@ -80,6 +82,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
@@ -105,6 +109,7 @@ const printColumns = computed<PrintColumn<RoleRow>[]>(() => [
 ])
 const loading = ref(false)
 const saving = ref(false)
+const formError = ref('')
 const dialogVisible = ref(false)
 const permDialogVisible = ref(false)
 const currentRole = ref<RoleRow | null>(null)
@@ -117,13 +122,26 @@ const pageSize = ref(10)
 usePageState({ currentPage, pageSize })
 const formData = reactive({
   id: '',
+  version: 0,
   name: '',
   description: '',
   is_active: true,
   permission_ids: [] as string[],
 })
 
-const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can('role:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', name: '', description: '', is_active: true, permission_ids: [] }) } })
+const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => auth.can('role:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', version: 0, name: '', description: '', is_active: true, permission_ids: [] }) } })
+const conflict = useEditConflict<RoleRow>({ identifier: () => dialogVisible.value ? formData.id : '', current: () => formGuard.isCurrent(), fetch: rolesApi.detail, apply: row => { applyRole(row); formGuard.markClean() } })
+const conflictRows = computed(() => {
+  const server = conflict.latest.value
+  if (!server) return []
+  return [
+    { label: uiText('角色名'), local: formData.name, server: server.name },
+    { label: uiText('描述'), local: formData.description, server: server.description },
+    { label: uiText('状态'), local: String(formData.is_active), server: String(server.is_active) },
+    { label: uiText('权限'), local: formData.permission_ids.join(', '), server: server.permissions.map(permission => permission.id).join(', ') },
+  ]
+})
+function applyRole(row: RoleRow) { Object.assign(formData, { id: row.id, version: row.version, name: row.name, description: row.description, is_active: row.is_active, permission_ids: row.permissions.map(permission => permission.id) }); formError.value = '' }
 const tableColumns = [
   { prop: 'name', label: uiText("角色名") },
   { prop: 'description', label: uiText("描述") },
@@ -157,23 +175,17 @@ const loadRoles = async () => {
 }
 
 const handleCreate = () => {
-  Object.assign(formData, { id: '', name: '', description: '', is_active: true, permission_ids: [] })
+  conflict.reset(); formError.value = ''
+  Object.assign(formData, { id: '', version: 0, name: '', description: '', is_active: true, permission_ids: [] })
   dialogVisible.value = true
 }
 
 const handleEdit = (row: RoleRow) => {
-  Object.assign(formData, {
-    id: row.id,
-    name: row.name,
-    description: row.description,
-    is_active: row.is_active,
-    permission_ids: (row.permissions || []).map((p) => p.id),
-  })
-  dialogVisible.value = true
+  conflict.reset(); applyRole(row); dialogVisible.value = true
 }
 
 const handleSave = async () => {
-  if (saving.value || !auth.can('role:update')) return
+  if (saving.value || conflict.active.value || !auth.can('role:update')) return
   if (!formData.name) {
     ElMessage.warning(uiText("请填写角色名"))
     return
@@ -181,6 +193,7 @@ const handleSave = async () => {
   saving.value = true
   try {
     const payload = {
+      version: formData.version,
       name: formData.name,
       description: formData.description,
       is_active: formData.is_active,
@@ -188,14 +201,21 @@ const handleSave = async () => {
     }
     if (formData.id) {
       await rolesApi.update(formData.id, payload)
+      if (!formGuard.isCurrent()) return
       ElMessage.success(uiText("修改成功"))
     } else {
       await rolesApi.create(payload)
+      if (!formGuard.isCurrent()) return
       ElMessage.success(uiText("创建成功"))
     }
     dialogVisible.value = false
     loadRoles()
-  } catch { ElMessage.error(uiText('保存失败，已保留输入')) } finally {
+  } catch (error: any) {
+    if (formGuard.isCurrent()) {
+      if (error.response?.status === 409 && formData.id) conflict.mark()
+      else formError.value = uiText('保存失败，已保留输入')
+    }
+  } finally {
     saving.value = false
   }
 }

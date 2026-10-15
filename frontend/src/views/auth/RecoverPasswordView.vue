@@ -35,7 +35,9 @@ import { onBeforeUnmount, ref } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { BaseButton, BaseCard } from '@/components'
 import { recoveryApi, passwordResetError } from '@/api/recovery'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { recoveryPageMessages } from '@/i18n/recoveryPageMessages'
+registerUiMessages(recoveryPageMessages)
 
 const router = useRouter()
 const loading = ref(false), busy = ref(false), enabled = ref<boolean | null>(null), configError = ref(false)

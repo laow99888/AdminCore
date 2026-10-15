@@ -65,6 +65,7 @@
             >{{ uiText(mfaRequired ? '验证并登录' : '登录') }}</el-button>
           </el-form-item>
         </el-form>
+        <component :is="SSOEntry" v-if="SSOEntry" :disabled="loading" />
         <div class="recovery-entry">
           <el-button v-if="recoveryEnabled" link :disabled="loading" @click="router.push('/recover-password')">{{ uiText('忘记密码') }}</el-button>
           <span v-else-if="recoveryLoading" role="status">{{ uiText('正在检查找回密码配置') }}</span>
@@ -79,7 +80,7 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { onBeforeUnmount, ref } from 'vue'
+import { defineAsyncComponent, onBeforeUnmount, ref } from 'vue'
 import { recoveryApi } from '@/api/recovery'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -89,6 +90,7 @@ import { useBrandStore } from '@/stores/brand'
 import { useLoginCaptcha } from '@/composables/useLoginCaptcha'
 
 const router = useRouter()
+const SSOEntry = __ADMINCORE_MINIMAL_BUILD__ ? null : defineAsyncComponent(() => import('@/components/auth/SSOEntry.vue'))
 const authStore = useAuthStore()
 const brand = useBrandStore()
 const loading = ref(false)

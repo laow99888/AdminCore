@@ -30,8 +30,9 @@
         <template #empty><el-empty :description="uiText('暂无菜单数据')" :image-size="80" /></template>
       </el-table>
     </BaseCard>
-    <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="form.id ? uiText('编辑菜单') : uiText('新增菜单')" width="560px" :loading="saving || permissionsLoading" :confirm-disabled="permissionsFailed" @confirm="saveMenu">
+    <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="form.id ? uiText('编辑菜单') : uiText('新增菜单')" width="560px" :loading="saving || permissionsLoading || conflict.loading.value" :confirm-disabled="permissionsFailed || conflict.active.value" @confirm="saveMenu">
       <el-alert v-if="formError" :title="formError" type="error" :closable="false" show-icon />
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :disabled="saving || !formGuard.isCurrent()" :version="form.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <el-form ref="formRef" :model="form" :rules="rules" label-width="90px" :disabled="saving">
         <el-form-item :label="uiText('菜单名')" prop="name"><el-input v-model="form.name" maxlength="100" /></el-form-item>
         <el-form-item :label="uiText('路由路径')" prop="path"><el-input v-model="form.path" placeholder="/users" maxlength="200" /></el-form-item>
@@ -47,6 +48,8 @@
 </template>
 
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
@@ -69,9 +72,16 @@ const formError = ref('')
 const permissionsLoading = ref(false)
 const permissionsFailed = ref(false)
 const permissionOptions = ref<Array<{ id: string; name: string }>>([])
-const emptyForm = () => ({ id: '', name: '', path: '', icon: '', order: 0, parent: null as string | null, permission: null as string | null, is_visible: true })
+const emptyForm = () => ({ id: '', version: 0, name: '', path: '', icon: '', order: 0, parent: null as string | null, permission: null as string | null, is_visible: true })
 const form = reactive(emptyForm())
-const formGuard = useUnsavedChanges({ source: () => form, active: () => dialogVisible.value, busy: () => saving.value, canEdit: () => auth.can('menu:update'), clear: () => { dialogVisible.value = false; Object.assign(form, emptyForm()) } })
+const formGuard = useUnsavedChanges({ source: () => form, active: () => dialogVisible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => auth.can('menu:update'), clear: () => { dialogVisible.value = false; Object.assign(form, emptyForm()) } })
+function applyMenu(row: MenuRow) { Object.assign(form, { id: row.id, version: row.version, name: row.name, path: row.path, icon: row.icon, order: row.order, parent: row.parent || null, permission: row.permission || null, is_visible: row.is_visible }); formError.value = '' }
+const conflict = useEditConflict<MenuRow>({ identifier: () => dialogVisible.value ? form.id : '', current: () => formGuard.isCurrent(), fetch: menusApi.detail, apply: row => { applyMenu(row); formGuard.markClean() } })
+const conflictRows = computed(() => {
+  const server = conflict.latest.value
+  if (!server) return []
+  return ['name', 'path', 'icon', 'order', 'parent', 'permission', 'is_visible'].map(key => ({ label: uiText(({ name: '菜单名', path: '路由路径', icon: '图标', order: '排序', parent: '父菜单', permission: '所需权限', is_visible: '可见' } as Record<string, string>)[key]!), local: String(form[key as keyof typeof form] ?? ''), server: String(server[key as keyof MenuRow] ?? '') }))
+})
 const rules: FormRules = {
   name: [{ required: true, message: uiText('请输入菜单名'), trigger: 'blur' }],
   path: [{ required: true, pattern: /^\/(?!\/)[^?#\\]*$/, message: uiText('请输入以 / 开头的站内路由'), trigger: 'blur' }],
@@ -107,13 +117,13 @@ const loadPermissions = async () => {
   } finally { permissionsLoading.value = false }
 }
 const openEditor = (row?: MenuRow) => {
-  Object.assign(form, row ? { id: row.id, name: row.name, path: row.path, icon: row.icon, order: row.order, parent: row.parent || null, permission: row.permission || null, is_visible: row.is_visible } : emptyForm())
+  conflict.reset(); if (row) applyMenu(row); else Object.assign(form, emptyForm())
   formError.value = ''
   dialogVisible.value = true
   loadPermissions()
 }
 const saveMenu = async () => {
-  if (saving.value || permissionsLoading.value || permissionsFailed.value || !auth.can('menu:update')) return
+  if (saving.value || conflict.active.value || permissionsLoading.value || permissionsFailed.value || !auth.can('menu:update')) return
   saving.value = true
   formError.value = ''
   try {
@@ -124,11 +134,14 @@ const saveMenu = async () => {
     data.permission ||= null
     if (id) await menusApi.update(id, data)
     else await menusApi.create(data)
+    if (!formGuard.isCurrent()) return
     ElMessage.success(uiText('保存成功'))
     dialogVisible.value = false
     await loadMenus()
     window.dispatchEvent(new Event('admincore:menus-updated'))
   } catch (error) {
+    if (!formGuard.isCurrent()) return
+    if (isAxiosError(error) && error.response?.status === 409 && form.id) { conflict.mark(); return }
     formError.value = isAxiosError(error) && error.response?.data?.data
       ? Object.values(error.response.data.data).flat().join('；') : uiText('保存失败，请重试')
   } finally { saving.value = false }

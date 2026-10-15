@@ -31,7 +31,9 @@ import { BaseButton, BaseTable } from '@/components'
 import PasswordConfirmationDialog from '@/components/auth/PasswordConfirmationDialog.vue'
 import { sessionsApi, type DeviceSession, type OnlineUser } from '@/api/sessions'
 import { useAuthStore } from '@/stores/auth'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { sessionManagementMessages } from '@/i18n/sessionManagementMessages'
+registerUiMessages(sessionManagementMessages)
 
 const props = withDefaults(defineProps<{ admin?: boolean }>(), { admin: false })
 const auth = useAuthStore(), router = useRouter()
