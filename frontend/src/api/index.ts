@@ -64,6 +64,13 @@ export interface UserDetail extends UserRow {
   roles: Array<{ role__id: string; role__name: string }>
 }
 
+export interface AtomicUserBulkResult {
+  atomic: true
+  succeeded: number
+  failed: number
+  results: Array<{ id: string; status: number }>
+}
+
 export const usersApi = {
   list: (params?: ListParams) => getPaged<UserRow>('/users/', params),
   detail: async (id: string): Promise<UserDetail> => (await request.get<ApiResponse<UserDetail>>(`/users/${id}/`)).data.data,
@@ -74,8 +81,8 @@ export const usersApi = {
   remove: (id: string) => request.delete(`/users/${id}/`),
   resetPassword: (id: string, password: string, mustChangePassword = true) =>
     request.post(`/users/${id}/reset_password/`, { password, must_change_password: mustChangePassword }),
-  bulkAction: (action: string, userIds: string[]) =>
-    request.post('/users/bulk_action/', { action, user_ids: userIds }),
+  bulkAction: (action: 'activate' | 'deactivate' | 'delete', userIds: string[]) =>
+    request.post<ApiResponse<AtomicUserBulkResult>>('/users/bulk_action/', { action, user_ids: userIds }),
 }
 
 // ===== 文件管理 =====

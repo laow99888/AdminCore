@@ -85,6 +85,8 @@ def test_mixed_bulk_rejects_without_partial_changes(member_client, member_user, 
     DataScopeGrant.objects.create(role=role, resource='user', scope='self')
     response = member_client.post('/api/v1/users/bulk_action/', {'action': 'deactivate', 'user_ids': [str(member_user.pk), str(stranger.pk)]}, format='json')
     assert response.status_code == 403
+    assert response.json()['data'] == {'atomic': True, 'succeeded': 0, 'failed': 2,
+        'results': [{'id': str(identifier), 'status': 403} for identifier in [member_user.pk, stranger.pk]]}
     member_user.refresh_from_db()
     stranger.refresh_from_db()
     assert member_user.is_active and stranger.is_active

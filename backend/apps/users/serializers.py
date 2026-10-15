@@ -127,6 +127,18 @@ class BulkUserActionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=['activate', 'deactivate', 'delete'], required=True)
 
 
+class BulkUserItemResultSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    status = serializers.IntegerField()
+
+
+class BulkUserActionResultSerializer(serializers.Serializer):
+    atomic = serializers.BooleanField()
+    succeeded = serializers.IntegerField(min_value=0)
+    failed = serializers.IntegerField(min_value=0)
+    results = BulkUserItemResultSerializer(many=True)
+
+
 class SensitiveContactRequestSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
 

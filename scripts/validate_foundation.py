@@ -22,6 +22,7 @@ PROJECT = 'admincore-foundation-' + uuid.uuid4().hex[:8]
 FOLDER = ROOT / '.codex-validation' / PROJECT
 BASE = 'http://127.0.0.1:18421/api/v1/'
 CHECKS = []
+LOGIN_SESSIONS = {}
 
 
 def run(args, *, allowed_failure=False):
@@ -66,7 +67,18 @@ def concurrent_patch(path, payloads, token):
 
 
 def login(password):
-    return api('auth/login/', 'POST', {'username': 'admin', 'password': password}).json()['access']
+    pair = api('auth/login/', 'POST', {'username': 'admin', 'password': password}).json()
+    LOGIN_SESSIONS.clear()
+    LOGIN_SESSIONS[pair['access']] = pair['refresh']
+    return pair['access']
+
+
+def renew_access(token):
+    """长链路按阶段显式轮换主设备；预期401/撤销用例不自动重试。"""
+    pair = api('auth/refresh/', 'POST', {'refresh': LOGIN_SESSIONS[token]}).json()['data']
+    LOGIN_SESSIONS.pop(token)
+    LOGIN_SESSIONS[pair['access']] = pair['refresh']
+    return pair['access']
 
 
 def ready():
@@ -138,6 +150,25 @@ def main():
         password = new_password
         token = login(password)
         check('改密后解除限制', not api('auth/me/', token=token).json()['data']['must_change_password'])
+        bulk_user = api('users/', 'POST', {'username': 'bulk-http-fixture', 'password': secrets.token_urlsafe(40)},
+                        201, token).json()['data']
+        # 创建响应不含只读ID；从有界列表取得本次唯一测试账号。
+        bulk_rows = api('users/?search=bulk-http-fixture', token=token).json()['data']['items']
+        check('真实 HTTP 唯一批量测试账号', len(bulk_rows) == 1 and bulk_user['username'] == bulk_rows[0]['username'])
+        bulk_id = bulk_rows[0]['id']
+        bulk_result = api('users/bulk_action/', 'POST', {'action': 'deactivate', 'user_ids': [bulk_id]}, token=token).json()['data']
+        check('真实 HTTP 批量成功返回逐项提交结果', bulk_result == {
+            'atomic': True, 'succeeded': 1, 'failed': 0, 'results': [{'id': bulk_id, 'status': 200}]})
+        missing_id = str(uuid.uuid4())
+        rejected = api('users/bulk_action/', 'POST', {'action': 'activate', 'user_ids': [bulk_id, missing_id]},
+                       403, token).json()['data']
+        check('真实 HTTP 缺失项使整批拒绝且结果不透露存在性', rejected == {
+            'atomic': True, 'succeeded': 0, 'failed': 2,
+            'results': [{'id': identifier, 'status': 403} for identifier in [bulk_id, missing_id]]})
+        check('真实 HTTP 整批拒绝保留先前停用状态', not api('users/' + bulk_id + '/', token=token).json()['data']['is_active'])
+        deleted = api('users/bulk_action/', 'POST', {'action': 'delete', 'user_ids': [bulk_id]}, token=token).json()['data']
+        check('真实 HTTP 批量删除返回原提交ID', deleted == {
+            'atomic': True, 'succeeded': 1, 'failed': 0, 'results': [{'id': bulk_id, 'status': 200}]})
         devices = api('auth/sessions/', token=token)
         check('精简部署保留本人设备入口且禁止缓存',
               devices.headers['Cache-Control'] == 'private, no-store'
@@ -447,6 +478,7 @@ def main():
         with ThreadPoolExecutor(max_workers=2) as pool:
             statuses = list(pool.map(lambda _: api('tasks/schedules/notifications/', 'PATCH', edit, None, token).status_code, range(2)))
         check('PostgreSQL 维护计划同版本编辑仅一次成功', sorted(statuses) == [200, 409])
+        token = renew_access(token)
         compose('standard', 'up', '-d', '--wait', '--wait-timeout', '150', 'worker')
         source = ('username,email\nhttp_worker_import_1,worker1@example.com\nhttp_worker_import_2,worker2@example.com\n').encode()
         response = requests.post(BASE + 'data-io/import/', headers={'Authorization': 'Bearer ' + token,
@@ -636,6 +668,7 @@ assert record.error=='worker_lost_committed_rows_preserved'
         check('真实 HTTP 删除预览不删除回收站文件', preview['succeeded'] == 1 and preview['dry_run'])
         lifecycle = next(item for item in api('tasks/schedules/', token=token).json()['data'] if item['key'] == 'lifecycle')
         check('历史清理默认关闭且凌晨四点运行', not lifecycle['enabled'] and lifecycle['cron']['hour'] == '4')
+        token = renew_access(token)
         encoded = base64.b64encode((ROOT / 'scripts/validate_lifecycle.py').read_bytes()).decode('ascii')
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
@@ -644,6 +677,10 @@ assert record.error=='worker_lost_committed_rows_preserved'
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")
         check('真实 PostgreSQL 审计事务回滚、并发快照连续和只读边界', True)
+        encoded = base64.b64encode((ROOT / 'scripts/validate_bulk_results.py').read_bytes()).decode('ascii')
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
+                "import base64; exec(base64.b64decode('" + encoded + "'))")
+        check('真实 PostgreSQL 用户逐项批量响应、反序并发、混合范围及整批回滚', True)
         encoded = base64.b64encode((ROOT / 'scripts/validate_admin_audit.py').read_bytes()).decode('ascii')
         compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c',
                 "import base64; exec(base64.b64decode('" + encoded + "'))")

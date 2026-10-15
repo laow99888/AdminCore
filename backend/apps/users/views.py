@@ -18,7 +18,7 @@ from rest_framework.exceptions import AuthenticationFailed, PermissionDenied
 import logging
 from .serializers import (
     UserDetailSerializer, UserListSerializer, UserCreateSerializer,
-    UserUpdateSerializer, BulkUserActionSerializer,
+    UserUpdateSerializer, BulkUserActionSerializer, BulkUserActionResultSerializer,
     SensitiveContactRequestSerializer, SensitiveContactSerializer
 )
 from apps.permissions.permissions import HasPermission, has_permission_code
@@ -27,6 +27,17 @@ from apps.core.mixins import EnvelopeResponseMixin
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+BulkUserActionResponse = envelope('BulkUserActionResponse', BulkUserActionResultSerializer(allow_null=True))
+
+
+def bulk_user_result(user_ids, status_code):
+    """逐项返回整批提交结果；拒绝时不区分不存在与不可访问。"""
+    return {
+        'atomic': True,
+        'succeeded': len(user_ids) if status_code == 200 else 0,
+        'failed': 0 if status_code == 200 else len(user_ids),
+        'results': [{'id': str(identifier), 'status': status_code} for identifier in user_ids],
+    }
 
 
 @extend_schema_view(
@@ -35,7 +46,9 @@ logger = logging.getLogger(__name__)
     update=extend_schema(responses=envelope('UserUpdatedResponse', UserUpdateSerializer())),
     partial_update=extend_schema(responses=envelope('UserPatchedResponse', UserUpdateSerializer())),
     destroy=extend_schema(responses={200: MessageResponse}),
-    bulk_action=extend_schema(request=BulkUserActionSerializer, responses=MessageResponse),
+    bulk_action=extend_schema(request=BulkUserActionSerializer, responses={
+        200: BulkUserActionResponse, 400: MessageResponse, 403: BulkUserActionResponse,
+        409: BulkUserActionResponse, 500: BulkUserActionResponse}),
     reset_password=extend_schema(request=ResetPasswordRequestSerializer, responses=MessageResponse),
     sensitive=extend_schema(request=SensitiveContactRequestSerializer,
                            responses=envelope('SensitiveContactResponse', SensitiveContactSerializer())),
@@ -139,7 +152,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
             action = serializer.validated_data['action']
             from apps.permissions.permissions import has_permission_code
             if action == 'delete' and not has_permission_code(request.user, 'user:delete'):
-                return Response({'code': 403, 'message': '没有删除用户的权限', 'data': None}, status=403)
+                return Response({'code': 403, 'message': '没有删除用户的权限',
+                                 'data': bulk_user_result(user_ids, 403)}, status=403)
 
             try:
                 with transaction.atomic():
@@ -149,7 +163,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                     if len(set(user_ids)) != len(user_ids) or len(rows) != len(user_ids):
                         write_audit(request=request, resource='user', action='other', status=403,
                             description='batch_rejected', results=[{'id': identifier, 'status': 403} for identifier in user_ids])
-                        return Response({'code': 403, 'message': '批量请求包含重复、不可访问或不存在的用户，未执行变更', 'data': None}, status=403)
+                        return Response({'code': 403, 'message': '批量请求包含重复、不可访问或不存在的用户，未执行变更',
+                                         'data': bulk_user_result(user_ids, 403)}, status=403)
 
                     before = {row.pk: snapshot('user', row) for row in rows}
 
@@ -175,16 +190,17 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                     return Response({
                         'code': 200,
                         'message': f'{action} success',
-                        'data': None,
+                        'data': bulk_user_result(user_ids, 200),
                     })
             except ProtectedError:
-                return Response({'code': 409, 'message': '用户仍被业务数据引用，批量操作未执行', 'data': None}, status=409)
+                return Response({'code': 409, 'message': '用户仍被业务数据引用，批量操作未执行',
+                                 'data': bulk_user_result(user_ids, 409)}, status=409)
             except Exception:
                 logger.exception('批量用户操作失败')
                 return Response({
                     'code': 500,
                     'message': '批量操作失败，请查看服务器日志',
-                    'data': None,
+                    'data': bulk_user_result(user_ids, 500),
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
