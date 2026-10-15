@@ -13,7 +13,7 @@ ARG ADMINCORE_BUILD_PROFILE=full
 RUN ADMINCORE_BUILD_PROFILE="$ADMINCORE_BUILD_PROFILE" npm run build
 
 # ---- 运行阶段 ----
-FROM nginx:1.29.8-alpine
+FROM nginx:1.31.0-alpine
 
 COPY --from=build /app/dist /usr/share/nginx/html
 ENV TRUSTED_PROXY_IP=127.0.0.1
