@@ -43,28 +43,23 @@ class BackupRestoreSerializer(serializers.Serializer):
         return value
 
 
+class BackupArtifactFileSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    sha256 = serializers.CharField()
+    bytes = serializers.IntegerField()
+
+
 class BackupArtifactSerializer(serializers.Serializer):
     timestamp = serializers.CharField()
     created_at = serializers.CharField()
-    artifacts = serializers.ListField(child=serializers.JSONField())
+    artifacts = BackupArtifactFileSerializer(many=True)
     remote_copy = serializers.BooleanField()
-
-
-class BackupStatusSerializer(serializers.Serializer):
-    enabled = serializers.BooleanField()
-    state = serializers.CharField()
-    directory_label = serializers.CharField()
-    stage = serializers.CharField()
-    last_error = serializers.CharField()
-    last_seen_at = serializers.DateTimeField(allow_null=True)
-    artifacts = BackupArtifactSerializer(many=True)
-    restore_requests = serializers.ListField(child=serializers.JSONField())
 
 
 class BackupPreflightSerializer(serializers.Serializer):
     preflight_id = serializers.UUIDField()
     timestamp = serializers.CharField()
-    artifacts = serializers.ListField(child=serializers.JSONField())
+    artifacts = BackupArtifactFileSerializer(many=True)
     remote_copy = serializers.BooleanField()
     runner_state = serializers.CharField()
     requires_confirmation = serializers.BooleanField()
@@ -77,6 +72,23 @@ class BackupRestoreResultSerializer(serializers.Serializer):
     error = serializers.CharField(required=False)
     created_at = serializers.DateTimeField(required=False)
     completed_at = serializers.DateTimeField(allow_null=True, required=False)
+
+
+class BackupRestoreHistorySerializer(BackupRestoreResultSerializer):
+    error = serializers.CharField(allow_blank=True)
+    created_at = serializers.DateTimeField()
+    completed_at = serializers.DateTimeField(allow_null=True)
+
+
+class BackupStatusSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField()
+    state = serializers.CharField()
+    directory_label = serializers.CharField()
+    stage = serializers.CharField()
+    last_error = serializers.CharField()
+    last_seen_at = serializers.DateTimeField(allow_null=True)
+    artifacts = BackupArtifactSerializer(many=True)
+    restore_requests = BackupRestoreHistorySerializer(many=True)
 
 
 def status_data():

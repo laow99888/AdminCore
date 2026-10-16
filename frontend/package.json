@@ -4,6 +4,8 @@
   "description": "AdminCore 中后台管理系统前端框架",
   "type": "module",
   "scripts": {
+    "sdk:generate": "node scripts/generate-sdk.mjs",
+    "sdk:check": "node scripts/generate-sdk.mjs --check",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
@@ -47,6 +49,7 @@
     "eslint": "10.12.0",
     "eslint-plugin-vue": "10.11.1",
     "jsdom": "30.1.2",
+    "openapi-typescript": "7.13.0",
     "postcss": "8.5.29",
     "prettier": "3.9.10",
     "sass": "1.105.1",

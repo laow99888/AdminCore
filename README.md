@@ -81,6 +81,7 @@ npm run dev
 - [快速开始](./docs/快速开始.md)
 - [后端开发指南](./docs/后端开发指南.md)
 - [API 规范](./docs/API规范.md)
+- [OpenAPI 与 TypeScript SDK](./docs/OpenAPI与TypeScript%20SDK.md)
 - [部署指南](./docs/部署指南.md)
 - [模块启停、预设及组织/参数/字典/品牌](./docs/模块与基础能力.md)
 
