@@ -7,6 +7,7 @@ import { i18n } from './i18n'
 import { useBrandStore } from './stores/brand'
 import { useThemeStore } from './stores/theme'
 import { errorReporter, installErrorReporting } from './utils/errorReporting'
+import { loadFullUiMessages } from './i18n/uiText'
 
 // Element Plus 基础样式与暗色变量（必须先于全局覆盖引入）
 import 'element-plus/dist/index.css'
@@ -17,6 +18,9 @@ import './styles/design-tokens.css'
 import './styles/globals.css'
 
 const app = createApp(App)
+
+// 完整文案异步加载；首屏核心文案仍由 uiMessages.ts 提供。
+void loadFullUiMessages()
 
 // Element Plus 组件及指令由构建插件按需导入，语言由 App 的配置提供器控制。
 

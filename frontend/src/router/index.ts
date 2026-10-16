@@ -7,7 +7,6 @@ import { useModuleStore } from '@/stores/modules'
 import { canAccessPage } from './access'
 import { frontendExtensions } from '@/modules/registry'
 import { moduleRoutes } from '@/router/moduleRoutes'
-import MicroAppView from '@/views/microfrontends/MicroAppView.vue'
 import { findTrustedMicroApp, microFrontendsEnabled } from '@/microfrontends/registry'
 
 // 懒加载视图
@@ -20,6 +19,7 @@ const OperationLogView = () => import('../views/logs/OperationLogView.vue')
 const SettingsView = () => import('../views/settings/SettingsView.vue')
 const NotFoundView = () => import('../views/errors/NotFoundView.vue')
 const ServiceErrorView = () => import('../views/errors/ServiceErrorView.vue')
+const MicroAppView = () => import('@/views/microfrontends/MicroAppView.vue')
 
 const routes: RouteRecordRaw[] = [
   ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : [{ path: '/enterprise-login', name: 'EnterpriseLogin', component: () => import('../views/auth/EnterpriseLoginView.vue'), meta: { title: '企业身份登录', requiresAuth: false, preserveOnLocaleChange: true } }]),

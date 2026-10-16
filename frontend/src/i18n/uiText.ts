@@ -1,6 +1,18 @@
 import { i18n } from './index'
 import { uiMessages } from './uiMessages'
 
+let fullMessagesPromise: Promise<void> | undefined
+
+/** 页面首次挂载后加载完整文案，避免把所有页面翻译打进登录首屏。 */
+export function loadFullUiMessages(): Promise<void> {
+  if (!fullMessagesPromise) {
+    fullMessagesPromise = import('./uiMessages.full').then(({ uiMessages: messages }) => {
+      Object.assign(uiMessages, messages)
+    })
+  }
+  return fullMessagesPromise
+}
+
 /** 仅由编译登记的页面注册静态文案；页面依赖随路由加载。 */
 export function registerUiMessages(messages: Record<string, string>): void {
   Object.assign(uiMessages, messages)
