@@ -8450,6 +8450,25 @@
         ],
         "type": "object"
       },
+      "ResumableUploadCompleteResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/File"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
       "Role": {
         "description": "角色序列化器",
         "properties": {
@@ -15960,6 +15979,353 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FileRecyclePolicyResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/files/uploads/": {
+      "post": {
+        "operationId": "files_uploads_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/files/uploads/{upload_id}/": {
+      "get": {
+        "operationId": "files_uploads_retrieve",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/files/uploads/{upload_id}/chunks/{index}/": {
+      "put": {
+        "operationId": "files_uploads_chunks_update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "index",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "format": "binary",
+                "type": "string"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/files/uploads/{upload_id}/complete/": {
+      "post": {
+        "operationId": "files_uploads_complete_create",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "upload_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResumableUploadCompleteResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             },

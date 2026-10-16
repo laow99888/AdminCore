@@ -9,7 +9,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 
 from django.db import transaction
-from apps.core.models import SoftDeleteModel, LifecycleConflict
+from apps.core.models import BaseModel, SoftDeleteModel, LifecycleConflict
 from .fields import ScannedFileField
 
 User = get_user_model()
@@ -84,6 +84,30 @@ class FileModel(SoftDeleteModel):
                               {'name': row.file.name, 'storage': storage_identity()})
             row.delete()
         return True
+
+
+class ResumableUpload(BaseModel):
+    """可恢复分片上传会话；分片对象本身存储在默认媒体存储中。"""
+    STATUS_CHOICES = [('active', '进行中'), ('completed', '已完成'), ('expired', '已过期')]
+
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='resumable_uploads')
+    original_name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100, blank=True)
+    total_size = models.PositiveBigIntegerField()
+    chunk_size = models.PositiveIntegerField()
+    total_chunks = models.PositiveIntegerField()
+    expected_sha256 = models.CharField(max_length=64, blank=True)
+    chunks = models.JSONField(default=dict)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='active', db_index=True)
+    expires_at = models.DateTimeField(db_index=True)
+    file = models.OneToOneField(FileModel, on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='resumable_upload')
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['owner', 'status']),
+            models.Index(fields=['status', 'expires_at']),
+        ]
 
 
 from .office_models import OfficePreview  # noqa: E402,F401

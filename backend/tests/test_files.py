@@ -3,13 +3,16 @@
 """
 
 import io
+import hashlib
+from datetime import timedelta
 
 import pytest
 from django.core.files.storage import default_storage
 from django.test import override_settings
+from django.utils import timezone
 
 from tests.file_permissions import grant_files
-from apps.files.models import FileModel
+from apps.files.models import FileModel, ResumableUpload
 
 
 def make_file(name='test.txt', content=b'hello admincore'):
@@ -30,6 +33,48 @@ class TestUpload:
     def test_upload_exe_rejected_by_whitelist(self, admin_client):
         res = admin_client.post('/api/v1/files/', {'file': make_file('bad.exe', b'xx')}, format='multipart')
         assert res.status_code == 400
+
+    def test_resumable_upload_round_trip(self, admin_client):
+        content = b'A' * (256 * 1024) + b'B' * 1024
+        chunk_size = 256 * 1024
+        start = admin_client.post('/api/v1/files/uploads/', {
+            'name': 'resume.txt', 'total_size': len(content), 'chunk_size': chunk_size,
+            'content_type': 'text/plain', 'sha256': hashlib.sha256(content).hexdigest(),
+        }, format='json')
+        assert start.status_code == 201, start.content
+        upload_id = start.json()['data']['id']
+        for index, body in enumerate((content[:chunk_size], content[chunk_size:])):
+            response = admin_client.put(
+                f'/api/v1/files/uploads/{upload_id}/chunks/{index}/', body,
+                content_type='application/octet-stream', HTTP_X_CHUNK_SHA256=hashlib.sha256(body).hexdigest())
+            assert response.status_code == 200, response.content
+        complete = admin_client.post(f'/api/v1/files/uploads/{upload_id}/complete/', {}, format='json')
+        assert complete.status_code == 200, complete.content
+        assert complete.json()['data']['original_name'] == 'resume.txt'
+
+    def test_resumable_upload_rejects_bad_chunk_digest(self, admin_client):
+        body = b'A' * (256 * 1024)
+        start = admin_client.post('/api/v1/files/uploads/', {
+            'name': 'bad.txt', 'total_size': len(body), 'chunk_size': len(body),
+        }, format='json')
+        upload_id = start.json()['data']['id']
+        response = admin_client.put(
+            f'/api/v1/files/uploads/{upload_id}/chunks/0/', body,
+            content_type='application/octet-stream', HTTP_X_CHUNK_SHA256='0' * 64)
+        assert response.status_code == 422
+
+    def test_resumable_upload_expiry_cleanup(self, admin_client):
+        body = b'A' * (256 * 1024)
+        start = admin_client.post('/api/v1/files/uploads/', {
+            'name': 'expired.txt', 'total_size': len(body), 'chunk_size': len(body),
+        }, format='json')
+        upload_id = start.json()['data']['id']
+        row = ResumableUpload.objects.get(pk=upload_id)
+        row.expires_at = timezone.now() - timedelta(minutes=1)
+        row.save(update_fields=['expires_at'])
+        from apps.files.resumable import cleanup_expired_sessions
+        assert cleanup_expired_sessions() == 1
+        assert ResumableUpload.objects.get(pk=upload_id).status == 'expired'
 
     @override_settings(FILE_UPLOAD_MAX_SIZE=10)
     def test_upload_exceeds_size_limit(self, admin_client):

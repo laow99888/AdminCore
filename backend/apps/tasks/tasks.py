@@ -102,9 +102,12 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None
                     )
                 purged += file_obj.hard_delete(deleted_before=cutoff, audit=audit)
             cursor = batch[-1].pk
-        record.mark_success(result={'purged_files': purged, 'retention_days': retention_days})
+        from apps.files.resumable import cleanup_expired_sessions
+        expired_uploads = cleanup_expired_sessions(limit=batch_size)
+        record.mark_success(result={'purged_files': purged, 'expired_uploads': expired_uploads,
+                                    'retention_days': retention_days})
         logger.info('Cleanup purged %d expired files', purged)
-        return {'purged_files': purged}
+        return {'purged_files': purged, 'expired_uploads': expired_uploads}
     except Exception as exc:
         record.result = {'purged_files': purged}
         record.save(update_fields=['result'])
@@ -207,11 +210,13 @@ def run_maintenance(self, record_id):
             result = {'skipped': True, 'reason': 'overlap'}
             record.mark_success(result)
             return result
-        function = {'files': cleanup_soft_deleted_files, 'notifications': cleanup_expired_notifications,
-                    'lifecycle': cleanup_lifecycle}[request.key]
         try:
             expected = TaskRecord.objects.get(pk=request.preview_id).result[
-                'policy' if request.key == 'lifecycle' else 'retention_days'] if not request.options.get('dry_run') else None
+                'policy' if request.key == 'lifecycle' else 'retention_days'] \
+                if request.key in {'lifecycle', 'files'} and not request.options.get('dry_run') else None
+            function = {'files': cleanup_soft_deleted_files,
+                        'notifications': cleanup_expired_notifications,
+                        'lifecycle': cleanup_lifecycle}[request.key]
             return function(_record=record, _expected_retention=expected, **validate_options(request.key, request.options))
         except Exception as exc:
             record.mark_failed(type(exc).__name__)

@@ -310,6 +310,22 @@ export const sdkRoutes = {
     "get",
     "/api/v1/files/recycle_policy/"
   ],
+  "files_uploads_create": [
+    "post",
+    "/api/v1/files/uploads/"
+  ],
+  "files_uploads_retrieve": [
+    "get",
+    "/api/v1/files/uploads/{upload_id}/"
+  ],
+  "files_uploads_chunks_update": [
+    "put",
+    "/api/v1/files/uploads/{upload_id}/chunks/{index}/"
+  ],
+  "files_uploads_complete_create": [
+    "post",
+    "/api/v1/files/uploads/{upload_id}/complete/"
+  ],
   "files_office_preview_create": [
     "post",
     "/api/v1/files/{file_id}/office-preview/"

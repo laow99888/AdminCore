@@ -1084,6 +1084,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/uploads/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["files_uploads_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/uploads/{upload_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["files_uploads_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/uploads/{upload_id}/chunks/{index}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["files_uploads_chunks_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/uploads/{upload_id}/complete/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["files_uploads_complete_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/ip-policy/": {
         parameters: {
             query?: never;
@@ -5470,6 +5534,11 @@ export interface components {
         RestoreRequest: {
             lifecycle_version: number;
         };
+        ResumableUploadCompleteResponse: {
+            code: number;
+            data: components["schemas"]["File"];
+            message: string;
+        };
         /** @description 角色序列化器 */
         Role: {
             /**
@@ -9111,6 +9180,198 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedFileList"];
+                };
+            };
+        };
+    };
+    files_uploads_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+                "application/x-www-form-urlencoded": {
+                    [key: string]: unknown;
+                };
+                "multipart/form-data": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    files_uploads_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            410: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    files_uploads_chunks_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                index: number;
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": Blob;
+                "application/x-www-form-urlencoded": Blob;
+                "multipart/form-data": Blob;
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            422: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    files_uploads_complete_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                upload_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumableUploadCompleteResponse"];
+                };
+            };
+            422: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
         };
