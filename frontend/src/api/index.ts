@@ -158,6 +158,28 @@ export const tasksApi = {
     request.post('/tasks/cleanup/', { days, dry_run: true, ...options }),
 }
 
+// ===== 报表与大屏 =====
+export interface ReportDefinition {
+  id: string
+  name: string
+  code: string
+  kind: 'report' | 'dashboard'
+  status: 'draft' | 'published' | 'archived'
+  version: number
+  definition: Record<string, any>
+  created_at: string
+  updated_at: string
+}
+export interface ReportCatalogItem { key: string; label: string; dimensions: string[]; metrics: string[]; filters: string[] }
+export const reportsApi = {
+  catalog: async (): Promise<ReportCatalogItem[]> => (await request.get<ApiResponse<ReportCatalogItem[]>>('/reports/catalog/')).data.data,
+  list: (params?: ListParams) => getPaged<ReportDefinition>('/reports/definitions/', params),
+  create: (data: Pick<ReportDefinition, 'name' | 'code' | 'kind' | 'definition'>) => request.post<ApiResponse<ReportDefinition>>('/reports/definitions/', data),
+  update: (id: string, data: Partial<Pick<ReportDefinition, 'name' | 'kind' | 'definition'>>) => request.patch<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/`, data),
+  publish: (id: string) => request.post<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/publish/`),
+  run: async (id: string) => (await request.get<ApiResponse<{ columns: string[]; rows: Array<Record<string, any>>; definition: Record<string, any>; generated_at: string }>>(`/reports/definitions/${id}/run/`)).data.data,
+}
+
 // ===== 通知中心 =====
 export interface OutboxEventRow {
   id: string

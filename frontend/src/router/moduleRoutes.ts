@@ -33,6 +33,12 @@ export const moduleRoutes: RouteRecordRaw[] = [
     component: () => import('../views/onlineForms/OnlineFormRuntimeView.vue'),
     meta: { title: "在线表单", requiresAuth: true, hasPageHeading: true },
   },
+  {
+    path: '/reports',
+    name: 'Reports',
+    component: () => import('../views/reports/ReportBuilderView.vue'),
+    meta: { title: '报表与大屏', requiresAuth: true, hasPageHeading: true },
+  },
 
   {
     path: '/notifications',

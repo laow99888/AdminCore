@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     'apps.feature_flags',
     'apps.ip_policy',
     'apps.online_forms',
+      'apps.reports',
 ]
 
 # 中间件

@@ -16,6 +16,7 @@ from apps.sso.manifest import MODULE as SSO_MODULE
 from apps.feature_flags.manifest import MODULE as FEATURE_FLAGS_MODULE
 from apps.ip_policy.manifest import MODULE as IP_POLICY_MODULE
 from apps.online_forms.manifest import MODULE as ONLINE_FORMS_MODULE
+from apps.reports.manifest import MODULE as REPORTS_MODULE
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -31,7 +32,7 @@ BUILTIN_MODULES = (
     ORGANIZATION_MODULE,
     REALTIME_MODULE,
 )
-MODULES = BUILTIN_MODULES + (EXAMPLE_MODULE, API_CREDENTIALS_MODULE, SSO_MODULE, FEATURE_FLAGS_MODULE, IP_POLICY_MODULE, ONLINE_FORMS_MODULE)
+MODULES = BUILTIN_MODULES + (EXAMPLE_MODULE, API_CREDENTIALS_MODULE, SSO_MODULE, FEATURE_FLAGS_MODULE, IP_POLICY_MODULE, ONLINE_FORMS_MODULE, REPORTS_MODULE)
 PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES if m.default_enabled),
            'demo': tuple(m.key for m in MODULES if m.default_enabled)}
 CORE_MODULES = ('core', 'auth_app', 'users', 'permissions', 'logs')

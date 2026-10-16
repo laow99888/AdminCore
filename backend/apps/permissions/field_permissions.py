@@ -11,15 +11,16 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 FIELD_POLICY_FIELDS = {
     'user': frozenset({'id', 'username', 'email', 'first_name', 'last_name', 'avatar', 'phone',
-                       'is_active', 'login_count', 'created_at', 'profile', 'roles', 'version'}),
+                       'is_active', 'login_count', 'created_at', 'date_joined', 'last_login', 'profile', 'roles', 'version'}),
     'users': frozenset({'username', 'email', 'first_name', 'last_name', 'phone'}),
     'role': frozenset({'id', 'name', 'description', 'is_active', 'permissions', 'created_at', 'version'}),
     'roles': frozenset({'id', 'name', 'description', 'is_active', 'created_at'}),
     'post': frozenset({'id', 'code', 'name', 'description', 'order', 'is_active', 'version', 'created_at'}),
     'posts': frozenset({'code', 'name', 'description'}),
-    'files': frozenset({'id', 'original_name', 'file_type', 'size', 'content_type', 'uploader__username', 'download_count', 'created_at'}),
+    'files': frozenset({'id', 'original_name', 'file_type', 'size', 'content_type', 'uploader__username', 'download_count', 'purpose', 'created_at'}),
     'logs': frozenset({'id', 'created_at', 'user__username', 'action', 'resource', 'resource_id', 'status', 'ip_address',
                        'username', 'level', 'request_method'}),
+    'tasks': frozenset({'id', 'status', 'task_type', 'created_at', 'progress'}),
 }
 
 RESOURCE_ALIASES = {'users': 'user', 'roles': 'role', 'posts': 'post'}
