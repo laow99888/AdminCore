@@ -8,10 +8,14 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 const profile = process.env.ADMINCORE_BUILD_PROFILE ?? 'full'
 if (!['full', 'minimal'].includes(profile)) throw new Error('ADMINCORE_BUILD_PROFILE must be full or minimal')
 const minimal = profile === 'minimal'
+const microFrontendsEnabled = process.env.ADMINCORE_MICRO_FRONTENDS_ENABLED === 'true'
 let buildOutput = path.resolve(import.meta.dirname, 'dist')
 
 export default defineConfig({
-  define: { __ADMINCORE_MINIMAL_BUILD__: JSON.stringify(minimal) },
+  define: {
+    __ADMINCORE_MINIMAL_BUILD__: JSON.stringify(minimal),
+    __ADMINCORE_MICRO_FRONTENDS_ENABLED__: JSON.stringify(microFrontendsEnabled),
+  },
   plugins: [vue(), Components({ dts: false, resolvers: [ElementPlusResolver()] }), {
     name: 'pdf-preview-assets',
     apply: 'build',

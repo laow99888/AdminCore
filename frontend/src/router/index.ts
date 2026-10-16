@@ -7,6 +7,8 @@ import { useModuleStore } from '@/stores/modules'
 import { canAccessPage } from './access'
 import { frontendExtensions } from '@/modules/registry'
 import { moduleRoutes } from '@/router/moduleRoutes'
+import MicroAppView from '@/views/microfrontends/MicroAppView.vue'
+import { findTrustedMicroApp, microFrontendsEnabled } from '@/microfrontends/registry'
 
 // 懒加载视图
 const LoginView = () => import('../views/auth/LoginView.vue')
@@ -24,6 +26,8 @@ const routes: RouteRecordRaw[] = [
   ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : moduleRoutes),
   ...frontendExtensions.map(extension => ({ path: extension.path, name: 'Extension-' + extension.key, component: extension.component,
     meta: { title: extension.title, requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } })),
+  { path: '/micro/:appKey/:pathMatch(.*)*', name: 'MicroApp', component: MicroAppView,
+    meta: { title: '扩展子应用', requiresAuth: true, hasPageHeading: false, microApp: true } },
   { path: '/settings/two-factor', name: 'TwoFactor', component: () => import('../views/settings/TwoFactorView.vue'), meta: { title: '双因素认证', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/recover-password', name: 'RecoverPassword', component: () => import('../views/auth/RecoverPasswordView.vue'), meta: { title: '找回密码', requiresAuth: false, preserveOnLocaleChange: true } },
   { path: '/settings/sessions', name: 'DeviceSessions', component: () => import('../views/settings/SessionManagementView.vue'), meta: { title: '会话与设备', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
@@ -113,6 +117,12 @@ router.beforeEach(async (to, _from, next) => {
         return
       }
       if (to.path === '/change-password') { next('/settings'); return }
+      if (to.meta.microApp) {
+        const microApp = findTrustedMicroApp(String(to.params.appKey))
+        if (!microFrontendsEnabled() || !microApp || !auth.user.permissions?.some(code => code === '*' || code === microApp.permission)) {
+          next('/403'); return
+        }
+      }
       try {
         await modules.load()
       } catch (error) {
