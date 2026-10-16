@@ -13,7 +13,7 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import F
 from django.http import FileResponse, HttpResponse
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.exceptions import APIException
 from apps.auth_app.write_authorization import authorize_write
 from rest_framework.decorators import action
@@ -27,10 +27,11 @@ from apps.core.exceptions import APIError
 from apps.core.query_budget import QueryBudgetListMixin
 from apps.core.client_ip import request_ip
 
-from .models import FileModel
+from .models import FileModel, FileAccessGrant
 from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerializer,
                           RecycleActionSerializer, RecycleResultSerializer, RecyclePolicySerializer,
-                          ImageTransformSerializer, ImageProcessingConfigSerializer)
+                          ImageTransformSerializer, ImageProcessingConfigSerializer,
+                          FileACLSerializer)
 
 
 @extend_schema_view(
@@ -42,13 +43,13 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     """文件管理：上传 / 列表 / 下载 / 软删除"""
     permission_classes = [IsAuthenticated]
     # 文件元数据全部只读；不提供可能保存旧实例的空 PUT/PATCH 写入口。
-    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+    http_method_names = ['get', 'post', 'put', 'delete', 'head', 'options']
     filterset_fields = ['file_type', 'uploader']
     search_fields = ['original_name', 'description']
     ordering_fields = ['created_at', 'size', 'download_count']
     ordering = ['-created_at']
     permission_map = {'create': 'file:upload', 'download': 'file:download', 'preview': 'file:download', 'recycle': 'file:recycle', 'recycle_policy': 'file:recycle', 'restore': 'file:restore',
-                      'transform': 'file:process', 'processing_config': 'file:process'}
+                      'transform': 'file:process', 'processing_config': 'file:process', 'acl': 'file:upload'}
 
     def get_permissions(self):
         permissions = super().get_permissions()
@@ -63,11 +64,11 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         queryset = FileModel.objects.select_related('uploader').filter(purpose='general')
         if self.action == 'recycle':
             queryset = queryset.filter(is_deleted=True)
-        elif self.action not in {'restore', 'recycle_action', 'purge'}:
+        elif self.action not in {'restore', 'recycle_action', 'purge', 'acl'}:
             queryset = queryset.filter(is_deleted=False)
-        # 非管理员只能看到自己上传的文件
-        from apps.core.data_scope import scope_queryset
-        return scope_queryset(queryset, self.request.user, 'file', 'uploader_id', fallback='self')
+        from .access import file_queryset_for_actor
+        access = FileAccessGrant.MANAGE if self.action in {'restore', 'recycle_action', 'purge', 'acl'} else FileAccessGrant.READ
+        return file_queryset_for_actor(queryset, self.request.user, access=access)
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -121,7 +122,6 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     def transform(self, request, pk=None):
         from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, NotFound
         from apps.auth_app.sessions import locked_request_session
-        from apps.core.data_scope import scope_queryset
         from apps.core.modules import module_enabled
         from apps.logs.audit import write_audit
         from .image_processing import transform_content
@@ -141,8 +141,8 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                 raise PermissionDenied('没有操作权限')
             if not settings.ADMINCORE_IMAGE_PROCESSING_ENABLED or not module_enabled('files'):
                 raise NotFound()
-            queryset = scope_queryset(FileModel.objects.filter(purpose='general', is_deleted=False),
-                                      actor, 'file', 'uploader_id', fallback='self')
+            from .access import file_queryset_for_actor
+            queryset = file_queryset_for_actor(FileModel.objects.filter(purpose='general', is_deleted=False), actor, derivative=True)
             try:
                 instance = queryset.select_for_update().filter(pk=pk).first()
             except DjangoValidationError as exc:
@@ -159,8 +159,7 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
             # 角色/范围可独立更新；编码后、审计和公开结果前再读一次授权。
             if not all(has_permission_code(actor, code) for code in ('file:process', 'file:download')):
                 raise PermissionDenied('没有操作权限')
-            if not scope_queryset(FileModel.objects.filter(pk=instance.pk, purpose='general', is_deleted=False),
-                                  actor, 'file', 'uploader_id', fallback='self').exists():
+            if not file_queryset_for_actor(FileModel.objects.filter(pk=instance.pk, purpose='general', is_deleted=False), actor, derivative=True).exists():
                 raise NotFound()
             if not settings.ADMINCORE_IMAGE_PROCESSING_ENABLED or not module_enabled('files'):
                 raise NotFound()
@@ -255,6 +254,47 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         return Response({'code': 200, 'message': 'success', 'data': {'retention_days': config_value('files.retention_days'),
                          'cleanup_enabled': task_enabled('tasks.cleanup_soft_deleted_files') and
                          PeriodicTask.objects.filter(task='tasks.cleanup_soft_deleted_files', enabled=True).exists()}})
+
+    @extend_schema(request=FileACLSerializer, responses=envelope('FileACLResponse', FileACLSerializer()))
+    @action(detail=True, methods=['get', 'put'], url_path='acl')
+    def acl(self, request, pk=None):
+        """读取或替换单个文件的用户/角色授权。文件所有者和管理员可管理。"""
+        from apps.auth_app.write_authorization import authorize_write
+        from apps.permissions.models import Role
+        from apps.auth_app.models import User
+        from rest_framework.exceptions import PermissionDenied
+        with transaction.atomic():
+            instance = self._locked_file(pk)
+            if request.method.lower() == 'get':
+                grants = instance.access_grants.filter(is_active=True).select_related('user', 'role')
+                return Response({'code': 200, 'message': 'success', 'data': {'grants': [
+                    {'user_id': str(item.user_id) if item.user_id else None,
+                     'role_id': str(item.role_id) if item.role_id else None,
+                     'access_level': item.access_level,
+                     'inherit_to_derivatives': item.inherit_to_derivatives}
+                    for item in grants]}})
+            if not (request.user.is_staff or request.user.is_superuser or instance.uploader_id == request.user.pk):
+                raise PermissionDenied('只有文件所有者或管理员可以管理授权')
+            authorize_write(request, 'file:upload')
+            serializer = FileACLSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            grants = serializer.validated_data['grants']
+            user_ids = [item['user_id'] for item in grants if item.get('user_id')]
+            role_ids = [item['role_id'] for item in grants if item.get('role_id')]
+            if User.objects.filter(pk__in=user_ids, is_active=True).count() != len(user_ids):
+                raise serializers.ValidationError('授权用户不存在或已禁用')
+            if Role.objects.filter(pk__in=role_ids, is_active=True).count() != len(role_ids):
+                raise serializers.ValidationError('授权角色不存在或已禁用')
+            instance.access_grants.all().delete()
+            FileAccessGrant.objects.bulk_create([
+                FileAccessGrant(file=instance, user_id=item.get('user_id'), role_id=item.get('role_id'),
+                                access_level=item['access_level'],
+                                inherit_to_derivatives=item['inherit_to_derivatives'])
+                for item in grants])
+            from apps.logs.audit import write_audit
+            write_audit(request=request, actor=request.user, resource='file', identifier=instance.pk,
+                        action='update', description=json.dumps({'operation': 'acl', 'grant_count': len(grants)}, ensure_ascii=False))
+            return Response({'code': 200, 'message': '授权已更新', 'data': {'grants': grants}})
 
     @extend_schema(request=RestoreSerializer, responses=envelope('FileRestoreResponse', FileSerializer()))
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, HasPermission])

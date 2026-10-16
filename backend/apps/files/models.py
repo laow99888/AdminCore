@@ -86,6 +86,38 @@ class FileModel(SoftDeleteModel):
         return True
 
 
+class FileAccessGrant(BaseModel):
+    """文件的显式访问授权；用户和角色只能二选一。"""
+    READ = 'read'
+    MANAGE = 'manage'
+    ACCESS_CHOICES = [(READ, '读取'), (MANAGE, '管理')]
+
+    file = models.ForeignKey(FileModel, on_delete=models.CASCADE, related_name='access_grants')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True,
+                             related_name='file_access_grants')
+    role = models.ForeignKey('permissions.Role', on_delete=models.CASCADE, null=True, blank=True,
+                             related_name='file_access_grants')
+    access_level = models.CharField(max_length=8, choices=ACCESS_CHOICES, default=READ)
+    inherit_to_derivatives = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(models.Q(user__isnull=False, role__isnull=True)
+                           | models.Q(user__isnull=True, role__isnull=False)),
+                name='file_grant_one_principal',
+            ),
+            models.UniqueConstraint(fields=['file', 'user'], name='file_grant_unique_user'),
+            models.UniqueConstraint(fields=['file', 'role'], name='file_grant_unique_role'),
+        ]
+        indexes = [
+            models.Index(fields=['file', 'access_level', 'is_active']),
+            models.Index(fields=['user', 'access_level', 'is_active']),
+            models.Index(fields=['role', 'access_level', 'is_active']),
+        ]
+
+
 class ResumableUpload(BaseModel):
     """可恢复分片上传会话；分片对象本身存储在默认媒体存储中。"""
     STATUS_CHOICES = [('active', '进行中'), ('completed', '已完成'), ('expired', '已过期')]

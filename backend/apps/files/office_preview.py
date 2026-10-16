@@ -16,7 +16,6 @@ from django.utils import timezone
 from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 
 from apps.auth_app.sessions import active_sessions, locked_request_session
-from apps.core.data_scope import scope_queryset
 from apps.core.exceptions import APIError
 from apps.core.modules import module_enabled
 from apps.logs.audit import write_audit
@@ -158,8 +157,8 @@ def safe_pdf(content):
 
 
 def scoped_files(actor):
-    return scope_queryset(FileModel.objects.filter(purpose='general', is_deleted=False), actor,
-                          'file', 'uploader_id', fallback='self')
+    from .access import file_queryset_for_actor
+    return file_queryset_for_actor(FileModel.objects.filter(purpose='general', is_deleted=False), actor, derivative=True)
 
 
 def authorized(job, *, content=False):

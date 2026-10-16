@@ -45,7 +45,7 @@ def run_data_import(self, task_record_id):
     from apps.files.models import FileModel
     from apps.tasks.models import TaskRecord, ImportExecution, ImportBatch, ImportRowReceipt
     from apps.tasks.reliability import policy, valid_execution
-    from apps.core.data_scope import scope_queryset
+    from apps.files.access import file_queryset_for_actor
     from apps.permissions.permissions import has_permission_code
     from .resources import get_resource, import_allowed
     from apps.permissions.field_permissions import allowed_fields
@@ -71,7 +71,7 @@ def run_data_import(self, task_record_id):
             if not import_allowed(actor, record.related_resource):
                 record.mark_failed('execution_not_authorized')
                 return
-            source = scope_queryset(FileModel.objects.filter(is_deleted=False), actor, 'file', 'uploader_id', fallback='self').filter(
+            source = file_queryset_for_actor(FileModel.objects.filter(is_deleted=False), actor).filter(
                 pk=(record.result or {}).get('file_id')).first() if actor else None
             if not source or not source.file:
                 record.mark_failed('import_source_unavailable')
@@ -98,7 +98,7 @@ def run_data_import(self, task_record_id):
         if not config or not config['importable']:
             record.mark_failed('import_resource_unavailable')
             return
-        source = scope_queryset(FileModel.objects.filter(is_deleted=False), actor, 'file', 'uploader_id', fallback='self').filter(pk=batch.source_id).first()
+        source = file_queryset_for_actor(FileModel.objects.filter(is_deleted=False), actor).filter(pk=batch.source_id).first()
         if not source or not source.file:
             record.mark_failed('import_source_unavailable')
             return

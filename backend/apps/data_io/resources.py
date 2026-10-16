@@ -140,7 +140,8 @@ def export_queryset(resource, user, filters):
         search_fields = ['name']
     elif resource == 'files':
         from apps.files.models import FileModel
-        queryset = scope_queryset(FileModel.objects.filter(purpose='general', is_deleted=False), user, 'file', 'uploader_id', fallback='self')
+        from apps.files.access import file_queryset_for_actor
+        queryset = file_queryset_for_actor(FileModel.objects.filter(purpose='general', is_deleted=False), user)
         search_fields = ['original_name', 'description']
     elif resource == 'posts':
         from apps.core.models import Post

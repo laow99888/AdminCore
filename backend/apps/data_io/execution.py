@@ -4,7 +4,7 @@ import hashlib
 from django.db import transaction
 from rest_framework.exceptions import APIException, NotFound, PermissionDenied, ValidationError
 
-from apps.core.data_scope import scope_queryset
+from apps.files.access import file_queryset_for_actor
 from apps.core.events import enqueue_event
 from apps.core.modules import task_enabled
 from apps.logs.audit import snapshot, write_audit
@@ -81,7 +81,7 @@ def resume(request, identifier):
     from apps.files.models import FileModel
     source_id = ImportBatch.objects.get(pk=execution.batch_id).source_id
     # 清理器先锁源文件；接续也先锁源，随后批次/任务，防止 FK 置空形成逆序死锁。
-    source = scope_queryset(FileModel.objects.select_for_update().filter(is_deleted=False), actor, 'file', 'uploader_id', fallback='self').filter(pk=source_id).first()
+    source = file_queryset_for_actor(FileModel.objects.select_for_update().filter(is_deleted=False), actor).filter(pk=source_id).first()
     if source is None or not source.file:
         raise ValidationError('源文件已过期或不可用，请重新上传')
     batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)

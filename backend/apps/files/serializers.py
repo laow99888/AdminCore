@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from django.conf import settings
 from rest_framework import serializers
 
-from .models import FileModel
+from .models import FileModel, FileAccessGrant
 
 
 class FileSerializer(serializers.ModelSerializer):
@@ -42,6 +42,28 @@ class FileSerializer(serializers.ModelSerializer):
                 return f'{size:.0f} B' if unit == 'B' else f'{size:.1f} {unit}'
             size /= 1024
         return f'{size:.1f} TB'
+
+
+class FileACLGrantSerializer(serializers.Serializer):
+    user_id = serializers.UUIDField(required=False, allow_null=True)
+    role_id = serializers.UUIDField(required=False, allow_null=True)
+    access_level = serializers.ChoiceField(choices=FileAccessGrant.ACCESS_CHOICES)
+    inherit_to_derivatives = serializers.BooleanField(default=True)
+
+    def validate(self, attrs):
+        if bool(attrs.get('user_id')) == bool(attrs.get('role_id')):
+            raise serializers.ValidationError('user_id 与 role_id 必须且只能填写一个')
+        return attrs
+
+
+class FileACLSerializer(serializers.Serializer):
+    grants = FileACLGrantSerializer(many=True, max_length=100)
+
+    def validate_grants(self, value):
+        principals = [(item.get('user_id'), item.get('role_id')) for item in value]
+        if len(principals) != len(set(principals)):
+            raise serializers.ValidationError('同一用户或角色不能重复授权')
+        return value
 
 
 class RestoreSerializer(serializers.Serializer):
