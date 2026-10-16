@@ -8,6 +8,7 @@ from datetime import timedelta
 from dotenv import load_dotenv
 from config.storage import storage_settings
 from config.antivirus import load_antivirus
+from config.database import is_enabled, load_databases
 
 # 加载环境变量
 load_dotenv()
@@ -120,6 +121,7 @@ MIDDLEWARE = [
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'apps.core.middleware.PasswordChangeSessionMiddleware',
+    'apps.core.db_routing_middleware.DatabaseRoutingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 自定义中间件
@@ -150,20 +152,15 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 
 # ===== 数据库配置 =====
-DATABASES = {
-    'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.getenv('DB_NAME', 'admincore'),
-        'USER': os.getenv('DB_USER', 'postgres'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'CONN_MAX_AGE': 600,
-        'OPTIONS': {
-            'connect_timeout': 10,
-        },
-    }
-}
+ADMINCORE_DB_READ_REPLICA_ENABLED = os.getenv(
+    'ADMINCORE_DB_READ_REPLICA_ENABLED', 'False')
+ADMINCORE_DB_READ_REPLICA_ENABLED = is_enabled(ADMINCORE_DB_READ_REPLICA_ENABLED)
+ADMINCORE_DB_PRIMARY_STICKY_SECONDS = int(
+    os.getenv('ADMINCORE_DB_PRIMARY_STICKY_SECONDS', '30'))
+if not 1 <= ADMINCORE_DB_PRIMARY_STICKY_SECONDS <= 300:
+    raise ImproperlyConfigured('ADMINCORE_DB_PRIMARY_STICKY_SECONDS 必须在 1–300 秒之间')
+DATABASES = load_databases(os.environ)
+DATABASE_ROUTERS = ['config.db_router.PrimaryReplicaRouter']
 
 # 列表/安全导出按 SQL 限时，禁止 0（关闭）及无限放宽；不作用于迁移/任务。
 from django.core.exceptions import ImproperlyConfigured

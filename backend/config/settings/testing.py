@@ -18,6 +18,9 @@ DATABASES = {
         'NAME': ':memory:',
     }
 }
+# 测试环境保持单库，避免本机测试意外连接部署副本；路由器仍加载以覆盖
+# 默认主库、事务和显式配置的单元测试。
+ADMINCORE_DB_READ_REPLICA_ENABLED = False
 
 # 媒体文件写入临时目录，避免测试产物污染仓库
 MEDIA_ROOT = tempfile.mkdtemp(prefix='admincore-test-media-')
