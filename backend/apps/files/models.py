@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 
 from django.db import transaction
 from apps.core.models import SoftDeleteModel, LifecycleConflict
+from .fields import ScannedFileField
 
 User = get_user_model()
 
@@ -27,7 +28,7 @@ def upload_to(instance, filename):
 class FileModel(SoftDeleteModel):
     """文件记录"""
     original_name = models.CharField(max_length=255, verbose_name='原始文件名')
-    file = models.FileField(upload_to=upload_to, verbose_name='文件')
+    file = ScannedFileField(upload_to=upload_to, verbose_name='文件')
     file_type = models.CharField(max_length=20, verbose_name='文件类型（扩展名）')
     size = models.BigIntegerField(default=0, verbose_name='文件大小（字节）')
     content_type = models.CharField(max_length=100, blank=True, verbose_name='MIME 类型')

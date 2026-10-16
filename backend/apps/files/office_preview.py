@@ -294,6 +294,13 @@ def finish(identifier, token, *, output=None, code=None):
     if code is not None and code not in FAILURES:
         raise ValueError('invalid_failure')
     content = safe_pdf(output) if code is None else None
+    if content is not None:
+        from .antivirus import checked_upload
+        scanned = checked_upload(ContentFile(content, name='preview.pdf'), stage='office_output')
+        try:
+            content = scanned.read()
+        finally:
+            scanned.close()
     saved = None
     try:
         with transaction.atomic():
@@ -359,6 +366,12 @@ def get_job(request, identifier, *, cancel=False, pdf=False):
         raise APIError('预览暂时不可读取', status_code=503) from None
     if len(content) > MAX_BYTES or hashlib.sha256(content).hexdigest() != job.output_sha256:
         raise APIError('预览内容校验失败', status_code=422)
+    from .antivirus import checked_upload
+    scanned = checked_upload(ContentFile(content, name='preview.pdf'), stage='office_read')
+    try:
+        content = scanned.read()
+    finally:
+        scanned.close()
     from .preview import _pdf
     _pdf(content)
     audit(job, actor, 'office_preview_read', request=request)

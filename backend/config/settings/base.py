@@ -7,9 +7,11 @@ from pathlib import Path
 from datetime import timedelta
 from dotenv import load_dotenv
 from config.storage import storage_settings
+from config.antivirus import load_antivirus
 
 # 加载环境变量
 load_dotenv()
+ADMINCORE_ANTIVIRUS = load_antivirus(os.environ)
 
 from apps.core.modules import resolve_modules
 
@@ -41,7 +43,8 @@ if ADMINCORE_FIELD_ENCRYPTION_ENABLED or ADMINCORE_FIELD_ENCRYPTION_KEY:
     try:
         Fernet(ADMINCORE_FIELD_ENCRYPTION_KEY.encode('ascii'))
     except (ValueError, UnicodeEncodeError):
-        raise ImproperlyConfigured('手机号加密要求有效的 ADMINCORE_FIELD_ENCRYPTION_KEY') from None
+        # 启动阶段错误需要能在 Windows 默认代码页下稳定传回诊断进程。
+        raise ImproperlyConfigured('ADMINCORE_FIELD_ENCRYPTION_KEY must be a valid Fernet key') from None
 # 独立于 JWT 签名密钥；缺失时不允许绑定，已有设备认证保持失败关闭。
 AUTH_TOTP_ENCRYPTION_KEY = os.getenv('AUTH_TOTP_ENCRYPTION_KEY', '')
 # 企业身份源显式配置；未启用 sso 模块时不发起身份源请求。
@@ -121,6 +124,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     # 自定义中间件
     'apps.core.middleware.RequestTrackingMiddleware',
+    'apps.files.scan_middleware.ScanAuditMiddleware',
     'apps.core.middleware.ErrorHandlingMiddleware',
     'apps.core.module_middleware.ModuleGateMiddleware',
 ]

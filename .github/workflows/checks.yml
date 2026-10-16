@@ -279,6 +279,29 @@ jobs:
             .codex-validation/admincore-storage-*/contract.log
             .codex-validation/admincore-storage-*/minio.log
             .codex-validation/admincore-storage-*/junit.xml
+  clamav:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13.15'
+      - run: python -m pip install --require-hashes -r backend/requirements.lock
+      - name: 拉取固定 ClamAV 镜像
+        run: docker pull clamav/clamav:1.5.4@sha256:638d90201ee7ee6a82d249a2fc23b132e578673b5f1f2766852b127676ca1ef6
+      - name: 启动本作业 ClamAV
+        run: |
+          docker run -d --name admincore-clamav-ci -p 127.0.0.1:3310:3310 \
+            clamav/clamav:1.5.4@sha256:638d90201ee7ee6a82d249a2fc23b132e578673b5f1f2766852b127676ca1ef6
+          for i in $(seq 1 90); do docker exec admincore-clamav-ci clamdscan --ping 1:2 && exit 0 || sleep 2; done
+          docker logs admincore-clamav-ci
+          exit 1
+      - name: 运行真实引擎 clean/EICAR 验收
+        run: python scripts/validate_clamav.py --port 3310
+      - name: 清理 ClamAV
+        if: always()
+        run: docker rm -f admincore-clamav-ci
   office-preview:
     runs-on: ubuntu-latest
     timeout-minutes: 30

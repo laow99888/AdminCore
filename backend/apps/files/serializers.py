@@ -79,7 +79,8 @@ class ImageTransformSerializer(RestoreSerializer):
         from .image_processing import MAX_WATERMARK_BYTES
         if value.size > MAX_WATERMARK_BYTES:
             raise serializers.ValidationError('水印图片最大 512 KiB')
-        return value
+        from .antivirus import checked_upload
+        return checked_upload(value, stage='watermark_upload')
 
 
 class RecyclePolicySerializer(serializers.Serializer):

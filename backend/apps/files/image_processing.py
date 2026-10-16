@@ -52,6 +52,8 @@ def transform_content(instance, options):
             content = stream.read(MAX_BYTES + 1)
     except FileNotFoundError as exc:
         raise APIError('文件不存在', status_code=404) from exc
+    except APIError:
+        raise
     except Exception as exc:
         raise APIError('存储暂时不可用，请稍后重试', status_code=503) from exc
     if len(content) > MAX_BYTES:

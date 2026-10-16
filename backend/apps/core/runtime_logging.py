@@ -14,7 +14,7 @@ class SafeJSONFormatter(logging.Formatter):
     Detailed business changes live in the separate permission-protected audit.
     """
     EVENTS = {'http.exception', 'http.completed', 'task.started', 'task.finished',
-              'outbox.succeeded', 'outbox.failed'}
+              'outbox.succeeded', 'outbox.failed', 'file.scan', 'file.scan_audit_failed'}
     IDENTIFIERS = ('event_id', 'record_id', 'delivery_id')
     MESSAGES = {
         'Cleanup soft deleted files failed', 'Cleanup expired notifications failed', '批量用户操作失败',
@@ -44,6 +44,16 @@ class SafeJSONFormatter(logging.Formatter):
         state = getattr(record, 'task_state', None)
         if state in ('SUCCESS', 'FAILURE', 'RETRY', 'REVOKED'):
             row['task_state'] = state
+        if event == 'file.scan':
+            scan_state = getattr(record, 'scan_state', '')
+            if scan_state in ('clean', 'infected', 'unavailable', 'limit'):
+                row['scan_state'] = scan_state
+            digest = getattr(record, 'scan_sha256', '')
+            if isinstance(digest, str) and len(digest) == 64 and all(value in '0123456789abcdef' for value in digest):
+                row['scan_sha256'] = digest
+            size = getattr(record, 'scan_bytes', None)
+            if type(size) is int and 0 <= size <= 500 * 1024 * 1024 + 1:
+                row['scan_bytes'] = size
         if record.exc_info and record.exc_info[0]:
             row['exception_type'] = record.exc_info[0].__name__[:100]
             frames = []

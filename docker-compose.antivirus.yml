@@ -1,0 +1,37 @@
+# 可选 ClamAV 扫描层。默认 compose 不启用；启用时：
+# docker compose -f docker-compose.yml -f docker-compose.antivirus.yml up -d --build
+services:
+  clamav:
+    image: clamav/clamav:1.5.4@sha256:638d90201ee7ee6a82d249a2fc23b132e578673b5f1f2766852b127676ca1ef6
+    restart: unless-stopped
+    expose:
+      - "3310"
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1:2"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
+  backend:
+    environment:
+      ADMINCORE_ANTIVIRUS_ENABLED: "True"
+      ADMINCORE_CLAMAV_ADDRESS: clamav
+      ADMINCORE_CLAMAV_PORT: "3310"
+    depends_on:
+      clamav:
+        condition: service_healthy
+
+  worker:
+    environment:
+      ADMINCORE_ANTIVIRUS_ENABLED: "True"
+      ADMINCORE_CLAMAV_ADDRESS: clamav
+      ADMINCORE_CLAMAV_PORT: "3310"
+    depends_on:
+      clamav:
+        condition: service_healthy
+
+volumes:
+  clamav-signatures:

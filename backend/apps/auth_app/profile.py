@@ -68,7 +68,12 @@ class AvatarUploadSerializer(ProfileVersionSerializer):
         extension = os.path.splitext(upload.name)[1].lower().lstrip('.')
         if extension not in formats:
             raise serializers.ValidationError('头像仅支持 PNG、JPEG 或 WebP')
+        from apps.files.antivirus import checked_upload
+        original = upload
+        upload = checked_upload(upload, stage='avatar_upload')
         content = upload.read(AVATAR_MAX_SIZE + 1)
+        if upload is not original:
+            upload.close()
         if len(content) > AVATAR_MAX_SIZE:
             raise serializers.ValidationError('头像大小不超过 5 MiB')
         try:
@@ -141,7 +146,14 @@ def replace_avatar(request, data):
                                         file_type='png', content_type='image/png', size=len(content),
                                         md5=hashlib.md5(content).hexdigest(), is_deleted=True, deleted_at=timezone.now())
     try:
-        stored = asset.file.storage.save(key, ContentFile(content))
+        from apps.files.antivirus import checked_upload
+        avatar = checked_upload(ContentFile(content, name='avatar.png'), stage='avatar_normalized')
+        try:
+            stored = asset.file.storage.save(key, avatar)
+            from apps.files.antivirus import register_artifact
+            register_artifact(asset.file)
+        finally:
+            avatar.close()
         if stored != key:
             asset.file.name = stored
             asset.save(update_fields=['file', 'updated_at'])
