@@ -26,10 +26,18 @@ def test_declaration_move_preserves_2dac5c5_seed_and_audit_contracts():
     from apps.core.modules import MAINTENANCE_TASKS
     from apps.logs.audit import FIELDS
     permissions = list(PERMISSIONS) + [row for module in BUILTIN_MODULES for row in module.permissions]
+    # 本轮新增备份权限单独验证；固定旧版的 45 项种子继续做摘要检查。
+    backup_permissions = [row for row in permissions if row[0] == 'backup']
+    assert backup_permissions == [('backup', 'read', '查看备份状态', 'backup:read'),
+                                  ('backup', 'restore', '恢复备份', 'backup:restore')]
+    permissions = [row for row in permissions if row[0] != 'backup']
     assert len(permissions) == 45 and len({row[3] for row in permissions}) == 45
     assert digest(sorted(permissions)) == 'c822d5bcec2e070008818f9ef1e30f4f2433c7c8d1d4660ce68997448573080f'
     templates = next(menu for module in BUILTIN_MODULES for menu in module.menus if menu.path == '/notifications/templates')
     menus = MENUS + [(templates.name, templates.path, templates.icon, templates.order, None, templates.permission)]
+    assert [row for row in menus if row[1] == '/tasks/backups'] == [
+        ('备份与恢复', '/tasks/backups', 'database-backup', 17, None, 'backup:read')]
+    menus = [row for row in menus if row[1] != '/tasks/backups']
     assert digest(sorted(menus)) == '074c7cf5b4c73f4aa4935e5384c00732a8527841cc6a8db903aa243970ea9c04'
     # Fixed projection from 2dac5c5, not an open-ended list of new resources to exclude.
     # New fields belong to their own feature tests; no original field may disappear or reorder.

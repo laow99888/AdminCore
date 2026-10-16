@@ -4,7 +4,7 @@ import sys
 import uuid
 
 from django.core.management.base import BaseCommand, CommandError
-from apps.tasks.backup import FAILURE_CODES, claim, complete
+from apps.tasks.backup import FAILURE_CODES, claim, claim_restore, complete, finish_restore, runner_heartbeat
 
 
 def unique_object(pairs):
@@ -20,7 +20,7 @@ class Command(BaseCommand):
     help = '宿主备份执行器领取/完成/失败登记'
 
     def add_arguments(self, parser):
-        parser.add_argument('action', choices=['claim', 'finish', 'fail'])
+        parser.add_argument('action', choices=['claim', 'finish', 'fail', 'heartbeat', 'claim-restore', 'finish-restore'])
         parser.add_argument('record_id', nargs='?')
         parser.add_argument('--token', type=uuid.UUID)
         parser.add_argument('--code', choices=sorted(FAILURE_CODES))
@@ -31,6 +31,26 @@ class Command(BaseCommand):
                 if options['record_id'] or options['token'] or options['code']:
                     raise ValueError('invalid_arguments')
                 result = claim()
+            elif options['action'] in {'heartbeat', 'claim-restore'}:
+                if options['record_id'] or options['token'] or options['code']:
+                    raise ValueError('invalid_arguments')
+                if options['action'] == 'heartbeat':
+                    payload = sys.stdin.read(262145)
+                    if len(payload) > 262144:
+                        raise ValueError('invalid_status')
+                    result = runner_heartbeat(json.loads(payload, object_pairs_hook=unique_object))
+                else:
+                    result = claim_restore()
+            elif options['action'] == 'finish-restore':
+                if not options['record_id'] or options['token'] or options['code']:
+                    raise ValueError('invalid_arguments')
+                payload = sys.stdin.read(2049)
+                if len(payload) > 2048:
+                    raise ValueError('invalid_restore_result')
+                data = json.loads(payload, object_pairs_hook=unique_object)
+                if set(data) != {'status', 'error'}:
+                    raise ValueError('invalid_restore_result')
+                result = finish_restore(uuid.UUID(options['record_id']), data['status'], data['error'])
             else:
                 if not options['record_id'] or not options['token']:
                     raise ValueError('invalid_arguments')

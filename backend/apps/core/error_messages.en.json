@@ -384,5 +384,14 @@
   "不允许带区域标识的 IP 地址": "Scoped IP addresses are not allowed",
   "同一网络不能重复登记": "The same network cannot be registered twice",
   "只能提交登记的 IP 策略字段": "Submit only registered IP policy fields",
-  "预检只接受当前来源与策略配置": "Preview accepts only policy configuration for the current source"
+  "预检只接受当前来源与策略配置": "Preview accepts only policy configuration for the current source",
+  "备份功能未启用或宿主执行器未就绪": "Backups are disabled or the host runner is not ready",
+  "请输入“恢复备份”确认": "Enter the displayed restore confirmation phrase",
+  "备份不存在或尚未由宿主执行器校验": "The backup does not exist or has not been verified by the host runner",
+  "备份索引不完整，请重新运行宿主执行器": "The backup catalog is incomplete. Run the host runner again",
+  "预检通过": "Preflight passed",
+  "预检已过期或备份目录发生变化，请重新预检": "Preflight expired or the backup catalog changed. Run preflight again",
+  "该预检已使用，请重新预检": "This preflight has already been used. Run preflight again",
+  "已有恢复请求正在执行": "A restore request is already active",
+  "恢复请求已登记，宿主执行器将停写并切换数据库；结果可能需要恢复后人工核对": "The restore request has been registered. The host runner will pause writes and switch databases. Verify the result after restoration"
 }

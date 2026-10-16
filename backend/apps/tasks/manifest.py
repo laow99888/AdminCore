@@ -15,15 +15,19 @@ MODULE = Module('tasks', '任务中心', 'tasks', 'apps.tasks.urls', ('/tasks',)
         ('schedule', 'read', '查看维护计划', 'schedule:read'),
         ('schedule', 'update', '修改维护计划', 'schedule:update'),
         ('schedule', 'run', '手动执行维护任务', 'schedule:run'),
+        ('backup', 'read', '查看备份状态', 'backup:read'),
+        ('backup', 'restore', '恢复备份', 'backup:restore'),
     ),
     audit_fields=(
         ('task', ('id', 'task_type', 'status', 'progress', 'creator_id', 'celery_task_id')),
         ('maintenance_schedule', ('task', 'enabled', 'cron', 'kwargs')),
         ('maintenance_run', ('key', 'options', 'preview_id', 'status')),
+        ('backup_restore', ('timestamp', 'status', 'preflight_id')),
     ),
     menus=(
         MenuDeclaration('任务中心', '/tasks', 'list-checks', 'task:read', 8),
         MenuDeclaration('定时维护', '/tasks/schedules', 'clock', 'schedule:read', 16),
+        MenuDeclaration('备份与恢复', '/tasks/backups', 'database-backup', 'backup:read', 17),
     ),
     parameters=(
         Parameter(key='tasks.import_timeout', label='导入软超时秒数（新任务）', kind='integer', default=300, minimum=30, maximum=1800),

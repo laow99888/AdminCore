@@ -34,8 +34,12 @@ ACTUAL=$(cat "$MANIFEST")
 [ "$EXPECTED" = "$ACTUAL" ] || [ "$PORTABLE" = "$ACTUAL" ] || { echo '备份校验失败'; exit 1; }
 
 echo "!!! 将验证并切换到 $TIMESTAMP 备份；当前数据库和媒体保留为回滚副本。"
-read -r -p "输入 yes 确认：" answer
-[ "$answer" = "yes" ] || { echo "已取消"; exit 1; }
+if [ "${ADMINCORE_RESTORE_CONFIRMED:-0}" = "1" ]; then
+  answer=yes
+else
+  read -r -p "输入 yes 确认：" answer
+  [ "$answer" = "yes" ] || { echo "已取消"; exit 1; }
+fi
 
 STOPPED=0
 SWAPPED=0

@@ -2,6 +2,8 @@
 任务调度应用模型
 """
 
+import uuid
+
 from django.db import models
 from django.contrib.auth import get_user_model
 
@@ -141,3 +143,48 @@ class BackupRequest(models.Model):
     claim_token = models.UUIDField(null=True, blank=True)
     claimed_at = models.DateTimeField(null=True, blank=True)
     options = models.JSONField(default=dict)
+
+
+class BackupRunnerStatus(models.Model):
+    """宿主执行器的受限心跳与已校验备份目录索引。"""
+    key = models.PositiveSmallIntegerField(primary_key=True, default=1)
+    state = models.CharField(max_length=20, default='offline')
+    directory_label = models.CharField(max_length=200, blank=True)
+    stage = models.CharField(max_length=40, blank=True)
+    last_error = models.CharField(max_length=200, blank=True)
+    artifacts = models.JSONField(default=list)
+    restore_receipts = models.JSONField(default=list)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class BackupPreflight(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    timestamp = models.CharField(max_length=15)
+    actor = models.ForeignKey(User, on_delete=models.CASCADE)
+    artifact_digest = models.CharField(max_length=64)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class BackupRestoreRequest(models.Model):
+    """恢复请求只排队给宿主执行器；应用容器不执行 Docker 或数据库切换。"""
+    STATUS_CHOICES = [('pending', '等待执行'), ('running', '执行中'), ('succeeded', '成功'),
+                      ('failed', '失败'), ('unknown', '结果待核对')]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    timestamp = models.CharField(max_length=15)
+    preflight_id = models.UUIDField(unique=True)
+    session_version = models.PositiveIntegerField(default=0)
+    session_id = models.UUIDField(null=True, blank=True)
+    artifact_digest = models.CharField(max_length=64, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='backup_restore_requests')
+    error = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['status', 'created_at']), models.Index(fields=['timestamp', 'created_at'])]
+        constraints = [models.UniqueConstraint(models.Value(1),
+            condition=models.Q(status__in=['pending', 'running']), name='one_active_restore')]

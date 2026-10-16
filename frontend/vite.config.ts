@@ -8,25 +8,27 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 const profile = process.env.ADMINCORE_BUILD_PROFILE ?? 'full'
 if (!['full', 'minimal'].includes(profile)) throw new Error('ADMINCORE_BUILD_PROFILE must be full or minimal')
 const minimal = profile === 'minimal'
+let buildOutput = path.resolve(import.meta.dirname, 'dist')
 
 export default defineConfig({
   define: { __ADMINCORE_MINIMAL_BUILD__: JSON.stringify(minimal) },
   plugins: [vue(), Components({ dts: false, resolvers: [ElementPlusResolver()] }), {
     name: 'pdf-preview-assets',
     apply: 'build',
+    configResolved(config) { buildOutput = path.resolve(config.root, config.build.outDir) },
     closeBundle() {
-      const output = path.resolve(import.meta.dirname, 'dist')
+      const output = buildOutput
       mkdirSync(output, { recursive: true })
       writeFileSync(path.join(output, 'build-profile.json'), JSON.stringify({ profile }))
       if (minimal) return
       // 与锁定的 PDF.js 版本一起发布 CMap/字体/解码器及许可证，不使用第三方 CDN。
       const source = path.resolve(import.meta.dirname, 'node_modules/pdfjs-dist')
-      const target = path.resolve(import.meta.dirname, 'dist/pdf-assets')
+      const target = path.join(output, 'pdf-assets')
       mkdirSync(target, { recursive: true })
       for (const directory of ['cmaps', 'standard_fonts', 'wasm']) cpSync(path.join(source, directory), path.join(target, directory), { recursive: true })
       cpSync(path.join(source, 'LICENSE'), path.join(target, 'LICENSE'))
-      cpSync(path.resolve(import.meta.dirname, 'third-party/richtext'), path.resolve(import.meta.dirname, 'dist/third-party/richtext'), { recursive: true })
-      cpSync(path.resolve(import.meta.dirname, 'third-party/sheetjs'), path.resolve(import.meta.dirname, 'dist/third-party/sheetjs'), { recursive: true })
+      cpSync(path.resolve(import.meta.dirname, 'third-party/richtext'), path.join(output, 'third-party/richtext'), { recursive: true })
+      cpSync(path.resolve(import.meta.dirname, 'third-party/sheetjs'), path.join(output, 'third-party/sheetjs'), { recursive: true })
     },
   }],
   resolve: {
@@ -55,6 +57,8 @@ export default defineConfig({
     manifest: true,
     rolldownOptions: {
       output: {
+          // 共享块的自动名称会拼接多页名称；截短前缀，保留内容哈希，减少首屏预加载路径体积。
+          chunkFileNames: chunk => `assets/${chunk.name.slice(0, 64)}-[hash].js`,
         codeSplitting: {
           groups: [
             // 图表内部模块存在初始化依赖，保持同一懒加载块，避免按大小拆分导致执行顺序错误。

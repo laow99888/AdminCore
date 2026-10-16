@@ -162,13 +162,25 @@ def main():
                                'COMPOSE_PATH_SEPARATOR': os.pathsep,
                                'FRONTEND_URL': 'http://127.0.0.1:' + variables['FRONTEND_PORT']}
         start = time.monotonic()
-        restored = subprocess.run([sys.executable, str(ROOT / 'scripts/backup_runner.py'), '--restore', data['timestamp'],
+        backup_url = f'http://127.0.0.1:{api_port}/api/v1/tasks/backups/'
+        before = requests.get(backup_url, headers=headers, timeout=10).json()['data']
+        check('管理接口展示宿主已校验目录', before['state'] == 'idle' and len(before['artifacts']) == 1)
+        preflight = requests.post(backup_url + data['timestamp'] + '/preflight/', headers=headers, json={}, timeout=10)
+        check('真实API备份恢复预检', preflight.status_code == 200)
+        identifier = preflight.json()['data']['preflight_id']
+        submitted = requests.post(backup_url + data['timestamp'] + '/restore/', headers=headers,
+            json={'preflight_id': identifier, 'confirmation': '恢复备份', 'current_password': password}, timeout=10)
+        check('密码二次确认后恢复登记', submitted.status_code == 202)
+        request_id = submitted.json()['data']['id']
+        restored = subprocess.run([sys.executable, str(ROOT / 'scripts/backup_runner.py'), '--once',
                                    '--backup-dir', str(folder / 'snapshots')], cwd=ROOT, env=restore_environment,
-                                  input=b'yes\n', capture_output=True, timeout=300)
+                                  capture_output=True, timeout=300)
         with (folder / 'restore.log').open('wb') as output:
             output.write(restored.stdout + restored.stderr)
-        check('人工入口统一锁和Git Bash/原生Bash完整恢复链路', restored.returncode == 0)
+        check('恢复队列统一锁和Git Bash/原生Bash完整恢复链路', restored.returncode == 0)
         check('恢复切换后原业务值正确', shell("from apps.auth_app.models import User; print(User.objects.get(username='admin').first_name == '')") == 'True')
+        after = requests.get(backup_url, headers=headers, timeout=10).json()['data']
+        check('数据库回退后宿主回执仍显示恢复成功', any(row['id'] == request_id and row['status'] == 'succeeded' for row in after['restore_requests']))
         report['complete_restore_seconds'] = round(time.monotonic() - start, 2)
         report['passed'] = True
     finally:

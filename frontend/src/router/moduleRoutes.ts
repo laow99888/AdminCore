@@ -37,6 +37,7 @@ export const moduleRoutes: RouteRecordRaw[] = [
   { path: '/system/information', name: 'SystemInformation', component: () => import('../views/system/SystemDiagnosticsView.vue'), meta: { title: '系统信息', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/system/monitor', name: 'SystemMonitor', component: () => import('../views/system/SystemDiagnosticsView.vue'), props: { monitor: true }, meta: { title: '服务监控', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/tasks/schedules', name: 'MaintenanceSchedules', component: () => import('../views/tasks/MaintenanceScheduleView.vue'), meta: { title: '定时维护', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
+  { path: '/tasks/backups', name: 'BackupManagement', component: () => import('../views/tasks/BackupManagementView.vue'), meta: { title: '备份与恢复', requiresAuth: true, hasPageHeading: true, preserveOnLocaleChange: true } },
   { path: '/files/recycle', name: 'RecycleBin', component: () => import('../views/files/RecycleBinView.vue'), meta: { title: '文件回收站', requiresAuth: true } },
   { path: '/organization', name: 'Organization', component: () => import('../views/system/OrganizationView.vue'), meta: { title: '组织与数据权限', requiresAuth: true, hasPageHeading: true } },
   { path: '/system/config', name: 'SystemConfig', component: () => import('../views/system/SystemConfigView.vue'), meta: { title: '系统参数', requiresAuth: true } },

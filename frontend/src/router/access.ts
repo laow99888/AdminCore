@@ -8,6 +8,7 @@ const permissions: Record<string, string> = {
   '/system/config': 'config:read', '/system/dictionaries': 'dictionary:read',
   '/files/recycle': 'file:recycle',
   '/tasks/schedules': 'schedule:read',
+  '/tasks/backups': 'backup:read',
   '/system/information': 'diagnostics:read', '/system/monitor': 'monitor:read',
   '/organization/posts': 'post:read',
   '/system/cache': 'cache:read',
@@ -17,7 +18,7 @@ const permissions: Record<string, string> = {
 export function canAccessPage(path: string, user: CurrentUser | null, declared: Record<string, string> = {}) {
   path = path.length > 1 ? path.replace(/\/+$/, '') : path
   if (!user) return false
-  if (['/organization', '/organization/posts', '/reliability/events', '/tasks/schedules', '/system/information', '/system/monitor', '/system/cache', '/system/online-users', '/notifications/templates'].includes(path) && !(user.is_staff || user.is_superuser)) return false
+  if (['/organization', '/organization/posts', '/reliability/events', '/tasks/schedules', '/tasks/backups', '/system/information', '/system/monitor', '/system/cache', '/system/online-users', '/notifications/templates'].includes(path) && !(user.is_staff || user.is_superuser)) return false
   const required = declared[path] || permissions[path]
   return !required || !!user.permissions?.some(code => code === '*' || code === required)
 }

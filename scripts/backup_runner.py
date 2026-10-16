@@ -189,6 +189,56 @@ class Runner:
                            payload=json.dumps(payload).encode() if payload is not None else None)
         return json.loads(raw)
 
+    def catalog(self, *, fresh=False):
+        rows = []
+        cache = {} if fresh else getattr(self, '_catalog_cache', {})
+        next_cache = {}
+        for marker in sorted(self.folder.glob('admincore-*.backup.json'), reverse=True)[:100]:
+            try:
+                stamp = marker.name.removeprefix('admincore-').removesuffix('.backup.json')
+                if not STAMP.fullmatch(stamp):
+                    continue
+                paths = [marker, self.folder / f'admincore-db-{stamp}.dump',
+                         self.folder / f'admincore-media-{stamp}.tar.gz', self.folder / f'admincore-{stamp}.sha256']
+                if any(path.is_symlink() for path in paths):
+                    continue
+                signature = tuple((stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+                                  for stat in (path.stat() for path in paths))
+                cached = cache.get(stamp)
+                if cached and cached[0] == signature:
+                    item = cached[1]
+                else:
+                    data, _ = validated_set(self.folder, marker)
+                    item = {'timestamp': data['timestamp'], 'created_at': data['created_at'],
+                            'artifacts': data['artifacts'], 'remote_copy': bool(data.get('remote_copy'))}
+                rows.append(item)
+                next_cache[stamp] = (signature, item)
+            except (RunnerError, OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+                continue
+        self._catalog_cache = next_cache
+        return rows
+
+    def heartbeat(self, state='idle', error=''):
+        receipts = []
+        for path in sorted(self.folder.glob('admincore-restore-*.receipt.json'), key=lambda path: path.stat().st_mtime, reverse=True)[:20]:
+            try:
+                if path.is_symlink() or path.stat().st_size > 4096:
+                    continue
+                value = json.loads(path.read_text(encoding='utf-8'))
+                receipts.append({'id': value['request_id'], 'timestamp': value['timestamp'],
+                    'status': value['status'], 'error': value['error'],
+                    'created_at': value['created_at'], 'completed_at': value.get('completed_at', '')})
+            except (OSError, KeyError, TypeError, ValueError):
+                continue
+        payload = {'state': state, 'directory_label': self.folder.name, 'stage': getattr(self, 'stage', ''),
+                   'last_error': error[:200], 'artifacts': self.catalog(), 'restore_receipts': receipts}
+        try:
+            self.queue('heartbeat', payload=payload)
+        except Exception:
+            # 心跳不可用不应改变已发布备份的结果。
+            return False
+        return True
+
     def snapshot(self, request):
         self.stage = 'prepare'
         deadline = time.monotonic() + 90 * 60
@@ -266,6 +316,60 @@ class Runner:
                 'pruned_sets': pruned, 'retention_warning': warning}
 
     def once(self):
+        self.heartbeat('idle')
+        restore = self.queue('claim-restore')
+        if restore:
+            self.restore_failed = True
+            import uuid
+            identifier = str(uuid.UUID(restore['request_id']))
+            stamp = restore['timestamp']
+            if not isinstance(stamp, str) or not STAMP.fullmatch(stamp):
+                raise RunnerError('无效恢复时间戳')
+            self.stage = 'restore'
+            self.heartbeat('running')
+            receipt = self.folder / f'admincore-restore-{identifier}.receipt.json'
+            if receipt.exists() or receipt.is_symlink() or receipt.with_name(receipt.name + '.partial').exists():
+                # 数据库回退可能重新出现旧请求；宿主回执始终优先，绝不重放。
+                try:
+                    self.queue('finish-restore', identifier, payload={'status': 'unknown', 'error': 'host_receipt_exists'})
+                finally:
+                    self.heartbeat('error', 'host_receipt_exists')
+                return False
+            # 先持久化执行意图；断电/回写失败也不会再次切换数据库。
+            started = datetime.now(timezone.utc).isoformat()
+            atomic_json(receipt, {'request_id': identifier, 'timestamp': stamp, 'created_at': started,
+                                 'status': 'unknown', 'error': 'restore_started'})
+            try:
+                data, _ = validated_set(self.folder, self.folder / f'admincore-{stamp}.backup.json')
+                item = {'timestamp': data['timestamp'], 'created_at': data['created_at'],
+                        'artifacts': data['artifacts'], 'remote_copy': bool(data.get('remote_copy'))}
+                if (hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest()
+                        != restore['artifact_digest']):
+                    raise RunnerError('备份摘要已改变')
+                result = subprocess.call(restore_command(stamp), cwd=ROOT,
+                    env={**os.environ, 'BACKUP_DIR': self.folder.as_posix(),
+                         'ADMINCORE_BACKUP_COORDINATED': '1', 'ADMINCORE_RESTORE_CONFIRMED': '1'})
+                payload = {'status': 'succeeded' if result == 0 else 'failed',
+                           'error': '' if result == 0 else 'restore_failed'}
+                # 恢复可能替换数据库；回写失败时保留宿主回执，禁止重放。
+                atomic_json(receipt, {'request_id': identifier, 'timestamp': stamp, 'created_at': started,
+                                     'completed_at': datetime.now(timezone.utc).isoformat(), **payload})
+                try:
+                    self.queue('finish-restore', identifier, payload=payload)
+                except Exception:
+                    pass
+                self.heartbeat('idle', '' if result == 0 else 'restore_failed')
+                self.restore_failed = result != 0
+                return result == 0
+            except Exception:
+                atomic_json(receipt, {'request_id': identifier, 'timestamp': stamp, 'created_at': started,
+                    'completed_at': datetime.now(timezone.utc).isoformat(), 'status': 'unknown', 'error': 'restore_unknown'})
+                try:
+                    self.queue('finish-restore', identifier, payload={'status': 'unknown', 'error': 'restore_unknown'})
+                except Exception:
+                    pass
+                self.heartbeat('error', 'restore_unknown')
+                return False
         request = self.queue('claim')
         if request is None:
             return False
@@ -290,6 +394,7 @@ class Runner:
         except Exception:
             raise RunnerError('备份已发布，结果回写失败；保留 receipt，须人工核对，不自动重放') from None
         print(f'备份完成：{result["timestamp"]}，独立副本：{result["remote_copy"]}，清理旧备份：{result["pruned_sets"]}', flush=True)
+        self.heartbeat('idle')
         return True
 
 
@@ -326,7 +431,7 @@ def main():
             if args.once:
                 return 1
         if args.once:
-            return 0
+            return 1 if getattr(runner, 'restore_failed', False) else 0
         time.sleep(args.poll_seconds)
 
 

@@ -114,13 +114,15 @@ def test_result_writeback_failure_does_not_repeat_or_mark_snapshot_failed(tmp_pa
     calls = []
     def queue(action, *args, **kwargs):
         calls.append(action)
+        if action == 'claim-restore':
+            return None
         if action == 'claim':
             return {'record_id': 'fixture', 'token': 'claim', 'retention_days': 30, 'retention_count': 7}
         raise runner.RunnerError('unavailable')
     instance.queue = queue
     with pytest.raises(runner.RunnerError, match='回写失败'):
         instance.once()
-    assert calls == ['claim', 'finish']
+    assert calls == ['heartbeat', 'claim-restore', 'claim', 'finish']
     assert (tmp_path / 'admincore-fixture.receipt.json').exists()
     assert len(list(tmp_path.glob('*.backup.json'))) == 1
 
@@ -218,6 +220,48 @@ def test_private_outputs_refuse_overwrite_and_keep_original_bytes(tmp_path):
         with runner.private_output(target):
             pass
     assert target.read_bytes() == b'original'
+
+
+def test_catalog_caches_unchanged_files_but_rechecks_changed_or_restore(tmp_path, monkeypatch):
+    files = make_set(tmp_path, '20261014-010000', 0)
+    host = runner.Runner(tmp_path)
+    original = runner.validated_set
+    checks = []
+    def validate(*args):
+        checks.append(args)
+        return original(*args)
+    monkeypatch.setattr(runner, 'validated_set', validate)
+    assert len(host.catalog()) == 1
+    assert len(host.catalog()) == 1 and len(checks) == 1
+    assert len(host.catalog(fresh=True)) == 1 and len(checks) == 2
+    files[0].write_bytes(b'tampered-database')
+    assert host.catalog() == [] and len(checks) == 3
+
+
+@pytest.mark.parametrize('exit_code', [0, 1])
+def test_restore_intent_durable_before_execution_and_never_replayed(tmp_path, monkeypatch, exit_code):
+    import uuid
+    make_set(tmp_path, '20261014-010000', 0)
+    host = runner.Runner(tmp_path)
+    item = host.catalog()[0]
+    identifier = str(uuid.uuid4())
+    request = {'request_id': identifier, 'timestamp': item['timestamp'],
+        'artifact_digest': hashlib.sha256(json.dumps(item, sort_keys=True).encode()).hexdigest()}
+    operations = []
+    def queue(action, *args, **kwargs):
+        operations.append(action)
+        return request if action == 'claim-restore' else {'updated': True}
+    monkeypatch.setattr(host, 'queue', queue)
+    receipt = tmp_path / f'admincore-restore-{identifier}.receipt.json'
+    def execute(*args, **kwargs):
+        assert json.loads(receipt.read_text())['error'] == 'restore_started'
+        return exit_code
+    monkeypatch.setattr(runner.subprocess, 'call', execute)
+    assert host.once() is (exit_code == 0)
+    assert json.loads(receipt.read_text())['status'] == ('succeeded' if exit_code == 0 else 'failed')
+    monkeypatch.setattr(runner.subprocess, 'call', lambda *args, **kwargs: pytest.fail('恢复被重放'))
+    assert host.once() is False
+    assert operations.count('finish-restore') == 2
 
 
 @pytest.mark.skipif(runner.os.name == 'nt', reason='POSIX 权限由 Linux CI 验证，Windows 另需宿主 ACL')
