@@ -243,6 +243,13 @@ def run_project(root, action):
     logfile = folder / 'project-start.log'
     with logfile.open('a', encoding='utf-8') as output:
         result = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=1200)
+        if result.returncode:
+            # 只读取已确认归属的项目日志；不导出 inspect/config 环境或凭据。
+            try:
+                subprocess.run(command[:command.index('up')] + ['logs', '--no-color', '--tail', '100', 'backend', 'db'],
+                               cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=30)
+            except (OSError, subprocess.TimeoutExpired):
+                output.write('\n服务日志收集失败，原启动日志已保留。\n')
     if result.returncode:
         raise ProjectError('启动失败，项目/卷及日志保留：' + str(logfile))
     return 0

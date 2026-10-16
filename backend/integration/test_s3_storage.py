@@ -25,6 +25,15 @@ pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
 
 
+def dispatch_storage_deletions():
+    """验收真实派发后的删除；pytest 外层事务不运行 on_commit 回调。"""
+    from apps.core.models import OutboxEvent
+    from apps.core.tasks import dispatch_outbox
+    assert OutboxEvent.objects.filter(topic='file.purge', status='pending').exists()
+    assert dispatch_outbox()['failed'] == 0
+    assert not OutboxEvent.objects.filter(topic='file.purge').exclude(status='succeeded').exists()
+
+
 def test_real_s3_bounded_image_transformation(s3_storage, admin_client, member_client):
     from tests.test_image_processing import upload, picture, process, stream
     from PIL import Image
@@ -63,6 +72,8 @@ def test_real_s3_import_source_retention(s3_storage, admin_user):
     task.save()
     assert clean(dry_run=True)['eligible']['imports'] == 1 and s3_storage.exists(row.file.name)
     assert clean()['deleted']['imports'] == 1
+    assert s3_storage.exists(row.file.name)
+    dispatch_storage_deletions()
     assert not s3_storage.exists(row.file.name) and not FileModel.objects.filter(pk=row.pk).exists()
 
 
@@ -88,6 +99,8 @@ def test_real_s3_private_profile_avatar_lifecycle(s3_storage, member_client, mem
     assert s3_storage.exists(old.file.name)
     FileModel.objects.filter(purpose='avatar').update(deleted_at=timezone.now() - timedelta(days=40))
     assert cleanup_soft_deleted_files()['purged_files'] == 2
+    assert s3_storage.exists(old.file.name)
+    dispatch_storage_deletions()
     assert not s3_storage.exists(old.file.name) and not FileModel.objects.exists()
 
 
@@ -207,6 +220,8 @@ def test_real_s3_upload_authorization_cleanup_backup_restore(s3_storage, admin_c
     from apps.tasks.tasks import cleanup_soft_deleted_files
     cleanup_soft_deleted_files()
     assert not FileModel.objects.filter(pk=record.pk).exists()
+    assert storage.exists(record.file.name)
+    dispatch_storage_deletions()
     assert not storage.exists(record.file.name)
 
 
@@ -235,6 +250,8 @@ def test_real_s3_recycle_missing_file_and_permanent_delete(s3_storage, admin_cli
         'items': [{'id': str(record.pk), 'lifecycle_version': 2}],
     }, format='json')
     assert result.json()['data']['succeeded'] == 1
+    assert s3_storage.exists(key)
+    dispatch_storage_deletions()
     assert not FileModel.objects.filter(pk=record.pk).exists() and not s3_storage.exists(key)
 
 

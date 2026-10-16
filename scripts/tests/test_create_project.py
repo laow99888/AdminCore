@@ -179,3 +179,32 @@ def test_tracked_symlink_is_rejected_before_creating_target(source, tmp_path):
     with pytest.raises(module.ProjectError, match='链接'):
         create(source, target)
     assert not target.exists()
+
+
+def test_environment_template_empty_values_remain_empty_in_compose(tmp_path):
+    """Compose 对 KEY= 后的注释会作为值，不能只测试 python-dotenv。"""
+    import shutil
+    if not shutil.which('docker'):
+        pytest.skip('需要 Docker Compose 的真实 env_file 解析器')
+    example = Path(module.__file__).resolve().parents[1] / '.env.example'
+    compose = tmp_path / 'compose.json'
+    compose.write_text(json.dumps({'services': {'probe': {
+        'image': 'postgres:18.6', 'env_file': [str(example)]}}}), encoding='utf-8')
+    result = subprocess.run(['docker', 'compose', '--env-file', str(example), '-f', str(compose),
+                             'config', '--format', 'json'], capture_output=True, text=True,
+                            encoding='utf-8', timeout=30, check=True)
+    environment = json.loads(result.stdout)['services']['probe']['environment']
+    for key in ['ADMINCORE_TRUSTED_PROXIES', 'ADMINCORE_ADMIN_PASSWORD', 'S3_ENDPOINT_URL',
+                'SSO_REDIRECT_URI', 'SSO_FRONTEND_ORIGIN', 'SSO_ENCRYPTION_KEY']:
+        assert environment[key] == '', key
+
+
+def test_failed_start_collects_only_owned_service_logs(source, tmp_path):
+    target = tmp_path / 'generated'
+    create(source, target)
+    with patch.object(module, 'verify_ownership') as ownership, patch.object(module.subprocess, 'run') as run:
+        run.side_effect = [subprocess.CompletedProcess([], 1), subprocess.CompletedProcess([], 0)]
+        with pytest.raises(module.ProjectError, match='启动失败'):
+            module.run_project(target, 'up')
+    ownership.assert_called_once_with(target.resolve())
+    assert run.call_args_list[1].args[0][-6:] == ['logs', '--no-color', '--tail', '100', 'backend', 'db']
