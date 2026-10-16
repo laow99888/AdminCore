@@ -8,6 +8,7 @@ import { canAccessPage } from './access'
 import { frontendExtensions } from '@/modules/registry'
 import { moduleRoutes } from '@/router/moduleRoutes'
 import { findTrustedMicroApp, microFrontendsEnabled } from '@/microfrontends/registry'
+import { getAccessToken } from '@/auth/tokenStorage'
 
 // 懒加载视图
 const LoginView = () => import('../views/auth/LoginView.vue')
@@ -99,7 +100,7 @@ const router = createRouter({
 
 // 路由守卫（权限检查）
 router.beforeEach(async (to, _from, next) => {
-  const isAuthenticated = localStorage.getItem('token') !== null
+  const isAuthenticated = getAccessToken() !== null
 
   if (to.meta.requiresAuth && !isAuthenticated && to.path !== '/login') {
     next('/login')
@@ -110,7 +111,7 @@ router.beforeEach(async (to, _from, next) => {
       const auth = useAuthStore()
       const modules = useModuleStore()
       await auth.fetchUser(to.path === '/change-password')
-      if (!auth.user) { next(localStorage.getItem('token') ? '/unavailable' : '/login'); return }
+      if (!auth.user) { next(getAccessToken() ? '/unavailable' : '/login'); return }
       if (auth.user.must_change_password) {
         if (to.path === '/change-password') next()
         else next('/change-password')

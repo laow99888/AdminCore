@@ -39,6 +39,7 @@ import { loginCaptchaApi } from '@/api/loginCaptcha'
 import { useAuthStore } from '@/stores/auth'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
 import { ssoMessages } from '@/i18n/ssoMessages'
+import { getAccessToken } from '@/auth/tokenStorage'
 registerUiMessages(ssoMessages)
 const route = useRoute(), router = useRouter(), auth = useAuthStore()
 const loading = ref(false), busy = ref(false), enabled = ref(false), ready = ref(false), mfaRequired = ref(false), error = ref('')
@@ -81,12 +82,12 @@ async function begin() {
   try {
     if (captcha.value.required && !captchaCode.value.trim()) return
     const url = await ssoApi.start(captcha.value.required ? { captcha_id: captcha.value.challenge_id, captcha_code: captchaCode.value.trim() } : {}, controller?.signal)
-    if (alive && !localStorage.getItem('token')) window.location.assign(url)
+    if (alive && !getAccessToken()) window.location.assign(url)
   } catch (failure) { if (alive) { error.value = failureText(failure); busy.value = false; await loadStartCaptcha() } }
   finally { if (alive) busy.value = false }
 }
 async function finish() {
-  if (busy.value || !ready.value || (mfaRequired.value && !validOtp.value) || localStorage.getItem('token')) return
+  if (busy.value || !ready.value || (mfaRequired.value && !validOtp.value) || getAccessToken()) return
   busy.value = true; error.value = ''
   const proof: SSOLocalProof = { ...(mfaRequired.value ? { otp_code: otpCode.value.trim() } : {}), ...(captcha.value.required ? { captcha_id: captcha.value.challenge_id, captcha_code: captchaCode.value.trim() } : {}) }
   try { await auth.loginSSO(proof, controller?.signal); if (alive) { otpCode.value = ''; captchaCode.value = ''; await router.replace('/') } }

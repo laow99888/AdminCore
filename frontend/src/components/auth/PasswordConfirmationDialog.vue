@@ -16,6 +16,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { BaseDialog } from '@/components'
 import { uiText } from '@/i18n/uiText'
+import { getAccessToken } from '@/auth/tokenStorage'
 
 const props = defineProps<{ modelValue: boolean; description: string; execute: (password: string) => Promise<void>; disabled?: boolean; confirmText?: string; errorText?: string; allowRouteLeave?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; 'busy': [value: boolean] }>()
@@ -37,7 +38,7 @@ async function submit() {
     if (alive) { busy.value = false; emit('busy', false) }
   }
 }
-onBeforeRouteLeave(() => props.allowRouteLeave || !busy.value || !localStorage.getItem('token'))
+onBeforeRouteLeave(() => props.allowRouteLeave || !busy.value || !getAccessToken())
 onBeforeUnmount(() => { alive = false; clear() })
 </script>
 

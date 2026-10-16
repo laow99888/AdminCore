@@ -26,6 +26,7 @@ import authApi, { type PersonalProfile } from '@/api/auth'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
 import { emailVerificationMessages } from '@/i18n/emailVerificationMessages'
+import { getAccessToken } from '@/auth/tokenStorage'
 registerUiMessages(emailVerificationMessages)
 const props = defineProps<{ profile: PersonalProfile; changed: boolean; disabled: boolean }>()
 const emit = defineEmits<{ busy: [value: boolean]; updated: [profile: PersonalProfile]; conflict: [] }>()
@@ -38,26 +39,26 @@ function cancel() { if (!busy.value) { clear(); notice.value = ''; error.value =
 watch(() => [props.profile.email, props.profile.email_verified, props.changed], () => { clear(); notice.value = ''; error.value = '' })
 async function send() {
   if (busy.value || props.disabled || !available.value || !password.value) return
-  const token = localStorage.getItem('token'), supplied = password.value
+  const token = getAccessToken(), supplied = password.value
   password.value = ''; sending.value = true; emit('busy', true); error.value = ''; notice.value = ''
   try {
     await authApi.requestEmailVerification(supplied)
-    if (alive && tokensBelongToSameSession(token, localStorage.getItem('token'))) notice.value = uiText('验证申请已提交，邮件由后台异步发送，请稍后查收。')
-  } catch { if (alive && tokensBelongToSameSession(token, localStorage.getItem('token'))) error.value = uiText('邮箱验证申请未确认，请重新输入密码后重试。') }
+    if (alive && tokensBelongToSameSession(token, getAccessToken())) notice.value = uiText('验证申请已提交，邮件由后台异步发送，请稍后查收。')
+  } catch { if (alive && tokensBelongToSameSession(token, getAccessToken())) error.value = uiText('邮箱验证申请未确认，请重新输入密码后重试。') }
   finally { if (alive) { sending.value = false; emit('busy', false) } }
 }
 async function confirm() {
   if (busy.value || props.disabled || !available.value || !code.value.trim()) return
   if (!/^[a-f0-9]{32}\.[a-f0-9]{64}$/.test(code.value.trim())) { error.value = uiText('请输入邮件中的完整代码'); return }
-  const token = localStorage.getItem('token'), supplied = code.value.trim(), savedEmail = props.profile.email, version = props.profile.profile_version
+  const token = getAccessToken(), supplied = code.value.trim(), savedEmail = props.profile.email, version = props.profile.profile_version
   code.value = ''; confirming.value = true; emit('busy', true); error.value = ''; notice.value = ''
   try {
     const value = await authApi.confirmEmailVerification(supplied)
-    if (alive && tokensBelongToSameSession(token, localStorage.getItem('token'))) {
+    if (alive && tokensBelongToSameSession(token, getAccessToken())) {
       if (value.email !== savedEmail || value.profile_version !== version + 1 || !value.email_verified) { emit('conflict'); return }
       emit('updated', value)
     }
-  } catch { if (alive && tokensBelongToSameSession(token, localStorage.getItem('token'))) error.value = uiText('邮箱验证未确认，代码可能无效或过期；请重新填写或申请邮件。') }
+  } catch { if (alive && tokensBelongToSameSession(token, getAccessToken())) error.value = uiText('邮箱验证未确认，代码可能无效或过期；请重新填写或申请邮件。') }
   finally { if (alive) { confirming.value = false; emit('busy', false) } }
 }
 onBeforeUnmount(() => { alive = false; clear() })

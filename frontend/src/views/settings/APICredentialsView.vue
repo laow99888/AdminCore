@@ -47,6 +47,7 @@ import { useAuthStore } from '@/stores/auth'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
 import { apiCredentialMessages } from '@/i18n/apiCredentialMessages'
+import { getAccessToken } from '@/auth/tokenStorage'
 
 registerUiMessages(apiCredentialMessages)
 
@@ -85,11 +86,11 @@ function changeSize(value: number) { if (!busy.value) { pageSize.value = value; 
 function prepareCreate() { if (!canCreate.value || !validDraft.value || busy.value || loading.value) return; clearSecret(); operation.value = 'create'; confirmationOpen.value = true }
 function prepareRevoke(row: APICredential) { if (!canRevoke.value || busy.value || loading.value || row.revoked_at) return; operation.value = 'revoke'; target.value = row; confirmationOpen.value = true }
 async function execute(password: string) {
-  const startingToken = localStorage.getItem('token')
+  const startingToken = getAccessToken()
   if (operation.value === 'create') {
     if (!canCreate.value || !validDraft.value) throw new Error('permission changed')
     const data = await apiCredentialsApi.create({ ...draft.value, scopes: [...draft.value.scopes], expires_at: new Date(Date.now() + days.value * 86400000).toISOString() }, password)
-    if (!alive || !canCreate.value || !tokensBelongToSameSession(startingToken, localStorage.getItem('token'))) return
+    if (!alive || !canCreate.value || !tokensBelongToSameSession(startingToken, getAccessToken())) return
     issuedSecret.value = data.token; secretOpen.value = true; draft.value = { name: '', scopes: [] }
   } else {
     if (!canRevoke.value || !target.value) throw new Error('permission changed')

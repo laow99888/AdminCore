@@ -28,6 +28,7 @@ import { useNavigationStore } from './stores/navigation'
 import AppErrorBoundary from './components/common/AppErrorBoundary.vue'
 import PageWatermark from './components/common/PageWatermark.vue'
 import KeyboardShortcuts from './components/common/KeyboardShortcuts.vue'
+import { getAccessToken } from './auth/tokenStorage'
 
 const { locale } = useI18n()
 const elementLocale = computed(() => locale.value === 'en-US' ? en : zhCn)
@@ -47,12 +48,12 @@ watch(() => JSON.stringify([auth.token, auth.user?.id, auth.user?.must_change_pa
 let refreshTimer: ReturnType<typeof setInterval> | undefined
 let refreshing = false
 async function refreshAccess() {
-  if (refreshing || document.hidden || !localStorage.getItem('token') || !router.currentRoute.value.meta.requiresAuth) return
+  if (refreshing || document.hidden || !getAccessToken() || !router.currentRoute.value.meta.requiresAuth) return
   refreshing = true
   try {
     await auth.fetchUser(true)
     if (!auth.user) {
-      await router.replace(localStorage.getItem('token') ? '/unavailable' : '/login')
+      await router.replace(getAccessToken() ? '/unavailable' : '/login')
       return
     }
     if (auth.user.must_change_password) {
@@ -63,7 +64,7 @@ async function refreshAccess() {
     window.dispatchEvent(new Event('admincore:menus-updated'))
     navigation.prune(path => modules.pathEnabled(path) && canAccessPage(path, auth.user, modules.pagePermissions))
     const path = router.currentRoute.value.path
-    if (!auth.user) await router.replace(localStorage.getItem('token') ? '/unavailable' : '/login')
+    if (!auth.user) await router.replace(getAccessToken() ? '/unavailable' : '/login')
     else if (!modules.pathEnabled(path)) await router.replace('/')
     else if (!canAccessPage(path, auth.user, modules.pagePermissions)) await router.replace('/403')
   } catch { await router.replace('/unavailable') }

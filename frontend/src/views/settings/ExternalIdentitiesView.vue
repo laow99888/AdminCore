@@ -30,6 +30,7 @@ import { useAuthStore } from '@/stores/auth'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
 import { ssoMessages } from '@/i18n/ssoMessages'
+import { getAccessToken } from '@/auth/tokenStorage'
 registerUiMessages(ssoMessages)
 const auth = useAuthStore(), rows = ref<ExternalIdentity[]>([]), userId = ref(''), subject = ref('')
 const page = ref(1), pageSize = ref(10), total = ref(0), loading = ref(false), busy = ref(false), error = ref(''), confirmationOpen = ref(false)
@@ -56,11 +57,11 @@ function changeSize(value: number) { if (!busy.value) { pageSize.value = value; 
 function prepareBind() { if (canBind.value && validDraft.value && !busy.value && !loading.value) { operation.value = 'bind'; confirmationOpen.value = true } }
 function prepareUnbind(row: ExternalIdentity) { if (canUnbind.value && !row.revoked_at && !busy.value && !loading.value) { operation.value = 'unbind'; target.value = row; confirmationOpen.value = true } }
 async function execute(password: string) {
-  const startingToken = localStorage.getItem('token')
+  const startingToken = getAccessToken()
   if (operation.value === 'bind') {
     if (!canBind.value || !validDraft.value) throw new Error('permission changed')
     await ssoApi.bind(userId.value, subject.value, password)
-    if (alive && tokensBelongToSameSession(startingToken, localStorage.getItem('token'))) { userId.value = ''; subject.value = '' }
+    if (alive && tokensBelongToSameSession(startingToken, getAccessToken())) { userId.value = ''; subject.value = '' }
   } else {
     if (!canUnbind.value || !target.value) throw new Error('permission changed')
     await ssoApi.unbind(target.value.id, password)

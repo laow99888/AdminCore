@@ -1,7 +1,7 @@
 import { uiText } from "@/i18n/uiText"
 /**
  * Axios 请求封装
- * - 自动携带 JWT（localStorage.token）
+ * - 自动携带 JWT（由认证令牌存储适配器提供）
  * - 401 自动用 refreshToken 刷新并重放原请求（access 有效期仅 5 分钟）
  * - 刷新失败才清除凭证并跳转登录页
  * - 统一错误提示（后端约定响应格式 {code, message, data}）
@@ -15,6 +15,7 @@ import { refreshSessionTokens, tokensBelongToSameSession } from './tokenRefresh'
 import { apiLanguage } from './language'
 import publicRequest from './publicRequest'
 import { API_BASE_URL } from './baseUrl'
+import { getAccessToken } from '../auth/tokenStorage'
 
 export interface ApiResponse<T = any> {
   code: number
@@ -42,7 +43,7 @@ const request = axios.create({
 // 请求拦截器：附加认证头
 request.interceptors.request.use((config) => {
   config.headers['Accept-Language'] = apiLanguage()
-  const token = localStorage.getItem('token')
+  const token = getAccessToken()
   if ((config as any)._retried && !tokensBelongToSameSession((config as any)._sessionToken, token)) {
     // Re-login between refresh completion and dispatch must not replay prior work as the new actor.
     throw Object.assign(new Error('Session changed before retry'), { __CANCEL__: true })
@@ -82,12 +83,12 @@ function forceRelogin() {
 async function handle401(error: any): Promise<any> {
   const config = error.config
   const authorization = config?.headers?.Authorization
-  const failedAccess = typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : localStorage.getItem('token')
+  const failedAccess = typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : getAccessToken()
   const originalAccess = config?._sessionToken ?? failedAccess
   const isAuthEndpoint = /\/auth\/(login|refresh)\//.test(config?.url || '')
   if (isAuthEndpoint || (config as any)?._retried) {
     // 登录/刷新本身的 401 由页面自行提示（登录页密码错误等）
-    if (!isAuthEndpoint && config?.headers?.Authorization === `Bearer ${localStorage.getItem('token')}`) forceRelogin()
+    if (!isAuthEndpoint && config?.headers?.Authorization === `Bearer ${getAccessToken()}`) forceRelogin()
     return Promise.reject(error)
   }
   // 并发 401 只触发一次刷新，其余等待同一 Promise
@@ -100,10 +101,10 @@ async function handle401(error: any): Promise<any> {
   }
   const { access, stale } = await refreshing
   if (!access) {
-    if (!stale && tokensBelongToSameSession(originalAccess, localStorage.getItem('token'))) forceRelogin()
+    if (!stale && tokensBelongToSameSession(originalAccess, getAccessToken())) forceRelogin()
     return Promise.reject(error)
   }
-  if (!tokensBelongToSameSession(originalAccess, access) || !tokensBelongToSameSession(originalAccess, localStorage.getItem('token'))) return Promise.reject(error)
+  if (!tokensBelongToSameSession(originalAccess, access) || !tokensBelongToSameSession(originalAccess, getAccessToken())) return Promise.reject(error)
   ;(config as any)._retried = true
   ;(config as any)._sessionToken = originalAccess
   config.headers = { ...config.headers, Authorization: `Bearer ${access}` }

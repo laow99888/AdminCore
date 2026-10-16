@@ -53,6 +53,7 @@ import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { useAuthStore } from '@/stores/auth'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
 import { twoFactorMessages } from '@/i18n/twoFactorMessages'
+import { getAccessToken } from '@/auth/tokenStorage'
 registerUiMessages(twoFactorMessages)
 
 const auth = useAuthStore()
@@ -65,10 +66,10 @@ let alive = true, controller: AbortController | undefined
 const timer = window.setInterval(() => { now.value = Date.now(); if (setup.value && expired.value) { setup.value.secret = ''; setup.value.otpauth_uri = ''; password.value = ''; otpCode.value = '' } }, 1000)
 function clearInputs() { password.value = ''; otpCode.value = '' }
 function clearSecrets() { clearInputs(); setup.value = undefined; recoveryCodes.value = []; codesSaved.value = false }
-const current = (token: string | null) => alive && tokensBelongToSameSession(token, localStorage.getItem('token'))
+const current = (token: string | null) => alive && tokensBelongToSameSession(token, getAccessToken())
 async function load() {
   if (busy.value) return
-  controller?.abort(); controller = new AbortController(); const active = controller, token = localStorage.getItem('token')
+  controller?.abort(); controller = new AbortController(); const active = controller, token = getAccessToken()
   loading.value = true; error.value = ''; status.value = undefined
   try { const value = await totpApi.status(active.signal); if (current(token) && !active.signal.aborted) status.value = value }
   catch { if (current(token) && !active.signal.aborted) error.value = uiText('双因素认证状态加载失败，请刷新重试。') }
@@ -76,7 +77,7 @@ async function load() {
 }
 async function startSetup() {
   if (busy.value || !status.value?.available || status.value.enabled || !password.value) return
-  const token = localStorage.getItem('token'), supplied = password.value
+  const token = getAccessToken(), supplied = password.value
   clearInputs(); busy.value = true; error.value = ''; notice.value = ''
   try { const value = await totpApi.setup(supplied); if (current(token)) { setup.value = value; now.value = Date.now() } }
   catch { if (current(token)) error.value = uiText('密钥生成未确认，请重新输入密码后重试。') }
@@ -91,7 +92,7 @@ function applySession(value: TotpSession, token: string | null, enabled: boolean
 async function enable() {
   if (busy.value || !setup.value || expired.value || !password.value || !otpCode.value.trim()) return
   if (!/^\d{6}$/.test(otpCode.value.trim())) { error.value = uiText('首次启用请填写认证器的 6 位动态码'); return }
-  const token = localStorage.getItem('token'), supplied = password.value, code = otpCode.value.trim()
+  const token = getAccessToken(), supplied = password.value, code = otpCode.value.trim()
   clearInputs(); busy.value = true; error.value = ''; notice.value = ''
   try { const value = await totpApi.enable(supplied, code); applySession(value, token, true) }
   catch { if (current(token)) error.value = uiText('启用未确认，请检查密码和认证器动态码后重试。') }
@@ -103,7 +104,7 @@ async function modify(action: 'disable' | 'regenerate') {
   try { await ElMessageBox.confirm(uiText(action === 'disable' ? '确定停用双因素认证并撤销旧会话吗？' : '重新生成将使所有旧恢复码失效并撤销旧会话，继续吗？'), uiText('提示'), { confirmButtonText: uiText('确定'), cancelButtonText: uiText('取消'), closeOnClickModal: false, type: 'warning' }) }
   catch { clearInputs(); if (alive) busy.value = false; return }
   if (!alive || !password.value || !otpCode.value.trim()) { busy.value = false; return }
-  const token = localStorage.getItem('token'), supplied = password.value, code = otpCode.value.trim()
+  const token = getAccessToken(), supplied = password.value, code = otpCode.value.trim()
   clearInputs(); busy.value = true; error.value = ''; notice.value = ''
   try { const value = await totpApi[action](supplied, code); applySession(value, token, action !== 'disable') }
   catch { if (current(token)) error.value = uiText('安全修改未确认，请重新输入密码和动态码或恢复码后重试。') }
@@ -122,11 +123,11 @@ async function storageChanged(event: StorageEvent) {
   clearSecrets(); status.value = undefined; controller?.abort()
   if (!event.newValue) { void router.replace('/login'); return }
   await auth.fetchUser(true)
-  if (alive && tokensBelongToSameSession(event.newValue, localStorage.getItem('token'))) void load()
+  if (alive && tokensBelongToSameSession(event.newValue, getAccessToken())) void load()
 }
 function beforeUnload(event: BeforeUnloadEvent) { if (busy.value || setup.value || password.value || otpCode.value || (recoveryCodes.value.length && !codesSaved.value)) { event.preventDefault(); event.returnValue = '' } }
 onBeforeRouteLeave(async to => {
-  if (['/login', '/403', '/unavailable', '/change-password'].includes(to.path) || !localStorage.getItem('token')) { clearSecrets(); return true }
+  if (['/login', '/403', '/unavailable', '/change-password'].includes(to.path) || !getAccessToken()) { clearSecrets(); return true }
   if (busy.value) return false
   if ((recoveryCodes.value.length && !codesSaved.value) || setup.value) {
     try { await ElMessageBox.confirm(uiText('离开后密钥和未保存的恢复码将清除，确定离开吗？'), uiText('提示'), { confirmButtonText: uiText('确定'), cancelButtonText: uiText('取消'), closeOnClickModal: false, type: 'warning' }) }

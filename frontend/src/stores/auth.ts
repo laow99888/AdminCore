@@ -7,6 +7,7 @@ import { ref, computed, watch, onScopeDispose } from 'vue'
 import authApi from '../api/auth'
 import type { LoginResult } from '../api/auth'
 import { tokensBelongToSameSession } from '../api/tokenRefresh'
+import { clearSession as clearStoredSession, getAccessToken, getRefreshToken, setSession as setStoredSession } from '../auth/tokenStorage'
 
 export interface CurrentUser {
   id: string
@@ -26,8 +27,8 @@ export interface CurrentUser {
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string>(localStorage.getItem('token') || '')
-  const refreshToken = ref<string>(localStorage.getItem('refreshToken') || '')
+  const token = ref<string>(getAccessToken() || '')
+  const refreshToken = ref<string>(getRefreshToken() || '')
   const user = ref<CurrentUser | null>(null)
   const avatarUrl = ref('')
   const avatarLoading = ref(false)
@@ -88,13 +89,12 @@ export const useAuthStore = defineStore('auth', () => {
     sessionGeneration++; fetching = undefined
     token.value = data.access
     refreshToken.value = data.refresh
-    localStorage.setItem('token', data.access)
-    localStorage.setItem('refreshToken', data.refresh)
+    setStoredSession({ access: data.access, refresh: data.refresh })
     user.value = data.user
     fetchedAt = Date.now()
   }
   function replaceSecuritySession(data: LoginResult, previousAccess: string | null) {
-    if (!tokensBelongToSameSession(previousAccess, localStorage.getItem('token')) || data.user?.id !== user.value?.id || !data.access || !data.refresh) return false
+    if (!tokensBelongToSameSession(previousAccess, getAccessToken()) || data.user?.id !== user.value?.id || !data.access || !data.refresh) return false
     preservingSecuritySession.value = true
     try { installSession(data) } finally { preservingSecuritySession.value = false }
     return true
@@ -118,12 +118,12 @@ export const useAuthStore = defineStore('auth', () => {
   async function loginSSO(proof: import('../api/sso').SSOLocalProof, signal?: AbortSignal) {
     if (__ADMINCORE_MINIMAL_BUILD__) throw new Error('Enterprise sign-in is unavailable in this build')
     else {
-      if (token.value || localStorage.getItem('token')) throw new Error('Already signed in')
+      if (token.value || getAccessToken()) throw new Error('Already signed in')
       const generation = ++sessionGeneration
       const { ssoApi } = await import('../api/sso')
       if (generation !== sessionGeneration || signal?.aborted) throw new Error('Login session changed')
       const data = await ssoApi.complete(proof, signal)
-      if (generation !== sessionGeneration || signal?.aborted || localStorage.getItem('token')) throw new Error('Login session changed')
+      if (generation !== sessionGeneration || signal?.aborted || getAccessToken()) throw new Error('Login session changed')
       preservingSecuritySession.value = true
       try { installSession(data) } finally { preservingSecuritySession.value = false }
       const installedGeneration = sessionGeneration
@@ -158,8 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken.value = ''
     user.value = null
     fetchedAt = 0
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+    clearStoredSession()
     window.dispatchEvent(new Event('admincore:session-cleared'))
   }
 

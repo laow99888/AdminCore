@@ -1,6 +1,7 @@
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { apiLanguage } from '@/api/language'
 import { realtimeUrl } from '@/api/baseUrl'
+import { getAccessToken } from '@/auth/tokenStorage'
 
 export interface TopicSummary { total: number; changed_at: string | null }
 export interface RealtimeTopics {
@@ -65,14 +66,14 @@ export function createSseDecoder(onEvent: (event: string, data: string) => void)
 }
 
 export function startRealtimeClient(options: { enabled: () => boolean; onSnapshot: (topics: RealtimeTopics) => void; onAuthExpired: () => Promise<unknown> }) {
-  const owner = localStorage.getItem('token')
+  const owner = getAccessToken()
   let stopped = false
   let controller: AbortController | undefined
   let retryTimer: number | undefined
   let timeoutTimer: number | undefined
   let failures = 0
   const eligible = () => !stopped && options.enabled() && document.visibilityState !== 'hidden' && navigator.onLine !== false &&
-    tokensBelongToSameSession(owner, localStorage.getItem('token'))
+    tokensBelongToSameSession(owner, getAccessToken())
   const cancel = () => {
     window.clearTimeout(retryTimer); window.clearTimeout(timeoutTimer)
     controller?.abort()
@@ -98,7 +99,7 @@ export function startRealtimeClient(options: { enabled: () => boolean; onSnapsho
       armTimeout()
       // 长连接只发往当前源；凭据永不进入 URL、日志或浏览器事件。
       const response = await fetch(realtimeUrl(), { method: 'GET', credentials: 'omit', cache: 'no-store',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, Accept: 'text/event-stream', 'Accept-Language': apiLanguage() }, signal: request.signal })
+        headers: { Authorization: `Bearer ${getAccessToken()}`, Accept: 'text/event-stream', 'Accept-Language': apiLanguage() }, signal: request.signal })
       if (response.status === 401) authExpired = true
       if (response.status === 429 || response.status === 503) delay = 60000
       if (!response.ok || !response.headers.get('content-type')?.startsWith('text/event-stream') || !response.body) throw new Error('Realtime unavailable')

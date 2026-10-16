@@ -19,15 +19,16 @@ import { usersApi } from '@/api'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { useAuthStore } from '@/stores/auth'
 import { uiText } from '@/i18n/uiText'
+import { getAccessToken } from '@/auth/tokenStorage'
 
 const props = defineProps<{ target: { id: string; username: string } }>()
 const emit = defineEmits<{ close: [] }>()
 const auth = useAuthStore(), confirming = ref(true)
 const values = ref<{ email: string; phone: string }>()
-const ownerToken = localStorage.getItem('token'), owner = auth.user?.id
+const ownerToken = getAccessToken(), owner = auth.user?.id
 let alive = true, controller: AbortController | undefined, timer: number | undefined
 let expiresAt = 0
-const current = () => alive && auth.user?.id === owner && auth.can('user:read') && auth.can('user:sensitive_read') && tokensBelongToSameSession(ownerToken, localStorage.getItem('token'))
+const current = () => alive && auth.user?.id === owner && auth.can('user:read') && auth.can('user:sensitive_read') && tokensBelongToSameSession(ownerToken, getAccessToken())
 function clear() { values.value = undefined; expiresAt = 0; controller?.abort(); window.clearTimeout(timer) }
 function close() { clear(); emit('close') }
 async function reveal(password: string) {
