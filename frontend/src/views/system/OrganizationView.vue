@@ -59,9 +59,27 @@ import { responseStatus } from '@/api/request'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useAuthStore } from '@/stores/auth'
 
+interface OrganizationRow {
+  id: string
+  version: number
+  name?: string
+  parent?: string | null
+  order?: number
+  is_active?: boolean
+  user?: string
+  username?: string
+  department?: string
+  department_name?: string
+  role?: string
+  role_name?: string
+  resource?: string
+  scope?: string
+  departments?: string[]
+}
+
 const auth = useAuthStore()
 const section = ref<OrganizationSection>('departments')
-const rows = ref<any[]>([])
+const rows = ref<OrganizationRow[]>([])
 const departments = ref<DepartmentRow[]>([])
 const roles = ref<Array<{ id: string; name: string }>>([])
 const userOptions = ref<Array<{ id: string; username: string }>>([])
@@ -80,10 +98,10 @@ const total = ref(0)
 usePageState({ section, page, pageSize })
 const form = reactive<any>({})
 const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
-function applyOrganization(row: any) {
+function applyOrganization(row: OrganizationRow) {
   for (const key of Object.keys(form)) delete form[key]
   Object.assign(form, JSON.parse(JSON.stringify(row)))
-  if (section.value === 'memberships') userOptions.value = [{ id: row.user, username: row.username }]
+  if (section.value === 'memberships' && row.user && row.username) userOptions.value = [{ id: row.user, username: row.username }]
   formError.value = ''; formGuard.markClean()
 }
 const conflict = useEditConflict<any>({ identifier: () => visible.value && form.id ? section.value + '/' + form.id : '', current: () => formGuard.isCurrent(), fetch: (_, signal) => organizationApi.detail(section.value, form.id, signal), apply: applyOrganization })
@@ -131,7 +149,7 @@ async function load() {
   const requestedSection = section.value
   loading.value = true; error.value = ''
   try {
-    const data = await organizationApi.list(requestedSection, { page: page.value, page_size: pageSize.value })
+    const data = await organizationApi.list<OrganizationRow>(requestedSection, { page: page.value, page_size: pageSize.value })
     if (version !== listVersion || requestedSection !== section.value) return
     rows.value = data.items; total.value = data.pagination.total
   }
@@ -171,12 +189,12 @@ async function searchUsers(keyword: string) {
 function changeSection() { page.value = 1; load() }
 function changePage(value: number) { page.value = value; load() }
 function changeSize(value: number) { pageSize.value = value; page.value = 1; load() }
-function edit(row?: any) {
+function edit(row?: OrganizationRow) {
   conflict.reset()
   Object.assign(form, { id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [] }, row ? JSON.parse(JSON.stringify(row)) : {})
   formError.value = ''; visible.value = true
   if (section.value === 'memberships') {
-    if (row) userOptions.value = [{ id: row.user, username: row.username }]
+    if (row?.user && row.username) userOptions.value = [{ id: row.user, username: row.username }]
     else searchUsers('')
   }
 }
@@ -199,7 +217,7 @@ async function save() {
   catch (exception: unknown) { if (!formGuard.isCurrent()) return; if (responseStatus(exception) === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入') }
   finally { saving.value = false }
 }
-async function remove(row: any) {
+async function remove(row: OrganizationRow) {
   try { await ElMessageBox.confirm(uiText('删除前请确认关联数据已调整'), uiText('确认'), { type: 'warning' }) } catch { return }
   try { await organizationApi.remove(section.value, row.id); await load(); await loadReferences() }
   catch { error.value = uiText('删除失败，请检查关联数据') }
