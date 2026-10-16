@@ -32,6 +32,16 @@ def test_real_project_locks():
     assert module.check()['passed']
 
 
+def test_backend_image_declares_profiles_and_non_root_runtime(copied):
+    """镜像构建档和运行用户是部署契约，避免安全基线被无意回退。"""
+
+    dockerfile = (copied / 'backend/Dockerfile').read_text(encoding='utf-8')
+    assert 'ARG ADMINCORE_BUILD_PROFILE=full' in dockerfile
+    assert "full) pip install --no-cache-dir --require-hashes -r requirements.lock" in dockerfile
+    assert "minimal) pip install --no-cache-dir --require-hashes -r requirements.minimal.lock" in dockerfile
+    assert 'USER admincore' in dockerfile
+
+
 @pytest.mark.parametrize('line', ['Django>=5.2', 'https://example.test/pkg.whl', '-r secrets.txt', 'Django==5.2.0rc1'])
 def test_reject_unfixed_or_executable_requirements(line):
     with pytest.raises(ValueError):
