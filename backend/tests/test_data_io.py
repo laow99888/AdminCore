@@ -71,6 +71,31 @@ class TestImport:
         assert task['result']['created'] == 2
         assert task['result']['failed'] == 2
 
+    def test_oversized_cell_is_recorded_and_later_rows_continue(self, admin_client):
+        f = build_xlsx([
+            ['before_long', 'before-long@e.com', '', '', ''],
+            ['invalid_long', 'invalid-long@e.com', 'x' * 32768, '', ''],
+            ['after_long', 'after-long@e.com', '', '', ''],
+        ])
+        response = admin_client.post(
+            '/api/v1/data-io/import/', {'file': f, 'resource': 'users'}, format='multipart'
+        )
+        assert response.status_code == 200
+
+        from apps.data_io.tasks import run_data_import
+        task_id = response.json()['data']['id']
+        run_data_import(task_id)
+
+        task = admin_client.get(f'/api/v1/data-io/import/{task_id}/').json()['data']
+        assert task['status'] == 'success'
+        assert task['result']['total'] == 3
+        assert task['result']['processed'] == 3
+        assert task['result']['created'] == 2
+        assert task['result']['failed'] == 1
+        assert task['result']['errors'] == [
+            {'row': 3, 'message': 'row_validation_failed'}
+        ]
+
     def test_successful_import_cannot_be_replayed(self, admin_client, member_user):
         f = build_xlsx([['u1', 'u1@e.com', '', '', '']])
         first = admin_client.post('/api/v1/data-io/import/', {'file': f, 'resource': 'users'}, format='multipart').json()
