@@ -48,7 +48,7 @@ class ResumableUploadDetailView(APIView):
 class ResumableUploadChunkView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @extend_schema(request=OpenApiTypes.BINARY, responses={200: OpenApiTypes.OBJECT, 400: MessageResponse, 422: MessageResponse})
+    @extend_schema(request=OpenApiTypes.BINARY, responses={200: OpenApiTypes.OBJECT, 400: MessageResponse, 409: MessageResponse, 422: MessageResponse})
     def put(self, request, upload_id, index):
         row = put_chunk(request, upload_id, index)
         return Response({'code': 200, 'message': '分片已接收', 'data': session_payload(row)})
