@@ -32,6 +32,7 @@ def canonical_resource(resource):
 
 def validate_field_permissions(value):
     """验证角色字段策略并返回去重后的规范化副本。"""
+    from apps.core.error_i18n import error_text
     if value in (None, {}):
         return {}
     if not isinstance(value, Mapping):
@@ -41,19 +42,19 @@ def validate_field_permissions(value):
         resource = canonical_resource(raw_resource)
         allowed = FIELD_POLICY_FIELDS.get(resource)
         if allowed is None or raw_resource != resource:
-            raise ValidationError({'field_permissions': f'不支持字段策略资源：{raw_resource}'})
+            raise ValidationError({'field_permissions': error_text('不支持字段策略资源：{resource}', resource=raw_resource)})
         if not isinstance(raw_policy, Mapping) or set(raw_policy) - {'read', 'write'}:
-            raise ValidationError({'field_permissions': f'{resource} 只允许 read/write 两类字段'})
+            raise ValidationError({'field_permissions': error_text('{resource} 只允许 read/write 两类字段', resource=resource)})
         normalized = {}
         for action in ('read', 'write'):
             fields = raw_policy.get(action, [])
             if not isinstance(fields, list) or any(not isinstance(field, str) for field in fields):
-                raise ValidationError({'field_permissions': f'{resource}.{action} 必须是字符串数组'})
+                raise ValidationError({'field_permissions': error_text('{resource}.{action} 必须是字符串数组', resource=resource, action=action)})
             if len(fields) != len(set(fields)):
-                raise ValidationError({'field_permissions': f'{resource}.{action} 不能重复'})
+                raise ValidationError({'field_permissions': error_text('{resource}.{action} 不能重复', resource=resource, action=action)})
             unknown = set(fields) - allowed
             if unknown:
-                raise ValidationError({'field_permissions': f'{resource}.{action} 含未知字段：{sorted(unknown)}'})
+                raise ValidationError({'field_permissions': error_text('{resource}.{action} 含未知字段：{fields}', resource=resource, action=action, fields=sorted(unknown))})
             normalized[action] = fields
         result[resource] = normalized
     return result
@@ -85,7 +86,8 @@ def enforce_write_fields(user, resource, fields, *, allow=()):
     allowed = allowed_fields(user, resource, 'write')
     blocked = set(fields) - set(allow) - allowed
     if blocked:
-        raise PermissionDenied(f'没有写入字段权限：{", ".join(sorted(blocked))}')
+        from apps.core.error_i18n import error_text
+        raise PermissionDenied(error_text('没有写入字段权限：{fields}', fields=', '.join(sorted(blocked))))
 
 
 def filter_read_fields(user, resource, data):

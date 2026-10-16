@@ -7,6 +7,9 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema
 from apps.auth_app.write_authorization import authorize_write
 from apps.permissions.permissions import IsAdmin
+from apps.core.mixins import EnvelopeResponseMixin
+from apps.core.query_budget import QueryBudgetListMixin, query_budget
+from apps.core.list_queries import validate_list_query
 from .models import Tenant, TenantMembership
 from .tenant_serializers import TenantSerializer, TenantMembershipSerializer
 
@@ -18,24 +21,30 @@ class MyTenantSerializer(serializers.Serializer):
     role = serializers.CharField()
 
 
-class MyTenantView(viewsets.ViewSet):
+class MyTenantView(QueryBudgetListMixin, viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = MyTenantSerializer
+    ordering_fields = ['tenant__name', 'tenant_id']
+    ordering = ['tenant__name', 'tenant_id']
 
     @extend_schema(responses=MyTenantSerializer(many=True))
     def list(self, request):
-        memberships = TenantMembership.objects.filter(
-            user=request.user, is_active=True, tenant__status=Tenant.STATUS_ACTIVE,
-        ).select_related('tenant').order_by('tenant__name', 'tenant_id')
-        return Response({'code': 200, 'message': 'success', 'data': [
-            {'id': str(item.tenant_id), 'slug': item.tenant.slug, 'name': item.tenant.name, 'role': item.role}
-            for item in memberships
-        ]})
+        validate_list_query(request, self)
+        with query_budget():
+            memberships = TenantMembership.objects.filter(
+                user=request.user, is_active=True, tenant__status=Tenant.STATUS_ACTIVE,
+            ).select_related('tenant').order_by(*self.ordering)
+            return Response({'code': 200, 'message': 'success', 'data': [
+                {'id': str(item.tenant_id), 'slug': item.tenant.slug, 'name': item.tenant.name, 'role': item.role}
+                for item in memberships
+            ]})
 
-class TenantViewSet(viewsets.ModelViewSet):
+class TenantViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     queryset = Tenant.objects.all()
     serializer_class = TenantSerializer
     permission_classes = [IsAdmin]
+    ordering_fields = ['created_at', 'updated_at', 'slug', 'name', 'status']
+    ordering = ['name', 'id']
     http_method_names = ['get', 'post', 'patch', 'put', 'head', 'options']
 
     @transaction.atomic
@@ -54,10 +63,12 @@ class TenantViewSet(viewsets.ModelViewSet):
             TenantMembership.objects.filter(tenant=serializer.instance, is_active=True).update(is_active=False)
         serializer.save()
 
-class TenantMembershipViewSet(viewsets.ModelViewSet):
+class TenantMembershipViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     queryset = TenantMembership.objects.select_related('tenant', 'user').all()
     serializer_class = TenantMembershipSerializer
     permission_classes = [IsAdmin]
+    ordering_fields = ['created_at', 'updated_at', 'role', 'is_active', 'tenant__name', 'user__username']
+    ordering = ['-created_at']
     http_method_names = ['get', 'post', 'patch', 'put', 'delete', 'head', 'options']
 
     def get_queryset(self):

@@ -52,5 +52,3 @@ def classify_route(path: str, permissions: Iterable[type] | None) -> str:
     if "HasPermission" in names:
         return "permission"
     return "self"
-
-\n

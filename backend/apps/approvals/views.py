@@ -94,7 +94,8 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
                 found = {str(user.pk): user for user in get_user_model().objects.filter(pk__in=requested_ids, is_active=True)}
                 users = [found[user_id] for user_id in requested_ids if user_id in found]
                 if not users or len(users) != len(set(requested_ids)):
-                    raise ValidationError({'flow_id': f'流程节点 {current["id"]} 包含无效审批人'})
+                    from apps.core.error_i18n import error_text
+                    raise ValidationError({'flow_id': error_text('流程节点 {node_id} 包含无效审批人', node_id=current['id'])})
                 for user in users:
                     ApprovalStep.objects.create(request=application, node_key=current['id'], kind=current['type'],
                                                 mode=mode, sequence=sequence, assignee=user,
@@ -402,10 +403,12 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
         return with_idempotency(request, f'approvals:{pk}:cc', execute)
 
 
-class ApprovalFlowViewSet(viewsets.ModelViewSet):
+class ApprovalFlowViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = ApprovalFlow.objects.select_related('created_by', 'published_by').all()
     serializer_class = ApprovalFlowSerializer
+    ordering_fields = ['created_at', 'code', 'name', 'status', 'version']
+    ordering = ['-created_at']
     http_method_names = ['get', 'post', 'put', 'head', 'options']
 
     def get_queryset(self):

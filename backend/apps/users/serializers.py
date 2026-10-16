@@ -119,19 +119,22 @@ class UserCreateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin
 class UserUpdateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin, serializers.ModelSerializer):
     """用户修改序列化器"""
     phone = phone_input_field()
+    # 兼容旧客户端提交的改密标志；该字段只读，不能通过用户编辑接口清除。
+    must_change_password = serializers.BooleanField(read_only=True)
     version = serializers.IntegerField(source='profile_version', min_value=1, required=False, help_text='更新时必填：读取详情返回的 version；版本过期返回 409 且不写入。')
     role_ids = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(),
                                                   many=True, required=False, write_only=True, source='assigned_roles')
 
     class Meta:
         model = User
-        fields = ('email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'role_ids', 'version')
+        fields = ('email', 'first_name', 'last_name', 'avatar', 'phone', 'is_active', 'role_ids', 'version', 'must_change_password')
+        read_only_fields = ('must_change_password',)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
         request = self.context.get('request')
         if request:
-            enforce_write_fields(request.user, 'user', set(self.initial_data), allow=('version', 'role_ids'))
+            enforce_write_fields(request.user, 'user', set(self.initial_data), allow=('version', 'role_ids', 'must_change_password'))
         if 'profile_version' not in attrs:
             raise serializers.ValidationError({'version': '更新必须传入当前版本'})
         return attrs

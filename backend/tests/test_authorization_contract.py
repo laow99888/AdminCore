@@ -52,5 +52,3 @@ def test_api_routes_have_explicit_anonymous_contract():
 
     inspect(resolver.url_patterns)
     assert unknown_public == []
-
-\n

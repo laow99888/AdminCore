@@ -43,7 +43,8 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     """文件管理：上传 / 列表 / 下载 / 软删除"""
     permission_classes = [IsAuthenticated]
     # 文件元数据全部只读；不提供可能保存旧实例的空 PUT/PATCH 写入口。
-    http_method_names = ['get', 'post', 'put', 'delete', 'head', 'options']
+    # 保留 PUT/PATCH 供 ACL 替换动作使用；文件本体元数据通过 update hooks 明确拒绝。
+    http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
     filterset_fields = ['file_type', 'uploader']
     search_fields = ['original_name', 'description']
     ordering_fields = ['created_at', 'size', 'download_count']
@@ -74,6 +75,12 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         if self.action == 'create':
             return FileUploadSerializer
         return FileSerializer
+
+    def update(self, request, *args, **kwargs):
+        return Response({'code': 405, 'message': '文件元数据为只读', 'data': None}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def partial_update(self, request, *args, **kwargs):
+        return Response({'code': 405, 'message': '文件元数据为只读', 'data': None}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
 
     @extend_schema(responses={(200, 'image/png'): OpenApiTypes.BINARY,
                               (200, 'application/pdf'): OpenApiTypes.BINARY,
