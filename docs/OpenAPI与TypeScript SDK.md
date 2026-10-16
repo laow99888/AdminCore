@@ -59,7 +59,8 @@ const file: Blob = await sdk('files_download_retrieve', {
 - 离线导出、环境隔离、full/minimal/files 启停、确定性和三类漂移检查：5 项通过。
 - SDK 调用、上传、下载、取消、路径边界和空响应：17 项；最终前端全量 422 项/53 文件通过，lint、类型正反例检查通过。
 - 备份、任务、API 生命周期与模块相关后端：108 项通过。
+- 最终后端全量：1,849 项通过、3 项跳过；跳过的专属场景由对应隔离任务分别验收，不将 SQLite 结果当作 PostgreSQL 行锁证明。
 - 完整生产构建和 bundle 门槛通过；登录初始 JS gzip 183,211 字节，未放宽 180 KiB 预算。SDK 路由表由业务页面加载，不进入登录首屏。
 - 备份与 IP 策略桌面/手机浏览器回归：16 项通过，使用 API fixture；不是本批重新执行真实宿主恢复。
 
-远端 CI 的实际结果以对应提交运行记录为准；新增门禁和全部项目任务需在推送后核实。
+代码提交 `1041133` 的[远端项目检查](https://github.com/laow99888/AdminCore/actions/runs/38929604356)已全部通过（17/17），包含独立 SDK 门禁、精简构建、前后端与完整浏览器回归、真实 PostgreSQL/存储/Office/备份等任务；[HTTP 性能回归](https://github.com/laow99888/AdminCore/actions/runs/38929604498)也成功。这里只记录该代码提交的实测结果，不代表公网容量或生产部署已重新验收。
