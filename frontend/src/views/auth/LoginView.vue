@@ -120,6 +120,15 @@ const form = ref({
 })
 const captcha = useLoginCaptcha(() => form.value.username)
 
+function responseOf(failure: unknown): { status?: number; data?: unknown } | undefined {
+  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
+  const response: unknown = failure.response
+  if (!response || typeof response !== 'object') return undefined
+  const status = 'status' in response && typeof response.status === 'number' ? response.status : undefined
+  const data = 'data' in response ? response.data : undefined
+  return { status, data }
+}
+
 const handleLogin = async () => {
   if (loading.value) return
   if (!form.value.username || !form.value.password) {
@@ -140,29 +149,32 @@ const handleLogin = async () => {
     form.value.password = ''; otpCode.value = ''; mfaRequired.value = false
     ElMessage.success(uiText("登录成功"))
     router.push('/')
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (!alive) return
-    const captchaReason = error?.response?.data?.data?.code ?? error?.response?.data?.code
-    if ([400, 401].includes(error?.response?.status) && ['captcha_required', 'captcha_invalid'].includes(captchaReason)) {
+    const response = responseOf(error)
+    const payload = response?.data && typeof response.data === 'object' ? response.data as Record<string, unknown> : undefined
+    const nested = payload?.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : undefined
+    const captchaReason = (typeof nested?.code === 'string' ? nested.code : undefined) ?? (typeof payload?.code === 'string' ? payload.code : undefined)
+    if ([400, 401].includes(response?.status ?? 0) && ['captcha_required', 'captcha_invalid'].includes(captchaReason ?? '')) {
       reloadCaptcha = true
       if (mfaRequired.value) otpCode.value = ''
       ElMessage.error(uiText(captchaReason === 'captcha_required' ? '本次登录需要图形验证码，请填写后重试。' : '图形验证码无效或已过期，请使用新图片重试。'))
       return
     }
-    if (!mfaRequired.value && [429, 503].includes(error?.response?.status)) {
-      ElMessage.error(uiText(error.response.status === 429 ? '尝试过于频繁，请稍后再试。' : '登录服务暂不可用，请稍后重试或联系管理员。'))
+    if (!mfaRequired.value && [429, 503].includes(response?.status ?? 0)) {
+      ElMessage.error(uiText(response?.status === 429 ? '尝试过于频繁，请稍后再试。' : '登录服务暂不可用，请稍后重试或联系管理员。'))
       return
     }
-    if (!error?.response) { ElMessage.error(uiText('登录未确认，请稍后重试。')); return }
-    if (error?.response?.status === 401 && (error?.response?.data?.code === 'mfa_required' || error?.response?.data?.data?.code === 'mfa_required')) { mfaRequired.value = true; otpCode.value = ''; return }
+    if (!response) { ElMessage.error(uiText('登录未确认，请稍后重试。')); return }
+    if (response.status === 401 && (payload?.code === 'mfa_required' || nested?.code === 'mfa_required')) { mfaRequired.value = true; otpCode.value = ''; return }
     if (mfaRequired.value) {
       otpCode.value = ''
-      const status = error?.response?.status
+      const status = response.status
       ElMessage.error(uiText(status === 503 ? '双因素认证服务暂不可用，请联系管理员或稍后重试。' : status === 429 ? '尝试过于频繁，请稍后再试。' : status === 401 ? '动态码或恢复码无效，请重试' : '登录未确认，请稍后重试。'))
       return
     }
-    const message = error?.response?.data?.message
-    if (message && error?.response?.status !== 401) {
+    const message = typeof payload?.message === 'string' ? payload.message : undefined
+    if (message && response.status !== 401) {
       ElMessage.error(message)
     } else {
       ElMessage.error(uiText("用户名或密码错误"))
