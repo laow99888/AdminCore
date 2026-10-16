@@ -63,6 +63,7 @@ import { useErrorSummary } from '@/composables/useErrorSummary'
 import { maintenanceApi, type MaintenanceSchedule } from '@/api/maintenance'
 import { newIdempotencyKey } from '@/api'
 import { uiText } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 
 const auth = useAuthStore()
 const { isMobile } = useSidebar()
@@ -132,7 +133,7 @@ async function save() {
   try {
     await maintenanceApi.save(value)
     if (alive && formGuard.isCurrent()) { editor.value = null; ElMessage.success(uiText('保存成功')); await load() }
-  } catch (exception: any) { if (alive && formGuard.isCurrent()) { if (exception?.response?.status === 409) conflict.mark(); else editorError.value = uiText('计划保存失败，已保留输入，请检查 Cron 和时区') } }
+  } catch (exception: unknown) { if (alive && formGuard.isCurrent()) { if (responseStatus(exception) === 409) conflict.mark(); else editorError.value = uiText('计划保存失败，已保留输入，请检查 Cron 和时区') } }
   finally { busyKey.value = '' }
 }
 async function submit(row: MaintenanceSchedule, dryRun: boolean) {

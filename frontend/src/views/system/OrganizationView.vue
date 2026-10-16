@@ -55,6 +55,7 @@ import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/compon
 import { organizationApi, type DepartmentRow, type OrganizationSection } from '@/api/organization'
 import { rolesApi, usersApi } from '@/api'
 import { uiText } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useAuthStore } from '@/stores/auth'
 
@@ -195,7 +196,7 @@ async function save() {
   }
   saving.value = true; formError.value = ''
   try { await organizationApi.save(section.value, form.id, data); if (!formGuard.isCurrent()) return; visible.value = false; ElMessage.success(uiText('保存成功')); await load(); await loadReferences() }
-  catch (exception: any) { if (!formGuard.isCurrent()) return; if (exception?.response?.status === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入') }
+  catch (exception: unknown) { if (!formGuard.isCurrent()) return; if (responseStatus(exception) === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入') }
   finally { saving.value = false }
 }
 async function remove(row: any) {

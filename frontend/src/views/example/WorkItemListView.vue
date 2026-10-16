@@ -41,6 +41,7 @@ import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useEditConflict } from '@/composables/useEditConflict'
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 import { exampleMessages } from '@/i18n/exampleMessages'
 
 registerUiMessages(exampleMessages)
@@ -104,14 +105,14 @@ async function save() {
   if (submitted && submitted !== digest) key = newIdempotencyKey('example')
   submitted = digest; saving.value = true
   try { await exampleApi.save(id, payload, key); if (!formGuard.isCurrent()) return; formGuard.markClean(); editOpen.value = false; ElMessage.success(uiText('保存成功')); await loadRows() }
-  catch (error: any) { if (!formGuard.isCurrent()) return; if (error.response?.status === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，输入已保留；请检查字段或刷新选项后重试') }
+  catch (error: unknown) { if (!formGuard.isCurrent()) return; if (responseStatus(error) === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，输入已保留；请检查字段或刷新选项后重试') }
   finally { saving.value = false }
 }
 async function remove(row: ExampleWorkItem) {
   if (busy.value || !actionGuard.isCurrent()) return
   removing.value = true
   try { await ElMessageBox.confirm(uiText('确定删除此工单？此操作不可恢复。'), uiText('提示'), { type: 'warning' }); if (!actionGuard.isCurrent()) return; await exampleApi.remove(row.id, row.version); if (!actionGuard.isCurrent()) return; if (rows.value.length === 1 && page.value > 1) page.value--; await loadRows() }
-  catch (error: any) { if (actionGuard.isCurrent() && error !== 'cancel' && error !== 'close') ElMessage.warning(uiText('删除未确认，请刷新检查版本和状态')) }
+  catch (error: unknown) { if (actionGuard.isCurrent() && error !== 'cancel' && error !== 'close') ElMessage.warning(uiText('删除未确认，请刷新检查版本和状态')) }
   finally { removing.value = false }
 }
 watch(() => [auth.user?.id, auth.can('example:read'), modules.enabled('example')], () => { generation++; rows.value = []; total.value = 0; selected.value = null; detailOpen.value = false; if (canRead()) void loadRows() })

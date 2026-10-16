@@ -46,6 +46,7 @@ import { AppLayout, BaseCard, BaseButton, BaseTable, BaseDialog } from '@/compon
 import { useAuthStore } from '@/stores/auth'
 import { systemApi, type DictionaryRow } from '@/api/system'
 import { uiText } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 
 const auth = useAuthStore()
@@ -88,11 +89,6 @@ function edit(row?: DictionaryRow) {
   visible.value = true
 }
 function addItem() { form.items.push({ label: '', value: '', order: form.items.length, is_active: true }) }
-function responseStatus(failure: unknown): number | undefined {
-  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
-  const response: unknown = failure.response
-  return response && typeof response === 'object' && 'status' in response && typeof response.status === 'number' ? response.status : undefined
-}
 async function save() {
   if (saving.value || conflict.active.value || !auth.can('dictionary:update')) return
   formError.value = ''

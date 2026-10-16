@@ -45,6 +45,7 @@ import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { postsApi, type PostRow, type UserPostRow, type PostSection } from '@/api/posts'
 import type { Person } from '@/api/personnel'
 import { uiText } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 import DataImportButton from '@/components/common/DataImportButton.vue'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useAuthStore } from '@/stores/auth'
@@ -105,7 +106,7 @@ async function save() {
     else await postsApi.assign(person.value!.id, postId.value)
     if (!formGuard.isCurrent()) return
     dialogOpen.value = false; ElMessage.success(uiText('保存成功')); await loadRows()
-  } catch (err: any) { if (!formGuard.isCurrent()) return; if (err.response?.status === 409 && form.id && section.value === 'posts') conflict.mark(); else formError.value = uiText('保存失败，输入已保留；请检查字段或刷新选项后重试') }
+  } catch (err: unknown) { if (!formGuard.isCurrent()) return; if (responseStatus(err) === 409 && form.id && section.value === 'posts') conflict.mark(); else formError.value = uiText('保存失败，输入已保留；请检查字段或刷新选项后重试') }
   finally { saving.value = false }
 }
 async function remove(row: PostRow | UserPostRow) {

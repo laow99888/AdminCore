@@ -35,6 +35,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBrandStore } from '@/stores/brand'
 import { systemApi, type ConfigRow } from '@/api/system'
 import { uiText } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 
@@ -104,9 +105,9 @@ async function save(row: ConfigRow) {
 
     ElMessage.success(uiText('保存成功'))
     if (row.key.startsWith('brand.')) await brand.load()
-  } catch (exception: any) {
+  } catch (exception: unknown) {
     if (!formGuard.isCurrent()) return
-    if (exception?.response?.status === 409) { conflictKey.value = row.key; conflict.mark() }
+    if (responseStatus(exception) === 409) { conflictKey.value = row.key; conflict.mark() }
     else error.value = uiText('保存失败，已保留输入')
   } finally { savingKey.value = '' }
 }

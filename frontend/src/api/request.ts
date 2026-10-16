@@ -55,6 +55,13 @@ export function errorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+/** 从未知异常中提取 HTTP 状态，供业务组件处理冲突等明确分支。 */
+export function responseStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== 'object' || !('response' in error)) return undefined
+  const response: unknown = error.response
+  return response && typeof response === 'object' && 'status' in response && typeof response.status === 'number' ? response.status : undefined
+}
+
 const request = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,

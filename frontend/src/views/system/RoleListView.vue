@@ -87,6 +87,7 @@ import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
+import { responseStatus } from '@/api/request'
 import DataImportButton from '@/components/common/DataImportButton.vue'
 
 import { computed, onMounted, reactive, ref } from 'vue'
@@ -210,9 +211,9 @@ const handleSave = async () => {
     }
     dialogVisible.value = false
     loadRoles()
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (formGuard.isCurrent()) {
-      if (error.response?.status === 409 && formData.id) conflict.mark()
+      if (responseStatus(error) === 409 && formData.id) conflict.mark()
       else formError.value = uiText('保存失败，已保留输入')
     }
   } finally {

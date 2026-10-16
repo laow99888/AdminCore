@@ -68,6 +68,7 @@ import { messagesApi, type MessageTemplate, type MessageVersion, type MessageDel
 import type { Person } from '@/api/personnel'
 import { newIdempotencyKey } from '@/api'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 import { notificationMessages } from '@/i18n/notificationMessages'
 
 registerUiMessages(notificationMessages)
@@ -143,7 +144,7 @@ async function save() {
     await messagesApi.save(form.id, { code: form.code, name: form.name.trim(), enabled: form.enabled, revision: form.revision, subject: form.subject, body: form.body, variables })
     if (!guard.isCurrent()) return
     guard.markClean(); editorOpen.value = false; ElMessage.success(uiText('保存成功')); await load()
-  } catch (exception: any) { if (guard.isCurrent()) { if (exception?.response?.status === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入；请检查占位符与声明变量') } }
+  } catch (exception: unknown) { if (guard.isCurrent()) { if (responseStatus(exception) === 409 && form.id) conflict.mark(); else formError.value = uiText('保存失败，已保留输入；请检查占位符与声明变量') } }
   finally { saving.value = false }
 }
 async function compose(row: MessageTemplate) {

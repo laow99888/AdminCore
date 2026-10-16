@@ -159,6 +159,7 @@ import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
 import { usersApi, rolesApi, dataIoApi, downloadFile, type UserRow, type UserDetail, type RoleRow } from '@/api'
+import { responseStatus } from '@/api/request'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
 import LocalExportButton from '@/components/common/LocalExportButton.vue'
@@ -374,9 +375,9 @@ const handleSaveUser = async () => {
     }
     dialogVisible.value = false
     loadUsers()
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (formGuard.isCurrent()) {
-      if (error.response?.status === 409 && formData.id) conflict.mark()
+      if (responseStatus(error) === 409 && formData.id) conflict.mark()
       else formError.value = uiText('保存失败，已保留输入')
     }
   } finally {
