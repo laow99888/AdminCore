@@ -112,6 +112,12 @@ def put_chunk(request, upload_id, index):
         expected = row.chunk_size if index < row.total_chunks - 1 else row.total_size - row.chunk_size * (row.total_chunks - 1)
         if len(body) != expected:
             raise APIError('分片大小不符合会话约定')
+        existing = (row.chunks or {}).get(str(index))
+        if existing:
+            if existing.get('sha256') != actual or existing.get('size') != len(body):
+                raise APIError('同一分片序号已存在不同内容', status_code=409)
+            # 同一分片的重试是幂等操作；不重复写对象存储。
+            return row
         name = _chunk_name(row.pk, index)
         default_storage.save(name, ContentFile(body))
         chunks = dict(row.chunks or {})

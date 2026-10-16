@@ -63,6 +63,25 @@ class TestUpload:
             content_type='application/octet-stream', HTTP_X_CHUNK_SHA256='0' * 64)
         assert response.status_code == 422
 
+    def test_resumable_upload_retries_same_chunk_but_rejects_replacement(self, admin_client):
+        body = b'A' * (256 * 1024)
+        replacement = b'B' * (256 * 1024)
+        start = admin_client.post('/api/v1/files/uploads/', {
+            'name': 'retry.txt', 'total_size': len(body), 'chunk_size': len(body),
+        }, format='json')
+        upload_id = start.json()['data']['id']
+        url = f'/api/v1/files/uploads/{upload_id}/chunks/0/'
+        digest = hashlib.sha256(body).hexdigest()
+        first = admin_client.put(url, body, content_type='application/octet-stream', HTTP_X_CHUNK_SHA256=digest)
+        assert first.status_code == 200
+        repeated = admin_client.put(url, body, content_type='application/octet-stream', HTTP_X_CHUNK_SHA256=digest)
+        assert repeated.status_code == 200
+        replacement_response = admin_client.put(
+            url, replacement, content_type='application/octet-stream',
+            HTTP_X_CHUNK_SHA256=hashlib.sha256(replacement).hexdigest())
+        assert replacement_response.status_code == 409
+        assert ResumableUpload.objects.get(pk=upload_id).chunks['0']['sha256'] == digest
+
     def test_resumable_upload_expiry_cleanup(self, admin_client):
         body = b'A' * (256 * 1024)
         start = admin_client.post('/api/v1/files/uploads/', {

@@ -419,6 +419,7 @@
   "分片序号超出范围": "The chunk index is out of range",
   "分片大小不符合会话约定": "The chunk size does not match the session",
   "仍有分片未上传": "Some chunks are still missing",
+  "同一分片序号已存在不同内容": "A different chunk already exists at this index.",
   "文件校验失败": "The file checksum failed"
   ,"上传参数必须为整数": "Upload parameters must be integers",
   "上传会话已完成": "The upload session is complete",
