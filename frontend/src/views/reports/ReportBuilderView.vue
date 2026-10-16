@@ -44,7 +44,23 @@ const selected = ref<ReportDefinition | null>(null)
 const result = ref<{ columns: string[]; rows: Array<Record<string, any>> } | null>(null)
 const busy = ref(false)
 const dimension = ref('')
-const form = reactive<any>({ name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } })
+type ReportChartType = 'table' | 'bar' | 'line' | 'pie' | 'area'
+type ReportAggregation = 'count' | 'sum' | 'avg'
+interface ReportBuilderDefinition extends Record<string, unknown> {
+  data_source: string
+  chart_type: ReportChartType
+  dimensions: Array<{ field: string }>
+  metric: { field: string; aggregation: ReportAggregation }
+  filters: Array<Record<string, unknown>>
+  limit: number
+}
+interface ReportForm {
+  name: string
+  code: string
+  kind: ReportDefinition['kind']
+  definition: ReportBuilderDefinition
+}
+const form = reactive<ReportForm>({ name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } })
 const currentSource = computed(() => catalog.value.find(item => item.key === form.definition.data_source))
 const chartOption = computed<EChartsOption>(() => {
   const rows = result.value?.rows || []
@@ -57,9 +73,9 @@ const chartOption = computed<EChartsOption>(() => {
 })
 function resetFields() { form.definition.dimensions = []; dimension.value = ''; form.definition.metric.field = currentSource.value?.metrics[0] || 'id' }
 function setDimension(value: string) { form.definition.dimensions = value ? [{ field: value }] : [] }
-function selectRow(row: ReportDefinition) { selected.value = row; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition: JSON.parse(JSON.stringify(row.definition)) }); dimension.value = row.definition.dimensions?.[0]?.field || '' }
+function selectRow(row: ReportDefinition) { selected.value = row; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition: JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition }); dimension.value = row.definition.dimensions?.[0]?.field || '' }
 async function load() { catalog.value = await reportsApi.catalog(); rows.value = (await reportsApi.list({ page_size: 100 })).items; resetFields() }
-async function save() { busy.value = true; try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition }) : await reportsApi.create(form); selected.value = response.data.data; ElMessage.success(uiText('已保存')); await load() } finally { busy.value = false } }
+async function save() { busy.value = true; try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); selected.value = response.data.data; ElMessage.success(uiText('已保存')); await load() } finally { busy.value = false } }
 async function publish() { if (!selected.value) return; await reportsApi.publish(selected.value.id); ElMessage.success(uiText('已发布')); await load() }
 async function run(row: ReportDefinition) { result.value = await reportsApi.run(row.id) }
 onMounted(load)
