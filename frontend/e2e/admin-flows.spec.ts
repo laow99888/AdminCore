@@ -93,7 +93,7 @@ test('仪表盘按需加载图表并正确渲染', async ({ page }) => {
   await setup(page)
   await page.goto('/')
   await expect(page.locator('canvas')).toHaveCount(2)
-  await expect(page.getByText('近 7 日登录趋势')).toBeVisible()
+  await expect(page.locator('.card-header-title').filter({ hasText: '近 7 日登录趋势' })).toBeVisible()
   expect(errors).toEqual([])
 })
 

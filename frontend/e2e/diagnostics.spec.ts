@@ -55,7 +55,7 @@ test('刷新加载禁用重复点击，错误清除旧样本并可恢复', async
   await page.getByRole('button', { name: '刷新', exact: true }).click()
   await expect(page.getByRole('button', { name: '刷新', exact: true })).toBeDisabled()
   await expect(page.getByText('3.13.15', { exact: true })).toHaveCount(0)
-  await expect(page.getByRole('status')).toContainText('正在采集诊断信息')
+  await expect(page.getByRole('status').filter({ hasText: '正在采集诊断信息' })).toBeVisible()
   release()
   await expect(page.getByRole('alert').filter({ hasText: '诊断信息加载失败' })).toBeVisible()
   await page.route('**/system/information/', route => route.fulfill({ json: envelope(information) }))
