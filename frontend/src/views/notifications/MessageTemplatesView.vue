@@ -87,8 +87,8 @@ const historyOpen = ref(false), historyId = ref(''), historyPage = ref(1), histo
 let generation = 0, previewGeneration = 0, historyGeneration = 0, channelGeneration = 0
 let listController: AbortController | undefined, previewController: AbortController | undefined, historyController: AbortController | undefined, channelController: AbortController | undefined
 let sendBody = '', sendKey = '', ownsConfirmation = false
-const states = ['pending', 'succeeded', 'failed', 'terminated']
-const statusLabel = (value: string) => uiText(({ pending: '待发送', succeeded: '成功', failed: '失败', terminated: '已终止' } as Record<string, string>)[value] || value)
+const states = ['pending', 'sending', 'succeeded', 'failed', 'terminated']
+const statusLabel = (value: string) => uiText(({ pending: '待发送', sending: '发送中', succeeded: '成功', failed: '失败', terminated: '已终止' } as Record<string, string>)[value] || value)
 const channelLabel = (value: string) => uiText(({ inapp: '站内通知', email: 'SMTP 邮件', webhook: 'Webhook', sms: 'Twilio 短信' } as Record<string, string>)[value] || value)
 const templateColumns = computed(() => [{ prop: 'code', label: uiText('模板编码') }, { prop: 'name', label: uiText('模板名称') }, { prop: 'revision', label: uiText('版本'), width: 80 }, { prop: 'enabled', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '已启用' : '未启用') }])
 const deliveryColumns = computed(() => [{ prop: 'template_code', label: uiText('模板编码') }, { prop: 'version_number', label: uiText('版本'), width: 75 }, { prop: 'recipient', label: uiText('收件人标识'), width: 200 }, { prop: 'channel', label: uiText('投递渠道'), width: 110, render: channelLabel }, { prop: 'status', label: uiText('状态'), width: 85, render: statusLabel }, { prop: 'attempts', label: uiText('尝试次数'), width: 90 }, { prop: 'last_error', label: uiText('失败原因'), width: 180 }, { prop: 'request_id', label: uiText('请求关联 ID'), width: 200 }])

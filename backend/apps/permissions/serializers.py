@@ -48,7 +48,7 @@ class RoleSerializer(serializers.ModelSerializer):
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, role):
         return PermissionSerializer(
-            Permission.objects.filter(rolepermission__role=role), many=True
+            [link.permission for link in role.permissions.all()], many=True
         ).data
 
     def validate_permission_ids(self, permissions):
@@ -132,15 +132,17 @@ class MenuSerializer(serializers.ModelSerializer):
     @extend_schema_field(lazy_serializer('apps.permissions.serializers.MenuSerializer')(many=True))
     def get_children(self, obj):
         """递归获取子菜单"""
-        children = obj.children.all()
+        children = self.context['menu_children'].get(obj.pk, []) if 'menu_children' in self.context else list(obj.children.all())
         if not self.context.get('manage_menus'):
-            children = children.filter(is_visible=True)
+            children = [child for child in children if child.is_visible]
             from apps.core.modules import path_enabled
             children = [child for child in children if path_enabled(child.path)]
         allowed_ids = self.context.get('allowed_menu_ids')
         if allowed_ids is not None:
             children = [child for child in children if child.id in allowed_ids]
-        return MenuSerializer(children, many=True, context=self.context).data
+        seen = self.context.get('menu_seen', frozenset()) | {obj.pk}
+        children = [child for child in children if child.pk not in seen]
+        return MenuSerializer(children, many=True, context={**self.context, 'menu_seen': seen}).data
 
 
 class UserRoleSerializer(serializers.ModelSerializer):

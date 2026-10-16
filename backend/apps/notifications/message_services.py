@@ -125,18 +125,21 @@ def submit(request, actor, template_id, revision, recipient_ids, channels, value
     return deliveries
 
 
-def deliver(payload):
+@transaction.atomic
+def prepare_delivery(payload):
     if set(payload) != {'delivery_id'}:
         raise ValueError('invalid_delivery_event')
     row = MessageDelivery.objects.filter(pk=payload['delivery_id']).first()
     if row is None:
         raise ValueError('delivery_missing')
-    if row.status in ('succeeded', 'terminated') or row.attempts >= 5:
+    if row.status in ('sending', 'succeeded', 'terminated') or row.attempts >= 5:
         return
     users = {user.pk: user for user in get_user_model().objects.select_for_update().filter(pk__in=[row.creator_id, row.recipient_id], is_active=True).order_by('pk')}
     # 用户删除也会 SET_NULL 更新投递；先锁用户再锁已有投递，避免反向持锁。
     # of=self 防止 JOIN 提前取得模板锁，所有入口保持 user→session→template。
     row = MessageDelivery.objects.select_for_update(of=('self',)).select_related('version__template').get(pk=row.pk)
+    if row.status in ('sending', 'succeeded', 'terminated') or row.attempts >= 5:
+        return
     actor, user = users.get(row.creator_id), users.get(row.recipient_id)
     reason = ''
     if row.expires_at <= timezone.now(): reason = 'delivery_expired'
@@ -158,6 +161,17 @@ def deliver(payload):
         row.save(update_fields=['status', 'last_error', 'updated_at'])
         return
     row.attempts += 1
+    row.status = 'sending'
+    row.save(update_fields=['status', 'attempts', 'updated_at'])
+    return row, user
+
+
+def deliver(payload):
+    prepared = prepare_delivery(payload)
+    if prepared is None:
+        return False
+    row, user = prepared
+    # 此时授权快照已提交；发送开始后的撤权不能撤回已发给供应商的请求。
     try:
         CHANNELS[row.channel](row, user)
     except TerminalDeliveryError:
@@ -166,7 +180,8 @@ def deliver(payload):
         row.status, row.last_error = 'failed', 'channel_delivery_failed'
     else:
         row.status, row.last_error, row.sent_at = 'succeeded', '', timezone.now()
-    row.save(update_fields=['status', 'attempts', 'last_error', 'sent_at', 'updated_at'])
+    MessageDelivery.objects.filter(pk=row.pk, status='sending', attempts=row.attempts).update(
+        status=row.status, last_error=row.last_error, sent_at=row.sent_at, updated_at=timezone.now())
     # 返回失败状态，由 Outbox 在其事务中持久化并退避，不抛异常回滚投递失败行。
     return row.status == 'failed'
 

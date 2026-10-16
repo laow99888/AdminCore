@@ -10,11 +10,15 @@ DEBUG = False
 import os
 from django.core.exceptions import ImproperlyConfigured
 
-required_env_vars = ['DJANGO_SECRET_KEY']
+required_env_vars = ['DJANGO_SECRET_KEY', 'DB_PASSWORD']
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
 
 if missing_vars:
     raise ImproperlyConfigured(f"Missing required environment variables: {', '.join(missing_vars)}")
+
+if len(os.environ['DB_PASSWORD']) < 16 or os.environ['DB_PASSWORD'].strip().casefold() in {
+        'postgres', 'password', 'changeme', 'your-db-password'}:
+    raise ImproperlyConfigured('生产环境必须显式配置至少 16 字符的 DB_PASSWORD')
 
 if (len(SECRET_KEY) < 50 or len(set(SECRET_KEY)) < 5
         or SECRET_KEY.startswith('django-insecure-')

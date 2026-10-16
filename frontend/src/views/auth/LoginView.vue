@@ -9,9 +9,11 @@
           <p class="subtitle">{{ uiText(brand.tagline) }}</p>
         </div>
         <el-form ref="formRef" :model="form" :disabled="loading" @submit.prevent="handleLogin" @keyup.enter="handleLogin" class="login-form">
-          <el-form-item prop="username">
+          <el-form-item prop="username" :label="uiText('用户名')" label-position="top">
             <el-input
               v-model="form.username"
+              :aria-label="uiText('用户名')"
+              autocomplete="username"
               :disabled="loading || mfaRequired"
               :placeholder="uiText('用户名')"
               clearable
@@ -23,9 +25,11 @@
               </template>
             </el-input>
           </el-form-item>
-          <el-form-item prop="password">
+          <el-form-item prop="password" :label="uiText('密码')" label-position="top">
             <el-input
               v-model="form.password"
+              :aria-label="uiText('密码')"
+              autocomplete="current-password"
               :disabled="loading || mfaRequired"
               type="password"
               :placeholder="uiText('密码')"

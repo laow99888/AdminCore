@@ -14,6 +14,8 @@ from apps.logs.models import OperationLog
 from apps.permissions.models import Role, Permission, RolePermission, UserRole
 from apps.tasks.models import TaskRecord
 from apps.tasks.tasks import cleanup_soft_deleted_files
+from apps.core.tasks import dispatch_outbox
+from apps.core.models import OutboxEvent
 
 
 def grant(user, *codes):
@@ -120,6 +122,8 @@ def test_delete_preview_confirmation_stale_snapshot_and_audit(admin_client, admi
     assert row.file.storage.exists(key) and OperationLog.objects.count() == 0
     assert batch(admin_client, 'purge', row).status_code == 400
     assert batch(admin_client, 'purge', row, confirmation='DELETE').json()['data']['succeeded'] == 1
+    assert row.file.storage.exists(key)
+    assert dispatch_outbox()['processed'] == 1
     assert not FileModel.objects.filter(pk=row.pk).exists() and not row.file.storage.exists(key)
     log = OperationLog.objects.get(action='delete')
     assert log.resource_id == str(row.pk) and json.loads(log.description)['after'] is None
@@ -133,14 +137,19 @@ def test_delete_preview_confirmation_stale_snapshot_and_audit(admin_client, admi
 
 
 @pytest.mark.django_db
-def test_storage_failure_retains_row_and_rolls_back_audit(admin_client, admin_user, monkeypatch):
+def test_storage_failure_retains_durable_cleanup_intent(admin_client, admin_user, monkeypatch):
     row = file_for(admin_user)
     monkeypatch.setattr(row.file.storage, 'delete', lambda *_: (_ for _ in ()).throw(RuntimeError('SECRET fixture')))
     response = batch(admin_client, 'purge', row, confirmation='DELETE')
-    assert response.json()['data']['results'][0]['status'] == 503
+    assert response.json()['data']['results'][0]['status'] == 202
     assert 'SECRET' not in response.content.decode()
-    assert FileModel.objects.filter(pk=row.pk, is_deleted=True).exists() and not OperationLog.objects.filter(action='delete').exists()
-    assert json.loads(OperationLog.objects.get(action='other').description)['results'][0]['status'] == 503
+    assert not FileModel.objects.filter(pk=row.pk).exists()
+    assert OperationLog.objects.filter(action='delete').exists()
+    assert dispatch_outbox()['failed'] == 1
+    event = OutboxEvent.objects.get(topic='file.purge')
+    assert event.status == 'failed' and 'SECRET' not in event.last_error
+    assert row.file.storage.exists(row.file.name)
+    assert json.loads(OperationLog.objects.get(action='other').description)['results'][0]['status'] == 202
 
 
 @pytest.mark.django_db

@@ -524,13 +524,24 @@ with connection.cursor() as cursor:
             data={'resource': 'users'}, files={'file': ('crash.csv', b'username,email\nhttp_crash_import_1,c1@example.com\nhttp_crash_import_2,c2@example.com\n', 'text/csv')}, timeout=40)
         check('真实 worker 中断夹具登记', response.status_code == 200)
         crash_id = response.json()['data']['id']
-        deadline = time.monotonic() + 25
-        while time.monotonic() < deadline:
-            body = api('tasks/' + crash_id + '/', token=token).json()
-            crash = body.get('data', body)
-            if (crash['result'] or {}).get('created') == 1: break
-            time.sleep(0.5)
-        check('中断前首行已提交第二行未提交', crash['status'] == 'running' and crash['result'].get('created') == 1)
+        # 进度摘要按批刷新；崩溃一致性必须检查实际提交的数据和逐行账本。
+        code = """import time
+from django.contrib.auth import get_user_model
+from apps.tasks.models import TaskRecord, ImportRowReceipt
+record=TaskRecord.objects.get(pk='""" + crash_id + """')
+deadline=time.monotonic()+25
+while time.monotonic()<deadline:
+    if get_user_model().objects.filter(username='http_crash_import_1').exists():
+        break
+    time.sleep(0.5)
+assert get_user_model().objects.filter(username='http_crash_import_1').exists()
+assert not get_user_model().objects.filter(username='http_crash_import_2').exists()
+record.refresh_from_db()
+assert record.status=='running'
+assert ImportRowReceipt.objects.filter(batch=record.import_execution.batch).count()==1
+"""
+        compose('standard', 'exec', '-T', 'backend', 'python', 'manage.py', 'shell', '-c', code)
+        check('中断前首行及账本已提交第二行未提交', True)
         compose('standard', 'stop', '-t', '1', 'worker')
         code = """from django.conf import settings
 assert settings.DATABASES['default']['NAME']=='foundation'

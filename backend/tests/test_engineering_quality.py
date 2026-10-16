@@ -158,6 +158,8 @@ def test_file_retention_only_purges_expired_deleted_files(settings, member_user,
     recent = make_file('recent.txt', True, 1)
     expired_path = expired.file.path
     cleanup_soft_deleted_files()
+    from apps.core.tasks import dispatch_outbox
+    assert dispatch_outbox()['processed'] == 1
     from pathlib import Path
     assert not Path(expired_path).exists()
     assert not FileModel.objects.filter(pk=expired.pk).exists()

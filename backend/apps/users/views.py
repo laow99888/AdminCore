@@ -25,6 +25,7 @@ from .serializers import (
 from apps.permissions.permissions import HasPermission, has_permission_code
 from apps.logs.models import OperationLog
 from apps.core.mixins import EnvelopeResponseMixin
+from apps.core.client_ip import request_ip
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         target = get_object_or_404(scope_queryset(User.objects.all(), actor, 'user', 'pk'), pk=target_id)
         OperationLog.objects.create(user=actor, action='read_sensitive', resource='user',
                                     resource_id=str(target.pk), description='查看用户邮箱与手机号原值',
-                                    ip_address=request.META.get('REMOTE_ADDR', ''))
+                                    ip_address=request_ip(request) or '0.0.0.0')
         return Response({'code': 200, 'message': '原值仅供本次查看',
                          'data': SensitiveContactSerializer(target).data})
 
@@ -213,17 +214,23 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         users.update(is_active=True, profile_version=F('profile_version') + 1)
                         desc = 'Activated users'
                     elif action == 'deactivate':
+                        users.filter(is_active=True).update(session_version=F('session_version') + 1)
                         users.update(is_active=False, profile_version=F('profile_version') + 1)
+                        from apps.auth_app.models import AuthSession
+                        from django.utils import timezone
+                        AuthSession.objects.filter(user__in=users, revoked_at__isnull=True).update(revoked_at=timezone.now())
                         desc = 'Deactivated users'
                     elif action == 'delete':
                         count = users.count()
                         users.delete()
                         desc = f'Deleted {count} users'
 
-                    after_versions = dict(users.values_list('pk', 'profile_version')) if action != 'delete' else {}
+                    after_versions = {pk: (profile, session) for pk, profile, session in
+                                      users.values_list('pk', 'profile_version', 'session_version')} if action != 'delete' else {}
                     for row in rows:
                         after = {**before[row.pk], 'is_active': action == 'activate',
-                                 'profile_version': after_versions[row.pk]} if action != 'delete' else None
+                                 'profile_version': after_versions[row.pk][0],
+                                 'session_version': after_versions[row.pk][1]} if action != 'delete' else None
                         write_audit(request=request, resource='user', identifier=row.pk, action=action,
                                     before=before[row.pk], after=after)
                     write_audit(request=request, resource='user', action=action,
@@ -232,7 +239,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
 
                     return Response({
                         'code': 200,
-                        'message': f'{action} success',
+                        'message': {'activate': '批量启用成功', 'deactivate': '批量停用成功', 'delete': '批量删除成功'}[action],
                         'data': bulk_user_result(user_ids, 200),
                     })
             except APIException as exc:

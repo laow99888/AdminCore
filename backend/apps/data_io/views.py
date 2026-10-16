@@ -11,6 +11,7 @@ from apps.core.schema import envelope
 from apps.core.error_i18n import error_text
 from apps.core.query_budget import query_budget
 from apps.core.schema import MessageResponse
+from apps.core.client_ip import request_ip
 
 from django.http import HttpResponse
 from rest_framework import status
@@ -47,7 +48,7 @@ def _log(request, action, description, resource_id=''):
         resource='data_io',
         resource_id=resource_id,
         description=description,
-        ip_address=request.META.get('REMOTE_ADDR', ''),
+        ip_address=request_ip(request) or '0.0.0.0',
     )
 
 

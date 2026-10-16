@@ -28,6 +28,14 @@ def create_user_row(data):
         phone = phone_input_field().run_validation(data.get('phone', '') or '')
     except (ValidationError, APIValidationError):
         return None, '邮箱或手机号格式无效，不能导入脱敏值'
+    # 使用与 ModelSerializer 相同的模型字段校验，避免 SQLite 漏过 PostgreSQL 长度约束。
+    try:
+        values = {'username': data['username'], 'email': email,
+                  'first_name': data.get('first_name', '') or '', 'last_name': data.get('last_name', '') or ''}
+        for name, value in values.items():
+            User._meta.get_field(name).clean(value, None)
+    except ValidationError:
+        return None, '用户字段格式或长度无效'
     user = User.objects.create_user(
         username=data['username'],
         email=email,

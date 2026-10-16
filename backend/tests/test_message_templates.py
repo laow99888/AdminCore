@@ -61,7 +61,7 @@ def test_dispatch_inapp_idempotency_payload_and_fixed_old_version(admin_client, 
     assert set(event.payload) == {'delivery_id'}
     admin_client.patch(BASE + identifier + '/', {'code': 'fixture', 'name': 'Changed', 'revision': 1,
         'enabled': True, 'subject': 'Changed ${name}', 'body': '', 'variables': ['name']}, format='json')
-    assert dispatch_outbox()['processed'] == 1
+    assert dispatch_outbox()['processed'] == 1, list(OutboxEvent.objects.values('status', 'last_error'))
     row = MessageDelivery.objects.get()
     assert row.status == 'succeeded' and row.version.number == 1
     assert Notification.objects.get().title == 'Hello private fixture'

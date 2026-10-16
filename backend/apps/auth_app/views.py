@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import TokenError
 from .throttling import LoginRateThrottle
+from apps.core.client_ip import request_ip
 from django.contrib.auth import get_user_model
 from django.conf import settings
 from django.db import transaction
@@ -76,7 +77,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             LoginLog.objects.create(
                 username=str(request.data.get('username', '')),
                 status='failed',
-                ip_address=request.META.get('REMOTE_ADDR', ''),
+                ip_address=request_ip(request) or '0.0.0.0',
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
                 error_message='用户名或密码错误',
             )
@@ -243,7 +244,7 @@ class AuthViewSet(viewsets.ViewSet):
             user.save(update_fields=['password', 'must_change_password', 'session_version', 'updated_at'])
             from apps.logs.models import OperationLog
             OperationLog.objects.create(user=user, action='update', resource='user', resource_id=str(user.pk),
-                                       description='用户完成密码修改', ip_address=request.META.get('REMOTE_ADDR', ''))
+                                       description='用户完成密码修改', ip_address=request_ip(request) or '0.0.0.0')
             return Response({
                 'code': 200,
                 'message': '密码修改成功',

@@ -46,18 +46,29 @@ class User(AbstractUser):
         # 所有 Model.save 写入口（本人资料、后台用户编辑及 Django admin）统一撤销旧归属。
         fields = kwargs.get('update_fields')
         email_changed = False
+        previous = type(self).objects.select_for_update().filter(pk=self.pk).values(
+            'email', 'verified_email', 'is_active', 'session_version').first()
+        deactivated = bool(previous and previous['is_active'] and not self.is_active
+                           and (fields is None or 'is_active' in fields))
+        if previous and (fields is None or 'session_version' in fields or deactivated):
+            # 旧 Model 实例不能把凭据版本写回较小值；禁用永久撤销此前凭据。
+            self.session_version = max(self.session_version, previous['session_version'] + int(deactivated))
+            if fields is not None:
+                kwargs['update_fields'] = set(fields) | {'session_version'}
         if fields is None or 'email' in fields:
             self.email = self.email.strip().casefold()
-            previous = type(self).objects.select_for_update().filter(pk=self.pk).values('email', 'verified_email').first()
             email_changed = previous is not None and previous['email'].strip().casefold() != self.email
             if email_changed or (self.verified_email and self.verified_email != self.email):
                 self.verified_email = None
                 if fields is not None:
-                    kwargs['update_fields'] = set(fields) | {'verified_email'}
+                    kwargs['update_fields'] = set(kwargs['update_fields']) | {'verified_email'}
             elif previous is not None and fields is None:
                 # 普通完整保存不得将旧对象中的归属覆盖回来；只有验证服务显式写该字段。
                 self.verified_email = previous['verified_email']
         super().save(*args, **kwargs)
+        if deactivated:
+            from django.utils import timezone
+            AuthSession.objects.filter(user=self, revoked_at__isnull=True).update(revoked_at=timezone.now())
         if email_changed:
             from django.utils import timezone
             EmailChallenge.objects.filter(user=self, consumed_at__isnull=True).update(consumed_at=timezone.now())

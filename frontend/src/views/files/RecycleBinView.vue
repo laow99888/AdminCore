@@ -42,7 +42,7 @@
       <BaseDialog v-model="resultVisible" :title="uiText('操作结果')" :show-cancel="false" :confirm-text="uiText('关闭')" @confirm="resultVisible = false">
         <p>{{ uiText('成功 {p0} 项，失败 {p1} 项', { p0: result?.succeeded || 0, p1: result?.failed || 0 }) }}</p>
         <ul class="recycle-results">
-          <li v-for="item in result?.results" :key="item.id">{{ nameFor(item.id) }} — {{ item.status === 200 ? uiText('已完成') : item.message }}</li>
+          <li v-for="item in result?.results" :key="item.id">{{ nameFor(item.id) }} — {{ item.status === 200 ? uiText('已完成') : uiText(item.message) }}</li>
         </ul>
       </BaseDialog>
     </BaseCard>

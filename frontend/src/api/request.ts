@@ -14,6 +14,7 @@ import { useAuthStore } from '../stores/auth'
 import { refreshSessionTokens, tokensBelongToSameSession } from './tokenRefresh'
 import { apiLanguage } from './language'
 import publicRequest from './publicRequest'
+import { API_BASE_URL } from './baseUrl'
 
 export interface ApiResponse<T = any> {
   code: number
@@ -34,7 +35,7 @@ export interface PagedData<T = any> {
 }
 
 const request = axios.create({
-  baseURL: (import.meta.env.VITE_API_BASE_URL as string) || '/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 30000,
 })
 

@@ -208,3 +208,33 @@ def test_windows_restore_selects_git_bash_and_forward_slash_path(tmp_path):
                             capture_output=True, text=True)
     assert result.returncode == 0
     assert result.stdout.split('  ', 1)[0] == runner.digest(archive)
+
+
+def test_private_outputs_refuse_overwrite_and_keep_original_bytes(tmp_path):
+    target = tmp_path / 'private.dump'
+    with runner.private_output(target) as stream:
+        stream.write(b'original')
+    with pytest.raises(FileExistsError):
+        with runner.private_output(target):
+            pass
+    assert target.read_bytes() == b'original'
+
+
+@pytest.mark.skipif(runner.os.name == 'nt', reason='POSIX 权限由 Linux CI 验证，Windows 另需宿主 ACL')
+def test_private_modes_ignore_permissive_umask_and_reject_broad_existing_folder(tmp_path):
+    original = runner.os.umask(0o022)
+    try:
+        folder = tmp_path / 'private-backups'
+        runner.private_directory(folder)
+        with runner.private_output(folder / 'snapshot.dump') as stream:
+            stream.write(b'synthetic')
+        runner.atomic_json(folder / 'receipt.json', {'synthetic': True})
+        assert folder.stat().st_mode & 0o777 == 0o700
+        assert all(path.stat().st_mode & 0o777 == 0o600 for path in folder.iterdir())
+        broad = tmp_path / 'existing-broad'
+        broad.mkdir(mode=0o755)
+        with pytest.raises(runner.RunnerError, match='权限过宽'):
+            runner.private_directory(broad)
+        assert broad.stat().st_mode & 0o777 == 0o755
+    finally:
+        runner.os.umask(original)

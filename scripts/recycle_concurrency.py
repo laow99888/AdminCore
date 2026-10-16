@@ -115,5 +115,8 @@ for attempt in range(8):
         assert state == 'restored' and not removed and not survivor.is_deleted and storage.exists(key)
         survivor.hard_delete()
     else:
+        from apps.core.tasks import dispatch_outbox
+        assert storage.exists(key)  # 事务提交只登记删除意图。
+        dispatch_outbox()
         assert state == 'purged' and removed and not storage.exists(key)
 print('回收站 PostgreSQL 行锁、双恢复版本冲突、8 次恢复/清理竞争全部通过')

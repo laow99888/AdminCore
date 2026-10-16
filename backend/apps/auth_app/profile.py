@@ -13,6 +13,7 @@ from django.db import transaction
 from django.utils import timezone
 from PIL import Image, ImageOps
 from rest_framework import serializers
+from apps.core.client_ip import request_ip
 from rest_framework_simplejwt.utils import get_md5_hash_password
 
 from apps.core.exceptions import APIError
@@ -109,7 +110,7 @@ def locked_user(request, version):
 def audit(request, user, operation, fields=()):
     OperationLog.objects.create(user=user, action='update', resource='profile', resource_id=str(user.pk),
                                description=f'{operation}; fields={",".join(sorted(fields))}; version={user.profile_version}',
-                               ip_address=request.META.get('REMOTE_ADDR', ''))
+                               ip_address=request_ip(request) or '0.0.0.0')
 
 
 @transaction.atomic

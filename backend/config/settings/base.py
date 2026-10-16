@@ -57,6 +57,13 @@ if AUTH_TOTP_ENCRYPTION_KEY:
     except (ValueError, UnicodeEncodeError):
         raise ValueError('AUTH_TOTP_ENCRYPTION_KEY 必须为合法的 Fernet 密钥') from None
 ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
+import ipaddress
+from django.core.exceptions import ImproperlyConfigured
+try:
+    ADMINCORE_TRUSTED_PROXIES = tuple(ipaddress.ip_network(value.strip(), strict=False)
+        for value in os.getenv('ADMINCORE_TRUSTED_PROXIES', '').split(',') if value.strip())
+except ValueError:
+    raise ImproperlyConfigured('ADMINCORE_TRUSTED_PROXIES 必须是逗号分隔的可信直接代理 IP/CIDR') from None
 
 # 应用配置
 INSTALLED_APPS = [

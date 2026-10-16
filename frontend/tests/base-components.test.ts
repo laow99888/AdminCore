@@ -83,6 +83,13 @@ describe('BaseTable', () => {
     expect(wrapper.text()).toContain('查看详情')
     expect(wrapper.text()).not.toContain('编辑')
   })
+  it('显式空操作插槽不会生成默认编辑删除按钮', async () => {
+    const wrapper = mount(BaseTable, { props, slots: { actions: '<template v-if="false"><button>重试</button></template>' } })
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('编辑')
+    expect(wrapper.text()).not.toContain('删除')
+    expect(wrapper.text()).not.toContain('重试')
+  })
   it('空状态不显示分页，格式化列正常显示', async () => {
     const wrapper = mount(BaseTable, { props: { data: [], columns: props.columns, total: 0 } })
     expect(wrapper.text()).toContain('暂无数据')

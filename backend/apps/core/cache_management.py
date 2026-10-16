@@ -14,6 +14,7 @@ from apps.permissions.permissions import has_permission_code
 from .cache_keys import config_cache_key, dictionary_cache_key
 from .models import SystemConfig, DataDictionary
 from .system_config import CONFIG_DEFINITIONS
+from .client_ip import request_ip
 
 NAMESPACES = {'configuration': 'config:update', 'dictionaries': 'dictionary:update'}
 LIMIT = 1000
@@ -101,7 +102,7 @@ def clear(request, namespace, token):
     audit_data = {'namespace': namespace, 'candidate_count': len(keys), 'backend': backend_mode(), 'outcome': 'unconfirmed'}
     log = OperationLog.objects.create(user=request.user, action='delete', resource='business_cache',
                                      resource_id=namespace, status=503, description=json.dumps(audit_data),
-                                     ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1')
+                                     ip_address=request_ip(request) or '0.0.0.0')
     try:
         # The durable uncertain audit stays outside this transaction. Keep the
         # freshly authorized actor/device locked through the external deletion.

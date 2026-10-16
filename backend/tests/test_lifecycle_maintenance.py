@@ -96,6 +96,8 @@ def test_execute_cleans_only_expired_registered_logs_and_sources(admin_user):
     recent = source(admin_user, days=1)
     result = clean()
     assert result['deleted'] == {'operation': 1, 'login': 1, 'exception': 1, 'imports': 1}
+    from apps.core.tasks import dispatch_outbox
+    assert dispatch_outbox()['processed'] == 1
     assert not OperationLog.objects.filter(pk=operation.pk).exists()
     assert not LoginLog.objects.filter(pk=login.pk).exists()
     assert not ExceptionLog.objects.filter(pk=exception.pk).exists()
@@ -123,15 +125,20 @@ def test_expired_terminal_import_allows_source_cleanup(admin_user):
     assert TaskRecord.objects.filter(pk=task.pk).exists()
 
 
-def test_storage_failure_preserves_record_and_reports_partial_result(admin_user):
+def test_storage_failure_preserves_durable_intent(admin_user):
+    from apps.core.tasks import dispatch_outbox
+    from apps.core.models import OutboxEvent
     file = source(admin_user)
     with patch.object(file.file.storage, 'delete', side_effect=OSError('private endpoint credential')):
         result = clean()
-    assert result['failed'] == 1 and result['deleted']['imports'] == 0
-    assert FileModel.objects.filter(pk=file.pk).exists()
-    assert not OperationLog.objects.filter(resource='lifecycle', description__contains='imports').exists()
+        assert dispatch_outbox()['failed'] == 1
+    assert result['failed'] == 0 and result['deleted']['imports'] == 1
+    assert not FileModel.objects.filter(pk=file.pk).exists()
+    assert file.file.storage.exists(file.file.name)
+    event = OutboxEvent.objects.get(topic='file.purge')
+    assert event.status == 'failed' and 'private' not in event.last_error
     task = TaskRecord.objects.get(related_resource='maintenance:lifecycle')
-    assert task.status == 'failed' and task.error == 'lifecycle_partial_failure'
+    assert task.status == 'success'
     assert 'private' not in str(task.result)
 
 

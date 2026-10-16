@@ -1,5 +1,10 @@
 <template>
-  <div ref="chartRef" class="base-chart" :style="{ height: `${height}px` }"></div>
+  <div ref="chartRef" class="base-chart" :style="{ height: `${height}px` }" :aria-hidden="table ? true : undefined" :role="table ? undefined : 'img'" :aria-label="table ? undefined : caption"></div>
+  <details v-if="table" class="chart-data">
+    <summary>{{ uiText('查看图表数据') }}</summary>
+    <div class="chart-data-scroll"><table><caption>{{ caption }}</caption><thead><tr><th v-for="(column, index) in table.headers" :key="index" scope="col">{{ column }}</th></tr></thead>
+      <tbody><tr v-for="(row, index) in table.rows" :key="index"><td v-for="(value, column) in row" :key="column">{{ value }}</td></tr></tbody></table></div>
+  </details>
 </template>
 
 <script setup lang="ts">
@@ -10,10 +15,13 @@ import { LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useThemeStore } from '../../stores/theme'
+import { uiText } from '@/i18n/uiText'
 
 interface Props {
   option: EChartsCoreOption
   height?: number
+  caption: string
+  table?: { headers: string[]; rows: Array<Array<string | number>> }
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -55,4 +63,9 @@ watch(() => themeStore.isDark, render)
 .base-chart {
   width: 100%;
 }
+.chart-data { margin-top: var(--spacing-sm); }
+.chart-data summary { cursor: pointer; }
+.chart-data-scroll { overflow-x: auto; }
+.chart-data table { width: 100%; border-collapse: collapse; }
+.chart-data th, .chart-data td { padding: var(--spacing-sm); text-align: left; border-bottom: 1px solid var(--color-border); }
 </style>

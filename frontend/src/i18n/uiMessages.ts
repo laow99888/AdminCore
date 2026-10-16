@@ -1,4 +1,11 @@
 export const uiMessages: Record<string, string> = {
+  '搜索菜单': 'Search menus',
+  '没有匹配的菜单': 'No matching menus',
+  '菜单搜索加载失败，请重试': 'Could not load menu search. Please retry.',
+  '查看图表数据': 'View chart data',
+  '日期': 'Date',
+  '数量': 'Count',
+  '已登记删除，存储清理失败将自动重试': 'Deletion queued. Storage cleanup will retry on failure.',
   "企业身份登录": "Enterprise Sign-in",
   "企业身份绑定": "Enterprise Identity Links",
   "开放凭证": "API Credentials",

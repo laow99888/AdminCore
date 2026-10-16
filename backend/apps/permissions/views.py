@@ -42,7 +42,7 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         return permissions
 
     def get_queryset(self):
-        return Role.objects.prefetch_related('permissions').all()
+        return Role.objects.prefetch_related('permissions__permission').all()
 
     @transaction.atomic
     def perform_create(self, serializer):
@@ -137,6 +137,10 @@ class MenuViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context['manage_menus'] = self.action != 'my_menu'
+        children = {}
+        for menu in Menu.objects.all():
+            children.setdefault(menu.parent_id, []).append(menu)
+        context['menu_children'] = children
         if self.action == 'my_menu':
             context['allowed_menu_ids'] = self.allowed_menu_ids()
         return context

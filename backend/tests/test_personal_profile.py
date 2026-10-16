@@ -14,6 +14,8 @@ from tests.file_permissions import grant_files
 from apps.files.models import FileModel, FileStorageError
 from apps.logs.models import OperationLog
 from apps.tasks.tasks import cleanup_soft_deleted_files
+from apps.core.models import OutboxEvent
+from apps.core.tasks import dispatch_outbox
 
 pytestmark = pytest.mark.django_db
 PROFILE = '/api/v1/auth/profile/'
@@ -168,6 +170,7 @@ def test_replace_remove_retire_and_cleanup(member_client, member_user):
     FileModel.objects.update(deleted_at=timezone.now() - timedelta(days=40))
     assert cleanup_soft_deleted_files(dry_run=True)['eligible_files'] == 2
     assert cleanup_soft_deleted_files()['purged_files'] == 2
+    assert dispatch_outbox()['processed'] == 2
     assert not FileModel.objects.exists() and not old.file.storage.exists(old.file.name)
 
 
@@ -206,10 +209,9 @@ def test_storage_failure_sanitized_and_pending_cleanup_retained(member_client):
         with patch.object(storage, 'delete', side_effect=OSError('secret-access-key')):
             response = upload(member_client)
     assert response.status_code == 503 and 'secret-access-key' not in response.content.decode()
-    asset = FileModel.objects.get()
-    assert asset.is_deleted and asset.deleted_at and not asset.avatar_users.exists()
-    FileModel.objects.filter(pk=asset.pk).update(deleted_at=timezone.now() - timedelta(days=40))
-    assert cleanup_soft_deleted_files()['purged_files'] == 1
+    assert not FileModel.objects.exists()
+    assert OutboxEvent.objects.filter(topic='file.purge', status='pending').count() == 1
+    assert dispatch_outbox()['processed'] == 1
 
 
 def test_read_storage_failure_sanitized(member_client):
@@ -220,17 +222,20 @@ def test_read_storage_failure_sanitized(member_client):
     assert response.status_code == 503 and 'secret-signature' not in response.content.decode()
 
 
-def test_retention_storage_failure_keeps_record(member_client, member_user):
+def test_retention_storage_failure_keeps_cleanup_intent(member_client, member_user):
     assert upload(member_client).status_code == 200
     member_user.refresh_from_db()
     asset = member_user.avatar_file
     assert member_client.delete(AVATAR, {'profile_version': 2}, format='json').status_code == 200
     FileModel.objects.filter(pk=asset.pk).update(deleted_at=timezone.now() - timedelta(days=40))
     with patch.object(asset.file.storage, 'delete', side_effect=OSError('unavailable')):
-        with pytest.raises(FileStorageError):
-            cleanup_soft_deleted_files()
-    assert FileModel.objects.filter(pk=asset.pk, is_deleted=True).exists()
-    assert cleanup_soft_deleted_files()['purged_files'] == 1
+        assert cleanup_soft_deleted_files()['purged_files'] == 1
+        assert dispatch_outbox()['failed'] == 1
+    assert not FileModel.objects.filter(pk=asset.pk).exists()
+    assert asset.file.storage.exists(asset.file.name)
+    OutboxEvent.objects.filter(topic='file.purge').update(available_at=timezone.now())
+    assert dispatch_outbox()['processed'] == 1
+    assert not asset.file.storage.exists(asset.file.name)
 
 
 def test_password_reset_during_upload_prevents_binding(member_client, member_user):

@@ -6,6 +6,7 @@ from uuid import UUID
 from django.core.serializers.json import DjangoJSONEncoder
 
 from .models import OperationLog
+from apps.core.client_ip import request_ip
 
 FIELDS = {
     'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids', 'group_ids', 'django_permission_ids'),
@@ -60,7 +61,7 @@ def snapshot(resource, row):
 
 
 def write_audit(*, resource, identifier='', action='update', request=None, actor=None,
-                before=None, after=None, results=(), record=None, description='', status=200):
+                before=None, after=None, results=(), record=None, description='', status=200, origin=None):
     before, after = project(resource, before), project(resource, after)
     actor = actor or (request.user if request is not None and request.user.is_authenticated else None)
     rows = []
@@ -68,8 +69,8 @@ def write_audit(*, resource, identifier='', action='update', request=None, actor
         if len(rows) >= 1000:
             raise ValueError('批量审计最多 1000 项')
         rows.append({'id': str(UUID(str(result['id']))), 'status': int(result['status'])})
-    request_id = getattr(request, 'request_id', '') if request is not None else ''
-    if record is not None and not request_id:
+    request_id = (getattr(request, 'request_id', '') if request is not None else '') if origin is None else origin
+    if record is not None and not request_id and origin is None:
         from apps.tasks.models import MaintenanceRequest, ImportExecution
         request_id = (MaintenanceRequest.objects.filter(record=record).values_list('request_id', flat=True).first()
                       or ImportExecution.objects.filter(record=record).values_list('request_id', flat=True).first() or '')
@@ -84,4 +85,4 @@ def write_audit(*, resource, identifier='', action='update', request=None, actor
         task_id=record.celery_task_id if record else '', audit_version=1,
         before_values=before, after_values=after, batch_results=rows,
         description=description or json.dumps({'before': before, 'after': after}, ensure_ascii=False),
-        status=status, ip_address=(request.META.get('REMOTE_ADDR') if request is not None else None) or '127.0.0.1')
+        status=status, ip_address=(request_ip(request) or '0.0.0.0') if request is not None else '127.0.0.1')

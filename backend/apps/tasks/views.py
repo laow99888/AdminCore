@@ -69,7 +69,7 @@ class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
             actor = authorize(request, 'task:cancel')
             execution = ImportExecution.objects.filter(pk=visible.pk).first()
             if execution:
-                ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
+                batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
             record = scope_queryset(TaskRecord.objects.select_for_update(), actor, 'task', 'creator_id').filter(pk=visible.pk).first()
             if record is None:
                 raise NotFound()
@@ -77,6 +77,9 @@ class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
             maintenance = record.related_resource.startswith('maintenance:')
             if (maintenance and record.status != 'pending') or (record.status == 'running' and not execution):
                 return Response({'code': 409, 'message': '已开始且不支持协作停止的任务不能取消', 'data': None}, status=409)
+            if execution and record.status in ('pending', 'running'):
+                from apps.data_io.execution import sync_summary
+                sync_summary(record, batch)
             if not record.mark_cancelled():
                 return Response({'code': 409, 'message': '任务已完成，无法取消', 'data': None}, status=409)
             write_audit(request=request, actor=actor, resource='task', identifier=record.pk,

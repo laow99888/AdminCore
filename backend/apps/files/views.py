@@ -25,6 +25,7 @@ from apps.permissions.permissions import IsAdmin, HasPermission, has_permission_
 from apps.core.models import LifecycleConflict
 from apps.core.exceptions import APIError
 from apps.core.query_budget import QueryBudgetListMixin
+from apps.core.client_ip import request_ip
 
 from .models import FileModel
 from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerializer,
@@ -33,9 +34,9 @@ from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerialize
 
 
 @extend_schema_view(
-    create=extend_schema(responses={201: FileSerializer}),
+    create=extend_schema(description='上传返回统一 code/message/data；v1 兼容期保留顶层文件字段，新调用方只读取 data。', responses={201: envelope('FileUploadedResponse', FileSerializer())}),
     download=extend_schema(responses={(200, 'application/octet-stream'): OpenApiTypes.BINARY}),
-    purge=extend_schema(responses=MessageResponse),
+    purge=extend_schema(responses={202: MessageResponse}),
 )
 class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     """文件管理：上传 / 列表 / 下载 / 软删除"""
@@ -101,7 +102,7 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
             resource='file',
             resource_id=str(instance.id),
             description=description or instance.original_name,
-            ip_address=self.request.META.get('REMOTE_ADDR', ''),
+            ip_address=request_ip(self.request),
         )
 
     @extend_schema(responses=envelope('ImageProcessingConfigResponse', ImageProcessingConfigSerializer()))
@@ -179,8 +180,10 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
+        data = FileSerializer(serializer.instance, context=self.get_serializer_context()).data
+        # 旧 v1 客户端仍读取顶层文件字段；迁移期保留，规范调用统一读取 data。
         return Response(
-            FileSerializer(serializer.instance, context=self.get_serializer_context()).data,
+            {**data, 'code': 201, 'message': '上传成功', 'data': data},
             status=status.HTTP_201_CREATED,
         )
 
@@ -299,7 +302,9 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                         self._lifecycle_log(instance, 'restore', before)
                     else:
                         instance.hard_delete(expected_version=item['lifecycle_version'], audit=lambda row: self._lifecycle_log(row, 'purge', self._snapshot(row)))
-                    result.update(status=200, message='可执行' if data['dry_run'] else '已完成',
+                    queued = operation == 'purge' and not data['dry_run']
+                    result.update(status=202 if queued else 200,
+                                  message='已登记删除，存储清理失败将自动重试' if queued else ('可执行' if data['dry_run'] else '已完成'),
                                   original_name=instance.original_name, size=instance.size)
             except LifecycleConflict as exc:
                 result.update(status=409, message=str(exc))
@@ -309,7 +314,7 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                 # 外部存储错误不泄露服务器路径、签名或凭据；记录和失败项可重试。
                 result.update(status=503, message='存储暂时不可用，请稍后重试')
             results.append(result)
-        succeeded = sum(item['status'] == 200 for item in results)
+        succeeded = sum(item['status'] in (200, 202) for item in results)
         if not data['dry_run']:
             from apps.logs.audit import write_audit
             write_audit(request=request, action='other', resource='file', results=results,
@@ -351,4 +356,4 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
             raise APIError(str(exc), status_code=409) from exc
         except OSError as exc:
             raise APIError('存储暂时不可用，请稍后重试', status_code=503) from exc
-        return Response({'code': 200, 'message': '文件已彻底删除', 'data': None})
+        return Response({'code': 202, 'message': '已登记删除，存储清理失败将自动重试', 'data': None}, status=202)

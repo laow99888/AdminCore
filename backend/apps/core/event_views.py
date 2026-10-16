@@ -16,6 +16,7 @@ from apps.auth_app.write_authorization import authorize_write
 from django.shortcuts import get_object_or_404
 from .schema import envelope
 from .exceptions import APIError
+from .client_ip import request_ip
 
 
 class OutboxEventSerializer(serializers.ModelSerializer):
@@ -50,6 +51,8 @@ class OutboxEventViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mixins.Re
                 if getattr(cause, 'sqlstate', None) == '55P03' or getattr(cause, 'pgcode', None) == '55P03':
                     raise APIError('事件正在处理，请稍后重试', status_code=409) from exc
                 raise
+            if event.status == 'processing':
+                return Response({'code': 409, 'message': '事件正在处理，请稍后重试', 'data': None}, status=409)
             if event.status != 'failed':
                 return Response({'code': 409, 'message': '只能重试失败事件', 'data': None}, status=409)
             if event.topic == 'notification.delivery':
@@ -63,6 +66,6 @@ class OutboxEventViewSet(EnvelopeResponseMixin, mixins.ListModelMixin, mixins.Re
             event.save(update_fields=['status', 'available_at', 'updated_at'])
             OperationLog.objects.create(user=request.user, action='other', resource='outbox_event',
                                         resource_id=str(event.pk), description='人工重试失败事件',
-                                        ip_address=request.META.get('REMOTE_ADDR') or '127.0.0.1')
+                                        ip_address=request_ip(request) or '0.0.0.0')
             transaction.on_commit(_dispatch_after_commit)
             return Response({'code': 200, 'message': '已提交重试', 'data': self.get_serializer(event).data})

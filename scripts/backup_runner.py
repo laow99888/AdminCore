@@ -26,6 +26,26 @@ class RunnerError(Exception):
     pass
 
 
+def private_directory(folder):
+    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if folder.is_symlink() or not folder.is_dir():
+        raise RunnerError('备份目录必须是非链接目录')
+    if os.name != 'nt' and folder.stat().st_mode & 0o077:
+        raise RunnerError('备份目录权限过宽，请由部署管理员确认并设置为 700')
+
+
+def private_output(path, mode='xb'):
+    flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if mode == 'a+b' else os.O_EXCL)
+    if mode == 'a+b':
+        flags = (flags & ~os.O_WRONLY) | os.O_RDWR
+    flags |= getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_BINARY', 0)
+    descriptor = os.open(path, flags, 0o600)
+    if os.name != 'nt' and os.fstat(descriptor).st_mode & 0o077:
+        os.close(descriptor)
+        raise RunnerError('备份文件权限过宽，请由部署管理员确认')
+    return os.fdopen(descriptor, mode, **({} if 'b' in mode else {'encoding': 'utf-8', 'newline': '\n'}))
+
+
 def digest(path):
     result = hashlib.sha256()
     with path.open('rb') as source:
@@ -40,7 +60,7 @@ def artifact(path):
 
 def atomic_json(path, value):
     temporary = path.with_name(path.name + '.partial')
-    with temporary.open('x', encoding='utf-8', newline='\n') as output:
+    with private_output(temporary, 'x') as output:
         json.dump(value, output, ensure_ascii=False, sort_keys=True)
         output.flush()
         os.fsync(output.fileno())
@@ -62,7 +82,7 @@ def restore_command(stamp):
 @contextmanager
 def runner_lock(folder):
     """操作系统文件锁；进程死亡自动释放，保留锁文件避免 inode 竞争。"""
-    with (folder / '.runner.lock').open('a+b') as lock:
+    with private_output(folder / '.runner.lock', 'a+b') as lock:
         lock.seek(0)
         lock.write(b'0')
         lock.flush()
@@ -146,7 +166,7 @@ class Runner:
         self.folder = Path(folder).absolute()
         # 可由隔离验收显式注入 Compose 项目，产品 CLI 只操作当前工作区。
         self.compose = compose or ['docker', 'compose']
-        self.folder.mkdir(parents=True, exist_ok=True)
+        private_directory(self.folder)
         if self.folder.is_symlink() or self.folder.resolve() != self.folder:
             raise RunnerError('备份目录不能经过符号链接')
         for restricted in ('backend', 'frontend', 'media', 'logs', '.git'):
@@ -189,11 +209,11 @@ class Runner:
             self.stage = 'stop_writers'
             self.command(['stop', '-t', '120', *writers], timeout=180)
             self.stage = 'database_dump'
-            with db.with_name(db.name + '.partial').open('xb') as output:
+            with private_output(db.with_name(db.name + '.partial')) as output:
                 self.command(['exec', '-T', 'db', 'sh', '-c', 'pg_dump -Fc -U "$POSTGRES_USER" -d "$POSTGRES_DB"'],
                              output=output, timeout=3600)
             self.stage = 'media_export'
-            with media.with_name(media.name + '.partial').open('xb') as output:
+            with private_output(media.with_name(media.name + '.partial')) as output:
                 self.command(['run', '--rm', '--no-deps', '-T', '--entrypoint', 'python', 'backend', '/app/docker/media_backup.py'],
                              output=output, timeout=3600)
             # 停写窗口只做快照；传输/清理在服务恢复后进行。
@@ -224,7 +244,7 @@ class Runner:
                 with archive.extractfile(member) as source:
                     for _ in iter(lambda: source.read(1024 * 1024), b''):
                         pass
-        with manifest.with_name(manifest.name + '.partial').open('x', encoding='utf-8', newline='\n') as output:
+        with private_output(manifest.with_name(manifest.name + '.partial'), 'x') as output:
             output.write(''.join(f'{row["sha256"]}  {row["name"]}\n' for row in rows))
         manifest.with_name(manifest.name + '.partial').replace(manifest)
         rows.append(artifact(manifest))
@@ -286,7 +306,7 @@ def main():
         parser.error('轮询间隔必须为 10–300 秒')
     runner = Runner(args.backup_dir)
     coordinator = ROOT / '.codex-validation' / 'backup-coordinator'
-    coordinator.mkdir(parents=True, exist_ok=True)
+    private_directory(coordinator)
     if args.restore and not STAMP.fullmatch(args.restore):
         parser.error('恢复时间戳格式无效')
     if args.manual or args.restore:

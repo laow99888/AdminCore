@@ -124,7 +124,7 @@ export const filesApi = {
     const form = new FormData()
     form.append('file', file)
     if (description) form.append('description', description)
-    return request.post('/files/', form)
+    return request.post<ApiResponse<FileRow>>('/files/', form)
   },
   remove: (id: string) => request.delete(`/files/${id}/`),
   purge: (id: string) => request.delete(`/files/${id}/purge/`),
@@ -162,7 +162,7 @@ export const tasksApi = {
 export interface OutboxEventRow {
   id: string
   topic: string
-  status: 'pending' | 'failed' | 'succeeded'
+  status: 'pending' | 'processing' | 'failed' | 'succeeded'
   attempts: number
   available_at: string
   last_error: string

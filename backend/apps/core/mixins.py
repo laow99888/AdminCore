@@ -37,7 +37,9 @@ class EnvelopeResponseMixin(QueryBudgetListMixin):
 
     def _envelope(self, response):
         message = SUCCESS_MESSAGES.get(getattr(self, 'action', ''), 'success')
-        return Response(
-            {'code': 200, 'message': message, 'data': response.data},
-            status=response.status_code,
-        )
+        # 原响应保留状态、Location/ETag/Retry-After、Cookie 和 renderer 元信息。
+        # 响应体变更后不能沿用旧长度，Content-Type 由最终渲染器决定。
+        response.data = {'code': 200, 'message': message, 'data': response.data}
+        if response.has_header('Content-Length'):
+            del response['Content-Length']
+        return response

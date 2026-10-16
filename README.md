@@ -46,15 +46,17 @@ python -m venv venv
 # Windows PowerShell：.\venv\Scripts\Activate.ps1
 # Linux Bash：source venv/bin/activate
 python -m pip install --require-hashes -r requirements.lock
-python manage.py migrate
-python manage.py bootstrap_admincore           # 使用明确配置的管理员密码初始化
-python manage.py runserver 0.0.0.0:8000
+DJANGO_ENV=development python manage.py migrate
+DJANGO_ENV=development python manage.py bootstrap_admincore  # 使用明确配置的管理员密码初始化
+DJANGO_ENV=development python manage.py runserver 127.0.0.1:8000
 
 # 前端
 cd frontend
 npm ci
 npm run dev
 ```
+
+以上命令采用 Bash 环境变量语法；PowerShell 先执行 `$env:DJANGO_ENV="development"`，随后直接运行 `python manage.py ...`。通用 settings 入口必须明确选择环境，拼错或遗漏会拒绝启动。
 
 访问 http://localhost:5173
 
@@ -84,11 +86,13 @@ npm run dev
 
 ## 项目状态
 
-通用基础版与多批扩展能力已交付，包括图片/PDF 预览、认证邮件、设备会话、TOTP 和可选登录验证码。通用业务邮件、Office 转换、多级审批等仍待开发；完整实施状态见 [通用基座缺口清单](./docs/通用基座缺口清单.md)。用户管理联系方式默认脱敏，手机号存储加密可按部署选择启用，详见 [敏感字段边界与配置](./docs/敏感字段脱敏与可选加密-2026-10-14.md)。
+通用基础版与多批扩展能力已交付，包括图片/PDF 预览、认证邮件、设备会话、TOTP 和可选登录验证码。模板化业务邮件及可选短信/Webhook、OIDC 登录和可选 Office 转换已提供；多级审批仍按清单暂缓；完整实施状态见 [通用基座缺口清单](./docs/通用基座缺口清单.md)。用户管理联系方式默认脱敏，手机号存储加密可按部署选择启用，详见 [敏感字段边界与配置](./docs/敏感字段脱敏与可选加密-2026-10-14.md)。
 
 公告提供可选富文本编辑、预览和前后端白名单消毒，历史公告默认保持纯文本；可复用组件、支持范围和升级注意见 [富文本公告与安全渲染](./docs/富文本公告与安全渲染-2026-10-14.md)。
 
 前端已提供 `npm run test:typecheck`、`npm run test:coverage`、`npm run test:e2e` 和构建后的 `npm run check:bundle`；CI 执行这些检查。后端大数据基准脚本在 `backend/benchmarks/list_api.py`，只允许使用独立的指定测试数据库，运行说明见验收报告。
+
+本轮集中审查修复的范围、异步删除语义和实际验证结果见[集中修复验收记录](docs/集中审查修复验收-2026-10-16.md)。
 
 ## 许可证
 

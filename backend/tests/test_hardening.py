@@ -19,7 +19,8 @@ from drf_spectacular.generators import SchemaGenerator
                                   'django-insecure-' + 'x' * 64, 'x' * 64, 'short-key'])
 def test_production_rejects_weak_secret(key):
     environment = os.environ.copy()
-    environment.update(DJANGO_ENV='production', DJANGO_SECRET_KEY=key)
+    environment.update(DJANGO_ENV='production', DJANGO_SETTINGS_MODULE='config.settings.production',
+                       DB_PASSWORD='isolated-config-database-secret-012345', DJANGO_SECRET_KEY=key)
     process = subprocess.run([sys.executable, '-c', 'import config.settings.production'],
                              cwd=Path(__file__).resolve().parents[1], env=environment,
                              capture_output=True)
@@ -29,7 +30,8 @@ def test_production_rejects_weak_secret(key):
 
 def test_production_accepts_long_random_secret():
     environment = os.environ.copy()
-    environment.update(DJANGO_ENV='production', DJANGO_SECRET_KEY='ABCdef0123456789_!-' * 4)
+    environment.update(DJANGO_ENV='production', DJANGO_SETTINGS_MODULE='config.settings.production',
+                       DB_PASSWORD='isolated-config-database-secret-012345', DJANGO_SECRET_KEY='ABCdef0123456789_!-' * 4)
     process = subprocess.run([sys.executable, '-c', 'import config.settings.production'],
                              cwd=Path(__file__).resolve().parents[1], env=environment,
                              capture_output=True)

@@ -1,5 +1,7 @@
 name: 项目检查
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   demo-isolation:
     runs-on: ubuntu-latest
@@ -335,6 +337,7 @@ jobs:
           fi
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       DJANGO_ENV: testing
       DJANGO_SECRET_KEY: ci-test-only-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-abcdefghijklmnopqrstuvwxyz
@@ -348,8 +351,16 @@ jobs:
       - run: python -m pytest && python manage.py spectacular --validate --fail-on-warn --file /tmp/schema.yml
         working-directory: backend
       - run: python -m pytest -q scripts/tests/test_backup_runner.py scripts/tests/test_office_preview_runner.py scripts/tests/test_office_preview_fixtures.py scripts/tests/test_codegen_installation.py scripts/tests/test_office_preview_validation_http.py
+      - run: python scripts/validate_audit_fixes.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: audit-fixes-postgres-evidence
+          include-hidden-files: true
+          path: .codex-validation/admincore-audit-fixes-*/
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

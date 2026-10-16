@@ -356,5 +356,13 @@
   "预览暂时不可读取": "The preview is temporarily unavailable.",
   "预览身份或权限已失效": "Preview identity or permissions are no longer valid.",
   "验证邮件已登记，请稍后查收": "Verification email registered. Check your inbox later.",
-  "（已发送撤销指令）": "(cancellation signal sent)"
+  "（已发送撤销指令）": "(cancellation signal sent)",
+  "批量启用成功": "Users activated successfully",
+  "批量停用成功": "Users deactivated successfully",
+  "批量删除成功": "Users deleted successfully",
+  "上传成功": "Upload successful",
+  "已登记删除，存储清理失败将自动重试": "Deletion queued. Storage cleanup will retry on failure.",
+  "收件人不能重复": "Recipients must not be duplicated.",
+  "收件人须为 1 到 1000 项的列表": "Provide a list of 1 to 1000 recipients.",
+  "附加数据最大 20000 字符": "Additional data must not exceed 20000 characters."
 }

@@ -116,6 +116,17 @@ def test_api_secret_cannot_authenticate_regular_or_account_routes(session_client
     assert session_client.get(BASE + 'tasks/').status_code == 401
 
 
+def test_disabled_then_reenabled_owner_never_revives_old_api_secret(session_client, owner):
+    _, client = issued(session_client)
+    assert client.get(BASE + 'tasks/').status_code == 200
+    owner.is_active = False
+    owner.save(update_fields=['is_active'])
+    assert client.get(BASE + 'tasks/').status_code == 401
+    owner.is_active = True
+    owner.save(update_fields=['is_active'])
+    assert client.get(BASE + 'tasks/').status_code == 401
+
+
 @pytest.mark.parametrize('change', ['expire', 'revoke', 'inactive', 'password', 'version', 'force_password', 'inactive_role'])
 def test_owner_security_changes_invalidate_credentials(session_client, owner, change):
     data, client = issued(session_client)

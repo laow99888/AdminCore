@@ -44,6 +44,14 @@ def register(record, source, request=None, batch=None, attempt=1):
     return execution
 
 
+def sync_summary(record, batch):
+    """调用者已锁批次和任务；终态不能保留批量刷新的陈旧进度摘要。"""
+    from .tasks import import_summary
+    summary = import_summary(batch, batch.source_id, (record.result or {}).get('total', 0))
+    TaskRecord.objects.filter(pk=record.pk, status__in=['pending', 'running']).update(result=summary)
+    record.result = summary
+
+
 @transaction.atomic
 def resume(request, identifier):
     actor = authorize(request, 'data_io:import')

@@ -83,6 +83,7 @@ def run_data_import(self, task_record_id):
         batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
         if batch.active_record_id != record.pk or not record.mark_started():
             return {'skipped': True}
+    summary = None
     try:
         current = execution.policy
         if record.created_at < timezone.now() - timedelta(seconds=current['queue_expiry']):
@@ -136,9 +137,11 @@ def run_data_import(self, task_record_id):
                     return {'stopped': True}
                 if (not task_enabled(self.name) or not valid_execution(execution, actor)
                         or not import_allowed(actor, batch.resource)):
+                    TaskRecord.objects.filter(pk=locked.pk, status='running').update(result=import_summary(batch, source.pk, total))
                     locked.mark_failed('execution_not_authorized_committed_rows_preserved')
                     return
                 if timezone.now() > locked.started_at + timedelta(seconds=current['soft_timeout']):
+                    TaskRecord.objects.filter(pk=locked.pk, status='running').update(result=import_summary(batch, source.pk, total))
                     locked.mark_failed('task_timeout_committed_rows_preserved')
                     return
                 if not ImportRowReceipt.objects.filter(batch=batch, row=index + 2).exists():
@@ -147,19 +150,19 @@ def run_data_import(self, task_record_id):
                         obj, error = None, 'required_or_cell_length_invalid'
                     else:
                         from django.core.exceptions import ValidationError
-                        from django.db import IntegrityError
+                        from django.db import IntegrityError, DataError
                         from rest_framework.exceptions import ValidationError as APIValidationError
                         try:
                             # 唯一键并发或行校验失败只回滚本行，不破坏外层账本事务。
                             with transaction.atomic():
                                 obj, error = config['create_row'](data)
-                        except (ValidationError, APIValidationError, IntegrityError):
+                        except (ValidationError, APIValidationError, IntegrityError, DataError):
                             obj, error = None, 'row_validation_failed'
                         if obj is not None:
                             from apps.logs.audit import write_audit, snapshot
                             resource = {'users': 'user', 'roles': 'role', 'posts': 'post'}[batch.resource]
                             write_audit(actor=actor, resource=resource, identifier=obj.pk,
-                                action='create', after=snapshot(resource, obj), record=locked,
+                                action='create', after=snapshot(resource, obj), record=locked, origin=execution.request_id,
                                 description='import_row_created')
                     # 仅保留受控错误码，不写原始姓名、邮箱或供应商错误。
                     ImportRowReceipt.objects.create(batch=batch, row=index + 2, created=obj is not None,
@@ -168,11 +171,16 @@ def run_data_import(self, task_record_id):
                     summary['created' if obj is not None else 'failed'] += 1
                     if obj is None and len(summary['errors']) < 100:
                         summary['errors'].append({'row': index + 2, 'message': 'row_validation_failed'})
-                TaskRecord.objects.filter(pk=record.pk, status='running').update(
-                    result=summary, progress=min(99, int((index + 1) * 100 / max(1, total))), updated_at=timezone.now())
+                # 账本逐行提交；显示进度至多每 50 行刷新，取消/撤权仍逐行检查。
+                if index == 0 or (index + 1) % 50 == 0 or index + 1 == total:
+                    TaskRecord.objects.filter(pk=record.pk, status='running').update(
+                        result=summary, progress=min(99, int((index + 1) * 100 / max(1, total))), updated_at=timezone.now())
         record.mark_success(summary)
         return record.result
     except Exception as exc:
+        if summary is not None:
+            # 行事务可能在更新内存计数后回滚，终态必须以已提交账本重建。
+            TaskRecord.objects.filter(pk=record.pk, status='running').update(result=import_summary(batch, source.pk, total))
         record.mark_failed(type(exc).__name__)
         logger.error('Import execution failed: record=%s error=%s', record.pk, type(exc).__name__)
         raise

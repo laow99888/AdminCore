@@ -1,5 +1,6 @@
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { apiLanguage } from '@/api/language'
+import { realtimeUrl } from '@/api/baseUrl'
 
 export interface TopicSummary { total: number; changed_at: string | null }
 export interface RealtimeTopics {
@@ -96,7 +97,7 @@ export function startRealtimeClient(options: { enabled: () => boolean; onSnapsho
     try {
       armTimeout()
       // 长连接只发往当前源；凭据永不进入 URL、日志或浏览器事件。
-      const response = await fetch('/api/v1/realtime/events/', { method: 'GET', credentials: 'omit', cache: 'no-store',
+      const response = await fetch(realtimeUrl(), { method: 'GET', credentials: 'omit', cache: 'no-store',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, Accept: 'text/event-stream', 'Accept-Language': apiLanguage() }, signal: request.signal })
       if (response.status === 401) authExpired = true
       if (response.status === 429 || response.status === 503) delay = 60000

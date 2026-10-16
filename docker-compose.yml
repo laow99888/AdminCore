@@ -18,7 +18,7 @@ services:
     environment:
       POSTGRES_DB: ${DB_NAME:-admincore}
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?请显式配置 DB_PASSWORD}
     volumes:
       # PostgreSQL 18+ 建议挂载父目录（数据实际位于子目录，便于 pg_upgrade）
       - pgdata:/var/lib/postgresql
@@ -117,7 +117,7 @@ services:
       TRUSTED_PROXY_IP: ${TRUSTED_PROXY_IP:-127.0.0.1}
     restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-80}:80"
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-80}:80"
     depends_on:
       backend:
         condition: service_healthy

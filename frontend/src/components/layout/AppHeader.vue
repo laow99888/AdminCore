@@ -13,18 +13,7 @@
 
     <div class="header-right">
       <!-- 搜索框 -->
-      <div class="search-box">
-        <el-input
-          v-model="searchQuery"
-          :placeholder="uiText('搜索...')"
-          clearable
-          class="search-input"
-        >
-          <template #prefix>
-            <Search :size="15" :stroke-width="1.75" class="search-icon" />
-          </template>
-        </el-input>
-      </div>
+      <MenuSearch />
 
       <!-- 通知 -->
       <div v-if="modules.enabled('notifications')" class="header-action">
@@ -101,7 +90,8 @@ import { useThemeStore } from '../../stores/theme'
 import { useAuthStore } from '../../stores/auth'
 import { notificationsApi } from '../../api'
 import { useI18n } from 'vue-i18n'
-import { Search, Bell, Sun, Moon, Languages, Menu, Keyboard } from 'lucide-vue-next'
+import { Bell, Sun, Moon, Languages, Menu, Keyboard } from 'lucide-vue-next'
+import MenuSearch from './MenuSearch.vue'
 import { KEYBOARD_HELP_EVENT } from '@/utils/keyboardShortcuts'
 import { confirmPendingForms } from '@/composables/useUnsavedChanges'
 import PrivateAvatar from '@/components/auth/PrivateAvatar.vue'
@@ -117,7 +107,6 @@ const modules = useModuleStore()
 const { locale } = useI18n()
 const { isCollapsed, toggle: toggleSidebar } = useSidebar()
 
-const searchQuery = ref('')
 function openKeyboardHelp() { window.dispatchEvent(new Event(KEYBOARD_HELP_EVENT)) }
 const notificationCount = ref(0)
 
@@ -252,20 +241,6 @@ const handleCommand = async (command: string) => {
   flex-shrink: 0;
 }
 
-/* 搜索框 */
-.search-box {
-  width: 200px;
-}
-
-.search-input {
-  --el-input-height: 36px;
-}
-
-:deep(.search-input .el-input__wrapper) {
-  background-color: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-}
-
 /* 操作按钮组 */
 .header-action {
   position: relative;
@@ -318,17 +293,14 @@ const handleCommand = async (command: string) => {
 }
 
 /* 响应式 */
-@media (max-width: 1024px) {
-  .search-box {
-    display: none;
-  }
-}
-
 @media (max-width: 768px) {
   .header-right { gap: var(--spacing-xs); }
+  .header-left { flex: 1; min-width: 0; gap: var(--spacing-sm); }
+  .shortcut-help { width: 36px; height: 36px; }
+  .user-btn { padding: 0 var(--spacing-sm); }
   .app-header {
-    padding: 0 var(--spacing-lg);
-    gap: var(--spacing-md);
+    padding: 0 var(--spacing-sm);
+    gap: var(--spacing-sm);
   }
 
   .mobile-menu-btn {

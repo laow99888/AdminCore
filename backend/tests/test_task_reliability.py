@@ -132,6 +132,30 @@ def test_lost_execution_stops_without_automatic_replay(admin_client):
     assert not User.objects.filter(username='first').exists()
 
 
+@pytest.mark.parametrize('terminal', ['cancel', 'worker_lost'])
+def test_terminal_import_summary_uses_committed_receipts(admin_client, terminal):
+    record = submit(admin_client)
+    TaskRecord.objects.filter(pk=record.pk).update(status='running',
+        started_at=timezone.now() - timedelta(hours=1),
+        result={'file_id': str(record.import_execution.batch.source_id), 'total': 100, 'created': 1})
+    ImportRowReceipt.objects.bulk_create([
+        ImportRowReceipt(batch=record.import_execution.batch, row=2, created=True),
+        ImportRowReceipt(batch=record.import_execution.batch, row=3, created=True),
+        ImportRowReceipt(batch=record.import_execution.batch, row=4, created=False, error='row_validation_failed'),
+    ])
+    if terminal == 'cancel':
+        with patch('config.celery.app.control.revoke'):
+            response = admin_client.post(f'/api/v1/tasks/{record.pk}/cancel/')
+        assert response.status_code == 200, response.json()
+    else:
+        recover_lost_imports()
+    record.refresh_from_db()
+    assert record.status == ('cancelled' if terminal == 'cancel' else 'failed')
+    assert record.result['created'] == 2 and record.result['failed'] == 1
+    assert record.result['processed'] == 3 and record.result['total'] == 100
+    assert record.result['errors'] == [{'row': 4, 'message': 'row_validation_failed'}]
+
+
 def test_dispatch_exhaustion_is_terminal_but_manual_resume_is_allowed(admin_client):
     record = submit(admin_client)
     OutboxEvent.objects.filter(topic='import.requested').update(attempts=5)

@@ -191,8 +191,8 @@ def audit(request, user, operation):
 
 
 @transaction.atomic
-def deliver_challenge(payload):
-    """持有 user→challenge 锁发送；失效挑战终止，SMTP 异常仅由派发器记录类型。"""
+def prepare_challenge(payload):
+    """短事务复核 user→challenge 后冻结邮件，不在事务中连接 SMTP。"""
     if set(payload) != {'challenge_id'}:
         raise ValueError('invalid_email_event')
     try:
@@ -210,5 +210,10 @@ def deliver_challenge(payload):
     title = 'AdminCore 邮箱验证' if challenge.purpose == 'verify' else 'AdminCore 密码找回'
     message = EmailMessage(title, f'请在 AdminCore 页面手动粘贴以下确认码（10 分钟内有效）：\n\n{challenge_code(challenge)}\n\n若非本人操作，请忽略此邮件。',
         settings.DEFAULT_FROM_EMAIL, [challenge.email], connection=get_connection(timeout=settings.EMAIL_TIMEOUT))
-    if message.send(fail_silently=False) != 1:
+    return message
+
+
+def deliver_challenge(payload):
+    message = prepare_challenge(payload)
+    if message is not None and message.send(fail_silently=False) != 1:
         raise RuntimeError('email_delivery_failed')

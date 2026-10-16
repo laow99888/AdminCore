@@ -185,7 +185,7 @@ class IdempotencyRecord(BaseModel):
 
 class OutboxEvent(BaseModel):
     """事务内写入、事务外派发的可靠事件。"""
-    STATUS_CHOICES = [('pending', '待派发'), ('succeeded', '已完成'), ('failed', '失败')]
+    STATUS_CHOICES = [('pending', '待派发'), ('processing', '派发中'), ('succeeded', '已完成'), ('failed', '失败')]
 
     topic = models.CharField(max_length=120)
     event_key = models.CharField(max_length=180, unique=True)

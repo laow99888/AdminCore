@@ -1,5 +1,7 @@
 /** 通知模板专用文案随模块页面加载。 */
 export const notificationMessages: Record<string, string> = {
+  '版本': 'Version',
+  '发送中': 'Sending',
   "模板编辑生成新版本；已登记投递保持原版本。邮件仅发送至已验证邮箱。": "Editing creates a new version. Queued deliveries keep their original version. Email requires a verified address.",
   "使用 ${name} 文本占位符，变量名需逐一声明；字面美元符写为 $$。不支持表达式或 HTML。": "Use ${name} text placeholders and declare each variable; use $$ for a literal dollar sign. Expressions and HTML are not supported.",
   "邮件渠道未启用；请联系部署管理员配置。": "Email is disabled. Ask your deployment administrator to configure it.",

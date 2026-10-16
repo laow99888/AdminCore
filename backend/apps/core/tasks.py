@@ -25,12 +25,14 @@ def dispatch_outbox(limit=100):
         recover_lost_maintenance()
         from apps.tasks.reliability import recover_lost_imports
         recover_lost_imports()
-    processed = failed = 0
+    from .external_dispatch import dispatch_external, TOPICS
+    external = dispatch_external(limit)
+    processed, failed = external['processed'], external['failed']
     from django.db.models import Q
     eligible = (~Q(topic__in=['auth.email', 'notification.delivery', 'task.failed']) | Q(attempts__lt=5)) & ~Q(last_error='dispatch_exhausted')
     for event_id, origin in list(OutboxEvent.objects.filter(eligible,
         status__in=['pending', 'failed'], available_at__lte=now,
-    ).order_by('created_at').values_list('id', 'request_id')[:limit]):
+    ).exclude(topic__in=TOPICS).order_by('created_at').values_list('id', 'request_id')[:max(0, limit - processed - failed)]):
         with transaction.atomic(), correlated_request(origin):
             event = OutboxEvent.objects.select_for_update().filter(eligible,
                 pk=event_id, status__in=['pending', 'failed'], available_at__lte=now,

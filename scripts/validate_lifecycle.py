@@ -65,6 +65,8 @@ file, task = fixture()
 assert lifecycle.clean(dry_run=True)['eligible']['imports'] == 1
 check('预览保留日志、文件行和本地字节', LoginLog.objects.filter(pk=log.pk).exists() and file.file.storage.exists(file.file.name))
 assert lifecycle.clean()['deleted']['imports'] == 1
+from apps.core.tasks import dispatch_outbox
+dispatch_outbox()
 check('实际删除日志与对象，保留任务及摘要审计', not LoginLog.objects.filter(pk=log.pk).exists()
       and not file.file.storage.exists(file.file.name) and TaskRecord.objects.filter(pk=task.pk).exists()
       and OperationLog.objects.filter(resource='lifecycle', description__contains=str(file.pk)).exists())

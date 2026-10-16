@@ -73,5 +73,5 @@ class TestDownloadAndDelete:
         assert res.status_code == 403
         # 管理员物理删除后记录消失，存储中文件移除
         res = admin_client.delete(f"/api/v1/files/{upload['id']}/purge/")
-        assert res.status_code == 200
+        assert res.status_code == 202
         assert not FileModel.objects.filter(id=upload['id']).exists()

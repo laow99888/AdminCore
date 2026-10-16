@@ -305,11 +305,12 @@ def test_smtp_failure_sanitized_bounded_and_retry_succeeds(member_user):
         for _ in range(5):
             OutboxEvent.objects.update(available_at=timezone.now())
             assert dispatch_outbox() == {'processed': 0, 'failed': 1}
+            assert OutboxEvent.objects.get().last_error == 'SMTPAuthenticationError'
         OutboxEvent.objects.update(available_at=timezone.now())
         assert dispatch_outbox() == {'processed': 0, 'failed': 0}
     event = OutboxEvent.objects.get()
     assert event.attempts == 5
-    assert event.last_error == 'SMTPAuthenticationError'
+    assert event.last_error == 'dispatch_exhausted'
     assert 'secret-smtp-password' not in str(OutboxEvent.objects.values().get())
     assert EmailChallenge.objects.get().consumed_at is None
     request_reset(APIClient(), member_user)

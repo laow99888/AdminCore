@@ -58,7 +58,7 @@ def failure_event(record):
 
 
 @transaction.atomic
-def deliver_failure(payload):
+def prepare_failure(payload):
     """只投递仍有任务读取范围的当前身份；不将正文/联系方式带入事件。"""
     from .models import TaskRecord
     from apps.core.data_scope import scope_queryset
@@ -89,8 +89,13 @@ def deliver_failure(payload):
                 '任务编号：' + str(record.pk) + '\n请登录任务中心检查。邮件不包含业务数据或原始错误。',
                 settings.DEFAULT_FROM_EMAIL, bcc=addresses,
                 headers={'Message-ID': '<task-failed-' + str(record.pk) + '@admincore.local>'})
-            if message.send(fail_silently=False) != 1:
-                raise RuntimeError('task_alert_email_failed')
+            return message
+
+
+def deliver_failure(payload):
+    message = prepare_failure(payload)
+    if message is not None and message.send(fail_silently=False) != 1:
+        raise RuntimeError('task_alert_email_failed')
 
 
 def recover_lost_imports(limit=100):
@@ -109,7 +114,9 @@ def recover_lost_imports(limit=100):
         if due:
             with transaction.atomic():
                 # worker 同顺序；正在提交的一行先完成，后续行检测失败即停止。
-                ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
+                batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
                 locked = TaskRecord.objects.select_for_update().get(pk=record.pk)
                 if locked.status == record.status:
+                    from apps.data_io.execution import sync_summary
+                    sync_summary(locked, batch)
                     locked.mark_failed('queue_expired' if locked.status == 'pending' else 'worker_lost_committed_rows_preserved')

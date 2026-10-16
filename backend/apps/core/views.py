@@ -10,6 +10,7 @@ from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -74,13 +75,14 @@ class DashboardStatsView(APIView):
         from apps.tasks.models import TaskRecord
 
         user = request.user
-        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today_start = timezone.localtime().replace(hour=0, minute=0, second=0, microsecond=0)
+        tomorrow_start = today_start + timedelta(days=1)
 
         # 7 日登录趋势（含今天），date() 抽取在 sqlite/PostgreSQL 均可用
         start = today_start - timedelta(days=6)
         trend_rows = (
-            scope_queryset(LoginLog.objects.filter(created_at__gte=start), user, 'log', 'user_id')
-            .extra(select={'day': 'date(created_at)'})
+            scope_queryset(LoginLog.objects.filter(created_at__gte=start, created_at__lt=tomorrow_start), user, 'log', 'user_id')
+            .annotate(day=TruncDate('created_at', tzinfo=timezone.get_current_timezone()))
             .values('day')
             .annotate(
                 success=Count('id', filter=Q(status='success')),
@@ -113,8 +115,8 @@ class DashboardStatsView(APIView):
                     'files': scope_queryset(FileModel.objects.filter(is_deleted=False, purpose='general'), user, 'file', 'uploader_id', fallback='self').count() if module_enabled('files') else 0,
                     'pending_approvals': ApprovalRequest.objects.filter(assignee=user, status='pending').count() if module_enabled('approvals') else 0,
                     'unread_notifications': user.notifications.filter(is_read=False).count() if module_enabled('notifications') else 0,
-                    'today_logins': scope_queryset(LoginLog.objects.filter(created_at__gte=today_start, status='success'), user, 'log', 'user_id').count(),
-                    'today_operations': scope_queryset(OperationLog.objects.filter(created_at__gte=today_start), user, 'log', 'user_id').count(),
+                    'today_logins': scope_queryset(LoginLog.objects.filter(created_at__gte=today_start, created_at__lt=tomorrow_start, status='success'), user, 'log', 'user_id').count(),
+                    'today_operations': scope_queryset(OperationLog.objects.filter(created_at__gte=today_start, created_at__lt=tomorrow_start), user, 'log', 'user_id').count(),
                 },
                 'login_trend': login_trend,
                 'task_status': task_status,

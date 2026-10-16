@@ -10,11 +10,11 @@ async function setup(page: Page, english = false) {
   await page.route('**/api/v1/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname
     if (path.endsWith('/auth/me/')) return route.fulfill({ json: envelope({ id: state.userId, username: 'admin', is_staff: true, permissions: state.permissions }) })
-    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: ['files', 'tasks', 'notifications', 'system'].map(key => ({ key, enabled: key !== 'files' || state.files, paths: key === 'system' ? ['/system'] : [`/${key}`], dependencies: [] })) }) })
+    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: ['files', 'tasks', 'notifications', 'system'].map(key => ({ key, enabled: key !== 'files' || state.files, paths: key === 'system' ? ['/system'] : [`/${key}`], dependencies: [], ...(key === 'files' ? { page_permissions: { '/files': 'file:read' } } : {}) })) }) })
     if (path.endsWith('/brand/')) return route.fulfill({ json: envelope({ name: 'AdminCore' }) })
     if (path.endsWith('/menus/my_menu/')) return route.fulfill({ json: envelope([{ id: 'u', name: '用户管理', path: '/users', icon: 'users' }, { id: 'r', name: '角色权限', path: '/roles', icon: 'shield' }, { id: 'f', name: '文件管理', path: '/files', icon: 'folder' }, { id: 'l', name: '操作日志', path: '/logs', icon: 'logs' }]) })
     if (path.endsWith('/notifications/unread_count/')) return route.fulfill({ json: envelope({ count: 0 }) })
-    if (path.endsWith('/dashboard/stats/')) return route.fulfill({ json: envelope({ totals: {}, login_trend: [], task_status: {} }) })
+    if (path.endsWith('/dashboard/stats/')) return route.fulfill({ json: envelope({ totals: {}, login_trend: [{ date: '2026-10-16', success: 2, failed: 1 }], task_status: {} }) })
     if (path.endsWith('/auth/logout/')) return route.fulfill({ json: envelope({}) })
     const current = Number(url.searchParams.get('page') || 1), size = Number(url.searchParams.get('page_size') || 10)
     let items: unknown[] = []
@@ -29,6 +29,39 @@ async function setup(page: Page, english = false) {
   return state
 }
 const tabs = (page: Page) => page.locator('.navigation-shell .navigation-tab')
+
+test('菜单搜索支持键盘选择、无结果和手机入口，受当前权限约束', async ({ page }) => {
+  const state = await setup(page)
+  state.permissions = ['user:read']
+  await page.goto('/')
+  const mobile = page.viewportSize()!.width <= 768
+  if (mobile) await page.getByRole('button', { name: '搜索菜单', exact: true }).click()
+  const input = page.locator('input[aria-label="搜索菜单"]:visible')
+  await input.fill('管理')
+  const results = page.locator('.el-autocomplete-suggestion:visible')
+  await expect(results).toContainText('用户管理')
+  await expect(results).not.toContainText('文件管理')
+  await input.press('ArrowDown')
+  await input.press('Enter')
+  await expect(page).toHaveURL(/\/users$/)
+  if (mobile) await expect(page.getByRole('dialog', { name: '搜索菜单', exact: true })).not.toBeVisible()
+  if (mobile) await page.getByRole('button', { name: '搜索菜单', exact: true }).click()
+  const currentInput = mobile ? page.getByRole('dialog', { name: '搜索菜单', exact: true }).getByRole('textbox') : input
+  await currentInput.fill('不存在的菜单')
+  await expect(page.locator('.menu-search')).toContainText('没有匹配的菜单')
+  expect(await page.locator('.app-header').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+})
+
+test('仪表盘图表提供键盘可展开的数据表', async ({ page }) => {
+  await setup(page)
+  await page.goto('/')
+  const details = page.locator('.chart-data').first()
+  await details.locator('summary').focus()
+  await page.keyboard.press('Enter')
+  await expect(details.locator('table')).toBeVisible()
+  await expect(details.locator('caption')).toHaveText('近 7 日登录趋势')
+})
+
 async function switchTo(page: Page, path: string) { await page.locator(`.navigation-tab[data-path="${path}"]`).click() }
 async function openFromSidebar(page: Page, path: string) {
   if (page.viewportSize()!.width <= 768) await page.getByRole('button', { name: /打开菜单|Open Menu/ }).click()

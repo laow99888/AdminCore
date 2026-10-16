@@ -207,7 +207,7 @@ def test_backup_rejects_local_symlink(tmp_path):
 
 
 @pytest.mark.django_db
-def test_remote_delete_failure_keeps_file_record_and_reports_failed_task(admin_user, monkeypatch):
+def test_remote_delete_failure_keeps_durable_intent(admin_user, monkeypatch):
     from datetime import timedelta
     from django.utils import timezone
     from apps.files.models import FileModel
@@ -220,8 +220,10 @@ def test_remote_delete_failure_keeps_file_record_and_reports_failed_task(admin_u
     storage = record.file.storage
     key = record.file.name
     monkeypatch.setattr(storage, 'delete', lambda *args: (_ for _ in ()).throw(OSError('fixture outage')))
-    with pytest.raises(OSError):
-        cleanup_soft_deleted_files()
-    record.refresh_from_db()
-    assert record.file.name == key and storage.exists(key)
-    assert TaskRecord.objects.filter(task_type='cleanup', status='failed').exists()
+    from apps.core.tasks import dispatch_outbox
+    from apps.core.models import OutboxEvent
+    assert cleanup_soft_deleted_files()['purged_files'] == 1
+    assert dispatch_outbox()['failed'] == 1
+    assert not FileModel.objects.filter(pk=record.pk).exists() and storage.exists(key)
+    assert OutboxEvent.objects.filter(topic='file.purge', status='failed').exists()
+    assert TaskRecord.objects.filter(task_type='cleanup', status='success').exists()

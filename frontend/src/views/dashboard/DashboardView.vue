@@ -26,7 +26,8 @@
               <template #header>
                 <div class="card-header-title">{{ uiText("近 7 日登录趋势") }}</div>
               </template>
-              <BaseChart v-if="trendOption" :option="trendOption" :height="320" />
+              <BaseChart v-if="trendOption" :option="trendOption" :height="320" :caption="uiText('近 7 日登录趋势')"
+                :table="{ headers: [uiText('日期'), uiText('成功'), uiText('失败')], rows: (stats?.login_trend || []).map(row => [row.date, row.success, row.failed]) }" />
               <el-skeleton v-else :rows="5" animated />
             </el-card>
           </el-col>
@@ -35,7 +36,8 @@
               <template #header>
                 <div class="card-header-title">{{ uiText("任务状态分布") }}</div>
               </template>
-              <BaseChart v-if="taskOption" :option="taskOption" :height="320" />
+              <BaseChart v-if="taskOption" :option="taskOption" :height="320" :caption="uiText('任务状态分布')"
+                :table="{ headers: [uiText('状态'), uiText('数量')], rows: Object.entries(stats?.task_status || {}).map(([status, count]) => [TASK_STATUS_LABELS[status] || status, count]) }" />
               <div v-else class="chart-empty">{{ uiText("暂无任务数据") }}</div>
             </el-card>
           </el-col>

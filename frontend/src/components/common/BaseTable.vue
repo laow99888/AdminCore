@@ -50,10 +50,11 @@
       >
         <template #default="{ row }">
           <div class="action-buttons">
-            <slot name="actions" :row="row">
+            <slot v-if="$slots.actions" name="actions" :row="row" />
+            <template v-else>
               <el-button link type="primary" size="small" @click="handleEdit(row)">{{ uiText("编辑") }}</el-button>
               <el-button link type="danger" size="small" @click="handleDelete(row)">{{ uiText("删除") }}</el-button>
-            </slot>
+            </template>
           </div>
         </template>
       </el-table-column>

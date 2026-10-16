@@ -61,7 +61,7 @@ class FileModel(SoftDeleteModel):
             raise LifecycleConflict('存储中的文件已不存在，无法恢复')
 
     def hard_delete(self, *, expected_version=None, deleted_before=None, audit=None):
-        """行锁与恢复共用；清理任务持锁后复核状态和截止时间。存储失败保留记录。"""
+        """原子登记存储删除意图并删除记录；提交前绝不删除存储对象。"""
         with transaction.atomic():
             row = type(self).objects.select_for_update().filter(pk=self.pk).first()
             if row is None:
@@ -77,10 +77,10 @@ class FileModel(SoftDeleteModel):
             if audit:
                 audit(row)
             if row.file:
-                try:
-                    row.file.delete(save=False)
-                except Exception as exc:
-                    raise FileStorageError('存储暂时不可用，请稍后重试') from exc
+                from apps.core.events import enqueue_event
+                from .deletion import storage_identity
+                enqueue_event('file.purge', 'file-purge:' + str(row.pk),
+                              {'name': row.file.name, 'storage': storage_identity()})
             row.delete()
         return True
 

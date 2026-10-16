@@ -26,7 +26,7 @@ COPY . .
 RUN printf '{"profile":"%s"}\n' "$ADMINCORE_BUILD_PROFILE" > /app/config/build-profile.json
 
 # 构建期收集静态文件（不依赖数据库；production settings 要求显式 key）
-RUN python -c "import os, secrets; os.environ['DJANGO_SECRET_KEY'] = secrets.token_urlsafe(64); os.environ['ADMINCORE_PRESET'] = 'minimal'; os.environ['ADMINCORE_MODULES'] = ''; os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'; from django.core.management import execute_from_command_line; execute_from_command_line(['manage.py', 'collectstatic', '--noinput'])"
+RUN python -c "import os, secrets; os.environ['DJANGO_SECRET_KEY'] = secrets.token_urlsafe(64); os.environ['DB_PASSWORD'] = secrets.token_urlsafe(48); os.environ['ADMINCORE_PRESET'] = 'minimal'; os.environ['ADMINCORE_MODULES'] = ''; os.environ['DJANGO_SETTINGS_MODULE'] = 'config.settings'; from django.core.management import execute_from_command_line; execute_from_command_line(['manage.py', 'collectstatic', '--noinput'])"
 
 EXPOSE 8000
 

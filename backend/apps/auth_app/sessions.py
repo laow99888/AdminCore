@@ -1,5 +1,4 @@
 """JWT 会话的登记、校验和锁顺序：用户行 → 会话行。"""
-import ipaddress
 from datetime import timedelta
 from uuid import UUID
 
@@ -15,6 +14,7 @@ from rest_framework_simplejwt.utils import get_md5_hash_password
 
 from apps.logs.models import OperationLog
 from .models import AuthSession
+from apps.core.client_ip import request_ip
 
 User = get_user_model()
 
@@ -25,13 +25,6 @@ class SessionRefreshToken(RefreshToken):
         token = super().access_token
         token['exp'] = min(token['exp'], self['exp'])
         return token
-
-
-def request_ip(request):
-    try:
-        return str(ipaddress.ip_address(request.META.get('REMOTE_ADDR', '')))
-    except (ValueError, AttributeError):
-        return None
 
 
 def agent_hint(request):
