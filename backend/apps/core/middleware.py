@@ -68,6 +68,8 @@ class RequestTrackingMiddleware:
             return self.finish(request, response)
         finally:
             request_id.reset(token)
+            from apps.core.tenancy import clear_current_tenant
+            clear_current_tenant()
 
     async def async_call(self, request):
         from apps.logs.context import request_id
@@ -77,6 +79,8 @@ class RequestTrackingMiddleware:
             return self.finish(request, response)
         finally:
             request_id.reset(token)
+            from apps.core.tenancy import clear_current_tenant
+            clear_current_tenant()
 
 
 class ErrorHandlingMiddleware(MiddlewareMixin):

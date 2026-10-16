@@ -5,8 +5,19 @@
 from django.db import models
 import uuid
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from .contracts import scope_resources
 from .modules import MODULES
+from .tenancy import current_tenant_id, enabled
+
+
+class TenantManager(models.Manager):
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        tenant_id = current_tenant_id() if enabled() else None
+        if tenant_id is not None and any(field.name == 'tenant' for field in self.model._meta.get_fields()):
+            queryset = queryset.filter(tenant_id=tenant_id)
+        return queryset
 
 
 class BootstrapState(models.Model):
@@ -15,18 +26,67 @@ class BootstrapState(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
 
+class Tenant(models.Model):
+    STATUS_ACTIVE = 'active'
+    STATUS_SUSPENDED = 'suspended'
+    STATUS_CLOSED = 'closed'
+    STATUS_CHOICES = [(STATUS_ACTIVE, '正常'), (STATUS_SUSPENDED, '暂停'), (STATUS_CLOSED, '已关闭')]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    slug = models.SlugField(max_length=64, unique=True)
+    name = models.CharField(max_length=120)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default=STATUS_ACTIVE, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name', 'id']
+
+
 class BaseModel(models.Model):
     """所有模型的基类"""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey('core.Tenant', on_delete=models.PROTECT, null=True, blank=True,
+                               related_name='%(app_label)s_%(class)s_records', verbose_name='租户')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+    objects = TenantManager()
+    all_objects = models.Manager()
 
     class Meta:
         abstract = True
         ordering = ['-created_at']
 
+    def save(self, *args, **kwargs):
+        tenant_id = current_tenant_id() if enabled() else None
+        if tenant_id is not None:
+            if self.tenant_id is not None and str(self.tenant_id) != str(tenant_id):
+                raise ValidationError('记录不能写入当前租户之外的租户')
+            if self.tenant_id is None:
+                self.tenant_id = tenant_id
+                update_fields = kwargs.get('update_fields')
+                if update_fields is not None and 'tenant' not in update_fields:
+                    kwargs['update_fields'] = tuple(update_fields) + ('tenant',)
+        return super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.__class__.__name__}({self.id})"
+
+
+class TenantMembership(models.Model):
+    """用户在租户中的成员和管理角色。"""
+    ROLE_CHOICES = [('owner', '所有者'), ('admin', '管理员'), ('member', '成员')]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='memberships')
+    user = models.ForeignKey('auth_app.User', on_delete=models.CASCADE, related_name='tenant_memberships')
+    role = models.CharField(max_length=12, choices=ROLE_CHOICES, default='member')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    objects = models.Manager()
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['tenant', 'user'], name='unique_tenant_membership')]
+        indexes = [models.Index(fields=['user', 'is_active']), models.Index(fields=['tenant', 'is_active'])]
 
 
 class LifecycleConflict(Exception):

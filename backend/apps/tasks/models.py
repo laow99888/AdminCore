@@ -7,7 +7,7 @@ import uuid
 from django.db import models
 from django.contrib.auth import get_user_model
 
-from apps.core.models import BaseModel
+from apps.core.models import BaseModel, TenantManager
 
 User = get_user_model()
 
@@ -118,6 +118,8 @@ class ImportBatch(BaseModel):
 
 
 class ImportExecution(models.Model):
+    tenant = models.ForeignKey('core.Tenant', on_delete=models.PROTECT, null=True, blank=True,
+                               related_name='task_import_executions')
     record = models.OneToOneField(TaskRecord, on_delete=models.CASCADE, primary_key=True, related_name='import_execution')
     batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name='executions')
     attempt = models.PositiveSmallIntegerField(default=1)
@@ -125,13 +127,17 @@ class ImportExecution(models.Model):
     session_version = models.PositiveIntegerField()
     session_id = models.UUIDField(null=True, blank=True)
     request_id = models.CharField(max_length=100, blank=True)
+    objects = TenantManager()
 
 
 class ImportRowReceipt(models.Model):
+    tenant = models.ForeignKey('core.Tenant', on_delete=models.PROTECT, null=True, blank=True,
+                               related_name='task_import_row_receipts')
     batch = models.ForeignKey(ImportBatch, on_delete=models.CASCADE, related_name='receipts')
     row = models.PositiveIntegerField()
     created = models.BooleanField()
     error = models.CharField(max_length=300, blank=True)
+    objects = TenantManager()
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=['batch', 'row'], name='import_row_once')]

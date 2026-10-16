@@ -51,6 +51,8 @@ request.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`
     if (!(config as any)._retried) (config as any)._sessionToken = token
   }
+  const tenant = localStorage.getItem('admincore.tenant')
+  if (tenant) config.headers['X-AdminCore-Tenant'] = tenant
   return config
 })
 

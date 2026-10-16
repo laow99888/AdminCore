@@ -8,6 +8,9 @@ from rest_framework.exceptions import PermissionDenied
 class SessionJWTAuthentication(JWTAuthentication):
     def authenticate(self, request):
         result = super().authenticate(request)
+        if result:
+            from apps.core.tenancy import activate_for_user
+            activate_for_user(request, result[0])
         if result and result[0].must_change_password:
             from .views import AuthViewSet
             callback = request.resolver_match.func

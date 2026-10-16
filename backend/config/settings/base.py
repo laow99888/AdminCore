@@ -26,6 +26,7 @@ validate_profile(ADMINCORE_BUILD_PROFILE, ADMINCORE_MODULES,
                  os.getenv('ADMINCORE_IMAGE_PROCESSING_ENABLED', 'False').lower() == 'true')
 from apps.core.api_lifecycle import load_configuration
 ADMINCORE_API_LIFECYCLE = load_configuration(os.getenv('ADMINCORE_API_LIFECYCLE', '{}'))
+ADMINCORE_MULTI_TENANT_ENABLED = os.getenv('ADMINCORE_MULTI_TENANT_ENABLED', 'False').lower() == 'true'
 
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -120,6 +121,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'apps.core.tenancy_middleware.TenantContextMiddleware',
     'apps.core.middleware.PasswordChangeSessionMiddleware',
     'apps.core.db_routing_middleware.DatabaseRoutingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',

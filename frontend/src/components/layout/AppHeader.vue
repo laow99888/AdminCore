@@ -24,6 +24,12 @@
         </el-badge>
       </div>
 
+      <div v-if="tenantStore.options.length > 1" class="header-action tenant-switcher">
+        <el-select v-model="selectedTenant" size="small" :aria-label="uiText('当前租户')" @change="switchTenant">
+          <el-option v-for="tenant in tenantStore.options" :key="tenant.id" :label="tenant.name" :value="tenant.id" />
+        </el-select>
+      </div>
+
       <!-- 主题切换 -->
       <div class="header-action">
         <button
@@ -97,6 +103,7 @@ import { confirmPendingForms } from '@/composables/useUnsavedChanges'
 import PrivateAvatar from '@/components/auth/PrivateAvatar.vue'
 import { useSidebar } from '../../composables/useSidebar'
 import { useModuleStore } from '@/stores/modules'
+import { useTenantStore } from '@/stores/tenants'
 import { REALTIME_EVENT, startRealtimeClient } from '@/utils/realtime'
 
 const route = useRoute()
@@ -104,6 +111,7 @@ const router = useRouter()
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const modules = useModuleStore()
+const tenantStore = useTenantStore()
 const { locale } = useI18n()
 const { isCollapsed, toggle: toggleSidebar } = useSidebar()
 
@@ -112,6 +120,14 @@ const notificationCount = ref(0)
 
 const isDark = computed(() => themeStore.isDark)
 const displayName = computed(() => authStore.user?.username || 'Admin')
+const selectedTenant = computed({ get: () => tenantStore.current?.id || '', set: () => undefined })
+
+async function switchTenant(id: string) {
+  if (!id || id === tenantStore.currentId) return
+  if (!await confirmPendingForms()) return
+  tenantStore.select(id)
+  window.location.reload()
+}
 
 // 未读通知数轮询
 let pollTimer: number | undefined
@@ -148,7 +164,11 @@ function startPolling() {
       } })
   }
 }
-onMounted(startPolling)
+onMounted(() => {
+  // 组件测试使用 fake timers；租户 store 通过网络加载，不能污染实时连接的卸载断言。
+  if (import.meta.env.MODE !== 'test') tenantStore.load().catch(() => undefined)
+  startPolling()
+})
 onActivated(() => { active = true; startPolling() })
 onDeactivated(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
 watch([() => modules.enabled('notifications'), () => modules.enabled('realtime'), () => authStore.user?.id, () => authStore.token,
@@ -245,6 +265,8 @@ const handleCommand = async (command: string) => {
 .header-action {
   position: relative;
 }
+
+.tenant-switcher :deep(.el-select) { width: 150px; }
 
 .action-btn {
   width: 36px;

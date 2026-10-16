@@ -77,7 +77,7 @@ def run_data_import(self, task_record_id):
                 return
             batch = ImportBatch.objects.create(source=source, source_sha256=digest(source.file),
                                               resource=record.related_resource, active_record=record)
-            execution = ImportExecution.objects.create(record=record, batch=batch, policy=policy('import'),
+            execution = ImportExecution.objects.create(tenant=record.tenant, record=record, batch=batch, policy=policy('import'),
                                                        session_version=actor.session_version)
     with transaction.atomic():
         batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
@@ -165,7 +165,7 @@ def run_data_import(self, task_record_id):
                                 action='create', after=snapshot(resource, obj), record=locked, origin=execution.request_id,
                                 description='import_row_created')
                     # 仅保留受控错误码，不写原始姓名、邮箱或供应商错误。
-                    ImportRowReceipt.objects.create(batch=batch, row=index + 2, created=obj is not None,
+                    ImportRowReceipt.objects.create(tenant=batch.tenant, batch=batch, row=index + 2, created=obj is not None,
                                                     error='row_validation_failed' if error else '')
                     summary['processed'] += 1
                     summary['created' if obj is not None else 'failed'] += 1

@@ -35,7 +35,7 @@ def register(record, source, request=None, batch=None, attempt=1):
     batch = batch or ImportBatch.objects.create(source=source, source_sha256=digest(source.file),
                                                resource=record.related_resource, active_record=record)
     session_id = request.auth.get('sid') if request is not None and request.auth is not None else None
-    execution = ImportExecution.objects.create(record=record, batch=batch, attempt=attempt, policy=current,
+    execution = ImportExecution.objects.create(tenant=record.tenant, record=record, batch=batch, attempt=attempt, policy=current,
         session_version=record.creator.session_version, session_id=session_id,
         request_id=str(getattr(request, 'request_id', ''))[:100])
     record.celery_task_id = str(record.pk)
