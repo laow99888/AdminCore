@@ -110,7 +110,7 @@ const tableColumns = [
     prop: 'duration',
     label: uiText("耗时"),
     width: '90px',
-    render: (v: any) => (v != null ? `${v}s` : '—'),
+    render: (v: unknown) => (v != null ? `${v}s` : '—'),
   },
   { prop: 'created_at', label: uiText("创建时间"), width: '180px' },
 ]

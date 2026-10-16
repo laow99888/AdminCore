@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 
-import { computed } from 'vue'
+import { computed, type Component } from 'vue'
 
 type ButtonType = 'default' | 'primary' | 'success' | 'warning' | 'danger'
 
@@ -23,7 +23,7 @@ interface Props {
   size?: 'small' | 'default' | 'large'
   loading?: boolean
   disabled?: boolean
-  icon?: any
+  icon?: string | Component
   type?: ButtonType
 }
 

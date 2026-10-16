@@ -150,7 +150,7 @@ const tableColumns = [
     prop: 'permissions',
     label: uiText("权限数"),
     width: '100px',
-    render: (_v: any, row: RoleRow) => String(row.permissions?.length || 0),
+    render: (_v: unknown, row: RoleRow) => String(row.permissions?.length || 0),
   },
   {
     prop: 'is_active',
