@@ -7,7 +7,7 @@ import { uiText } from "@/i18n/uiText"
  * - 统一错误提示（后端约定响应格式 {code, message, data}）
  */
 
-import axios from 'axios'
+import axios, { type AxiosError } from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '../router'
 import { useAuthStore } from '../stores/auth'
@@ -16,6 +16,13 @@ import { apiLanguage } from './language'
 import publicRequest from './publicRequest'
 import { API_BASE_URL } from './baseUrl'
 import { getAccessToken } from '../auth/tokenStorage'
+
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    _retried?: boolean
+    _sessionToken?: string | null
+  }
+}
 
 export interface ApiResponse<T = any> {
   code: number
@@ -44,13 +51,13 @@ const request = axios.create({
 request.interceptors.request.use((config) => {
   config.headers['Accept-Language'] = apiLanguage()
   const token = getAccessToken()
-  if ((config as any)._retried && !tokensBelongToSameSession((config as any)._sessionToken, token)) {
+  if (config._retried && !tokensBelongToSameSession(config._sessionToken ?? null, token)) {
     // Re-login between refresh completion and dispatch must not replay prior work as the new actor.
     throw Object.assign(new Error('Session changed before retry'), { __CANCEL__: true })
   }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
-    if (!(config as any)._retried) (config as any)._sessionToken = token
+    if (!config._retried) config._sessionToken = token
   }
   const tenant = localStorage.getItem('admincore.tenant')
   if (tenant) config.headers['X-AdminCore-Tenant'] = tenant
@@ -80,13 +87,14 @@ function forceRelogin() {
   }
 }
 
-async function handle401(error: any): Promise<any> {
+async function handle401(error: AxiosError): Promise<unknown> {
   const config = error.config
+  if (!config) return Promise.reject(error)
   const authorization = config?.headers?.Authorization
   const failedAccess = typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : getAccessToken()
   const originalAccess = config?._sessionToken ?? failedAccess
   const isAuthEndpoint = /\/auth\/(login|refresh)\//.test(config?.url || '')
-  if (isAuthEndpoint || (config as any)?._retried) {
+  if (isAuthEndpoint || config?._retried) {
     // 登录/刷新本身的 401 由页面自行提示（登录页密码错误等）
     if (!isAuthEndpoint && config?.headers?.Authorization === `Bearer ${getAccessToken()}`) forceRelogin()
     return Promise.reject(error)
@@ -105,9 +113,9 @@ async function handle401(error: any): Promise<any> {
     return Promise.reject(error)
   }
   if (!tokensBelongToSameSession(originalAccess, access) || !tokensBelongToSameSession(originalAccess, getAccessToken())) return Promise.reject(error)
-  ;(config as any)._retried = true
-  ;(config as any)._sessionToken = originalAccess
-  config.headers = { ...config.headers, Authorization: `Bearer ${access}` }
+  config._retried = true
+  config._sessionToken = originalAccess
+  config.headers.Authorization = `Bearer ${access}`
   return request(config)
 }
 
