@@ -48,7 +48,7 @@ def _headers(scope):
     result = {}
     for name, value in scope.get('headers', []):
         key = name.decode('ascii').lower()
-        if key in result and key in {'authorization', 'host', 'origin', 'x-forwarded-proto'}:
+        if key in result and key in {'authorization', 'host', 'origin', 'x-forwarded-proto', 'x-forwarded-for'}:
             raise ValueError('重复请求头')
         result[key] = value.decode('latin1')
     return result
@@ -97,14 +97,34 @@ async def _disconnect(receive):
             return
 
 
-async def _stream(raw_token, lease_id, request_id, send):
+def _ip_request(scope, headers):
+    request = HttpRequest()
+    client = scope.get('client')
+    request.META = {'REMOTE_ADDR': client[0] if client else '',
+                    'HTTP_X_FORWARDED_FOR': headers.get('x-forwarded-for', '')}
+    return request
+
+
+def _policy_snapshot(raw_token, lease_id, request):
+    from apps.ip_policy.services import enforce
+    enforce(request)
+    return realtime.snapshot(raw_token, lease_id)
+
+
+def _policy_acquire(raw_token, request):
+    from apps.ip_policy.services import enforce
+    enforce(request)
+    return realtime.acquire(raw_token)
+
+
+async def _stream(raw_token, lease_id, request_id, send, policy_request=None):
     loop = asyncio.get_running_loop()
     deadline = loop.time() + realtime.STREAM_SECONDS
     previous = None
     sequence = 0
     while loop.time() < deadline:
         try:
-            data = await asyncio.wait_for(database(realtime.snapshot, raw_token, lease_id),
+            data = await asyncio.wait_for(database(_policy_snapshot, raw_token, lease_id, policy_request),
                                           timeout=min(5, max(0.01, deadline - loop.time())))
         except (APIException, InvalidToken, TokenError):
             await _send(send, {'type': 'http.response.body', 'body': _frame('access_revoked', {'request_id': request_id}), 'more_body': True})
@@ -198,12 +218,13 @@ async def localized_application(scope, receive, send):
     lease_id = None
     tasks = []
     try:
-        lease_id = await database(realtime.acquire, raw_token)
+        policy_request = _ip_request(scope, headers)
+        lease_id = await database(_policy_acquire, raw_token, policy_request)
         await _send(send, {'type': 'http.response.start', 'status': 200, 'headers': [
             (b'content-type', b'text/event-stream; charset=utf-8'), (b'cache-control', b'private, no-store'),
             (b'x-accel-buffering', b'no'), (b'x-request-id', request_id.encode()),
             (b'x-content-type-options', b'nosniff'), (b'x-frame-options', b'DENY')]})
-        tasks = [asyncio.create_task(_stream(raw_token, lease_id, request_id, send)),
+        tasks = [asyncio.create_task(_stream(raw_token, lease_id, request_id, send, policy_request)),
                  asyncio.create_task(_disconnect(receive))]
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         for task in done:

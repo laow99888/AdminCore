@@ -375,5 +375,14 @@
   "目标必须存在且不能重复": "Targets must exist and must not be duplicated.",
   "选择目标无效": "The selected targets are invalid.",
   "最多选择100个不重复目标": "Select up to 100 unique targets.",
-  "记录已变化，请查看最新值后重试": "The record has changed. Review the latest values and try again."
+  "记录已变化，请查看最新值后重试": "The record has changed. Review the latest values and try again.",
+  "IP 访问策略暂不可用": "IP access policy is temporarily unavailable",
+  "当前来源不允许访问": "Access from this source is not allowed",
+  "没有 IP 策略操作权限": "You do not have permission to manage the IP policy",
+  "策略会拒绝当前来源，请先保留当前管理员访问": "This policy would deny your current source. Preserve your current administrator access first",
+  "请输入有效的 IPv4、IPv6 或 CIDR": "Enter a valid IPv4, IPv6 or CIDR",
+  "不允许带区域标识的 IP 地址": "Scoped IP addresses are not allowed",
+  "同一网络不能重复登记": "The same network cannot be registered twice",
+  "只能提交登记的 IP 策略字段": "Submit only registered IP policy fields",
+  "预检只接受当前来源与策略配置": "Preview accepts only policy configuration for the current source"
 }

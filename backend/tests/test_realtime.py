@@ -123,7 +123,7 @@ def test_disabled_topics_do_not_read_business_tables(member_user):
 
 
 def _asgi(scope, *, acquire=None, snapshot=None, disconnect_on_body=True, request_body=b''):
-    from config.realtime_asgi import application
+    from config.realtime_asgi import application, _policy_acquire, _policy_snapshot
     async def run():
         output = []
         disconnect = asyncio.Event()
@@ -141,10 +141,10 @@ def _asgi(scope, *, acquire=None, snapshot=None, disconnect_on_body=True, reques
                 disconnect.set()
         with patch('config.realtime_asgi.database') as db:
             async def execute(function, *args):
-                if function is realtime.acquire:
+                if function in (realtime.acquire, _policy_acquire):
                     if isinstance(acquire, Exception): raise acquire
                     return acquire
-                if function is realtime.snapshot:
+                if function in (realtime.snapshot, _policy_snapshot):
                     if isinstance(snapshot, Exception): raise snapshot
                     return snapshot or {}
             db.side_effect = execute

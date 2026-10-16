@@ -353,6 +353,7 @@ jobs:
       - run: python -m pytest -q scripts/tests/test_backup_runner.py scripts/tests/test_office_preview_runner.py scripts/tests/test_office_preview_fixtures.py scripts/tests/test_codegen_installation.py scripts/tests/test_office_preview_validation_http.py
       - run: python scripts/validate_audit_fixes.py
       - run: python scripts/validate_feature_flags.py
+      - run: python scripts/validate_ip_policy.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -361,6 +362,7 @@ jobs:
           path: |
             .codex-validation/admincore-audit-fixes-*/
             .codex-validation/admincore-flags-*/
+            .codex-validation/admincore-ip-policy-*/
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20

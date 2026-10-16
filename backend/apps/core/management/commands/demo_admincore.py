@@ -36,6 +36,9 @@ class Command(BaseCommand):
             with transaction.atomic():
                 if reset:
                     call_command('flush', interactive=False, verbosity=0)
+                    # flush 不重新运行数据迁移，恢复默认关闭的基础单例。
+                    from apps.ip_policy.models import IPPolicy
+                    IPPolicy.objects.create(pk=1)
                 # 普通bootstrap只创建环境中独立随机管理员，禁止走旧固定demo路径。
                 with override_settings(ADMINCORE_PRESET='standard'):
                     call_command('bootstrap_admincore', stdout=self.stdout)

@@ -145,6 +145,22 @@ def test_unmarked_existing_database_is_never_adopted(seed_context):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize('changes', [{'enabled': True}, {'allow': ['127.0.0.1/32']},
+                                    {'deny': ['192.0.2.0/24']}, {'version': 2}])
+def test_modified_ip_policy_is_business_data_and_never_adopted(seed_context, changes):
+    from apps.ip_policy.models import IPPolicy
+    row, _ = IPPolicy.objects.get_or_create(pk=1)
+    for name, value in changes.items():
+        setattr(row, name, value)
+    row.save()
+    with pytest.raises(CommandError, match='拒绝接管'):
+        call_command('demo_admincore', stdout=StringIO())
+    row.refresh_from_db()
+    assert all(getattr(row, name) == value for name, value in changes.items())
+    assert not User.objects.exists()
+
+
+@pytest.mark.django_db
 def test_bad_reset_token_and_foreign_marker_never_reach_flush(seed_context, monkeypatch):
     called = MagicMock()
     monkeypatch.setattr(command, 'call_command', called)
@@ -174,6 +190,9 @@ def test_reset_only_owned_fixture_and_removes_old_sessions(seed_context):
     assert User.objects.count() == 3 and not User.objects.filter(pk=old_admin).exists()
     assert not AuthSession.objects.exists() and WorkItem.objects.count() == 6
     assert BootstrapState.objects.filter(key=seed_context[0]).exists()
+    from apps.ip_policy.models import IPPolicy
+    policy = IPPolicy.objects.get(pk=1)
+    assert not policy.enabled and policy.version == 1 and policy.allow == [] and policy.deny == []
 
 
 def test_duplicate_seed_lock_fails_closed(identity):

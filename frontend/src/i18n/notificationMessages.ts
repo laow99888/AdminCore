@@ -1,5 +1,7 @@
 /** 通知模板专用文案随模块页面加载。 */
 export const notificationMessages: Record<string, string> = {
+  'Twilio 短信': 'Twilio SMS',
+  '外部渠道成功表示对端接收；短信结果不确定时终止，请核对供应商记录后处理。': 'External success means provider acceptance. Unknown SMS outcomes are terminated; check provider records before taking action.',
   '版本': 'Version',
   '发送中': 'Sending',
   "模板编辑生成新版本；已登记投递保持原版本。邮件仅发送至已验证邮箱。": "Editing creates a new version. Queued deliveries keep their original version. Email requires a verified address.",

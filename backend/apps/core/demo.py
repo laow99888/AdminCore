@@ -57,7 +57,11 @@ def require_empty_database():
     for config in apps.get_app_configs():
         if config.name.startswith('apps.'):
             for model in config.get_models():
-                if model._base_manager.exists():
+                records = model._base_manager.all()
+                # 迁移创建的未使用默认策略不是业务数据；任何修改仍拒绝接管。
+                if model._meta.label_lower == 'ip_policy.ippolicy':
+                    records = records.exclude(pk=1, enabled=False, allow=[], deny=[], version=1)
+                if records.exists():
                     raise CommandError('数据库已有业务记录且没有本实例演示标记，拒绝接管')
 
 

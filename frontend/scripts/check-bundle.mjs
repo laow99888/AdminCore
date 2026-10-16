@@ -31,6 +31,8 @@ const credentialsPage = Object.keys(manifest).find(key => key.endsWith('/APICred
 assert(minimal ? !credentialsPage : credentialsPage && !visited.has(credentialsPage), '开放凭证页面必须按构建能力发布并排除登录首屏')
 const flagsPage = Object.keys(manifest).find(key => key.endsWith('/FeatureFlagsView.vue'))
 assert(minimal ? !flagsPage : flagsPage && !visited.has(flagsPage), '特性开关页面必须按构建能力发布并排除登录首屏')
+const ipPolicyPage = Object.keys(manifest).find(key => key.endsWith('/IPPolicyView.vue'))
+assert(minimal ? !ipPolicyPage : ipPolicyPage && !visited.has(ipPolicyPage), 'IP 策略页面必须按构建能力发布并排除登录首屏')
 for (const [key, chunk] of Object.entries(manifest)) {
   if (key.includes('tiptap') || key.includes('prosemirror') || /richtext-editor/.test(chunk.file)) {
     assert(!visited.has(key), '登录首屏不可加载富文本编辑依赖')

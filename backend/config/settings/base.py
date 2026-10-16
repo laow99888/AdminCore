@@ -99,6 +99,7 @@ INSTALLED_APPS = [
     'apps.api_credentials',
     'apps.sso',
     'apps.feature_flags',
+    'apps.ip_policy',
 ]
 
 # 中间件
@@ -110,6 +111,7 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'apps.core.error_i18n.APIErrorI18nMiddleware',
+    'apps.ip_policy.middleware.IPPolicyMiddleware',
     'corsheaders.middleware.CorsMiddleware',  # CORS
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -392,7 +394,7 @@ CACHES = {
 # ===== 日志配置 =====
 # 精简部署无需 Redis/worker；单进程限流使用本地缓存。
 if (set(ADMINCORE_MODULES) <= {'realtime'} or
-        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example', 'files', 'feature_flags'})):
+        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example', 'files', 'feature_flags', 'ip_policy'})):
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # 默认只输出控制台，由部署平台有界轮转，避免多个 worker 竞争同一文件。

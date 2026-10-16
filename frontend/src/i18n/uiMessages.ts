@@ -1,4 +1,5 @@
 export const uiMessages: Record<string, string> = {
+  'IP 访问策略': 'IP access policy',
   '特性开关': 'Feature flags',
   '搜索菜单': 'Search menus',
   '没有匹配的菜单': 'No matching menus',
@@ -16,8 +17,6 @@ export const uiMessages: Record<string, string> = {
   "读取示例工单": "Read Example Work Items",
   "查看本人开放凭证": "View My API Credentials",
   "撤销本人开放凭证": "Revoke My API Credentials",
-  'Twilio 短信': 'Twilio SMS',
-  '外部渠道成功表示对端接收；短信结果不确定时终止，请核对供应商记录后处理。': 'External success means provider acceptance. Unknown SMS outcomes are terminated; check provider records before taking action.',
   '资源导入': 'Resource Import', '选择导入文件': 'Select Import File',
   '下载模板失败，请重试': 'Template download failed. Please retry.',
   '请选择不超过 10 MiB 的 CSV 或 XLSX 文件': 'Select a CSV or XLSX file no larger than 10 MiB.',
