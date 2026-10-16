@@ -364,5 +364,16 @@
   "已登记删除，存储清理失败将自动重试": "Deletion queued. Storage cleanup will retry on failure.",
   "收件人不能重复": "Recipients must not be duplicated.",
   "收件人须为 1 到 1000 项的列表": "Provide a list of 1 to 1000 recipients.",
-  "附加数据最大 20000 字符": "Additional data must not exceed 20000 characters."
+  "附加数据最大 20000 字符": "Additional data must not exceed 20000 characters.",
+  "只能提交不重复的开关标识，不允许指定其他用户": "Submit unique flag keys only. Selecting another user is not allowed.",
+  "只能提交登记的开关字段": "Only registered flag fields may be submitted.",
+  "同一用户不能同时包含和排除": "A user cannot be both included and excluded.",
+  "开关标识创建后不可修改": "The flag key cannot be changed after creation.",
+  "开关标识已存在": "The flag key already exists.",
+  "必须提交读取到的版本": "Submit the version you read.",
+  "没有特性开关操作权限": "You do not have permission to manage feature flags.",
+  "目标必须存在且不能重复": "Targets must exist and must not be duplicated.",
+  "选择目标无效": "The selected targets are invalid.",
+  "最多选择100个不重复目标": "Select up to 100 unique targets.",
+  "记录已变化，请查看最新值后重试": "The record has changed. Review the latest values and try again."
 }

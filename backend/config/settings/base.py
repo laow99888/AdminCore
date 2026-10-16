@@ -98,6 +98,7 @@ INSTALLED_APPS = [
     'apps.example',
     'apps.api_credentials',
     'apps.sso',
+    'apps.feature_flags',
 ]
 
 # 中间件
@@ -391,7 +392,7 @@ CACHES = {
 # ===== 日志配置 =====
 # 精简部署无需 Redis/worker；单进程限流使用本地缓存。
 if (set(ADMINCORE_MODULES) <= {'realtime'} or
-        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example', 'files'})):
+        (ADMINCORE_PRESET == 'minimal' and set(ADMINCORE_MODULES) <= {'realtime', 'system', 'example', 'files', 'feature_flags'})):
     CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
 # 默认只输出控制台，由部署平台有界轮转，避免多个 worker 竞争同一文件。

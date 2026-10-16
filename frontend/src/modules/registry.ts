@@ -6,6 +6,9 @@ export const frontendExtensions = [{
   key: 'api_credentials', path: '/integrations/credentials', permission: 'api_credential:read', title: '开放凭证',
   component: () => import('../views/settings/APICredentialsView.vue'),
 }, ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : [{
+  key: 'feature_flags', path: '/system/feature-flags', permission: 'feature_flag:read', title: '特性开关',
+  component: () => import('../views/system/FeatureFlagsView.vue'),
+}, {
   key: 'sso', path: '/integrations/identities', permission: 'sso:read', title: '企业身份绑定',
   component: () => import('../views/settings/ExternalIdentitiesView.vue'),
 }])] as const

@@ -40,8 +40,10 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useErrorSummary } from '@/composables/useErrorSummary'
 import { useEditConflict } from '@/composables/useEditConflict'
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
-import { uiText } from '@/i18n/uiText'
+import { uiText, registerUiMessages } from '@/i18n/uiText'
+import { exampleMessages } from '@/i18n/exampleMessages'
 
+registerUiMessages(exampleMessages)
 const auth = useAuthStore(), modules = useModuleStore()
 const rows = ref<ExampleWorkItem[]>([]), total = ref(0), page = ref(1), pageSize = ref(10)
 const search = ref(''), appliedSearch = ref(''), status = ref(''), loading = ref(false), loadError = ref(false)

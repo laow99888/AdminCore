@@ -352,12 +352,15 @@ jobs:
         working-directory: backend
       - run: python -m pytest -q scripts/tests/test_backup_runner.py scripts/tests/test_office_preview_runner.py scripts/tests/test_office_preview_fixtures.py scripts/tests/test_codegen_installation.py scripts/tests/test_office_preview_validation_http.py
       - run: python scripts/validate_audit_fixes.py
+      - run: python scripts/validate_feature_flags.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: audit-fixes-postgres-evidence
           include-hidden-files: true
-          path: .codex-validation/admincore-audit-fixes-*/
+          path: |
+            .codex-validation/admincore-audit-fixes-*/
+            .codex-validation/admincore-flags-*/
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20

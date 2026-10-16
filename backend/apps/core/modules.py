@@ -13,6 +13,7 @@ from apps.core.organization_manifest import MODULE as ORGANIZATION_MODULE
 from apps.core.realtime_manifest import MODULE as REALTIME_MODULE
 from apps.api_credentials.manifest import MODULE as API_CREDENTIALS_MODULE
 from apps.sso.manifest import MODULE as SSO_MODULE
+from apps.feature_flags.manifest import MODULE as FEATURE_FLAGS_MODULE
 
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
@@ -28,7 +29,7 @@ BUILTIN_MODULES = (
     ORGANIZATION_MODULE,
     REALTIME_MODULE,
 )
-MODULES = BUILTIN_MODULES + (EXAMPLE_MODULE, API_CREDENTIALS_MODULE, SSO_MODULE)
+MODULES = BUILTIN_MODULES + (EXAMPLE_MODULE, API_CREDENTIALS_MODULE, SSO_MODULE, FEATURE_FLAGS_MODULE)
 PRESETS = {'minimal': (), 'standard': tuple(m.key for m in MODULES if m.default_enabled),
            'demo': tuple(m.key for m in MODULES if m.default_enabled)}
 CORE_MODULES = ('core', 'auth_app', 'users', 'permissions', 'logs')
