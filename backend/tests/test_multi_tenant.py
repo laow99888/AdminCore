@@ -43,6 +43,29 @@ def test_tenant_context_isolates_list_and_direct_id_queries():
 
 @pytest.mark.django_db
 @override_settings(ADMINCORE_MULTI_TENANT_ENABLED=True)
+def test_tenant_api_rejects_direct_id_from_other_tenant():
+    """租户请求头必须同时约束列表和详情，不能靠直接 ID 绕过隔离。"""
+    admin = User.objects.create_superuser(username='tenant-detail-admin', password='Strong#12345')
+    tenant_a = Tenant.objects.create(slug='detail-a', name='详情 A')
+    tenant_b = Tenant.objects.create(slug='detail-b', name='详情 B')
+    with tenant_context(tenant_a.pk):
+        own = TaskRecord.objects.create(name='A 详情', creator=admin)
+    with tenant_context(tenant_b.pk):
+        other = TaskRecord.objects.create(name='B 详情', creator=admin)
+
+    client = APIClient()
+    client.force_authenticate(admin)
+    response = client.get('/api/v1/tasks/', HTTP_X_ADMINCORE_TENANT=str(tenant_a.pk))
+    assert response.status_code == 200
+    assert {item['id'] for item in response.json()['data']['items']} == {str(own.pk)}
+    assert client.get(
+        f'/api/v1/tasks/{other.pk}/',
+        HTTP_X_ADMINCORE_TENANT=str(tenant_a.pk),
+    ).status_code == 404
+
+
+@pytest.mark.django_db
+@override_settings(ADMINCORE_MULTI_TENANT_ENABLED=True)
 def test_user_requires_membership_or_explicit_tenant_header():
     user = User.objects.create_user(username='tenant-member', password='Strong#12345')
     tenant_a = Tenant.objects.create(slug='member-a', name='成员 A')
