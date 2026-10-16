@@ -1,6 +1,24 @@
 import request, { type ApiResponse } from './request'
 import { newIdempotencyKey, type TaskRow } from './index'
 
+export interface MaintenanceTaskResult extends Record<string, unknown> {
+  skipped?: boolean
+  dry_run?: boolean
+  retention_days?: number
+  retention_count?: number
+  eligible_files?: number
+  eligible_notifications?: number
+  protected_imports?: number
+  failed?: number
+  more?: boolean
+  eligible?: Record<string, number>
+  deleted?: Record<string, number>
+}
+
+export interface MaintenanceTaskRow extends Omit<TaskRow, 'result'> {
+  result: MaintenanceTaskResult | null
+}
+
 export interface MaintenanceSchedule {
   key: string
   name: string
@@ -17,7 +35,7 @@ export interface MaintenanceSchedule {
   requires_preview: boolean
   confirmation: string
   preview: { id: string; result: Record<string, unknown>; completed_at: string } | null
-  last_run: TaskRow | null
+  last_run: MaintenanceTaskRow | null
 }
 
 export const maintenanceApi = {

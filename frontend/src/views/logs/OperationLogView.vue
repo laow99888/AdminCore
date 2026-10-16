@@ -30,7 +30,7 @@
         <label class="virtual-toggle"><input v-model="virtual" type="checkbox" :disabled="loading" />{{ uiText('虚拟滚动（当前页）') }}</label>
         <div v-if="loadError" role="alert" class="list-error"><p>{{ uiText('列表加载失败，请刷新重试') }}</p><BaseButton :disabled="loading" @click="loadLogs">{{ uiText('重试') }}</BaseButton></div>
         <template v-if="virtual">
-          <BaseVirtualTable :data="printRows" :columns="activeTab === 'operation' ? operationColumns : activeTab === 'login' ? loginColumns : exceptionColumns" :loading="loading" :label="uiText('系统日志')" :context-key="`${printOwner}:${activeTab}:${currentPage}:${pageSize}`">
+          <BaseVirtualTable :data="printRows" :columns="virtualColumns" :loading="loading" :label="uiText('系统日志')" :context-key="`${printOwner}:${activeTab}:${currentPage}:${pageSize}`">
             <template v-if="activeTab === 'operation'" #actions="{ row }"><el-button link type="primary" @click="openAudit(row.id)">{{ uiText('审计详情') }}</el-button></template>
           </BaseVirtualTable>
           <div v-if="total > 0" class="virtual-pagination"><el-pagination :current-page="currentPage" :page-size="pageSize" :page-sizes="[10,20,50,100]" :pager-count="isMobile ? 5 : 7" :total="total" layout="total, sizes, prev, pager, next, jumper" @current-change="handlePageChange" @size-change="handlePageSizeChange" /></div>
@@ -97,7 +97,8 @@ import { uiText } from "@/i18n/uiText"
 import { computed, defineAsyncComponent, ref, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
-import { logsApi, type OperationLogRow } from '@/api'
+import type { VirtualColumn } from '@/components/common/BaseVirtualTable.vue'
+import { logsApi, type ExceptionLogRow, type LoginLogRow, type OperationLogRow } from '@/api'
 import { usePageState } from '@/composables/usePageState'
 import DataExportButton from '@/components/common/DataExportButton.vue'
 import PrintTableButton from '@/components/common/PrintTableButton.vue'
@@ -144,9 +145,10 @@ watch(printOwner, () => {
 usePageState({ activeTab, search, currentPage, pageSize })
 
 const operationLogs = ref<OperationLogRow[]>([])
-const loginLogs = ref<any[]>([])
-const exceptionLogs = ref<any[]>([])
-const printRows = computed(() => activeTab.value === 'operation' ? operationLogs.value : activeTab.value === 'login' ? loginLogs.value : exceptionLogs.value)
+const loginLogs = ref<LoginLogRow[]>([])
+const exceptionLogs = ref<ExceptionLogRow[]>([])
+type LogRow = OperationLogRow | LoginLogRow | ExceptionLogRow
+const printRows = computed<LogRow[]>(() => activeTab.value === 'operation' ? operationLogs.value : activeTab.value === 'login' ? loginLogs.value : exceptionLogs.value)
 const printColumns = computed<PrintColumn<Record<string, any>>[]>(() => activeTab.value === 'operation' ? [
   { label: uiText('时间'), value: row => row.created_at },
   { label: uiText('操作'), value: row => row.action },
@@ -198,6 +200,10 @@ const exceptionColumns = [
   },
   { prop: 'request_path', label: uiText("请求路径") },
 ]
+
+const virtualColumns = computed<VirtualColumn<LogRow>[]>(() => activeTab.value === 'operation'
+  ? operationColumns as VirtualColumn<LogRow>[]
+  : activeTab.value === 'login' ? loginColumns as VirtualColumn<LogRow>[] : exceptionColumns as VirtualColumn<LogRow>[])
 
 let active = true, generation = 0
 const exportReady = ref(false)

@@ -335,6 +335,16 @@ export interface RoleRow {
   created_at: string
 }
 
+export interface PermissionRow {
+  id: string
+  name: string
+  code: string
+  resource: string
+  action: string
+  description: string
+  created_at: string
+}
+
 export interface MenuRow {
   version: number
   id: string
@@ -359,7 +369,7 @@ export const rolesApi = {
 }
 
 export const permissionsApi = {
-  list: (params?: ListParams) => getPaged<any>('/permissions/permissions/', params),
+  list: (params?: ListParams) => getPaged<PermissionRow>('/permissions/permissions/', params),
 }
 
 export const menusApi = {
@@ -437,9 +447,29 @@ export interface OperationLogRow {
   batch_results?: Array<{ id: string; status: number }>
 }
 
+export interface LoginLogRow {
+  id: string
+  username: string
+  status: 'success' | 'failed' | 'locked'
+  ip_address: string
+  error_message: string
+  created_at: string
+}
+
+export interface ExceptionLogRow {
+  id: string
+  level: 'debug' | 'info' | 'warning' | 'error' | 'critical'
+  message: string
+  username?: string | null
+  ip_address?: string | null
+  request_path: string
+  request_method: string
+  created_at: string
+}
+
 export const logsApi = {
   operation: (params?: ListParams) => getPaged<OperationLogRow>('/logs/operation/', params),
   operationDetail: async (id: string) => (await request.get<OperationLogRow>(`/logs/operation/${id}/`)).data,
-  login: (params?: ListParams) => getPaged<any>('/logs/login/', params),
-  exception: (params?: ListParams) => getPaged<any>('/logs/exception/', params),
+  login: (params?: ListParams) => getPaged<LoginLogRow>('/logs/login/', params),
+  exception: (params?: ListParams) => getPaged<ExceptionLogRow>('/logs/exception/', params),
 }
