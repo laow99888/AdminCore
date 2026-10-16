@@ -76,6 +76,21 @@ interface OrganizationRow {
   scope?: string
   departments?: string[]
 }
+interface OrganizationForm {
+  id: string
+  version: number
+  name: string
+  parent: string | null
+  order: number
+  is_active: boolean
+  user: string
+  department: string
+  role: string
+  resource: string
+  scope: string
+  departments: string[]
+  [key: string]: unknown
+}
 
 const auth = useAuthStore()
 const section = ref<OrganizationSection>('departments')
@@ -96,7 +111,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 usePageState({ section, page, pageSize })
-const form = reactive<any>({})
+const form = reactive<OrganizationForm>({ id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [] })
 const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
 function applyOrganization(row: OrganizationRow) {
   for (const key of Object.keys(form)) delete form[key]
@@ -104,7 +119,7 @@ function applyOrganization(row: OrganizationRow) {
   if (section.value === 'memberships' && row.user && row.username) userOptions.value = [{ id: row.user, username: row.username }]
   formError.value = ''; formGuard.markClean()
 }
-const conflict = useEditConflict<any>({ identifier: () => visible.value && form.id ? section.value + '/' + form.id : '', current: () => formGuard.isCurrent(), fetch: (_, signal) => organizationApi.detail(section.value, form.id, signal), apply: applyOrganization })
+const conflict = useEditConflict<OrganizationForm>({ identifier: () => visible.value && form.id ? section.value + '/' + form.id : '', current: () => formGuard.isCurrent(), fetch: (_, signal) => organizationApi.detail<OrganizationForm>(section.value, form.id, signal), apply: applyOrganization })
 const conflictRows = computed(() => {
   const server = conflict.latest.value
   if (!server) return []
