@@ -42,6 +42,19 @@ export interface PagedData<T = any> {
   pagination: Pagination
 }
 
+/** 从未知异常中提取可展示的固定消息，避免业务组件把 catch 值当作 any。 */
+export function errorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error) return error
+  if (axios.isAxiosError(error)) {
+    const data: unknown = error.response?.data
+    if (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) {
+      return data.message
+    }
+  }
+  return fallback
+}
+
 const request = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,

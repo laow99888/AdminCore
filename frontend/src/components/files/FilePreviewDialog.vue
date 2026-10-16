@@ -31,6 +31,7 @@ import { uiText } from '@/i18n/uiText'
 import type { FileRow } from '@/api'
 import { fetchPreview } from '@/api/filePreview'
 import { fetchOfficePreview, isOfficeFormat } from '@/api/officePreview'
+import { errorMessage } from '@/api/request'
 
 const props = defineProps<{ file: FileRow | null }>()
 const emit = defineEmits<{ close: [] }>()
@@ -128,8 +129,8 @@ async function load() {
     pdf.value = document
     pageCount.value = document.numPages
     await renderPage(1)
-  } catch (failure: any) {
-    if (current === generation) { error.value = failure?.message || uiText('预览加载失败，请重试或下载查看'); busy.value = false }
+  } catch (failure: unknown) {
+    if (current === generation) { error.value = errorMessage(failure, uiText('预览加载失败，请重试或下载查看')); busy.value = false }
   }
 }
 

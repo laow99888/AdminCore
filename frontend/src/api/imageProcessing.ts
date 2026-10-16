@@ -1,6 +1,14 @@
 import request, { type ApiResponse } from './request'
 import { uiText } from '@/i18n/uiText'
 
+function responseBlob(error: unknown): Blob | null {
+  if (!error || typeof error !== 'object' || !('response' in error)) return null
+  const response = error.response
+  if (!response || typeof response !== 'object' || !('data' in response)) return null
+  const data = response.data
+  return data instanceof Blob || (data && typeof data === 'object' && 'text' in data && typeof data.text === 'function') ? data as Blob : null
+}
+
 export interface ProcessingConfig { enabled: boolean; max_bytes: number; max_pixels: number; max_dimension: number; watermark_max_bytes: number; formats: string[] }
 export interface ImageOptions { width: number; height: number; format: 'png' | 'jpeg' | 'webp'; quality: number; opacity: number; position: 'bottom-right' | 'center' }
 export const canProcessImage = (type: string) => /^(jpg|jpeg|png|gif|webp|bmp|ico)$/i.test(type)
@@ -19,11 +27,14 @@ export async function processImage(id: string, version: number, options: ImageOp
       throw new Error(uiText('图片处理结果不符合安全限制'))
     }
     return blob
-  } catch (error: any) {
-    if (error.response?.data instanceof Blob && error.response.data.size < 64 * 1024) {
+  } catch (error: unknown) {
+    const blob = responseBlob(error)
+    if (blob && blob.size < 64 * 1024) {
       try {
-        const body = JSON.parse(await error.response.data.text())
-        if (typeof body.message === 'string') error.message = uiText(body.message)
+        const body = JSON.parse(await blob.text())
+        if (typeof body.message === 'string' && error && typeof error === 'object') {
+          (error as { message?: string }).message = uiText(body.message)
+        }
       } catch { /* 保留固定兜底提示 */ }
     }
     throw error

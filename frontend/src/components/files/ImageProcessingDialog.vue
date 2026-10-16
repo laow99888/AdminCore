@@ -60,6 +60,7 @@ import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { tokensBelongToSameSession } from '@/api/tokenRefresh'
 import { processImage, type ImageOptions } from '@/api/imageProcessing'
+import { errorMessage } from '@/api/request'
 import type { FileRow } from '@/api'
 
 registerUiMessages(imageProcessingMessages)
@@ -111,8 +112,8 @@ async function generate() {
     const blob = await processImage(file.id, file.lifecycle_version, { ...form }, watermark.value, controller.signal)
     if (current !== generation || props.file?.id !== file.id || !draft.isCurrent() || !allowed.value) return
     resultUrl.value = URL.createObjectURL(blob); resultSize.value = blob.size
-  } catch (failure: any) {
-    if (current === generation && !controller?.signal.aborted) error.value = failure?.message || uiText('图片处理失败，请重试')
+  } catch (failure: unknown) {
+    if (current === generation && !controller?.signal.aborted) error.value = errorMessage(failure, uiText('图片处理失败，请重试'))
   } finally {
     if (current === generation) { busy.value = false; controller = null }
   }
