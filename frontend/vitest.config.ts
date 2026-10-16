@@ -10,9 +10,11 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
-      include: ['src/components/common/Base{Form,Table,Dialog}.vue'],
+      // R1：覆盖率统计纳入所有产品源码，避免基础组件门槛被误读为全前端覆盖率。
+      include: ['src/**/*.{ts,vue}'],
       reporter: ['text', 'html', 'json-summary'],
-      thresholds: { statements: 80, branches: 70, functions: 80, lines: 80 },
+      // 当前基线是全量统计的下限，随关键业务回归增加逐步提升，不以测试数量代替风险覆盖。
+      thresholds: { statements: 25, branches: 15, functions: 25, lines: 25 },
     },
   },
 })

@@ -8,6 +8,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# 运行时使用专用非 root 用户；挂载的 named volume 会继承这些目录的属主。
+RUN groupadd --system --gid 10001 admincore \
+    && useradd --system --uid 10001 --gid admincore --home-dir /app --shell /usr/sbin/nologin admincore \
+    && mkdir -p /app/media /app/staticfiles /app/logs \
+    && chown -R admincore:admincore /app
+
 # 系统依赖（psycopg2-binary 无需编译，curl 用于容器健康检查）
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
@@ -32,6 +38,9 @@ EXPOSE 8000
 
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# 迁移、任务 worker/beat 和 gunicorn 均以非 root 身份运行。
+USER admincore
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "60"]
