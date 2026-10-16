@@ -46,9 +46,28 @@ const loading = ref(false), busy = ref(false), enabled = ref(false), ready = ref
 const otpCode = ref(''), captchaCode = ref(''), captcha = ref<LoginCaptchaChallenge>({ required: false })
 const validOtp = computed(() => /^(?:\d{6}|[0-9a-f]{32})$/.test(otpCode.value.trim()))
 let controller: AbortController | undefined, alive = true
-function failureText(failure: any) {
-  const status = failure?.response?.status
+function failureText(failure: unknown) {
+  const status = responseStatus(failure)
   return uiText(status === 429 ? '尝试过于频繁，请稍后再试。' : status === 401 ? '企业登录确认已失效或认证码无效，请重试。' : '企业登录暂不可用，请使用本地登录或联系管理员。')
+}
+
+function responseStatus(failure: unknown): number | undefined {
+  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
+  const response: unknown = failure.response
+  return response && typeof response === 'object' && 'status' in response && typeof response.status === 'number' ? response.status : undefined
+}
+
+function responseData(failure: unknown): unknown {
+  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
+  const response: unknown = failure.response
+  return response && typeof response === 'object' && 'data' in response ? response.data : undefined
+}
+
+function failureCode(failure: unknown): string | undefined {
+  const data: unknown = responseData(failure)
+  if (!data || typeof data !== 'object' || !('data' in data)) return undefined
+  const nested: unknown = data.data
+  return nested && typeof nested === 'object' && 'code' in nested && typeof nested.code === 'string' ? nested.code : undefined
 }
 async function loadStatus() {
   if (busy.value || !alive) return
@@ -73,7 +92,7 @@ async function load() {
     if (enabled.value && route.query.result === 'ready') await loadStatus()
     else if (enabled.value && route.query.result === 'failed') { error.value = uiText('企业身份授权未完成、未绑定或已失效，请重试或联系管理员。'); await loadStartCaptcha() }
     else if (enabled.value) await loadStartCaptcha()
-  } catch (failure: any) { if (alive && !active.signal.aborted && failure?.response?.status !== 404) error.value = failureText(failure) }
+  } catch (failure: unknown) { if (alive && !active.signal.aborted && responseStatus(failure) !== 404) error.value = failureText(failure) }
   finally { if (alive && controller === active) loading.value = false }
 }
 async function begin() {
@@ -91,10 +110,10 @@ async function finish() {
   busy.value = true; error.value = ''
   const proof: SSOLocalProof = { ...(mfaRequired.value ? { otp_code: otpCode.value.trim() } : {}), ...(captcha.value.required ? { captcha_id: captcha.value.challenge_id, captcha_code: captchaCode.value.trim() } : {}) }
   try { await auth.loginSSO(proof, controller?.signal); if (alive) { otpCode.value = ''; captchaCode.value = ''; await router.replace('/') } }
-  catch (failure: any) {
+  catch (failure: unknown) {
     if (!alive) return
     otpCode.value = ''; error.value = failureText(failure)
-    const code = failure?.response?.data?.data?.code
+    const code = failureCode(failure)
     if (code === 'mfa_required') mfaRequired.value = true
     // Re-check the server's pending flow and captcha without replaying the login POST.
     busy.value = false; await loadStatus()

@@ -13,12 +13,17 @@ import { ssoMessages } from '@/i18n/ssoMessages'
 registerUiMessages(ssoMessages)
 defineProps<{ disabled?: boolean }>()
 const router = useRouter(), enabled = ref(false), error = ref(false), loading = ref(false), label = ref('')
+function responseStatus(failure: unknown): number | undefined {
+  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
+  const response: unknown = failure.response
+  return response && typeof response === 'object' && 'status' in response && typeof response.status === 'number' ? response.status : undefined
+}
 let controller: AbortController | undefined, alive = true
 async function load() {
   controller?.abort(); const active = controller = new AbortController()
   enabled.value = false; error.value = false; loading.value = true
   try { const result = await ssoApi.config(active.signal); if (alive && controller === active) { enabled.value = result.enabled; label.value = result.label || '' } }
-  catch (failure: any) { if (alive && !active.signal.aborted && failure?.response?.status !== 404) error.value = true }
+  catch (failure: unknown) { if (alive && !active.signal.aborted && responseStatus(failure) !== 404) error.value = true }
   finally { if (alive && controller === active) loading.value = false }
 }
 void load()

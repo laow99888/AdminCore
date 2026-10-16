@@ -4,6 +4,7 @@ import json
 import shutil
 
 import pytest
+import yaml
 
 SPEC = spec_from_file_location('dependency_locks', Path(__file__).parents[1] / 'check_dependency_locks.py')
 module = module_from_spec(SPEC)
@@ -14,7 +15,7 @@ SPEC.loader.exec_module(module)
 def copied(tmp_path):
     for name in ['backend/requirements.txt', 'backend/requirements.lock', 'backend/requirements.minimal.txt', 'backend/requirements.minimal.lock', 'backend/Dockerfile',
                  'frontend/package.json', 'frontend/package-lock.json', 'frontend/.npmrc', 'frontend/Dockerfile',
-                 'frontend/vendor/xlsx-0.20.3.tgz', '.python-version', '.nvmrc']:
+                 'frontend/vendor/xlsx-0.20.3.tgz', '.python-version', '.nvmrc', 'docker-compose.yml']:
         target = tmp_path / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(module.ROOT / name, target)
@@ -40,6 +41,22 @@ def test_backend_image_declares_profiles_and_non_root_runtime(copied):
     assert "full) pip install --no-cache-dir --require-hashes -r requirements.lock" in dockerfile
     assert "minimal) pip install --no-cache-dir --require-hashes -r requirements.minimal.lock" in dockerfile
     assert 'USER admincore' in dockerfile
+
+
+def test_compose_roles_share_backend_build_and_health_contract(copied):
+    """backend、worker、beat 必须从同一后端构建上下文运行，并各自声明角色健康检查。"""
+
+    services = yaml.safe_load((copied / 'docker-compose.yml').read_text(encoding='utf-8'))['services']
+    for role in ('backend', 'worker', 'beat'):
+        service = services[role]
+        assert service['build'] == './backend'
+        assert service['restart'] == 'unless-stopped'
+        assert 'healthcheck' in service
+    assert services['worker']['command'].endswith('--concurrency=2')
+    assert 'worker' in ' '.join(services['worker']['healthcheck']['test'])
+    assert 'beat' in ' '.join(services['beat']['healthcheck']['test'])
+    for role in ('worker', 'beat'):
+        assert services[role]['depends_on']['backend']['condition'] == 'service_healthy'
 
 
 @pytest.mark.parametrize('line', ['Django>=5.2', 'https://example.test/pkg.whl', '-r secrets.txt', 'Django==5.2.0rc1'])

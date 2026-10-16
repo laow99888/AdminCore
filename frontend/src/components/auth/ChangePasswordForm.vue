@@ -40,6 +40,26 @@ const rules = computed<FormRules>(() => ({
   new2: [{ validator: (_rule, value, done) => done(!value || value !== form.new1 ? new Error(uiText('两次输入的新密码不一致')) : undefined), trigger: 'blur' }],
 }))
 
+function failureText(failure: unknown): string {
+  const data = responseData(failure)
+  if (data && typeof data === 'object') {
+    const body = data as { data?: unknown; message?: unknown }
+    if (body.data && typeof body.data === 'object') {
+      const values = Object.values(body.data as Record<string, unknown>).flatMap(value => Array.isArray(value) ? value : [value])
+        .filter((value): value is string | number => typeof value === 'string' || typeof value === 'number')
+      if (values.length) return values.join('；')
+    }
+    if (typeof body.message === 'string' && body.message) return body.message
+  }
+  return uiText('修改失败，请重试')
+}
+
+function responseData(failure: unknown): unknown {
+  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
+  const response: unknown = failure.response
+  return response && typeof response === 'object' && 'data' in response ? response.data : undefined
+}
+
 async function submit() {
   if (saving.value) return
   error.value = ''
@@ -52,12 +72,8 @@ async function submit() {
     auth.clearSession()
     ElMessage.success(uiText('密码修改成功，请使用新密码重新登录'))
     window.location.assign('/login')
-  } catch (failure: any) {
-    const body = failure?.response?.data
-    const details = body?.data
-    error.value = details && typeof details === 'object'
-      ? Object.values(details).flat().join('；')
-      : body?.message || uiText('修改失败，请重试')
+  } catch (failure: unknown) {
+    error.value = failureText(failure)
     await nextTick()
     errorRef.value?.focus()
   } finally {
