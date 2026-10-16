@@ -39,7 +39,7 @@ export interface ListParams {
   page_size?: number
   search?: string
   ordering?: string
-  [key: string]: any
+  [key: string]: unknown
 }
 
 async function getPaged<T>(url: string, params?: ListParams): Promise<PagedData<T>> {
@@ -140,7 +140,7 @@ export interface TaskRow {
   task_type: string
   status: string
   progress: number
-  result: any
+  result: unknown
   error: string
   creator_name?: string
   duration?: number | null
