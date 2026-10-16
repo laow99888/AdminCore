@@ -147,6 +147,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/{id}/add-sign/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_add_sign_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals/{id}/approve/": {
         parameters: {
             query?: never;
@@ -181,6 +198,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/{id}/cc/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_cc_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/delegate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_delegate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals/{id}/reject/": {
         parameters: {
             query?: never;
@@ -192,6 +243,23 @@ export interface paths {
         put?: never;
         /** @description 驳回申请 */
         post: operations["approvals_reject_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/transfer/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_transfer_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -226,6 +294,70 @@ export interface paths {
         get: operations["approvals_assignees_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/flows/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["approvals_flows_list"];
+        put?: never;
+        post: operations["approvals_flows_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/flows/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["approvals_flows_retrieve"];
+        put: operations["approvals_flows_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/flows/{id}/archive/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approvals_flows_archive_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/flows/{id}/publish/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approvals_flows_publish_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -874,10 +1006,29 @@ export interface paths {
         };
         /** @description 文件管理：上传 / 列表 / 下载 / 软删除 */
         get: operations["files_retrieve"];
-        put?: never;
+        /** @description 文件管理：上传 / 列表 / 下载 / 软删除 */
+        put: operations["files_update"];
         post?: never;
         /** @description 文件管理：上传 / 列表 / 下载 / 软删除 */
         delete: operations["files_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/{id}/acl/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 读取或替换单个文件的用户/角色授权。文件所有者和管理员可管理。 */
+        get: operations["files_acl_retrieve"];
+        /** @description 读取或替换单个文件的用户/角色授权。文件所有者和管理员可管理。 */
+        put: operations["files_acl_update"];
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1936,6 +2087,22 @@ export interface paths {
         patch: operations["organization_memberships_partial_update"];
         trace?: never;
     };
+    "/api/v1/organization/my-tenants/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["organization_my_tenants_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/people/": {
         parameters: {
             query?: never;
@@ -2118,6 +2285,70 @@ export interface paths {
          *     自定义 action 自行构造 Response 的不受影响。
          */
         patch: operations["organization_scopes_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/organization/tenant-memberships/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["organization_tenant_memberships_list"];
+        put?: never;
+        post: operations["organization_tenant_memberships_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/tenant-memberships/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["organization_tenant_memberships_retrieve"];
+        put: operations["organization_tenant_memberships_update"];
+        post?: never;
+        delete: operations["organization_tenant_memberships_destroy"];
+        options?: never;
+        head?: never;
+        patch: operations["organization_tenant_memberships_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/organization/tenants/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["organization_tenants_list"];
+        put?: never;
+        post: operations["organization_tenants_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/tenants/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["organization_tenants_retrieve"];
+        put: operations["organization_tenants_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["organization_tenants_partial_update"];
         trace?: never;
     };
     "/api/v1/organization/user-posts/": {
@@ -3026,6 +3257,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description * `read` - 读取
+         *     * `manage` - 管理
+         * @enum {string}
+         */
+        AccessLevelEnum: "read" | "manage";
         Announcement: {
             readonly content: string;
             readonly content_format: components["schemas"]["ContentFormatEnum"];
@@ -3121,6 +3358,8 @@ export interface components {
             assignee_username?: string;
             content: string;
             extra_data?: unknown;
+            /** Format: uuid */
+            flow_id?: string;
             /** @default other */
             request_type: components["schemas"]["RequestTypeEnum"];
             title: string;
@@ -3130,6 +3369,55 @@ export interface components {
             /** @default  */
             comment: string;
         };
+        ApprovalFlow: {
+            code: string;
+            /**
+             * 创建时间
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly created_by: string;
+            readonly created_by_name: string;
+            definition?: unknown;
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            /** Format: date-time */
+            readonly published_at: string | null;
+            /** Format: uuid */
+            readonly published_by: string | null;
+            readonly published_by_name: string;
+            readonly status: components["schemas"]["ApprovalFlowStatusEnum"];
+            /**
+             * 更新时间
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            readonly version: number;
+        };
+        ApprovalFlowDesign: {
+            code: string;
+            definition?: unknown;
+            name: string;
+        };
+        ApprovalFlowDesignRequest: {
+            code: string;
+            definition?: unknown;
+            name: string;
+        };
+        ApprovalFlowRequest: {
+            code: string;
+            definition?: unknown;
+            name: string;
+        };
+        /**
+         * @description * `draft` - 草稿
+         *     * `published` - 已发布
+         *     * `archived` - 已归档
+         * @enum {string}
+         */
+        ApprovalFlowStatusEnum: "draft" | "published" | "archived";
         ApprovalPickerDepartmentsResponse: {
             code: number;
             data: components["schemas"]["PickerDepartments"];
@@ -3154,6 +3442,9 @@ export interface components {
              */
             readonly assignee: string;
             readonly assignee_name: string;
+            readonly cc_recipients: {
+                [key: string]: unknown;
+            }[];
             /** 申请内容 */
             readonly content: string;
             /**
@@ -3161,6 +3452,7 @@ export interface components {
              * Format: date-time
              */
             readonly created_at: string;
+            readonly current_node: string;
             /**
              * 处理时间
              * Format: date-time
@@ -3177,13 +3469,21 @@ export interface components {
             /** 附加数据 */
             readonly extra_data: unknown;
             /** Format: uuid */
+            readonly flow: string | null;
+            readonly flow_name: string;
+            readonly flow_version: number | null;
+            /** Format: uuid */
             readonly id: string;
             /** 申请类型 */
             readonly request_type: components["schemas"]["RequestTypeEnum"];
             /** 状态 */
             readonly status: components["schemas"]["ApprovalStatusEnum"];
+            readonly steps: {
+                [key: string]: unknown;
+            }[];
             /** 标题 */
             readonly title: string;
+            readonly workflow_version: number;
         };
         /**
          * @description * `pending` - 待审批
@@ -3829,6 +4129,35 @@ export interface components {
             readonly uploader: string | null;
             readonly uploader_name: string;
         };
+        FileACL: {
+            grants: components["schemas"]["FileACLGrant"][];
+        };
+        FileACLGrant: {
+            access_level: components["schemas"]["AccessLevelEnum"];
+            /** @default true */
+            inherit_to_derivatives: boolean;
+            /** Format: uuid */
+            role_id?: string | null;
+            /** Format: uuid */
+            user_id?: string | null;
+        };
+        FileACLGrantRequest: {
+            access_level: components["schemas"]["AccessLevelEnum"];
+            /** @default true */
+            inherit_to_derivatives: boolean;
+            /** Format: uuid */
+            role_id?: string | null;
+            /** Format: uuid */
+            user_id?: string | null;
+        };
+        FileACLRequest: {
+            grants: components["schemas"]["FileACLGrantRequest"][];
+        };
+        FileACLResponse: {
+            code: number;
+            data: components["schemas"]["FileACL"];
+            message: string;
+        };
         FileRecycleActionResponse: {
             code: number;
             data: components["schemas"]["RecycleResult"];
@@ -4380,6 +4709,13 @@ export interface components {
             data: components["schemas"]["Menu"][];
             message: string;
         };
+        MyTenant: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            role: string;
+            slug: string;
+        };
         Namespace: {
             candidate_count: number;
             module: string;
@@ -4649,6 +4985,19 @@ export interface components {
             code: number;
             data: {
                 items: components["schemas"]["Announcement"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
+        PaginatedApprovalFlowList: {
+            code: number;
+            data: {
+                items: components["schemas"]["ApprovalFlow"][];
                 pagination: {
                     page?: number;
                     page_size?: number;
@@ -4970,6 +5319,32 @@ export interface components {
             };
             message: string;
         };
+        PaginatedTenantList: {
+            code: number;
+            data: {
+                items: components["schemas"]["Tenant"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
+        PaginatedTenantMembershipList: {
+            code: number;
+            data: {
+                items: components["schemas"]["TenantMembership"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
         PaginatedUserListList: {
             code: number;
             data: {
@@ -5125,6 +5500,7 @@ export interface components {
         PatchedRoleRequest: {
             /** 描述 */
             description?: string;
+            field_permissions?: unknown;
             /** 是否激活 */
             is_active?: boolean;
             /** 角色名 */
@@ -5161,6 +5537,19 @@ export interface components {
             revision?: number;
             subject?: string;
             variables?: string[];
+        };
+        PatchedTenantMembershipRequest: {
+            is_active?: boolean;
+            role?: components["schemas"]["RoleEnum"];
+            /** Format: uuid */
+            tenant?: string;
+            /** Format: uuid */
+            user?: string;
+        };
+        PatchedTenantRequest: {
+            name?: string;
+            slug?: string;
+            status?: components["schemas"]["TenantStatusEnum"];
         };
         /** @description 用户修改序列化器 */
         PatchedUserUpdateRequest: {
@@ -5548,6 +5937,7 @@ export interface components {
             readonly created_at: string;
             /** 描述 */
             description?: string;
+            field_permissions?: unknown;
             /** Format: uuid */
             readonly id: string;
             /** 是否激活 */
@@ -5568,6 +5958,13 @@ export interface components {
             data: components["schemas"]["Role"];
             message: string;
         };
+        /**
+         * @description * `owner` - 所有者
+         *     * `admin` - 管理员
+         *     * `member` - 成员
+         * @enum {string}
+         */
+        RoleEnum: "owner" | "admin" | "member";
         RolePatchedResponse: {
             code: number;
             data: components["schemas"]["Role"];
@@ -5577,6 +5974,7 @@ export interface components {
         RoleRequest: {
             /** 描述 */
             description?: string;
+            field_permissions?: unknown;
             /** 是否激活 */
             is_active?: boolean;
             /** 角色名 */
@@ -5963,6 +6361,53 @@ export interface components {
             subject: string;
             variables: string[];
         };
+        Tenant: {
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            slug: string;
+            status?: components["schemas"]["TenantStatusEnum"];
+            /** Format: date-time */
+            readonly updated_at: string;
+        };
+        TenantMembership: {
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly id: string;
+            is_active?: boolean;
+            role?: components["schemas"]["RoleEnum"];
+            /** Format: uuid */
+            tenant: string;
+            readonly tenant_name: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+            /** Format: uuid */
+            user: string;
+            readonly username: string;
+        };
+        TenantMembershipRequest: {
+            is_active?: boolean;
+            role?: components["schemas"]["RoleEnum"];
+            /** Format: uuid */
+            tenant: string;
+            /** Format: uuid */
+            user: string;
+        };
+        TenantRequest: {
+            name: string;
+            slug: string;
+            status?: components["schemas"]["TenantStatusEnum"];
+        };
+        /**
+         * @description * `active` - 正常
+         *     * `suspended` - 暂停
+         *     * `closed` - 已关闭
+         * @enum {string}
+         */
+        TenantStatusEnum: "active" | "suspended" | "closed";
         TokenPair: {
             access: string;
             refresh: string;
@@ -6827,6 +7272,33 @@ export interface operations {
             };
         };
     };
+    approvals_add_sign_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRequest"];
+                };
+            };
+        };
+    };
     approvals_approve_create: {
         parameters: {
             query?: never;
@@ -6887,6 +7359,60 @@ export interface operations {
             };
         };
     };
+    approvals_cc_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRequest"];
+                };
+            };
+        };
+    };
+    approvals_delegate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRequest"];
+                };
+            };
+        };
+    };
     approvals_reject_create: {
         parameters: {
             query?: never;
@@ -6916,6 +7442,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApprovalRejectedResponse"];
+                };
+            };
+        };
+    };
+    approvals_transfer_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRequest"];
                 };
             };
         };
@@ -6969,6 +7522,195 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApprovalAssigneesResponse"];
+                };
+            };
+        };
+    };
+    approvals_flows_list: {
+        parameters: {
+            query?: {
+                /** @description 用于排序结果的字段。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /** @description 搜索关键词。 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedApprovalFlowList"];
+                };
+            };
+        };
+    };
+    approvals_flows_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalFlowDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalFlowDesignRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalFlowDesignRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalFlowDesign"];
+                };
+            };
+        };
+    };
+    approvals_flows_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 approval flow 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalFlow"];
+                };
+            };
+        };
+    };
+    approvals_flows_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 approval flow 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalFlowDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalFlowDesignRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalFlowDesignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalFlowDesign"];
+                };
+            };
+        };
+    };
+    approvals_flows_archive_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 approval flow 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalFlowRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalFlowRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalFlowRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalFlow"];
+                };
+            };
+        };
+    };
+    approvals_flows_publish_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 approval flow 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalFlowRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalFlowRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalFlowRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalFlow"];
                 };
             };
         };
@@ -8677,6 +9419,33 @@ export interface operations {
             };
         };
     };
+    files_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 文件 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+        };
+    };
     files_destroy: {
         parameters: {
             query?: never;
@@ -8700,6 +9469,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    files_acl_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 文件 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileACLResponse"];
+                };
+            };
+        };
+    };
+    files_acl_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 文件 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileACLRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FileACLRequest"];
+                "multipart/form-data": components["schemas"]["FileACLRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileACLResponse"];
+                };
             };
         };
     };
@@ -11228,6 +12057,30 @@ export interface operations {
             };
         };
     };
+    organization_my_tenants_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyTenant"][];
+                };
+            };
+        };
+    };
     organization_people_retrieve: {
         parameters: {
             query?: {
@@ -11701,6 +12554,344 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScopePatchedResponse"];
+                };
+            };
+        };
+    };
+    organization_tenant_memberships_list: {
+        parameters: {
+            query?: {
+                /** @description 用于排序结果的字段。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /** @description 搜索关键词。 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedTenantMembershipList"];
+                };
+            };
+        };
+    };
+    organization_tenant_memberships_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantMembershipRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["TenantMembershipRequest"];
+                "multipart/form-data": components["schemas"]["TenantMembershipRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantMembership"];
+                };
+            };
+        };
+    };
+    organization_tenant_memberships_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant membership 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantMembership"];
+                };
+            };
+        };
+    };
+    organization_tenant_memberships_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant membership 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantMembershipRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["TenantMembershipRequest"];
+                "multipart/form-data": components["schemas"]["TenantMembershipRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantMembership"];
+                };
+            };
+        };
+    };
+    organization_tenant_memberships_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant membership 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    organization_tenant_memberships_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant membership 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedTenantMembershipRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedTenantMembershipRequest"];
+                "multipart/form-data": components["schemas"]["PatchedTenantMembershipRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TenantMembership"];
+                };
+            };
+        };
+    };
+    organization_tenants_list: {
+        parameters: {
+            query?: {
+                /** @description 用于排序结果的字段。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /** @description 搜索关键词。 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedTenantList"];
+                };
+            };
+        };
+    };
+    organization_tenants_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["TenantRequest"];
+                "multipart/form-data": components["schemas"]["TenantRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
+        };
+    };
+    organization_tenants_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
+        };
+    };
+    organization_tenants_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TenantRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["TenantRequest"];
+                "multipart/form-data": components["schemas"]["TenantRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
+                };
+            };
+        };
+    };
+    organization_tenants_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 tenant 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedTenantRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedTenantRequest"];
+                "multipart/form-data": components["schemas"]["PatchedTenantRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Tenant"];
                 };
             };
         };

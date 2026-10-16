@@ -50,9 +50,37 @@ export const sdkRoutes = {
     "get",
     "/api/v1/approvals/assignees/"
   ],
+  "approvals_flows_list": [
+    "get",
+    "/api/v1/approvals/flows/"
+  ],
+  "approvals_flows_create": [
+    "post",
+    "/api/v1/approvals/flows/"
+  ],
+  "approvals_flows_retrieve": [
+    "get",
+    "/api/v1/approvals/flows/{id}/"
+  ],
+  "approvals_flows_update": [
+    "put",
+    "/api/v1/approvals/flows/{id}/"
+  ],
+  "approvals_flows_archive_create": [
+    "post",
+    "/api/v1/approvals/flows/{id}/archive/"
+  ],
+  "approvals_flows_publish_create": [
+    "post",
+    "/api/v1/approvals/flows/{id}/publish/"
+  ],
   "approvals_retrieve": [
     "get",
     "/api/v1/approvals/{id}/"
+  ],
+  "approvals_add_sign_create": [
+    "post",
+    "/api/v1/approvals/{id}/add-sign/"
   ],
   "approvals_approve_create": [
     "post",
@@ -62,9 +90,21 @@ export const sdkRoutes = {
     "post",
     "/api/v1/approvals/{id}/cancel/"
   ],
+  "approvals_cc_create": [
+    "post",
+    "/api/v1/approvals/{id}/cc/"
+  ],
+  "approvals_delegate_create": [
+    "post",
+    "/api/v1/approvals/{id}/delegate/"
+  ],
   "approvals_reject_create": [
     "post",
     "/api/v1/approvals/{id}/reject/"
+  ],
+  "approvals_transfer_create": [
+    "post",
+    "/api/v1/approvals/{id}/transfer/"
   ],
   "auth_avatar_destroy": [
     "delete",
@@ -338,6 +378,18 @@ export const sdkRoutes = {
     "get",
     "/api/v1/files/{id}/"
   ],
+  "files_update": [
+    "put",
+    "/api/v1/files/{id}/"
+  ],
+  "files_acl_retrieve": [
+    "get",
+    "/api/v1/files/{id}/acl/"
+  ],
+  "files_acl_update": [
+    "put",
+    "/api/v1/files/{id}/acl/"
+  ],
   "files_download_retrieve": [
     "get",
     "/api/v1/files/{id}/download/"
@@ -566,6 +618,10 @@ export const sdkRoutes = {
     "put",
     "/api/v1/organization/memberships/{id}/"
   ],
+  "organization_my_tenants_list": [
+    "get",
+    "/api/v1/organization/my-tenants/"
+  ],
   "organization_people_retrieve": [
     "get",
     "/api/v1/organization/people/"
@@ -621,6 +677,50 @@ export const sdkRoutes = {
   "organization_scopes_update": [
     "put",
     "/api/v1/organization/scopes/{id}/"
+  ],
+  "organization_tenant_memberships_list": [
+    "get",
+    "/api/v1/organization/tenant-memberships/"
+  ],
+  "organization_tenant_memberships_create": [
+    "post",
+    "/api/v1/organization/tenant-memberships/"
+  ],
+  "organization_tenant_memberships_destroy": [
+    "delete",
+    "/api/v1/organization/tenant-memberships/{id}/"
+  ],
+  "organization_tenant_memberships_retrieve": [
+    "get",
+    "/api/v1/organization/tenant-memberships/{id}/"
+  ],
+  "organization_tenant_memberships_partial_update": [
+    "patch",
+    "/api/v1/organization/tenant-memberships/{id}/"
+  ],
+  "organization_tenant_memberships_update": [
+    "put",
+    "/api/v1/organization/tenant-memberships/{id}/"
+  ],
+  "organization_tenants_list": [
+    "get",
+    "/api/v1/organization/tenants/"
+  ],
+  "organization_tenants_create": [
+    "post",
+    "/api/v1/organization/tenants/"
+  ],
+  "organization_tenants_retrieve": [
+    "get",
+    "/api/v1/organization/tenants/{id}/"
+  ],
+  "organization_tenants_partial_update": [
+    "patch",
+    "/api/v1/organization/tenants/{id}/"
+  ],
+  "organization_tenants_update": [
+    "put",
+    "/api/v1/organization/tenants/{id}/"
   ],
   "organization_user_posts_list": [
     "get",

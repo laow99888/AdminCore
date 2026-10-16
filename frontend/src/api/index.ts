@@ -216,6 +216,36 @@ export interface ApprovalRow {
   decision_comment: string
   decided_at?: string
   created_at: string
+  flow?: string | null
+  flow_name?: string | null
+  flow_version?: number | null
+  current_node?: string
+  workflow_version?: number
+  steps?: ApprovalStepRow[]
+  cc_recipients?: Array<{ id: string; user: string; user_name: string }>
+}
+
+export interface ApprovalStepRow {
+  id: string
+  node_key: string
+  kind: 'user' | 'parallel' | 'or'
+  mode: 'all' | 'any'
+  sequence: number
+  status: string
+  assignee?: string | null
+  assignee_name?: string | null
+  delegated_to?: string | null
+  delegated_to_name?: string | null
+  version: number
+}
+
+export interface ApprovalFlowRow {
+  id: string
+  name: string
+  code: string
+  status: 'draft' | 'published' | 'archived'
+  version: number
+  definition: { nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> }
 }
 
 export type ApprovalBox = 'todo' | 'done' | 'sent'
@@ -223,11 +253,23 @@ export type ApprovalBox = 'todo' | 'done' | 'sent'
 export const approvalsApi = {
   list: (box: ApprovalBox | undefined, params?: ListParams) =>
     getPaged<ApprovalRow>('/approvals/', { ...(box ? { box } : {}), ...params }),
-  create: (data: { title: string; request_type: string; content: string } & ({ assignee_id: string; assignee_username?: never } | { assignee_username: string; assignee_id?: never }), key = newIdempotencyKey('approval-create')) =>
+  create: (data: { title: string; request_type: string; content: string; flow_id?: string } & ({ assignee_id: string; assignee_username?: never } | { assignee_username: string; assignee_id?: never } | { assignee_id?: never; assignee_username?: never }), key = newIdempotencyKey('approval-create')) =>
     request.post('/approvals/', data, { headers: { 'Idempotency-Key': key } }),
   approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
   reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),
   cancel: (id: string) => request.post(`/approvals/${id}/cancel/`),
+  addSign: (id: string, target_user_id: string, comment = '') => request.post(`/approvals/${id}/add-sign/`, { target_user_id, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-add-sign-${id}`) } }),
+  transfer: (id: string, target_user_id: string, comment = '') => request.post(`/approvals/${id}/transfer/`, { target_user_id, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-transfer-${id}`) } }),
+  delegate: (id: string, target_user_id: string, comment = '') => request.post(`/approvals/${id}/delegate/`, { target_user_id, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-delegate-${id}`) } }),
+  cc: (id: string, user_ids: string[], comment = '') => request.post(`/approvals/${id}/cc/`, { user_ids, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-cc-${id}`) } }),
+}
+
+export const approvalFlowsApi = {
+  list: (params?: ListParams) => getPaged<ApprovalFlowRow>('/approvals/flows/', params),
+  create: (data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition'>) => request.post('/approvals/flows/', data),
+  update: (id: string, data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition'>) => request.put(`/approvals/flows/${id}/`, data),
+  publish: (id: string) => request.post(`/approvals/flows/${id}/publish/`),
+  archive: (id: string) => request.post(`/approvals/flows/${id}/archive/`),
 }
 
 // ===== 数据导入导出 =====

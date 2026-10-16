@@ -15,6 +15,12 @@ export const moduleRoutes: RouteRecordRaw[] = [
     component: () => import('../views/approvals/ApprovalListView.vue'),
     meta: { title: "审批工作流", requiresAuth: true },
   },
+  {
+    path: '/approvals/flows',
+    name: 'ApprovalFlowDesigner',
+    component: () => import('../views/approvals/ApprovalFlowDesignerView.vue'),
+    meta: { title: "审批流程设计器", requiresAuth: true, hasPageHeading: true },
+  },
 
   {
     path: '/notifications',

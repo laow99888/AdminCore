@@ -3,15 +3,26 @@ from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
+from rest_framework import serializers
+from drf_spectacular.utils import extend_schema
 from apps.auth_app.write_authorization import authorize_write
 from apps.permissions.permissions import IsAdmin
 from .models import Tenant, TenantMembership
 from .tenant_serializers import TenantSerializer, TenantMembershipSerializer
 
 
+class MyTenantSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    slug = serializers.CharField()
+    name = serializers.CharField()
+    role = serializers.CharField()
+
+
 class MyTenantView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
+    serializer_class = MyTenantSerializer
 
+    @extend_schema(responses=MyTenantSerializer(many=True))
     def list(self, request):
         memberships = TenantMembership.objects.filter(
             user=request.user, is_active=True, tenant__status=Tenant.STATUS_ACTIVE,

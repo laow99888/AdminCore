@@ -5,10 +5,140 @@
 from django.db import models
 from django.db import transaction
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 
 from apps.core.models import BaseModel
 
 User = get_user_model()
+
+
+def validate_flow_definition(definition):
+    """Validate the small, deterministic graph format used by the workflow API."""
+    if not isinstance(definition, dict):
+        raise ValidationError('流程定义必须是对象')
+    nodes = definition.get('nodes')
+    edges = definition.get('edges', [])
+    if not isinstance(nodes, list) or not 1 <= len(nodes) <= 100:
+        raise ValidationError('流程节点数量必须在 1 到 100 之间')
+    if not isinstance(edges, list) or len(edges) > 300:
+        raise ValidationError('流程连线数量不能超过 300')
+    allowed = {'start', 'user', 'parallel', 'or', 'end'}
+    ids = set()
+    for node in nodes:
+        if not isinstance(node, dict) or set(node) - {'id', 'type', 'name', 'assignee_ids', 'mode'}:
+            raise ValidationError('流程节点包含未知字段')
+        key, kind = node.get('id'), node.get('type')
+        if not isinstance(key, str) or not key or len(key) > 64 or key in ids:
+            raise ValidationError('流程节点标识必须唯一且有效')
+        if kind not in allowed:
+            raise ValidationError('流程节点类型不受支持')
+        ids.add(key)
+        if kind in {'user', 'parallel', 'or'}:
+            assignees = node.get('assignee_ids')
+            if not isinstance(assignees, list) or not assignees or len(assignees) > 100:
+                raise ValidationError('审批节点必须配置审批人')
+            if any(not isinstance(value, str) for value in assignees):
+                raise ValidationError('审批人标识必须为字符串')
+            mode = node.get('mode', 'all' if kind in {'user', 'parallel'} else 'any')
+            if mode not in {'all', 'any'}:
+                raise ValidationError('审批节点模式只能是 all 或 any')
+    kinds = {node['type'] for node in nodes}
+    if kinds - allowed or sum(node['type'] == 'start' for node in nodes) != 1 or sum(node['type'] == 'end' for node in nodes) != 1:
+        raise ValidationError('流程必须且只能包含一个开始节点和一个结束节点')
+    adjacency = {key: [] for key in ids}
+    for edge in edges:
+        if not isinstance(edge, dict) or set(edge) - {'from', 'to'}:
+            raise ValidationError('流程连线包含未知字段')
+        source, target = edge.get('from'), edge.get('to')
+        if source not in ids or target not in ids or source == target:
+            raise ValidationError('流程连线端点无效')
+        adjacency[source].append(target)
+    starts = [node['id'] for node in nodes if node['type'] == 'start'][0]
+    ends = [node['id'] for node in nodes if node['type'] == 'end'][0]
+    if not adjacency[starts] or any(key != starts and not any(key in values for values in adjacency.values()) for key in ids if key != starts):
+        raise ValidationError('流程节点必须从开始节点可达')
+    if not any(ends in values for values in adjacency.values()):
+        raise ValidationError('结束节点必须有前置节点')
+    visiting, visited = set(), set()
+    def visit(key):
+        if key in visiting:
+            raise ValidationError('流程连线不能形成环')
+        if key in visited:
+            return
+        visiting.add(key)
+        for child in adjacency[key]:
+            visit(child)
+        visiting.remove(key)
+        visited.add(key)
+    visit(starts)
+    if visited != ids:
+        raise ValidationError('流程存在从开始节点不可达的节点')
+    return definition
+
+
+class ApprovalFlow(BaseModel):
+    STATUS_CHOICES = [('draft', '草稿'), ('published', '已发布'), ('archived', '已归档')]
+    name = models.CharField(max_length=120)
+    code = models.CharField(max_length=80, unique=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='draft')
+    version = models.PositiveIntegerField(default=1)
+    definition = models.JSONField(default=dict)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_approval_flows')
+    published_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='published_approval_flows')
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [models.Index(fields=['status', 'code'])]
+
+    def clean(self):
+        validate_flow_definition(self.definition)
+        if self.status == 'published' and not self.published_at:
+            raise ValidationError('已发布流程必须记录发布时间')
+
+
+class ApprovalStep(BaseModel):
+    STATUS_CHOICES = [('pending', '待处理'), ('approved', '已通过'), ('rejected', '已驳回'), ('skipped', '已跳过'), ('cancelled', '已取消')]
+    MODE_CHOICES = [('all', '会签'), ('any', '或签')]
+    request = models.ForeignKey('ApprovalRequest', on_delete=models.CASCADE, related_name='steps')
+    node_key = models.CharField(max_length=64)
+    kind = models.CharField(max_length=16, choices=[('user', '审批'), ('parallel', '会签'), ('or', '或签')], default='user')
+    mode = models.CharField(max_length=8, choices=MODE_CHOICES, default='all')
+    sequence = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='pending')
+    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approval_steps')
+    candidates = models.JSONField(default=list)
+    delegated_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='delegated_approval_steps')
+    comment = models.TextField(blank=True)
+    acted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='acted_approval_steps')
+    acted_at = models.DateTimeField(null=True, blank=True)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['request', 'node_key', 'assignee'], name='unique_approval_step_assignee')]
+        indexes = [models.Index(fields=['request', 'status', 'sequence']), models.Index(fields=['assignee', 'status'])]
+
+
+class ApprovalCC(BaseModel):
+    request = models.ForeignKey('ApprovalRequest', on_delete=models.CASCADE, related_name='cc_recipients')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='approval_ccs')
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name='created_approval_ccs')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['request', 'user'], name='unique_approval_cc_user')]
+
+
+class ApprovalAction(BaseModel):
+    ACTION_CHOICES = [('approve', '通过'), ('reject', '驳回'), ('add_sign', '加签'), ('transfer', '转办'), ('delegate', '委托'), ('cc', '抄送'), ('cancel', '撤回')]
+    request = models.ForeignKey('ApprovalRequest', on_delete=models.CASCADE, related_name='actions')
+    step = models.ForeignKey(ApprovalStep, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions')
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name='approval_actions')
+    action = models.CharField(max_length=16, choices=ACTION_CHOICES)
+    target_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='targeted_approval_actions')
+    comment = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict)
+
+    class Meta:
+        indexes = [models.Index(fields=['request', 'created_at'])]
 
 
 class ApprovalRequest(BaseModel):
@@ -37,6 +167,10 @@ class ApprovalRequest(BaseModel):
     decision_comment = models.TextField(blank=True, verbose_name='审批意见')
     decided_at = models.DateTimeField(null=True, blank=True, verbose_name='处理时间')
     extra_data = models.JSONField(null=True, blank=True, verbose_name='附加数据')
+    flow = models.ForeignKey(ApprovalFlow, on_delete=models.PROTECT, null=True, blank=True, related_name='requests')
+    flow_version = models.PositiveIntegerField(null=True, blank=True)
+    current_node = models.CharField(max_length=64, blank=True)
+    workflow_version = models.PositiveIntegerField(default=1)
 
     class Meta:
         verbose_name = '审批申请'

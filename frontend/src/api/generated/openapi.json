@@ -1,6 +1,14 @@
 {
   "components": {
     "schemas": {
+      "AccessLevelEnum": {
+        "description": "* `read` - 读取\n* `manage` - 管理",
+        "enum": [
+          "read",
+          "manage"
+        ],
+        "type": "string"
+      },
       "Announcement": {
         "properties": {
           "content": {
@@ -292,6 +300,10 @@
           "extra_data": {
             "nullable": true
           },
+          "flow_id": {
+            "format": "uuid",
+            "type": "string"
+          },
           "request_type": {
             "allOf": [
               {
@@ -340,6 +352,155 @@
           }
         },
         "type": "object"
+      },
+      "ApprovalFlow": {
+        "properties": {
+          "code": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "title": "创建时间",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
+          "created_by_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "definition": {},
+          "id": {
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "published_at": {
+            "format": "date-time",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "published_by": {
+            "format": "uuid",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "published_by_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ApprovalFlowStatusEnum"
+              }
+            ],
+            "readOnly": true
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "title": "更新时间",
+            "type": "string"
+          },
+          "version": {
+            "readOnly": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "created_at",
+          "created_by",
+          "created_by_name",
+          "id",
+          "name",
+          "published_at",
+          "published_by",
+          "published_by_name",
+          "status",
+          "updated_at",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ApprovalFlowDesign": {
+        "properties": {
+          "code": {
+            "maxLength": 80,
+            "type": "string"
+          },
+          "definition": {},
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ApprovalFlowDesignRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "definition": {},
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ApprovalFlowRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "definition": {},
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "type": "object"
+      },
+      "ApprovalFlowStatusEnum": {
+        "description": "* `draft` - 草稿\n* `published` - 已发布\n* `archived` - 已归档",
+        "enum": [
+          "draft",
+          "published",
+          "archived"
+        ],
+        "type": "string"
       },
       "ApprovalPickerDepartmentsResponse": {
         "properties": {
@@ -402,6 +563,14 @@
             "readOnly": true,
             "type": "string"
           },
+          "cc_recipients": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "readOnly": true,
+            "type": "array"
+          },
           "content": {
             "readOnly": true,
             "title": "申请内容",
@@ -411,6 +580,10 @@
             "format": "date-time",
             "readOnly": true,
             "title": "创建时间",
+            "type": "string"
+          },
+          "current_node": {
+            "readOnly": true,
             "type": "string"
           },
           "decided_at": {
@@ -441,6 +614,21 @@
             "readOnly": true,
             "title": "附加数据"
           },
+          "flow": {
+            "format": "uuid",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "flow_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "flow_version": {
+            "nullable": true,
+            "readOnly": true,
+            "type": "integer"
+          },
           "id": {
             "format": "uuid",
             "readOnly": true,
@@ -464,10 +652,22 @@
             "readOnly": true,
             "title": "状态"
           },
+          "steps": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "readOnly": true,
+            "type": "array"
+          },
           "title": {
             "readOnly": true,
             "title": "标题",
             "type": "string"
+          },
+          "workflow_version": {
+            "readOnly": true,
+            "type": "integer"
           }
         },
         "required": [
@@ -475,17 +675,24 @@
           "applicant_name",
           "assignee",
           "assignee_name",
+          "cc_recipients",
           "content",
           "created_at",
+          "current_node",
           "decided_at",
           "decided_by",
           "decided_by_name",
           "decision_comment",
           "extra_data",
+          "flow",
+          "flow_name",
+          "flow_version",
           "id",
           "request_type",
           "status",
-          "title"
+          "steps",
+          "title",
+          "workflow_version"
         ],
         "type": "object"
       },
@@ -2732,6 +2939,103 @@
         ],
         "type": "object"
       },
+      "FileACL": {
+        "properties": {
+          "grants": {
+            "items": {
+              "$ref": "#/components/schemas/FileACLGrant"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "grants"
+        ],
+        "type": "object"
+      },
+      "FileACLGrant": {
+        "properties": {
+          "access_level": {
+            "$ref": "#/components/schemas/AccessLevelEnum"
+          },
+          "inherit_to_derivatives": {
+            "default": true,
+            "type": "boolean"
+          },
+          "role_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_level"
+        ],
+        "type": "object"
+      },
+      "FileACLGrantRequest": {
+        "properties": {
+          "access_level": {
+            "$ref": "#/components/schemas/AccessLevelEnum"
+          },
+          "inherit_to_derivatives": {
+            "default": true,
+            "type": "boolean"
+          },
+          "role_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_level"
+        ],
+        "type": "object"
+      },
+      "FileACLRequest": {
+        "properties": {
+          "grants": {
+            "items": {
+              "$ref": "#/components/schemas/FileACLGrantRequest"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "grants"
+        ],
+        "type": "object"
+      },
+      "FileACLResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FileACL"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
       "FileRecycleActionResponse": {
         "properties": {
           "code": {
@@ -4585,6 +4889,30 @@
         ],
         "type": "object"
       },
+      "MyTenant": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "slug"
+        ],
+        "type": "object"
+      },
       "Namespace": {
         "properties": {
           "candidate_count": {
@@ -5372,6 +5700,54 @@
               "items": {
                 "items": {
                   "$ref": "#/components/schemas/Announcement"
+                },
+                "type": "array"
+              },
+              "pagination": {
+                "properties": {
+                  "page": {
+                    "type": "integer"
+                  },
+                  "page_size": {
+                    "type": "integer"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "total_pages": {
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "items",
+              "pagination"
+            ],
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
+        "type": "object"
+      },
+      "PaginatedApprovalFlowList": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "properties": {
+              "items": {
+                "items": {
+                  "$ref": "#/components/schemas/ApprovalFlow"
                 },
                 "type": "array"
               },
@@ -6562,6 +6938,102 @@
         ],
         "type": "object"
       },
+      "PaginatedTenantList": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "properties": {
+              "items": {
+                "items": {
+                  "$ref": "#/components/schemas/Tenant"
+                },
+                "type": "array"
+              },
+              "pagination": {
+                "properties": {
+                  "page": {
+                    "type": "integer"
+                  },
+                  "page_size": {
+                    "type": "integer"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "total_pages": {
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "items",
+              "pagination"
+            ],
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
+        "type": "object"
+      },
+      "PaginatedTenantMembershipList": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "properties": {
+              "items": {
+                "items": {
+                  "$ref": "#/components/schemas/TenantMembership"
+                },
+                "type": "array"
+              },
+              "pagination": {
+                "properties": {
+                  "page": {
+                    "type": "integer"
+                  },
+                  "page_size": {
+                    "type": "integer"
+                  },
+                  "total": {
+                    "type": "integer"
+                  },
+                  "total_pages": {
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "items",
+              "pagination"
+            ],
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
+        "type": "object"
+      },
       "PaginatedUserListList": {
         "properties": {
           "code": {
@@ -7071,6 +7543,7 @@
             "title": "描述",
             "type": "string"
           },
+          "field_permissions": {},
           "is_active": {
             "title": "是否激活",
             "type": "boolean"
@@ -7206,6 +7679,44 @@
             },
             "maxItems": 20,
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "PatchedTenantMembershipRequest": {
+        "properties": {
+          "is_active": {
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleEnum"
+          },
+          "tenant": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "user": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PatchedTenantRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[-a-zA-Z0-9_]+$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantStatusEnum"
           }
         },
         "type": "object"
@@ -8482,6 +8993,7 @@
             "title": "描述",
             "type": "string"
           },
+          "field_permissions": {},
           "id": {
             "format": "uuid",
             "readOnly": true,
@@ -8555,6 +9067,15 @@
         ],
         "type": "object"
       },
+      "RoleEnum": {
+        "description": "* `owner` - 所有者\n* `admin` - 管理员\n* `member` - 成员",
+        "enum": [
+          "owner",
+          "admin",
+          "member"
+        ],
+        "type": "string"
+      },
       "RolePatchedResponse": {
         "properties": {
           "code": {
@@ -8581,6 +9102,7 @@
             "title": "描述",
             "type": "string"
           },
+          "field_permissions": {},
           "is_active": {
             "title": "是否激活",
             "type": "boolean"
@@ -9974,6 +10496,151 @@
           "variables"
         ],
         "type": "object"
+      },
+      "Tenant": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 64,
+            "pattern": "^[-a-zA-Z0-9_]+$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantStatusEnum"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "name",
+          "slug",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "TenantMembership": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "readOnly": true,
+            "type": "string"
+          },
+          "is_active": {
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleEnum"
+          },
+          "tenant": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "readOnly": true,
+            "type": "string"
+          },
+          "user": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "username": {
+            "readOnly": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "created_at",
+          "id",
+          "tenant",
+          "tenant_name",
+          "updated_at",
+          "user",
+          "username"
+        ],
+        "type": "object"
+      },
+      "TenantMembershipRequest": {
+        "properties": {
+          "is_active": {
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RoleEnum"
+          },
+          "tenant": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "user": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant",
+          "user"
+        ],
+        "type": "object"
+      },
+      "TenantRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[-a-zA-Z0-9_]+$",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TenantStatusEnum"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "TenantStatusEnum": {
+        "description": "* `active` - 正常\n* `suspended` - 暂停\n* `closed` - 已关闭",
+        "enum": [
+          "active",
+          "suspended",
+          "closed"
+        ],
+        "type": "string"
       },
       "TokenPair": {
         "properties": {
@@ -12155,10 +12822,472 @@
         }
       }
     },
+    "/api/v1/approvals/flows/": {
+      "get": {
+        "operationId": "approvals_flows_list",
+        "parameters": [
+          {
+            "description": "用于排序结果的字段。",
+            "in": "query",
+            "name": "ordering",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页结果集中的页码。",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页条数",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "搜索关键词。",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedApprovalFlowList"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "post": {
+        "operationId": "approvals_flows_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowDesignRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowDesignRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowDesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalFlowDesign"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/approvals/flows/{id}/": {
+      "get": {
+        "operationId": "approvals_flows_retrieve",
+        "parameters": [
+          {
+            "description": "标识此 approval flow 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalFlow"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "put": {
+        "operationId": "approvals_flows_update",
+        "parameters": [
+          {
+            "description": "标识此 approval flow 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowDesignRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowDesignRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowDesignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalFlowDesign"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/approvals/flows/{id}/archive/": {
+      "post": {
+        "operationId": "approvals_flows_archive_create",
+        "parameters": [
+          {
+            "description": "标识此 approval flow 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalFlow"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/approvals/flows/{id}/publish/": {
+      "post": {
+        "operationId": "approvals_flows_publish_create",
+        "parameters": [
+          {
+            "description": "标识此 approval flow 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalFlowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalFlow"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
     "/api/v1/approvals/{id}/": {
       "get": {
         "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
         "operationId": "approvals_retrieve",
+        "parameters": [
+          {
+            "description": "标识此 审批申请 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequest"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/approvals/{id}/add-sign/": {
+      "post": {
+        "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
+        "operationId": "approvals_add_sign_create",
         "parameters": [
           {
             "description": "标识此 审批申请 的 UUID 字符串。",
@@ -12336,6 +13465,114 @@
         }
       }
     },
+    "/api/v1/approvals/{id}/cc/": {
+      "post": {
+        "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
+        "operationId": "approvals_cc_create",
+        "parameters": [
+          {
+            "description": "标识此 审批申请 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequest"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/approvals/{id}/delegate/": {
+      "post": {
+        "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
+        "operationId": "approvals_delegate_create",
+        "parameters": [
+          {
+            "description": "标识此 审批申请 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequest"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
     "/api/v1/approvals/{id}/reject/": {
       "post": {
         "description": "驳回申请",
@@ -12377,6 +13614,60 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApprovalRejectedResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/approvals/{id}/transfer/": {
+      "post": {
+        "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
+        "operationId": "approvals_transfer_create",
+        "parameters": [
+          {
+            "description": "标识此 审批申请 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRequest"
                 }
               }
             },
@@ -16516,6 +17807,184 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/File"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "put": {
+        "description": "文件管理：上传 / 列表 / 下载 / 软删除",
+        "operationId": "files_update",
+        "parameters": [
+          {
+            "description": "标识此 文件 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/files/{id}/acl/": {
+      "get": {
+        "description": "读取或替换单个文件的用户/角色授权。文件所有者和管理员可管理。",
+        "operationId": "files_acl_retrieve",
+        "parameters": [
+          {
+            "description": "标识此 文件 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileACLResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "files"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "put": {
+        "description": "读取或替换单个文件的用户/角色授权。文件所有者和管理员可管理。",
+        "operationId": "files_acl_update",
+        "parameters": [
+          {
+            "description": "标识此 文件 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileACLRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/FileACLRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FileACLRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileACLResponse"
                 }
               }
             },
@@ -20840,6 +22309,50 @@
         }
       }
     },
+    "/api/v1/organization/my-tenants/": {
+      "get": {
+        "operationId": "organization_my_tenants_list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MyTenant"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
     "/api/v1/organization/people/": {
       "get": {
         "operationId": "organization_people_retrieve",
@@ -21797,6 +23310,714 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ScopeUpdatedResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/organization/tenant-memberships/": {
+      "get": {
+        "operationId": "organization_tenant_memberships_list",
+        "parameters": [
+          {
+            "description": "用于排序结果的字段。",
+            "in": "query",
+            "name": "ordering",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页结果集中的页码。",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页条数",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "搜索关键词。",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedTenantMembershipList"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "post": {
+        "operationId": "organization_tenant_memberships_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantMembershipRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantMembershipRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantMembershipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantMembership"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/organization/tenant-memberships/{id}/": {
+      "delete": {
+        "operationId": "organization_tenant_memberships_destroy",
+        "parameters": [
+          {
+            "description": "标识此 tenant membership 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "get": {
+        "operationId": "organization_tenant_memberships_retrieve",
+        "parameters": [
+          {
+            "description": "标识此 tenant membership 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantMembership"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "patch": {
+        "operationId": "organization_tenant_memberships_partial_update",
+        "parameters": [
+          {
+            "description": "标识此 tenant membership 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedTenantMembershipRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedTenantMembershipRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedTenantMembershipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantMembership"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "put": {
+        "operationId": "organization_tenant_memberships_update",
+        "parameters": [
+          {
+            "description": "标识此 tenant membership 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantMembershipRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantMembershipRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantMembershipRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantMembership"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/organization/tenants/": {
+      "get": {
+        "operationId": "organization_tenants_list",
+        "parameters": [
+          {
+            "description": "用于排序结果的字段。",
+            "in": "query",
+            "name": "ordering",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "分页结果集中的页码。",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "每页条数",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "搜索关键词。",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaginatedTenantList"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "post": {
+        "operationId": "organization_tenants_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tenant"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/organization/tenants/{id}/": {
+      "get": {
+        "operationId": "organization_tenants_retrieve",
+        "parameters": [
+          {
+            "description": "标识此 tenant 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tenant"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "patch": {
+        "operationId": "organization_tenants_partial_update",
+        "parameters": [
+          {
+            "description": "标识此 tenant 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedTenantRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedTenantRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchedTenantRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tenant"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "organization"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "put": {
+        "operationId": "organization_tenants_update",
+        "parameters": [
+          {
+            "description": "标识此 tenant 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tenant"
                 }
               }
             },
