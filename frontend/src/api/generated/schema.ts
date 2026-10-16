@@ -1951,6 +1951,184 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/online-forms/{code}/records/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["online_forms_records_list"];
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_records_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/{code}/records/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["online_forms_records_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        patch: operations["online_forms_records_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/online-forms/forms/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["online_forms_forms_list"];
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_forms_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/forms/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["online_forms_forms_retrieve"];
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        put: operations["online_forms_forms_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        patch: operations["online_forms_forms_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/online-forms/forms/{id}/archive/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_forms_archive_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/forms/{id}/publish/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_forms_publish_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/published/{code}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_forms_published_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/departments/": {
         parameters: {
             query?: never;
@@ -3388,7 +3566,7 @@ export interface components {
             /** Format: uuid */
             readonly published_by: string | null;
             readonly published_by_name: string;
-            readonly status: components["schemas"]["ApprovalFlowStatusEnum"];
+            readonly status: components["schemas"]["OnlineFormStatusEnum"];
             /**
              * 更新时间
              * Format: date-time
@@ -3411,13 +3589,6 @@ export interface components {
             definition?: unknown;
             name: string;
         };
-        /**
-         * @description * `draft` - 草稿
-         *     * `published` - 已发布
-         *     * `archived` - 已归档
-         * @enum {string}
-         */
-        ApprovalFlowStatusEnum: "draft" | "published" | "archived";
         ApprovalPickerDepartmentsResponse: {
             code: number;
             data: components["schemas"]["PickerDepartments"];
@@ -4842,6 +5013,84 @@ export interface components {
         OfficeSubmitRequest: {
             lifecycle_version: number;
         };
+        OnlineForm: {
+            code: string;
+            /**
+             * 创建时间
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly created_by: string;
+            readonly created_by_name: string;
+            definition?: unknown;
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            /** Format: date-time */
+            readonly published_at: string | null;
+            /** Format: uuid */
+            readonly published_by: string | null;
+            readonly published_by_name: string;
+            readonly status: components["schemas"]["OnlineFormStatusEnum"];
+            /**
+             * 更新时间
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            readonly version: number;
+        };
+        OnlineFormDesign: {
+            code: string;
+            definition?: unknown;
+            /** Format: uuid */
+            readonly id: string;
+            name: string;
+            readonly status: components["schemas"]["OnlineFormStatusEnum"];
+            readonly version: number;
+        };
+        OnlineFormDesignRequest: {
+            code: string;
+            definition?: unknown;
+            name: string;
+        };
+        OnlineFormRecord: {
+            /**
+             * 创建时间
+             * Format: date-time
+             */
+            readonly created_at: string;
+            data?: unknown;
+            /** Format: uuid */
+            readonly form: string;
+            readonly form_version: number;
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly owner: string;
+            readonly owner_name: string;
+            /**
+             * 更新时间
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            readonly version: number;
+        };
+        OnlineFormRecordRequest: {
+            data?: unknown;
+        };
+        OnlineFormRequest: {
+            code: string;
+            definition?: unknown;
+            name: string;
+        };
+        /**
+         * @description * `draft` - 草稿
+         *     * `published` - 已发布
+         *     * `archived` - 已归档
+         * @enum {string}
+         */
+        OnlineFormStatusEnum: "draft" | "published" | "archived";
         OnlineUser: {
             /** 名字 */
             readonly first_name: string;
@@ -5189,6 +5438,32 @@ export interface components {
             };
             message: string;
         };
+        PaginatedOnlineFormList: {
+            code: number;
+            data: {
+                items: components["schemas"]["OnlineForm"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
+        PaginatedOnlineFormRecordList: {
+            code: number;
+            data: {
+                items: components["schemas"]["OnlineFormRecord"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
         PaginatedOnlineUserList: {
             code: number;
             data: {
@@ -5478,6 +5753,14 @@ export interface components {
             permission?: string | null;
             /** @description 更新时必须传当前 version；新建省略或传 0；版本过期返回 409 且不写入。 */
             version?: number;
+        };
+        PatchedOnlineFormDesignRequest: {
+            code?: string;
+            definition?: unknown;
+            name?: string;
+        };
+        PatchedOnlineFormRecordRequest: {
+            data?: unknown;
         };
         PatchedPostRequest: {
             code?: string;
@@ -6048,9 +6331,11 @@ export interface components {
          *     * `task` - 任务
          *     * `log` - 日志
          *     * `example` - 示例工单
+         *     * `online_form` - 在线表单
+         *     * `online_record` - 在线表单记录
          * @enum {string}
          */
-        ScopeGrantResourceEnum: "user" | "file" | "task" | "log" | "example";
+        ScopeGrantResourceEnum: "user" | "file" | "task" | "log" | "example" | "online_form" | "online_record";
         /**
          * @description * `self` - 本人
          *     * `department` - 本部门
@@ -11639,6 +11924,429 @@ export interface operations {
             };
         };
     };
+    online_forms_records_list: {
+        parameters: {
+            query?: {
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOnlineFormRecordList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    online_forms_records_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["OnlineFormRecordRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormRecordRequest"];
+                "multipart/form-data": components["schemas"]["OnlineFormRecordRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormRecord"];
+                };
+            };
+        };
+    };
+    online_forms_records_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormRecord"];
+                };
+            };
+        };
+    };
+    online_forms_records_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedOnlineFormRecordRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedOnlineFormRecordRequest"];
+                "multipart/form-data": components["schemas"]["PatchedOnlineFormRecordRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormRecord"];
+                };
+            };
+        };
+    };
+    online_forms_forms_list: {
+        parameters: {
+            query?: {
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：name, code, created_at, updated_at。同值记录追加主键排序。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /** @description 搜索关键词。 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOnlineFormList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    online_forms_forms_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnlineFormDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormDesignRequest"];
+                "multipart/form-data": components["schemas"]["OnlineFormDesignRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormDesign"];
+                };
+            };
+        };
+    };
+    online_forms_forms_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 online form 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineForm"];
+                };
+            };
+        };
+    };
+    online_forms_forms_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 online form 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnlineFormDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormDesignRequest"];
+                "multipart/form-data": components["schemas"]["OnlineFormDesignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormDesign"];
+                };
+            };
+        };
+    };
+    online_forms_forms_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 online form 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedOnlineFormDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedOnlineFormDesignRequest"];
+                "multipart/form-data": components["schemas"]["PatchedOnlineFormDesignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormDesign"];
+                };
+            };
+        };
+    };
+    online_forms_forms_archive_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 online form 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnlineFormRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormRequest"];
+                "multipart/form-data": components["schemas"]["OnlineFormRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineForm"];
+                };
+            };
+        };
+    };
+    online_forms_forms_publish_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 online form 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OnlineFormRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormRequest"];
+                "multipart/form-data": components["schemas"]["OnlineFormRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineForm"];
+                };
+            };
+        };
+    };
+    online_forms_published_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineForm"];
+                };
+            };
+        };
+    };
     organization_departments_list: {
         parameters: {
             query?: {
@@ -12384,8 +13092,10 @@ export interface operations {
                  *     * `task` - 任务
                  *     * `log` - 日志
                  *     * `example` - 示例工单
+                 *     * `online_form` - 在线表单
+                 *     * `online_record` - 在线表单记录
                  */
-                resource?: "example" | "file" | "log" | "task" | "user";
+                resource?: "example" | "file" | "log" | "online_form" | "online_record" | "task" | "user";
                 role?: string;
             };
             header?: never;

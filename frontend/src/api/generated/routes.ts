@@ -570,6 +570,54 @@ export const sdkRoutes = {
     "post",
     "/api/v1/notifications/{id}/mark_read/"
   ],
+  "online_forms_forms_list": [
+    "get",
+    "/api/v1/online-forms/forms/"
+  ],
+  "online_forms_forms_create": [
+    "post",
+    "/api/v1/online-forms/forms/"
+  ],
+  "online_forms_forms_retrieve": [
+    "get",
+    "/api/v1/online-forms/forms/{id}/"
+  ],
+  "online_forms_forms_partial_update": [
+    "patch",
+    "/api/v1/online-forms/forms/{id}/"
+  ],
+  "online_forms_forms_update": [
+    "put",
+    "/api/v1/online-forms/forms/{id}/"
+  ],
+  "online_forms_forms_archive_create": [
+    "post",
+    "/api/v1/online-forms/forms/{id}/archive/"
+  ],
+  "online_forms_forms_publish_create": [
+    "post",
+    "/api/v1/online-forms/forms/{id}/publish/"
+  ],
+  "online_forms_published_retrieve": [
+    "get",
+    "/api/v1/online-forms/published/{code}/"
+  ],
+  "online_forms_records_list": [
+    "get",
+    "/api/v1/online-forms/{code}/records/"
+  ],
+  "online_forms_records_create": [
+    "post",
+    "/api/v1/online-forms/{code}/records/"
+  ],
+  "online_forms_records_retrieve": [
+    "get",
+    "/api/v1/online-forms/{code}/records/{id}/"
+  ],
+  "online_forms_records_partial_update": [
+    "patch",
+    "/api/v1/online-forms/{code}/records/{id}/"
+  ],
   "organization_departments_list": [
     "get",
     "/api/v1/organization/departments/"

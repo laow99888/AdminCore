@@ -21,6 +21,18 @@ export const moduleRoutes: RouteRecordRaw[] = [
     component: () => import('../views/approvals/ApprovalFlowDesignerView.vue'),
     meta: { title: "审批流程设计器", requiresAuth: true, hasPageHeading: true },
   },
+  {
+    path: '/online-forms',
+    name: 'OnlineFormDesigner',
+    component: () => import('../views/onlineForms/OnlineFormDesignerView.vue'),
+    meta: { title: "在线表单设计器", requiresAuth: true, hasPageHeading: true },
+  },
+  {
+    path: '/online-forms/:code',
+    name: 'OnlineFormRuntime',
+    component: () => import('../views/onlineForms/OnlineFormRuntimeView.vue'),
+    meta: { title: "在线表单", requiresAuth: true, hasPageHeading: true },
+  },
 
   {
     path: '/notifications',

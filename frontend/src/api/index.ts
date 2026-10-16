@@ -272,6 +272,21 @@ export const approvalFlowsApi = {
   archive: (id: string) => request.post(`/approvals/flows/${id}/archive/`),
 }
 
+export interface OnlineFormField { key: string; label: string; type: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'boolean'; required: boolean; default?: unknown; options?: string[]; max_length?: number; min?: number; max?: number }
+export interface OnlineFormRow { id: string; name: string; code: string; status: 'draft' | 'published' | 'archived'; version: number; definition: { fields: OnlineFormField[] } }
+export interface OnlineFormRecordRow { id: string; form: string; form_version: number; owner: string; owner_name?: string; data: Record<string, unknown>; version: number; created_at: string; updated_at: string }
+export const onlineFormsApi = {
+  list: (params?: ListParams) => getPaged<OnlineFormRow>('/online-forms/forms/', params),
+  create: (data: Pick<OnlineFormRow, 'name' | 'code' | 'definition'>) => request.post('/online-forms/forms/', data),
+  update: (id: string, data: Pick<OnlineFormRow, 'name' | 'code' | 'definition'>) => request.put(`/online-forms/forms/${id}/`, data),
+  publish: (id: string) => request.post(`/online-forms/forms/${id}/publish/`),
+  archive: (id: string) => request.post(`/online-forms/forms/${id}/archive/`),
+  published: (code: string) => request.get<ApiResponse<OnlineFormRow>>(`/online-forms/published/${encodeURIComponent(code)}/`),
+  records: (code: string, params?: ListParams) => getPaged<OnlineFormRecordRow>(`/online-forms/${encodeURIComponent(code)}/records/`, params),
+  createRecord: (code: string, data: Record<string, unknown>, key = newIdempotencyKey('online-form-record')) => request.post(`/online-forms/${encodeURIComponent(code)}/records/`, { data }, { headers: { 'Idempotency-Key': key } }),
+  updateRecord: (code: string, id: string, data: Record<string, unknown>, version: number) => request.patch(`/online-forms/${encodeURIComponent(code)}/records/${id}/`, { data, version }),
+}
+
 // ===== 数据导入导出 =====
 export const dataIoApi = {
   importUsers: (file: File, resource = 'users') => {

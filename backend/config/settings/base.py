@@ -105,6 +105,7 @@ INSTALLED_APPS = [
     'apps.sso',
     'apps.feature_flags',
     'apps.ip_policy',
+    'apps.online_forms',
 ]
 
 # 中间件
@@ -283,7 +284,8 @@ SPECTACULAR_SETTINGS = {
                           'WorkItemStatusEnum': [('open', '待处理'), ('done', '已完成')],
                           'TaskMetricStatusEnum': ['ok', 'degraded', 'disabled'],
                           'QueueMetricStatusEnum': ['ok', 'unavailable', 'disabled'],
-                          'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS'},
+                          'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS',
+                          'OnlineFormStatusEnum': 'apps.online_forms.models.OnlineForm.STATUS_CHOICES'},
     'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
     'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},
     'POSTPROCESSING_HOOKS': ['drf_spectacular.hooks.postprocess_schema_enums',
