@@ -57,6 +57,7 @@ import SafeRichText from '@/components/common/SafeRichText.vue'
 import { plainTextToRich, richTextToPlain, richTextHasContent, sanitizeRichText, RICH_TEXT_LIMIT } from '@/utils/richText'
 import { newIdempotencyKey } from '@/api'
 import { uiText } from '@/i18n/uiText'
+import { responseStatus } from '@/api/request'
 
 const auth = useAuthStore(), modules = useModuleStore()
 const owner = auth.user?.id
@@ -140,9 +141,9 @@ async function save() {
     await announcementsApi.save(form.id, data, saveKey)
     if (!guard.isCurrent()) return
     guard.markClean(); visible.value = false; ElMessage.success(uiText('保存成功')); await load()
-  } catch (exception: any) {
+  } catch (exception: unknown) {
     if (!guard.isCurrent()) return
-    if (exception?.response?.status === 409 && form.id) conflict.mark()
+    if (responseStatus(exception) === 409 && form.id) conflict.mark()
     else formError.value = uiText('保存失败，已保留输入')
   } finally { saving.value = false }
 }
