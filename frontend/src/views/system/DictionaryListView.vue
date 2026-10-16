@@ -88,6 +88,11 @@ function edit(row?: DictionaryRow) {
   visible.value = true
 }
 function addItem() { form.items.push({ label: '', value: '', order: form.items.length, is_active: true }) }
+function responseStatus(failure: unknown): number | undefined {
+  if (!failure || typeof failure !== 'object' || !('response' in failure)) return undefined
+  const response: unknown = failure.response
+  return response && typeof response === 'object' && 'status' in response && typeof response.status === 'number' ? response.status : undefined
+}
 async function save() {
   if (saving.value || conflict.active.value || !auth.can('dictionary:update')) return
   formError.value = ''
@@ -105,9 +110,9 @@ async function save() {
     visible.value = false
     ElMessage.success(uiText('保存成功'))
     await load()
-  } catch (exception: any) {
+  } catch (exception: unknown) {
     if (!formGuard.isCurrent()) return
-    if (exception?.response?.status === 409 && form.id) conflict.mark()
+    if (responseStatus(exception) === 409 && form.id) conflict.mark()
     else formError.value = uiText('保存失败，已保留输入')
   } finally { saving.value = false }
 }

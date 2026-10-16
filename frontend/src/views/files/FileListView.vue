@@ -56,6 +56,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
+import { errorMessage } from '@/api/request'
 import FilePreviewDialog from '@/components/files/FilePreviewDialog.vue'
 import { canPreview } from '@/api/filePreview'
 import { isOfficeFormat, officePreviewConfig } from '@/api/officePreview'
@@ -162,8 +163,8 @@ const handleUpload = async (event: Event) => {
 const handleDownload = async (row: FileRow) => {
   try {
     await downloadFile(filesApi.downloadUrl(row.id), row.original_name)
-  } catch (e: any) {
-    ElMessage.error(e?.message || uiText("下载失败"))
+  } catch (error: unknown) {
+    ElMessage.error(errorMessage(error, uiText("下载失败")))
   }
 }
 
