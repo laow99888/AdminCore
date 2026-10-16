@@ -48,6 +48,7 @@ def run_data_import(self, task_record_id):
     from apps.core.data_scope import scope_queryset
     from apps.permissions.permissions import has_permission_code
     from .resources import get_resource, import_allowed
+    from apps.permissions.field_permissions import allowed_fields
     from .execution import digest
     record = TaskRecord.objects.filter(pk=task_record_id).first()
     if record is None or record.status != 'pending':
@@ -118,8 +119,12 @@ def run_data_import(self, task_record_id):
             record.mark_failed('import_missing_columns')
             return
         fields = config.get('import_fields', config['fields'])
-        if set(frame.columns) - set(fields):
+        writable_fields = set(fields) & allowed_fields(actor, batch.resource, 'write')
+        if set(frame.columns) - writable_fields:
             record.mark_failed('import_unknown_columns')
+            return
+        if any(field not in writable_fields for field in config['required']):
+            record.mark_failed('import_field_not_allowed')
             return
         total = len(frame)
         summary = import_summary(batch, source.pk, total)

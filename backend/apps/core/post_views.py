@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 
 from apps.auth_app.write_authorization import authorize_write
 from apps.permissions.permissions import HasPermission, IsAdmin
+from apps.permissions.field_permissions import enforce_write_fields, filter_read_fields
 from .mixins import EnvelopeResponseMixin
 from .models import Post, UserPost
 from .personnel import PeoplePageSerializer, people_response, picker_departments, PickerDepartmentsSerializer, PeopleQuerySerializer
@@ -35,6 +36,16 @@ class PostSerializer(StrictWriteSerializer):
     class Meta:
         model = Post
         fields = ['id', 'code', 'name', 'description', 'order', 'is_active', 'version']
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        if request:
+            enforce_write_fields(request.user, 'post', set(self.initial_data), allow=('version',))
+        return super().validate(attrs)
+
+    def to_representation(self, instance):
+        request = self.context.get('request')
+        return filter_read_fields(request.user if request else None, 'post', super().to_representation(instance))
 
     def validate_code(self, value):
         if self.instance and self.instance.code != value:

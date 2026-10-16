@@ -15,6 +15,7 @@ class Role(BaseModel):
     description = models.TextField(blank=True, verbose_name='描述')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
     version = models.PositiveIntegerField(default=1)
+    field_permissions = models.JSONField(default=dict, blank=True, verbose_name='字段权限策略')
 
     class Meta:
         verbose_name = '角色'

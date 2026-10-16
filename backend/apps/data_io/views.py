@@ -26,6 +26,7 @@ from apps.tasks.models import TaskRecord
 from apps.tasks.serializers import TaskRecordSerializer
 
 from .resources import get_resource, IMPORT_EXPORT_RESOURCES, export_queryset, import_allowed
+from apps.permissions.field_permissions import allowed_fields
 from .serializers import DataImportSerializer, DataExportSerializer, DataResourceDirectorySerializer
 from .tasks import dispatch_task, run_data_import
 
@@ -176,6 +177,9 @@ class ImportTemplateView(DataModuleView):
         ws = wb.active
         ws.title = config['label']
         fields = config.get('import_fields', config['fields'])
+        fields = [field for field in fields if field in allowed_fields(request.user, resource_name, 'write')]
+        if not fields or any(field not in fields for field in config['required']):
+            raise PermissionDenied('当前角色没有该资源的必需字段写入权限')
         ws.append(fields)
         example = {
             'users': ['zhangsan', 'zhangsan@example.com', '三', '张', '13800000000'],
@@ -220,6 +224,9 @@ class DataExportView(DataModuleView):
         if config.get('module') and not module_enabled(config['module']):
             raise APIError('资源模块已关闭', status_code=404)
         fields = config['fields'][filters['log_type']] if resource_name == 'logs' else config['fields']
+        fields = [field for field in fields if field in allowed_fields(request.user, resource_name, 'read')]
+        if not fields:
+            raise APIError('当前角色没有该资源的字段读取权限', status_code=403)
         queryset = export_queryset(resource_name, request.user, filters)
         # 只查询白名单，关联字段由 values_list 一次 JOIN，避免逐行额外查询。
         rows = []

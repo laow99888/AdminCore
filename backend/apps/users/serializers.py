@@ -11,6 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from apps.permissions.models import Role, UserRole
 from .models import UserProfile
 from apps.core.sensitive import MaskedContactSerializerMixin, phone_input_field
+from apps.permissions.field_permissions import enforce_write_fields, filter_read_fields
 
 User = get_user_model()
 
@@ -34,6 +35,10 @@ class UserDetailSerializer(MaskedContactSerializerMixin, serializers.ModelSerial
                   'is_active', 'login_count', 'created_at', 'profile', 'roles', 'version')
         read_only_fields = ('id', 'created_at', 'login_count')
 
+    def to_representation(self, instance):
+        return filter_read_fields(self.context.get('request', None).user if self.context.get('request') else None,
+                                  'user', super().to_representation(instance))
+
     def get_roles(self, obj) -> list[dict]:
         """获取用户角色"""
         from apps.permissions.models import UserRole
@@ -49,6 +54,10 @@ class UserListSerializer(MaskedContactSerializerMixin, serializers.ModelSerializ
         model = User
         fields = ('id', 'username', 'email', 'phone', 'first_name', 'last_name', 'is_active', 'login_count', 'created_at', 'version')
         read_only_fields = ('id', 'created_at')
+
+    def to_representation(self, instance):
+        return filter_read_fields(self.context.get('request', None).user if self.context.get('request') else None,
+                                  'user', super().to_representation(instance))
 
 
 class UserRoleAssignmentMixin:
@@ -87,6 +96,10 @@ class UserCreateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        request = self.context.get('request')
+        if request:
+            enforce_write_fields(request.user, 'user', set(self.initial_data),
+                                 allow=('password', 'role_ids', 'must_change_password'))
         candidate = User(**{key: value for key, value in attrs.items() if key not in ('password', 'assigned_roles')})
         try:
             validate_password(attrs['password'], candidate)
@@ -116,6 +129,9 @@ class UserUpdateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+        request = self.context.get('request')
+        if request:
+            enforce_write_fields(request.user, 'user', set(self.initial_data), allow=('version', 'role_ids'))
         if 'profile_version' not in attrs:
             raise serializers.ValidationError({'version': '更新必须传入当前版本'})
         return attrs

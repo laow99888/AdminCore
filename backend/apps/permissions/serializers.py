@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.helpers import lazy_serializer
 from django.db import transaction
 from .models import Role, Permission, Menu, UserRole
+from .field_permissions import validate_field_permissions
 
 
 class PermissionSerializer(serializers.ModelSerializer):
@@ -39,10 +40,11 @@ class RoleSerializer(serializers.ModelSerializer):
         write_only=True,
         source='permission_objects',
     )
+    field_permissions = serializers.JSONField(required=False)
 
     class Meta:
         model = Role
-        fields = ('id', 'name', 'description', 'is_active', 'permissions', 'permission_ids', 'created_at', 'version')
+        fields = ('id', 'name', 'description', 'is_active', 'permissions', 'permission_ids', 'field_permissions', 'created_at', 'version')
         read_only_fields = ('id', 'created_at')
 
     @extend_schema_field(PermissionSerializer(many=True))
@@ -55,6 +57,9 @@ class RoleSerializer(serializers.ModelSerializer):
         if len({permission.pk for permission in permissions}) != len(permissions):
             raise serializers.ValidationError('权限不能重复')
         return permissions
+
+    def validate_field_permissions(self, value):
+        return validate_field_permissions(value)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
