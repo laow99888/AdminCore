@@ -3,6 +3,8 @@ from django.db.models import Avg, Count, Q, Sum
 from django.db.models.functions import TruncDate
 from django.utils import timezone
 from apps.core.query_budget import query_budget
+from apps.core.data_scope import scope_queryset
+from apps.files.access import file_queryset_for_actor
 from apps.permissions.field_permissions import allowed_fields
 from apps.files.models import FileModel
 from apps.tasks.models import TaskRecord
@@ -26,11 +28,11 @@ def execute_definition(user, definition):
     if not configured <= allowed:
         raise PermissionError('当前字段权限不足，无法运行该报表')
     if definition['data_source'] == 'users':
-        queryset = User.objects.all()
+        queryset = scope_queryset(User.objects.all(), user, 'user', 'pk')
     elif definition['data_source'] == 'tasks':
-        queryset = TaskRecord.objects.all()
+        queryset = scope_queryset(TaskRecord.objects.all(), user, 'task', 'creator_id')
     else:
-        queryset = FileModel.objects.filter(is_deleted=False)
+        queryset = file_queryset_for_actor(FileModel.objects.filter(is_deleted=False), user)
     for item in definition['filters']:
         field, op, value = item['field'], item['operator'], item['value']
         lookup = {'eq': field, 'in': f'{field}__in', 'gte': f'{field}__gte', 'lte': f'{field}__lte', 'contains': f'{field}__icontains'}[op]
@@ -40,7 +42,7 @@ def execute_definition(user, definition):
     annotations = {}
     for field in dimensions:
         if field == 'created_at' or field == 'date_joined':
-            alias = 'group_date'
+            alias = f'group_date_{len(values)}'
             queryset = queryset.annotate(**{alias: TruncDate(field)})
             values.append(alias)
         else:
@@ -49,6 +51,11 @@ def execute_definition(user, definition):
     aggregation = {'count': Count, 'sum': Sum, 'avg': Avg}[metric['aggregation']]
     annotations['value'] = aggregation(metric['field'])
     with query_budget():
-        rows = list(queryset.values(*values).annotate(**annotations).order_by(*values)[:definition['limit']])
+        if values:
+            grouped = queryset.values(*values).annotate(**annotations).order_by(*values)[:definition['limit']]
+            rows = [{**{field: row[alias] for field, alias in zip(dimensions, values)}, 'value': row['value']}
+                    for row in grouped]
+        else:
+            rows = [queryset.aggregate(**annotations)]
     columns = [item['field'] for item in definition['dimensions']] + ['value']
     return {'columns': columns, 'rows': rows, 'generated_at': timezone.now().isoformat(), 'definition': definition}

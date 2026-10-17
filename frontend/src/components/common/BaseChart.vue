@@ -11,7 +11,7 @@
 
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { init, use, type ECharts, type EChartsCoreOption } from 'echarts/core'
-import { LineChart, PieChart } from 'echarts/charts'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useThemeStore } from '../../stores/theme'
@@ -29,7 +29,7 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const chartRef = ref<HTMLDivElement>()
-use([LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
+use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 const themeStore = useThemeStore()
 let chart: ECharts | null = null
 

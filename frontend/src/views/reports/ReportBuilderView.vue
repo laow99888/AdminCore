@@ -3,8 +3,9 @@
     <el-row :gutter="16">
       <el-col :xs="24" :lg="8">
         <el-card shadow="never">
-          <template #header>{{ uiText('报表构建器') }}</template>
-          <el-form label-position="top">
+          <template #header><div class="builder-header"><span>{{ uiText('报表构建器') }}</span><el-button :disabled="busy" @click="newDraft">{{ uiText('新建草稿') }}</el-button></div></template>
+          <el-alert v-if="error" :title="error" type="error" :closable="false" />
+          <el-form label-position="top" :disabled="busy || selected?.status === 'published' || selected?.status === 'archived'">
             <el-form-item :label="uiText('名称')"><el-input v-model="form.name" /></el-form-item>
             <el-form-item :label="uiText('编码')"><el-input v-model="form.code" :disabled="Boolean(selected?.id)" /></el-form-item>
             <el-form-item :label="uiText('类型')"><el-radio-group v-model="form.kind"><el-radio value="report">{{ uiText('报表') }}</el-radio><el-radio value="dashboard">{{ uiText('大屏') }}</el-radio></el-radio-group></el-form-item>
@@ -21,7 +22,7 @@
         <el-card shadow="never">
           <template #header>{{ uiText('已保存报表') }}</template>
           <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
-          <BaseChart v-if="result && form.definition.chart_type !== 'table'" :option="chartOption" :height="340" caption="报表图表" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => toCellValue(row[column]))) }" />
+          <BaseChart v-if="result && result.definition.chart_type !== 'table'" :option="chartOption" :height="340" :caption="uiText('报表图表')" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => toCellValue(row[column]))) }" />
           <el-table v-if="result" :data="result.rows" class="result"><el-table-column v-for="column in result.columns" :key="column" :prop="column" :label="column" /></el-table>
         </el-card>
       </el-col>
@@ -41,8 +42,9 @@ import { uiText } from '@/i18n/uiText'
 const catalog = ref<ReportCatalogItem[]>([])
 const rows = ref<ReportDefinition[]>([])
 const selected = ref<ReportDefinition | null>(null)
-const result = ref<{ columns: string[]; rows: Array<Record<string, unknown>> } | null>(null)
+const result = ref<{ columns: string[]; rows: Array<Record<string, unknown>>; definition: Record<string, unknown> } | null>(null)
 const busy = ref(false)
+const error = ref('')
 const dimension = ref('')
 type ReportChartType = 'table' | 'bar' | 'line' | 'pie' | 'area'
 type ReportAggregation = 'count' | 'sum' | 'avg'
@@ -65,21 +67,25 @@ const currentSource = computed(() => catalog.value.find(item => item.key === for
 const chartOption = computed<EChartsOption>(() => {
   const rows = result.value?.rows || []
   const columns = result.value?.columns || []
-  const labels = rows.map(row => String(row[columns[0]] ?? '合计'))
+  const labels = rows.map(row => columns[0] === 'value' ? uiText('合计') : String(row[columns[0]] ?? ''))
   const values = rows.map(row => Number(row.value || 0))
-  const chartType = form.definition.chart_type === 'area' ? 'line' : form.definition.chart_type
+  const type = result.value?.definition.chart_type
+  const chartType = type === 'area' ? 'line' : type
   if (chartType === 'pie') return { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: '60%', data: labels.map((name, index) => ({ name, value: values[index] })) }] }
-  return { tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: labels }, yAxis: { type: 'value' }, series: [{ type: chartType as 'bar' | 'line', data: values, ...(form.definition.chart_type === 'area' ? { areaStyle: {} } : {}) }] }
+  return { tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: labels }, yAxis: { type: 'value' }, series: [{ type: chartType as 'bar' | 'line', data: values, ...(type === 'area' ? { areaStyle: {} } : {}) }] }
 })
 function resetFields() { form.definition.dimensions = []; dimension.value = ''; form.definition.metric.field = currentSource.value?.metrics[0] || 'id' }
 function setDimension(value: string) { form.definition.dimensions = value ? [{ field: value }] : [] }
 function toCellValue(value: unknown): string | number { return typeof value === 'string' || typeof value === 'number' ? value : value == null ? '' : String(value) }
-function selectRow(row: ReportDefinition) { selected.value = row; const definition = JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition }); dimension.value = definition.dimensions?.[0]?.field || '' }
-async function load() { catalog.value = await reportsApi.catalog(); rows.value = (await reportsApi.list({ page_size: 100 })).items; resetFields() }
-async function save() { busy.value = true; try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); selected.value = response.data.data; ElMessage.success(uiText('已保存')); await load() } finally { busy.value = false } }
-async function publish() { if (!selected.value) return; await reportsApi.publish(selected.value.id); ElMessage.success(uiText('已发布')); await load() }
-async function run(row: ReportDefinition) { result.value = await reportsApi.run(row.id) }
+function loadEditor(row: ReportDefinition) { selected.value = row; const definition = JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition }); dimension.value = definition.dimensions?.[0]?.field || '' }
+function selectRow(row: ReportDefinition) { if (!busy.value) loadEditor(row) }
+function newDraft() { if (busy.value) return; selected.value = null; dimension.value = ''; error.value = ''; Object.assign(form, { name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } }) }
+function showError(err: unknown) { error.value = err instanceof Error ? err.message : uiText('操作失败') }
+async function load() { try { catalog.value = await reportsApi.catalog(); rows.value = (await reportsApi.list({ page_size: 100 })).items } catch (err) { showError(err) } }
+async function save() { if (busy.value || (selected.value && selected.value.status !== 'draft')) return; busy.value = true; error.value = ''; try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); loadEditor(response.data.data); ElMessage.success(uiText('已保存')); await load() } catch (err) { showError(err) } finally { busy.value = false } }
+async function publish() { if (busy.value || selected.value?.status !== 'draft') return; busy.value = true; error.value = ''; try { const response = await reportsApi.publish(selected.value.id); loadEditor(response.data.data); ElMessage.success(uiText('已发布')); await load() } catch (err) { showError(err) } finally { busy.value = false } }
+async function run(row: ReportDefinition) { if (busy.value) return; busy.value = true; error.value = ''; result.value = null; try { result.value = await reportsApi.run(row.id) } catch (err) { showError(err) } finally { busy.value = false } }
 onMounted(load)
 </script>
 
-<style scoped>.result { margin-top: 16px }</style>
+<style scoped>.result { margin-top: 16px }.builder-header { display: flex; align-items: center; justify-content: space-between; gap: 8px }</style>

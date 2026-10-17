@@ -6,8 +6,8 @@
           <div class="header-row">
             <div><div class="title">{{ uiText('审批流程设计器') }}</div><div class="subtitle">{{ uiText('以节点和连线配置流程，发布后版本不可直接修改') }}</div></div>
             <div class="actions">
-              <BaseButton @click="newFlow">{{ uiText('新建草稿') }}</BaseButton>
-              <BaseButton variant="primary" :disabled="!editing || saving" @click="saveFlow">{{ uiText('保存草稿') }}</BaseButton>
+              <BaseButton :disabled="saving" @click="newFlow">{{ uiText('新建草稿') }}</BaseButton>
+              <BaseButton variant="primary" :disabled="!editing || editing.status !== 'draft' || saving" @click="saveFlow">{{ uiText('保存草稿') }}</BaseButton>
               <BaseButton v-if="editing?.status === 'draft'" variant="primary" :disabled="saving" @click="publishFlow">{{ uiText('发布') }}</BaseButton>
             </div>
           </div>
@@ -29,20 +29,20 @@
           <el-form-item :label="uiText('流程名称')"><el-input v-model="editing.name" /></el-form-item>
           <el-form-item :label="uiText('流程编码')"><el-input v-model="editing.code" /></el-form-item>
         </el-form>
-        <div class="section-head"><span>{{ uiText('节点') }}</span><el-button size="small" :disabled="editing.status !== 'draft'" @click="addNode">{{ uiText('添加节点') }}</el-button></div>
+        <div class="section-head"><span>{{ uiText('节点') }}</span><el-button size="small" :disabled="editing.status !== 'draft' || saving" @click="addNode">{{ uiText('添加节点') }}</el-button></div>
         <el-table :data="nodes" border>
-          <el-table-column :label="uiText('标识')" min-width="140"><template #default="{ row }"><el-input v-model="row.id" :disabled="editing.status !== 'draft'" /></template></el-table-column>
-          <el-table-column :label="uiText('类型')" width="140"><template #default="{ row }"><el-select v-model="row.type" :disabled="editing.status !== 'draft'"><el-option label="start" value="start" /><el-option label="user" value="user" /><el-option label="parallel" value="parallel" /><el-option label="or" value="or" /><el-option label="end" value="end" /></el-select></template></el-table-column>
-          <el-table-column :label="uiText('审批人 ID（逗号分隔）')" min-width="260"><template #default="{ row }"><el-input v-model="row.assigneeText" :disabled="editing.status !== 'draft' || !isApproval(row)" /></template></el-table-column>
-          <el-table-column :label="uiText('模式')" width="120"><template #default="{ row }"><el-select v-model="row.mode" :disabled="editing.status !== 'draft' || !isApproval(row)"><el-option label="all" value="all" /><el-option label="any" value="any" /></el-select></template></el-table-column>
-          <el-table-column :label="uiText('操作')" width="80"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft'" @click="removeNode($index)">×</el-button></template></el-table-column>
+          <el-table-column :label="uiText('标识')" min-width="140"><template #default="{ row }"><el-input v-model="row.id" :disabled="editing.status !== 'draft' || saving" /></template></el-table-column>
+          <el-table-column :label="uiText('类型')" width="140"><template #default="{ row }"><el-select v-model="row.type" :disabled="editing.status !== 'draft' || saving"><el-option label="start" value="start" /><el-option label="user" value="user" /><el-option label="parallel" value="parallel" /><el-option label="or" value="or" /><el-option label="end" value="end" /></el-select></template></el-table-column>
+          <el-table-column :label="uiText('审批人 ID（逗号分隔）')" min-width="260"><template #default="{ row }"><el-input v-model="row.assigneeText" :disabled="editing.status !== 'draft' || saving || !isApproval(row)" /></template></el-table-column>
+          <el-table-column :label="uiText('模式')" width="120"><template #default="{ row }"><el-select v-model="row.mode" :disabled="editing.status !== 'draft' || saving || !isApproval(row)"><el-option label="all" value="all" /><el-option label="any" value="any" /></el-select></template></el-table-column>
+          <el-table-column :label="uiText('操作')" width="80"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft' || saving" :aria-label="uiText('删除节点')" @click="removeNode($index)">×</el-button></template></el-table-column>
         </el-table>
-        <div class="section-head edge-head"><span>{{ uiText('连线（起点 → 终点）') }}</span><el-button size="small" :disabled="editing.status !== 'draft'" @click="addEdge">{{ uiText('添加连线') }}</el-button></div>
+        <div class="section-head edge-head"><span>{{ uiText('连线（起点 → 终点）') }}</span><el-button size="small" :disabled="editing.status !== 'draft' || saving" @click="addEdge">{{ uiText('添加连线') }}</el-button></div>
         <el-table :data="edges" border>
-          <el-table-column :label="uiText('起点')"><template #default="{ row }"><el-input v-model="row.from" :disabled="editing.status !== 'draft'" /></template></el-table-column>
+          <el-table-column :label="uiText('起点')"><template #default="{ row }"><el-input v-model="row.from" :disabled="editing.status !== 'draft' || saving" /></template></el-table-column>
           <el-table-column label="→" width="60" align="center" />
-          <el-table-column :label="uiText('终点')"><template #default="{ row }"><el-input v-model="row.to" :disabled="editing.status !== 'draft'" /></template></el-table-column>
-          <el-table-column :label="uiText('操作')" width="80"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft'" @click="edges.splice($index, 1)">×</el-button></template></el-table-column>
+          <el-table-column :label="uiText('终点')"><template #default="{ row }"><el-input v-model="row.to" :disabled="editing.status !== 'draft' || saving" /></template></el-table-column>
+          <el-table-column :label="uiText('操作')" width="80"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft' || saving" :aria-label="uiText('删除连线')" @click="edges.splice($index, 1)">×</el-button></template></el-table-column>
         </el-table>
       </BaseCard>
     </div>
@@ -75,14 +75,14 @@ function loadEditor(flow: ApprovalFlowRow) {
   edges.value = (flow.definition.edges || []).map((row) => ({ from: String(row.from || ''), to: String(row.to || '') }))
 }
 async function load() { loading.value = true; error.value = ''; try { flows.value = (await approvalFlowsApi.list({ page: 1, page_size: 100 })).items } catch (err) { error.value = err instanceof Error ? err.message : uiText('流程列表加载失败') } finally { loading.value = false } }
-function selectFlow(flow: ApprovalFlowRow) { loadEditor(flow) }
+function selectFlow(flow: ApprovalFlowRow) { if (!saving.value) loadEditor(flow) }
 function newFlow() { loadEditor({ id: '', name: '', code: '', status: 'draft', version: 1, definition: { nodes: [{ id: 'start', type: 'start' }, { id: 'approve', type: 'user', mode: 'all', assignee_ids: [] }, { id: 'end', type: 'end' }], edges: [{ from: 'start', to: 'approve' }, { from: 'approve', to: 'end' }] } }) }
 function addNode() { nodes.value.splice(Math.max(nodes.value.length - 1, 0), 0, { id: 'node-' + nodes.value.length, type: 'user', mode: 'all', assigneeText: '' }) }
 function removeNode(index: number) { nodes.value.splice(index, 1) }
 function addEdge() { edges.value.push({ from: '', to: '' }) }
 function definition() { return { nodes: nodes.value.map((node) => ({ id: node.id.trim(), type: node.type, ...(isApproval(node) ? { mode: node.mode, assignee_ids: node.assigneeText.split(',').map((id) => id.trim()).filter(Boolean) } : {}) })), edges: edges.value.map((edge) => ({ from: edge.from.trim(), to: edge.to.trim() })) } }
-async function saveFlow() { if (!editing.value) return; saving.value = true; try { const payload = { name: editing.value.name, code: editing.value.code, definition: definition() }; const response = editing.value.id ? await approvalFlowsApi.update(editing.value.id, payload) : await approvalFlowsApi.create(payload); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程草稿已保存')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('保存失败')) } finally { saving.value = false } }
-async function publishFlow() { if (!editing.value?.id) { await saveFlow(); if (!editing.value?.id) return }; saving.value = true; try { const response = await approvalFlowsApi.publish(editing.value.id); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程已发布')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('发布失败')) } finally { saving.value = false } }
+async function saveFlow() { if (!editing.value || editing.value.status !== 'draft' || saving.value) return; saving.value = true; try { const payload = { name: editing.value.name, code: editing.value.code, definition: definition() }; const response = editing.value.id ? await approvalFlowsApi.update(editing.value.id, payload) : await approvalFlowsApi.create(payload); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程草稿已保存')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('保存失败')) } finally { saving.value = false } }
+async function publishFlow() { if (saving.value || editing.value?.status !== 'draft') return; if (!editing.value?.id) { await saveFlow(); if (!editing.value?.id) return }; saving.value = true; try { const response = await approvalFlowsApi.publish(editing.value.id); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程已发布')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('发布失败')) } finally { saving.value = false } }
 onMounted(load)
 </script>
 

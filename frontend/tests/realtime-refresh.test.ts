@@ -8,6 +8,7 @@ import { useRealtimeUpdates } from '../src/composables/useRealtimeUpdates'
 import { startRealtimeClient } from '../src/utils/realtime'
 import { useAuthStore } from '../src/stores/auth'
 import { useModuleStore } from '../src/stores/modules'
+import { useTenantStore } from '../src/stores/tenants'
 import { i18n } from '../src/i18n'
 
 vi.mock('../src/api', () => ({ notificationsApi: { unreadCount: vi.fn().mockResolvedValue(1) } }))
@@ -21,19 +22,27 @@ function setup() {
   modules.config = { contract_version: 1, preset: 'standard', modules: ['tasks', 'notifications', 'realtime'].map(key => ({ key, title: key, enabled: true, dependencies: [], paths: [] })) }
   return { pinia, auth, modules }
 }
-async function header(access?: string) {
+async function header(access?: string, organization = false) {
   const state = setup()
+  const tenantLoad = vi.spyOn(useTenantStore(), 'load').mockResolvedValue(undefined)
+  if (organization) state.modules.config!.modules.push({ key: 'organization', title: '组织', enabled: true, dependencies: [], paths: ['/organization'] })
   if (access) state.auth.token = access
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
   await router.push('/'); await router.isReady()
   const wrapper = shallowMount(AppHeader, { global: { plugins: [state.pinia, i18n, router] } })
   await flushPromises()
-  return { ...state, wrapper }
+  return { ...state, wrapper, tenantLoad }
 }
 
 describe('权限刷新保留实时退避与已加载列表', () => {
   beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+  it.each([false, true])('组织模块启用为 %s 时按能力加载租户，不依赖测试环境特判', async organization => {
+    const { wrapper, tenantLoad } = await header(undefined, organization)
+    expect(tenantLoad).toHaveBeenCalledTimes(organization ? 1 : 0)
+    wrapper.unmount(); expect(vi.getTimerCount()).toBe(0)
+  })
 
   it('同设备access轮换保留流，安全会话替换才终止并重建', async () => {
     const jwt = (sid: string, generation: number) => `fixture.${btoa(JSON.stringify({ sid, user_id: 'member', session_version: 1, generation }))}.fixture`

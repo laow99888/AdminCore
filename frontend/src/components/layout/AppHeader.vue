@@ -166,10 +166,11 @@ function startPolling() {
   }
 }
 onMounted(() => {
-  // 组件测试使用 fake timers；租户 store 通过网络加载，不能污染实时连接的卸载断言。
-  if (import.meta.env.MODE !== 'test') tenantStore.load().catch(() => undefined)
   startPolling()
 })
+watch(() => modules.enabled('organization'), enabled => {
+  if (enabled) tenantStore.load().catch(() => undefined)
+}, { immediate: true })
 onActivated(() => { active = true; startPolling() })
 onDeactivated(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
 watch([() => modules.enabled('notifications'), () => modules.enabled('realtime'), () => authStore.user?.id, () => sessionIdentity(authStore.token),

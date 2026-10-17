@@ -94,6 +94,12 @@ def main():
     environment:
       ADMINCORE_PRESET: minimal
       ADMINCORE_MODULES: realtime,sso
+  worker:
+    env_file: !override
+      - "{env_file.as_posix()}"
+  beat:
+    env_file: !override
+      - "{env_file.as_posix()}"
   frontend:
     image: {PROJECT}-frontend
     build:
@@ -207,17 +213,25 @@ print('SSO SQL: two linked sessions revoked and completion secrets cleared')
         compose('exec', '-T', 'backend', 'python', '-c', 'import sys; exec(sys.stdin.read())', input=verify)
         report['passed'] = True
     finally:
-        if report['passed']:
-            compose('down', '-v', '--remove-orphans')
-            run(['docker', 'image', 'rm', PROJECT + '-oidc', PROJECT + '-backend', PROJECT + '-frontend'])
-            for name in ['fixture.env', 'browser-access.json', 'tls.key', 'tls.crt']:
-                (FOLDER / name).unlink(missing_ok=True)
-            report['cleaned'] = ['隔离容器、卷、镜像标签', '测试凭据及TLS私钥/证书']
-        else:
-            compose('logs', '--no-color', allowed_failure=True)
+        try:
+            if report['passed']:
+                compose('down', '-v', '--remove-orphans')
+                run(['docker', 'image', 'rm', PROJECT + '-oidc', PROJECT + '-backend', PROJECT + '-frontend'])
+                for name in ['fixture.env', 'browser-access.json', 'tls.key', 'tls.crt']:
+                    (FOLDER / name).unlink(missing_ok=True)
+                report['cleaned'] = ['隔离容器、卷、镜像标签', '测试凭据及TLS私钥/证书']
+            else:
+                compose('logs', '--no-color', allowed_failure=True)
+                compose('stop', allowed_failure=True)
+        except Exception:
+            report['passed'] = False
+            report['cleanup_failed'] = True
             compose('stop', allowed_failure=True)
-        (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-        print(json.dumps({'evidence': str(FOLDER), **report}, ensure_ascii=False), flush=True)
+            raise
+        finally:
+            (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(json.dumps({'evidence': str(FOLDER), **report}, ensure_ascii=False), flush=True)
+
 
 
 if __name__ == '__main__':
