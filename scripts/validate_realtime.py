@@ -142,7 +142,7 @@ def protocol_regression():
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '60', '--no-deps', 'realtime')
 
 
-def capacity(stages=((24, 360),), destination=None):
+def capacity(stages=((24, 360),), destination=None, *, arrival_seconds=None):
     destination = destination or FOLDER
     destination.mkdir(parents=True, exist_ok=True)
     identifier = compose('channels', 'ps', '-q', 'realtime').stdout.strip()
@@ -214,13 +214,13 @@ print('capacity fixtures ready')
                     "from pathlib import Path; Path('/tmp/realtime-capacity-access.json').unlink(missing_ok=True)")
         result = measure(BASE, actors[:count], observe, destination / f'capacity-{count}-report.json',
                          seconds=seconds, overflow=actors[-1] if count == 100 else None,
-                         arrival_seconds=.1 if count == 100 else 0)
+                         arrival_seconds=(.1 if count == 100 else 0) if arrival_seconds is None else arrival_seconds)
         results.append(result)
         check(f'{count}条真实连接持续{seconds}秒、重连/轮换/资源及租约回收', result['passed'])
     return results
 
 
-def main(*, include_capacity_edge=False):
+def main(*, include_capacity_edge=False, include_capacity_burst=False, burst_only=False):
     for port in PORTS:
         with socket.socket() as listener: listener.bind(('127.0.0.1', port))
     FOLDER.mkdir(parents=True)
@@ -269,6 +269,14 @@ def main(*, include_capacity_edge=False):
     report = {'passed': False, 'project': PROJECT, 'ports': PORTS}
     try:
         compose('minimal', 'build', 'backend', 'frontend')
+        if burst_only:
+            compose('channels', 'up', '-d', '--wait', '--wait-timeout', '150',
+                    'db', 'redis', 'backend', 'frontend', 'realtime')
+            ready()
+            report['scope'] = '仅百连接瞬时突发，不代替功能与六分钟基线'
+            report['capacity'] = capacity(stages=((100, 35),), arrival_seconds=0)
+            report['passed'] = True
+            return
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'backend', 'frontend', 'realtime')
         ready()
         protocol_regression()
@@ -379,24 +387,41 @@ print('filled')
         # 前面人为填充的百条过期租约属于基线，容量阶段另用真实 HTTP 长连接。
         stages = ((24, 360), (100, 35)) if include_capacity_edge else ((24, 360),)
         report['capacity'] = capacity(stages=stages)
+        if include_capacity_burst:
+            report['burst'] = capacity(stages=((100, 35),), destination=FOLDER / 'burst', arrival_seconds=0)
         report['passed'] = True
     finally:
         close_streams()
         report['checks'] = CHECKS
-        if report['passed']:
-            compose('channels', 'down', '-v', '--remove-orphans')
-            run(['docker', 'image', 'rm', PROJECT + '-backend', PROJECT + '-frontend'])
-            env_file.unlink()
-            report['cleaned'] = ['isolated containers, volumes and image tags', str(env_file)]
-        else:
-            compose('channels', 'logs', '--no-color', allowed_failure=True)
+        try:
+            if report['passed']:
+                compose('channels', 'down', '-v', '--remove-orphans')
+                run(['docker', 'image', 'rm', PROJECT + '-backend', PROJECT + '-frontend'])
+                env_file.unlink()
+                report['cleaned'] = ['isolated containers, volumes and image tags', str(env_file)]
+            else:
+                compose('channels', 'logs', '--no-color', allowed_failure=True)
+                compose('channels', 'stop', allowed_failure=True)
+        except Exception:
+            report['passed'] = False
+            report['cleanup_failed'] = True
             compose('channels', 'stop', allowed_failure=True)
-        (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-        print(json.dumps({'evidence': str(FOLDER), **report}, ensure_ascii=False), flush=True)
+            raise
+        finally:
+            (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+            print(json.dumps({'evidence': str(FOLDER), **report}, ensure_ascii=False), flush=True)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--include-capacity-edge', action='store_true',
                         help='另执行每0.1秒到达一条的100条真实连接基线；不等同百条瞬时突发')
-    main(include_capacity_edge=parser.parse_args().include_capacity_edge)
+    parser.add_argument('--burst-only', action='store_true',
+                        help='只复现百条瞬时突发，保留真实代理/鉴权/数据库和原资源限额')
+    parser.add_argument('--include-capacity-burst', action='store_true',
+                        help='完整验收后另执行百条同步突发连接，不代替六分钟及较缓到达基线')
+    arguments = parser.parse_args()
+    if arguments.burst_only and (arguments.include_capacity_edge or arguments.include_capacity_burst):
+        parser.error('--burst-only 不能与完整验收的追加阶段同时使用')
+    main(include_capacity_edge=arguments.include_capacity_edge,
+         include_capacity_burst=arguments.include_capacity_burst, burst_only=arguments.burst_only)

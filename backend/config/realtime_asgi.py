@@ -4,6 +4,7 @@ import json
 import os
 import re
 import uuid
+from weakref import WeakValueDictionary
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 import django
@@ -24,6 +25,24 @@ from django.utils import translation
 
 PATH = '/api/v1/realtime/events/'
 SAFE_ID = re.compile(r'[A-Za-z0-9._:-]{1,100}\Z')
+ADMISSION_WAIT_SECONDS = 5
+
+
+class _AdmissionGate:
+    def __init__(self):
+        self.lock = asyncio.Lock()
+        self.pending = 0
+
+
+# 每个 worker 的事件循环共享一个准入闸门。弱值在最后一个调用结束后释放，
+# 不把测试或重启前的 loop 留在进程中；跨 worker 的上限仍由 SQL 行锁保证。
+_admission_gates = WeakValueDictionary()
+
+
+class AdmissionUnavailable(APIException):
+    status_code = 503
+    default_detail = '实时服务暂不可用'
+    default_code = 'realtime_admission_busy'
 
 
 def _database(function, *args):
@@ -42,6 +61,37 @@ def _database(function, *args):
 
 async def database(function, *args):
     return await sync_to_async(_database, thread_sensitive=False)(function, *args)
+
+
+async def _admit(raw_token, request):
+    loop = asyncio.get_running_loop()
+    gate = _admission_gates.get(loop)
+    if gate is None:
+        gate = _AdmissionGate()
+        _admission_gates[loop] = gate
+    if gate.pending >= realtime.MAX_CONNECTIONS:
+        raise realtime.ConnectionLimit()
+    gate.pending += 1
+    try:
+        try:
+            await asyncio.wait_for(gate.lock.acquire(), ADMISSION_WAIT_SECONDS)
+        except TimeoutError:
+            raise AdmissionUnavailable() from None
+        try:
+            # 先排队再打开事务，避免同进程的线程占用 DB 连接等待同一预算行。
+            # 首帧/心跳不经过闸门；真正执行时仍复核 IP、用户与设备撤销。
+            work = asyncio.create_task(database(_policy_acquire, raw_token, request))
+            try:
+                return await asyncio.shield(work)
+            except asyncio.CancelledError:
+                # 取消协程不能中断同步 SQL：等领取结束并回收，之后才让下一位进入。
+                identifier = await work
+                await database(realtime.release, identifier)
+                raise
+        finally:
+            gate.lock.release()
+    finally:
+        gate.pending -= 1
 
 
 def _headers(scope):
@@ -219,7 +269,7 @@ async def localized_application(scope, receive, send):
     tasks = []
     try:
         policy_request = _ip_request(scope, headers)
-        lease_id = await database(_policy_acquire, raw_token, policy_request)
+        lease_id = await _admit(raw_token, policy_request)
         await _send(send, {'type': 'http.response.start', 'status': 200, 'headers': [
             (b'content-type', b'text/event-stream; charset=utf-8'), (b'cache-control', b'private, no-store'),
             (b'x-accel-buffering', b'no'), (b'x-request-id', request_id.encode()),

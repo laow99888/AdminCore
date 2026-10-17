@@ -213,3 +213,140 @@ def test_asgi_snapshot_failure_safe_and_releases_budget():
     output, calls = _asgi(scope(), acquire='lease', snapshot=RuntimeError('private db error'))
     assert output[0]['status'] == 200 and b'unavailable' in output[1]['body']
     assert b'private db error' not in output[1]['body'] and calls[-1] == (realtime.release, 'lease')
+
+
+@override_settings(ADMINCORE_MODULES=MODULES)
+def test_asgi_burst_serializes_admission_without_serializing_streams():
+    """同一事件循环的多个真实调用不能把预算事务同时压入线程池。"""
+    from config.realtime_asgi import application, _policy_acquire, _policy_snapshot
+
+    async def run():
+        active = peak = snapshots = 0
+        released = []
+        all_streaming = asyncio.Event()
+
+        async def database(function, *args):
+            nonlocal active, peak, snapshots
+            if function is _policy_acquire:
+                active += 1
+                peak = max(peak, active)
+                await asyncio.sleep(.01)
+                active -= 1
+                return args[0]
+            if function is _policy_snapshot:
+                snapshots += 1
+                if snapshots == 8:
+                    all_streaming.set()
+                return {}
+            released.append(args[0])
+
+        async def client(index):
+            first = True
+            async def receive():
+                nonlocal first
+                if first:
+                    first = False
+                    return {'type': 'http.request', 'body': b''}
+                await all_streaming.wait()
+                return {'type': 'http.disconnect'}
+            async def send(message):
+                pass
+            await application(scope(headers=[(b'host', b'localhost'),
+                (b'authorization', f'Bearer fixture-{index}'.encode())]), receive, send)
+
+        with patch('config.realtime_asgi.database', side_effect=database):
+            await asyncio.wait_for(asyncio.gather(*(client(index) for index in range(8))), 2)
+        assert peak == 1
+        assert snapshots == len(released) == 8
+
+    asyncio.run(run())
+
+
+@override_settings(ADMINCORE_MODULES=MODULES)
+@pytest.mark.parametrize('cancel_waiter', [False, True])
+def test_asgi_admission_wait_is_bounded_and_recovers(cancel_waiter):
+    from config import realtime_asgi as app
+
+    async def run():
+        started, finish = asyncio.Event(), asyncio.Event()
+        called = []
+        async def database(function, raw, *args):
+            called.append(raw)
+            if raw == 'first':
+                started.set()
+                await finish.wait()
+            return raw
+        with patch.object(app, 'database', side_effect=database), patch.object(app, 'ADMISSION_WAIT_SECONDS', .02):
+            first = asyncio.create_task(app._admit('first', None))
+            await started.wait()
+            if cancel_waiter:
+                queued = asyncio.create_task(app._admit('queued', None))
+                await asyncio.sleep(0)
+                queued.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await queued
+            else:
+                with pytest.raises(app.AdmissionUnavailable):
+                    await app._admit('queued', None)
+            finish.set()
+            assert await first == 'first'
+            assert await app._admit('after', None) == 'after'
+        assert called == ['first', 'after']
+    asyncio.run(run())
+
+
+@override_settings(ADMINCORE_MODULES=MODULES)
+def test_asgi_admission_queue_limit_recovers_across_event_loops():
+    from config import realtime_asgi as app
+
+    async def run():
+        started, finish = asyncio.Event(), asyncio.Event()
+        async def database(function, raw, *args):
+            if raw == 'first':
+                started.set()
+                await finish.wait()
+            return raw
+        with patch.object(app, 'database', side_effect=database), patch.object(realtime, 'MAX_CONNECTIONS', 2):
+            first = asyncio.create_task(app._admit('first', None))
+            await started.wait()
+            second = asyncio.create_task(app._admit('second', None))
+            await asyncio.sleep(0)
+            with pytest.raises(realtime.ConnectionLimit):
+                await app._admit('overflow', None)
+            finish.set()
+            assert await asyncio.gather(first, second) == ['first', 'second']
+            assert await app._admit('after', None) == 'after'
+    for _ in range(2):
+        asyncio.run(run())
+
+
+@override_settings(ADMINCORE_MODULES=MODULES)
+def test_asgi_cancelled_admission_waits_for_sql_and_releases_lease():
+    from config import realtime_asgi as app
+
+    async def run():
+        started, finish, next_started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        released = []
+        async def database(function, raw, *args):
+            if function is realtime.release:
+                released.append(raw)
+                return
+            if raw == 'first':
+                started.set()
+                await finish.wait()
+            else:
+                next_started.set()
+            return raw
+        with patch.object(app, 'database', side_effect=database):
+            first = asyncio.create_task(app._admit('first', None))
+            await started.wait()
+            first.cancel()
+            second = asyncio.create_task(app._admit('second', None))
+            await asyncio.sleep(.01)
+            assert not next_started.is_set()
+            finish.set()
+            with pytest.raises(asyncio.CancelledError):
+                await first
+            assert await second == 'second'
+        assert released == ['first']
+    asyncio.run(run())

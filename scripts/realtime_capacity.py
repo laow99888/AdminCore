@@ -37,10 +37,14 @@ def measure(base, actors, observe, destination, *, seconds, overflow=None, arriv
     """每个 actor 是独立用户/设备的真实 access/refresh；短流自然结束后重新建立。"""
     report = {'passed': False, 'connections': len(actors), 'requested_seconds': seconds,
               'arrival_seconds': arrival_seconds,
+              'synchronized_start': arrival_seconds == 0,
               'scope': '隔离 PostgreSQL/Nginx/单进程 ASGI，非生产 SLA；客户端含 HTTP/解码耗时',
               'samples': [], 'actors': [], 'health_ms': []}
     destination = Path(destination)
     stop = threading.Event()
+    start_gate = threading.Event()
+    if arrival_seconds:
+        start_gate.set()
     admitted = [threading.Event() for _ in actors]
     stats = [{'cycles': 0, 'snapshots': 0, 'heartbeats': 0, 'refreshes': 0,
               'admission_retries': 0, 'errors': [], 'max_reconnect_ms': 0} for _ in actors]
@@ -50,6 +54,7 @@ def measure(base, actors, observe, destination, *, seconds, overflow=None, arriv
         destination.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
 
     def client(index):
+        start_gate.wait()
         pair, row = dict(actors[index]), stats[index]
         disconnected_at = time.monotonic()
         try:
@@ -109,10 +114,13 @@ def measure(base, actors, observe, destination, *, seconds, overflow=None, arriv
         started = time.monotonic()
         with ThreadPoolExecutor(max_workers=len(actors)) as pool:
             futures = []
-            for index in range(len(actors)):
-                futures.append(pool.submit(client, index))
-                if stop.wait(arrival_seconds):
-                    break
+            try:
+                for index in range(len(actors)):
+                    futures.append(pool.submit(client, index))
+                    if stop.wait(arrival_seconds):
+                        break
+            finally:
+                start_gate.set()
             try:
                 deadline = time.monotonic() + 20
                 while not all(event.is_set() for event in admitted) and not stop.is_set() and time.monotonic() < deadline:
