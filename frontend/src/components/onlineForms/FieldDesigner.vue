@@ -1,6 +1,6 @@
 <template>
   <div class="designer-fields">
-    <el-button :disabled="modelValue.length >= 50" @click="add">{{
+    <el-button :disabled="disabled || modelValue.length >= 50" @click="add">{{
       uiText("添加字段")
     }}</el-button>
     <el-empty v-if="!modelValue.length" :description="uiText('请添加字段')" />
@@ -18,12 +18,12 @@
         >
         <div class="toolbar">
           <el-button
-            :disabled="index === 0"
+            :disabled="disabled || index === 0"
             :aria-label="uiText('上移字段')"
             @click="move(index, -1)"
             >{{ uiText("上移") }}</el-button
           ><el-button
-            :disabled="index === modelValue.length - 1"
+            :disabled="disabled || index === modelValue.length - 1"
             :aria-label="uiText('下移字段')"
             @click="move(index, 1)"
             >{{ uiText("下移") }}</el-button
@@ -229,6 +229,7 @@ import { useId } from "vue";
 import type { OnlineFormField } from "@/api";
 import { uiText } from "@/i18n/uiText";
 import ConditionEditor from "./ConditionEditor.vue";
+import { useFormDisabled } from "element-plus";
 import ComparisonEditor from "./ComparisonEditor.vue";
 import OnlineFieldInput from "./OnlineFieldInput.vue";
 const props = withDefaults(
@@ -240,6 +241,7 @@ const props = withDefaults(
   { sections: () => [] },
 );
 const emit = defineEmits<{ "update:modelValue": [value: OnlineFormField[]] }>();
+const disabled = useFormDisabled();
 const uid = useId();
 const types = [
   { value: "text", label: "单行文本" },

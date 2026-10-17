@@ -20,6 +20,10 @@ def validate_browser(folder, work, env, *, build=True):
         raise RuntimeError('浏览器夹具路径不在任务临时目录内')
     for port in (18471, 18472):
         with socket.socket() as listener:
+            # Linux 连续运行两轮验收时，已关闭连接可能仍处于 TIME_WAIT。
+            # 与 Django/Vite 的监听行为一致；仍拒绝已被其他服务监听的端口。
+            if os.name != 'nt':
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(('127.0.0.1', port))
     front = folder / 'frontend'
     ignored = shutil.ignore_patterns('node_modules', 'dist', 'coverage', 'test-results',

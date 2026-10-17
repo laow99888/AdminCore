@@ -80,7 +80,7 @@
     </div>
     <el-button
       size="small"
-      :disabled="!sources.length || modelValue.length >= 5"
+      :disabled="disabled || !sources.length || modelValue.length >= 5"
       @click="add"
       >{{ uiText("添加条件（全部满足）") }}</el-button
     >
@@ -94,6 +94,8 @@ import type { OnlineFormCondition, OnlineFormField } from "@/api";
 import { computed, useId } from "vue";
 import { uiText } from "@/i18n/uiText";
 import OnlineFieldInput from "./OnlineFieldInput.vue";
+import { useFormDisabled } from "element-plus";
+const disabled = useFormDisabled();
 const props = defineProps<{
   modelValue: OnlineFormCondition[];
   fields: OnlineFormField[];

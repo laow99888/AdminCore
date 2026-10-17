@@ -107,7 +107,7 @@
                 }}</el-button>
               </div>
               <el-button
-                :disabled="(editing.definition.sections?.length || 0) >= 20"
+                :disabled="locked || (editing.definition.sections?.length || 0) >= 20"
                 @click="addSection"
                 >{{ uiText("添加分组") }}</el-button
               >

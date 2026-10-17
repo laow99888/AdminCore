@@ -345,5 +345,15 @@ it('只读用户可查看配置，但不能编辑、创建或调用管理员预�
   auth.user={...auth.user!,is_staff:false,permissions:['online_form:read']};
   await wrapper.get('tbody tr').trigger('click');await flushPromises();
   expect(wrapper.get('input').attributes('disabled')).toBeDefined();
-  for (const text of ['新建草稿','保存草稿','发布','复制为新草稿','服务端校验']) expect(wrapper.findAll('button').find(b=>b.text()===text)!.attributes('disabled')).toBeDefined();
+  for (const text of ['新建草稿','保存草稿','发布','复制为新草稿','服务端校验','添加字段','添加分组','添加跨字段校验']) expect(wrapper.findAll('button').find(b=>b.text()===text)!.attributes('disabled')).toBeDefined();
+});
+
+it('发布后的设计器不能添加字段、分组或重排字段', async () => {
+  const row = {id:'published',name:'已发布',code:'published',status:'published',version:1,definition:{...definition,fields:[...definition.fields,{key:'extra',label:'额外字段',type:'text'}]}};
+  vi.mocked(onlineFormsApi.list).mockResolvedValue({items:[row],pagination:{total:1}} as never);
+  const {wrapper}=await harness(Designer,'/online-forms');
+  await wrapper.get('tbody tr').trigger('click');await flushPromises();
+  for (const text of ['添加字段','添加分组']) expect(wrapper.findAll('button').find(b=>b.text()===text)!.attributes('disabled')).toBeDefined();
+  await wrapper.findAll('.el-collapse-item__header')[0]!.trigger('click');await nextTick();
+  expect(wrapper.get('[aria-label="下移字段"]').attributes('disabled')).toBeDefined();
 });

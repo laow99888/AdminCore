@@ -43,7 +43,7 @@
       >
     </div>
     <el-button
-      :disabled="comparable.length < 2 || modelValue.length >= 20"
+      :disabled="disabled || comparable.length < 2 || modelValue.length >= 20"
       @click="add"
       >{{ uiText("添加跨字段校验") }}</el-button
     >
@@ -51,6 +51,8 @@
 </template>
 <script setup lang="ts">
 import { computed } from "vue";
+import { useFormDisabled } from "element-plus";
+const disabled = useFormDisabled();
 import type { OnlineFormField, OnlineFormRule } from "@/api";
 import { uiText } from "@/i18n/uiText";
 const props = defineProps<{
