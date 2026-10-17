@@ -1013,7 +1013,8 @@ export interface paths {
         delete: operations["files_destroy"];
         options?: never;
         head?: never;
-        patch?: never;
+        /** @description 文件管理：上传 / 列表 / 下载 / 软删除 */
+        patch: operations["files_partial_update"];
         trace?: never;
     };
     "/api/v1/files/{id}/acl/": {
@@ -2472,8 +2473,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
         get: operations["organization_tenant_memberships_list"];
         put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
         post: operations["organization_tenant_memberships_create"];
         delete?: never;
         options?: never;
@@ -2488,12 +2501,36 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
         get: operations["organization_tenant_memberships_retrieve"];
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
         put: operations["organization_tenant_memberships_update"];
         post?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
         delete: operations["organization_tenant_memberships_destroy"];
         options?: never;
         head?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
         patch: operations["organization_tenant_memberships_partial_update"];
         trace?: never;
     };
@@ -2793,6 +2830,150 @@ export interface paths {
          *     自定义 action 自行构造 Response 的不受影响。
          */
         post: operations["reliability_events_retry_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/catalog/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["reports_catalog_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/definitions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["reports_definitions_list"];
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["reports_definitions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/definitions/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["reports_definitions_retrieve"];
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        put: operations["reports_definitions_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        patch: operations["reports_definitions_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/reports/definitions/{id}/archive/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["reports_definitions_archive_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/definitions/{id}/publish/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["reports_definitions_publish_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reports/definitions/{id}/run/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["reports_definitions_run_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4484,12 +4665,6 @@ export interface components {
             message: string;
         };
         /**
-         * @description * `python` - python
-         *     * `other` - other
-         * @enum {string}
-         */
-        KindEnum: "python" | "other";
-        /**
          * @description * `debug` - DEBUG
          *     * `info` - INFO
          *     * `warning` - WARNING
@@ -5542,6 +5717,19 @@ export interface components {
             };
             message: string;
         };
+        PaginatedReportList: {
+            code: number;
+            data: {
+                items: components["schemas"]["Report"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
         PaginatedRoleList: {
             code: number;
             data: {
@@ -5778,6 +5966,12 @@ export interface components {
             last_name?: string;
             phone?: string;
             profile_version?: number;
+        };
+        PatchedReportDesignRequest: {
+            code?: string;
+            definition?: unknown;
+            kind?: components["schemas"]["ReportKindEnum"];
+            name?: string;
         };
         /** @description 角色序列化器 */
         PatchedRoleRequest: {
@@ -6040,13 +6234,19 @@ export interface components {
         Process: {
             /** Format: double */
             cpu_seconds: number;
-            kind: components["schemas"]["KindEnum"];
+            kind: components["schemas"]["ProcessKindEnum"];
             pid: number;
             rss_bytes: number;
             state: string;
             /** Format: double */
             uptime_seconds: number;
         };
+        /**
+         * @description * `python` - python
+         *     * `other` - other
+         * @enum {string}
+         */
+        ProcessKindEnum: "python" | "other";
         /** @description 用户序列化器 */
         ProfileRead: {
             /** 头像 */
@@ -6189,6 +6389,62 @@ export interface components {
             code: number;
             data: components["schemas"]["RegisteredSession"];
             message: string;
+        };
+        Report: {
+            code: string;
+            /**
+             * 创建时间
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly created_by: string;
+            readonly created_by_name: string;
+            definition?: unknown;
+            /** Format: uuid */
+            readonly id: string;
+            kind?: components["schemas"]["ReportKindEnum"];
+            name: string;
+            /** Format: date-time */
+            readonly published_at: string | null;
+            /** Format: uuid */
+            readonly published_by: string | null;
+            readonly published_by_name: string;
+            readonly status: components["schemas"]["OnlineFormStatusEnum"];
+            /**
+             * 更新时间
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            readonly version: number;
+        };
+        ReportDesign: {
+            code: string;
+            definition?: unknown;
+            /** Format: uuid */
+            readonly id: string;
+            kind?: components["schemas"]["ReportKindEnum"];
+            name: string;
+            readonly status: components["schemas"]["OnlineFormStatusEnum"];
+            readonly version: number;
+        };
+        ReportDesignRequest: {
+            code: string;
+            definition?: unknown;
+            kind?: components["schemas"]["ReportKindEnum"];
+            name: string;
+        };
+        /**
+         * @description * `report` - 报表
+         *     * `dashboard` - 大屏
+         * @enum {string}
+         */
+        ReportKindEnum: "report" | "dashboard";
+        ReportRequest: {
+            code: string;
+            definition?: unknown;
+            kind?: components["schemas"]["ReportKindEnum"];
+            name: string;
         };
         /**
          * @description * `leave` - 请假
@@ -6333,9 +6589,10 @@ export interface components {
          *     * `example` - 示例工单
          *     * `online_form` - 在线表单
          *     * `online_record` - 在线表单记录
+         *     * `report` - 报表定义
          * @enum {string}
          */
-        ScopeGrantResourceEnum: "user" | "file" | "task" | "log" | "example" | "online_form" | "online_record";
+        ScopeGrantResourceEnum: "user" | "file" | "task" | "log" | "example" | "online_form" | "online_record" | "report";
         /**
          * @description * `self` - 本人
          *     * `department` - 本部门
@@ -6996,6 +7253,7 @@ export interface components {
             is_active?: boolean;
             /** 姓氏 */
             last_name?: string;
+            readonly must_change_password: boolean;
             phone?: string;
             /** @description 更新时必填：读取详情返回的 version；版本过期返回 409 且不写入。 */
             version?: number;
@@ -7814,14 +8072,12 @@ export interface operations {
     approvals_flows_list: {
         parameters: {
             query?: {
-                /** @description 用于排序结果的字段。 */
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, code, name, status, version。同值记录追加主键排序。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
                 page?: number;
                 /** @description 每页条数 */
                 page_size?: number;
-                /** @description 搜索关键词。 */
-                search?: string;
             };
             header?: never;
             path?: never;
@@ -7840,6 +8096,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedApprovalFlowList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
         };
@@ -9757,6 +10039,33 @@ export interface operations {
             };
         };
     };
+    files_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 文件 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+        };
+    };
     files_acl_retrieve: {
         parameters: {
             query?: never;
@@ -10424,6 +10733,19 @@ export interface operations {
                 };
             };
             400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            409: {
                 headers: {
                     /**
                      * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
@@ -13094,8 +13416,9 @@ export interface operations {
                  *     * `example` - 示例工单
                  *     * `online_form` - 在线表单
                  *     * `online_record` - 在线表单记录
+                 *     * `report` - 报表定义
                  */
-                resource?: "example" | "file" | "log" | "online_form" | "online_record" | "task" | "user";
+                resource?: "example" | "file" | "log" | "online_form" | "online_record" | "report" | "task" | "user";
                 role?: string;
             };
             header?: never;
@@ -13271,14 +13594,12 @@ export interface operations {
     organization_tenant_memberships_list: {
         parameters: {
             query?: {
-                /** @description 用于排序结果的字段。 */
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, updated_at, role, is_active, tenant__name, user__username。同值记录追加主键排序。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
                 page?: number;
                 /** @description 每页条数 */
                 page_size?: number;
-                /** @description 搜索关键词。 */
-                search?: string;
             };
             header?: never;
             path?: never;
@@ -13297,6 +13618,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedTenantMembershipList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
         };
@@ -13453,14 +13800,12 @@ export interface operations {
     organization_tenants_list: {
         parameters: {
             query?: {
-                /** @description 用于排序结果的字段。 */
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, updated_at, slug, name, status。同值记录追加主键排序。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
                 page?: number;
                 /** @description 每页条数 */
                 page_size?: number;
-                /** @description 搜索关键词。 */
-                search?: string;
             };
             header?: never;
             path?: never;
@@ -13479,6 +13824,32 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaginatedTenantList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
                 };
             };
         };
@@ -14666,6 +15037,307 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OutboxRetryResponse"];
+                };
+            };
+        };
+    };
+    reports_catalog_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    reports_definitions_list: {
+        parameters: {
+            query?: {
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：name, code, created_at, updated_at。同值记录追加主键排序。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /** @description 搜索关键词。 */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedReportList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    reports_definitions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReportDesignRequest"];
+                "multipart/form-data": components["schemas"]["ReportDesignRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDesign"];
+                };
+            };
+        };
+    };
+    reports_definitions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+        };
+    };
+    reports_definitions_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReportDesignRequest"];
+                "multipart/form-data": components["schemas"]["ReportDesignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDesign"];
+                };
+            };
+        };
+    };
+    reports_definitions_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedReportDesignRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedReportDesignRequest"];
+                "multipart/form-data": components["schemas"]["PatchedReportDesignRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportDesign"];
+                };
+            };
+        };
+    };
+    reports_definitions_archive_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReportRequest"];
+                "multipart/form-data": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+        };
+    };
+    reports_definitions_publish_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReportRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReportRequest"];
+                "multipart/form-data": components["schemas"]["ReportRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
+                };
+            };
+        };
+    };
+    reports_definitions_run_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Report"];
                 };
             };
         };

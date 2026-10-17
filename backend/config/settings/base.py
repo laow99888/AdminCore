@@ -286,6 +286,8 @@ SPECTACULAR_SETTINGS = {
                           'TaskMetricStatusEnum': ['ok', 'degraded', 'disabled'],
                           'QueueMetricStatusEnum': ['ok', 'unavailable', 'disabled'],
                           'MessageChannelEnum': 'apps.notifications.models.MessageDelivery.CHANNELS',
+                          'ReportKindEnum': 'apps.reports.models.ReportDefinition.KIND_CHOICES',
+                          'FeatureFlagTargetKindEnum': ['users', 'roles'],
                           'OnlineFormStatusEnum': 'apps.online_forms.models.OnlineForm.STATUS_CHOICES'},
     'SERVE_PERMISSIONS': ['apps.permissions.permissions.IsAdmin'],
     'SWAGGER_UI_SETTINGS': {'persistAuthorization': False},

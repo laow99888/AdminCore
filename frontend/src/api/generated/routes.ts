@@ -378,6 +378,10 @@ export const sdkRoutes = {
     "get",
     "/api/v1/files/{id}/"
   ],
+  "files_partial_update": [
+    "patch",
+    "/api/v1/files/{id}/"
+  ],
   "files_update": [
     "put",
     "/api/v1/files/{id}/"
@@ -881,6 +885,42 @@ export const sdkRoutes = {
   "reliability_events_retry_create": [
     "post",
     "/api/v1/reliability/events/{id}/retry/"
+  ],
+  "reports_catalog_retrieve": [
+    "get",
+    "/api/v1/reports/catalog/"
+  ],
+  "reports_definitions_list": [
+    "get",
+    "/api/v1/reports/definitions/"
+  ],
+  "reports_definitions_create": [
+    "post",
+    "/api/v1/reports/definitions/"
+  ],
+  "reports_definitions_retrieve": [
+    "get",
+    "/api/v1/reports/definitions/{id}/"
+  ],
+  "reports_definitions_partial_update": [
+    "patch",
+    "/api/v1/reports/definitions/{id}/"
+  ],
+  "reports_definitions_update": [
+    "put",
+    "/api/v1/reports/definitions/{id}/"
+  ],
+  "reports_definitions_archive_create": [
+    "post",
+    "/api/v1/reports/definitions/{id}/archive/"
+  ],
+  "reports_definitions_publish_create": [
+    "post",
+    "/api/v1/reports/definitions/{id}/publish/"
+  ],
+  "reports_definitions_run_retrieve": [
+    "get",
+    "/api/v1/reports/definitions/{id}/run/"
   ],
   "schema_retrieve": [
     "get",

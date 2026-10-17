@@ -424,6 +424,10 @@ jobs:
         working-directory: frontend
       - run: npx playwright install --with-deps chromium && npm run test:e2e
         working-directory: frontend
+      - run: npm run build && npx playwright test e2e/microfrontends.spec.ts
+        working-directory: frontend
+        env:
+          ADMINCORE_MICRO_FRONTENDS_ENABLED: 'true'
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

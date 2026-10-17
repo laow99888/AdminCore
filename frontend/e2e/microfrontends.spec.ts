@@ -32,6 +32,11 @@ async function setup(page: Page) {
 test('可信子应用实际挂载并在离开路由时卸载', async ({ page }) => {
   await setup(page)
   await page.goto('/micro/example-subapp/orders')
+  if (process.env.ADMINCORE_MICRO_FRONTENDS_ENABLED !== 'true') {
+    await expect(page).toHaveURL(/\/403$/)
+    await expect(page.locator('#__qiankun_microapp_wrapper_for_example_subapp__')).toHaveCount(0)
+    return
+  }
   const wrapper = page.locator('#__qiankun_microapp_wrapper_for_example_subapp__')
   await expect.poll(() => wrapper.evaluate(el => el.shadowRoot?.querySelector('[role="status"]')?.textContent ?? '')).toBe('子应用已挂载')
   await expect(wrapper).toHaveAttribute('data-identity-present', 'true')

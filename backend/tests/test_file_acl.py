@@ -89,3 +89,25 @@ def test_acl_can_disable_derived_access_without_revoking_direct_read(admin_clien
     assert file_queryset_for_actor(FileModel.objects.filter(pk=row.pk), member_user).exists()
     assert not file_queryset_for_actor(FileModel.objects.filter(pk=row.pk), member_user, derivative=True).exists()
 
+
+@pytest.mark.django_db
+def test_overlapping_acl_grants_return_one_lockable_file(admin_user, member_user):
+    from django.db import transaction
+    from apps.files.access import file_queryset_for_actor
+
+    row = file_for(admin_user, 'overlapping-grants.txt')
+    role = grant_files(member_user, 'file:download')
+    FileAccessGrant.objects.create(file=row, user=member_user, access_level='read')
+    role_grant = FileAccessGrant.objects.create(file=row, role=role, access_level='manage')
+    queryset = file_queryset_for_actor(FileModel.objects.all(), member_user)
+    assert list(queryset.values_list('pk', flat=True)) == [row.pk]
+    # SQLite 不执行行锁；真实 PostgreSQL 图片验收也会执行同一授权查询。
+    assert not queryset.query.distinct
+    with transaction.atomic():
+        assert queryset.select_for_update().get(pk=row.pk).pk == row.pk
+    FileAccessGrant.objects.filter(file=row, user=member_user).delete()
+    assert queryset.filter(pk=row.pk).exists()
+    role_grant.is_active = False
+    role_grant.save(update_fields=['is_active'])
+    assert not queryset.filter(pk=row.pk).exists()
+

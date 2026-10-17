@@ -45,7 +45,7 @@ def main():
     if hashlib.sha256(binary.read_bytes()).hexdigest() != checksum:
         raise RuntimeError('MinIO运行时摘要不匹配')
     if os.name != 'nt':
-        binary.chmod(0o700)
+        binary.chmod(0o755)
     access, secret = 'fixture-' + secrets.token_hex(8), secrets.token_urlsafe(40)
     password = secrets.token_urlsafe(40)
     endpoint = f'http://127.0.0.1:{port}'
@@ -67,8 +67,9 @@ def main():
     override += f'  frontend:\n    image: {project}-frontend\n'
     override += (f'  minio:\n    image: {project}-backend\n    entrypoint: /minio\n'
                  f'    command: server /data --address :9000\n    env_file:\n      - {env_file.as_posix()}\n'
-                 f'    volumes:\n      - "{binary.as_posix()}:/minio:ro"\n      - backupminio:/data\n'
-                 f'    ports:\n      - "127.0.0.1:{port}:9000"\nvolumes:\n  backupminio:\n')
+                 f'    volumes:\n      - "{binary.as_posix()}:/minio:ro"\n'
+                 f'    tmpfs:\n      - /data:uid=10001,gid=10001,mode=0700,size=512m\n'
+                 f'    ports:\n      - "127.0.0.1:{port}:9000"\n')
     override_file = folder / 'override.yml'
     override_file.write_text(override, encoding='utf-8')
     compose = ['docker', 'compose', '-p', project, '--env-file', str(env_file), '-f', str(ROOT / 'docker-compose.yml'), '-f', str(override_file)]

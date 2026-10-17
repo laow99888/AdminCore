@@ -30,7 +30,8 @@ def full(tmp_path_factory):
 def test_all_registered_routes_and_response_fields_are_present(full):
     _, _, schema = full
     for path in ['/api/v1/tasks/backups/', '/api/v1/files/', '/api/v1/ip-policy/',
-                 '/api/v1/feature-flags/flags/', '/api/v1/auth/login/']:
+                 '/api/v1/feature-flags/flags/', '/api/v1/auth/login/',
+                 '/api/v1/reports/definitions/', '/api/v1/reports/definitions/{id}/run/']:
         assert path in schema['paths']
     status = schema['components']['schemas']['BackupStatus']
     assert status['properties']['restore_requests']['items']['$ref'].endswith('/BackupRestoreHistory')
