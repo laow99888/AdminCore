@@ -91,6 +91,8 @@ import { Inbox } from 'lucide-vue-next'
 import type { TableInstance } from 'element-plus'
 import { useTablePreferencesStore } from '@/stores/tablePreferences'
 
+type RenderCell<T> = { bivarianceHack(value: unknown, row: T): string | number | void }['bivarianceHack']
+
 interface Column<T = any> {
   prop: string
   label: string
@@ -98,7 +100,7 @@ interface Column<T = any> {
   align?: 'left' | 'center' | 'right'
   showOverflow?: boolean
   sortable?: boolean | 'custom'
-  render?: (value: any, row: T) => string | number | void
+  render?: RenderCell<T>
 }
 
 interface Props<T = any> {

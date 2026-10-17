@@ -21,7 +21,7 @@ import 'element-plus/es/components/table-v2/style/css'
 import { uiText } from '@/i18n/uiText'
 import { useTablePreferencesStore } from '@/stores/tablePreferences'
 
-export interface VirtualColumn<T> { prop: string; label: string; width?: string | number; align?: 'left' | 'center' | 'right'; render?: (value: any, row: T) => string | number | void }
+export interface VirtualColumn<T> { prop: string; label: string; width?: string | number; align?: 'left' | 'center' | 'right'; render?: { bivarianceHack(value: unknown, row: T): string | number | void }['bivarianceHack'] }
 const props = withDefaults(defineProps<{ data: T[]; columns: VirtualColumn<T>[]; label: string; loading?: boolean; height?: number; rowKey?: string; showIndex?: boolean; contextKey?: string }>(),
   { loading: false, height: 420, rowKey: 'id', showIndex: true, contextKey: '' })
 const preferences = useTablePreferencesStore(), slots = useSlots()
