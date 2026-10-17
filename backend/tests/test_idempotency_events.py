@@ -1,14 +1,17 @@
 """幂等请求和可靠事件的最小可执行契约。"""
 from datetime import timedelta
+from types import SimpleNamespace
 
 import pytest
 from django.utils import timezone
 from django.db import transaction
+from rest_framework.exceptions import ValidationError
 from unittest.mock import patch
 
 from apps.core.events import enqueue_event
 from apps.core.models import IdempotencyRecord, OutboxEvent
 from apps.core.tasks import dispatch_outbox, cleanup_expired_idempotency
+from apps.core.idempotency import with_idempotency
 from apps.logs.models import OperationLog
 from apps.notifications.models import Notification
 from apps.approvals.models import ApprovalRequest
@@ -157,6 +160,19 @@ def test_invalid_idempotency_key_rejected(member_client, admin_user, key):
     response = member_client.post('/api/v1/approvals/', approval_payload(admin_user), format='json', HTTP_IDEMPOTENCY_KEY=key)
     assert response.status_code == 400
     assert not ApprovalRequest.objects.exists()
+
+
+def test_idempotency_key_rejects_read_methods(member_user):
+    request = SimpleNamespace(
+        method='GET',
+        headers={'Idempotency-Key': 'read-key'},
+        user=member_user,
+        content_type='application/json',
+        data={},
+        get_full_path=lambda: '/api/v1/example/',
+    )
+    with pytest.raises(ValidationError, match='幂等请求仅支持已登录的 JSON 写操作'):
+        with_idempotency(request, 'example:read', lambda: None)
 
 
 def test_expired_key_can_start_new_operation_then_cleanup(member_client, admin_user):

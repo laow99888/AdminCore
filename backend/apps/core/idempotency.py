@@ -11,6 +11,8 @@ from rest_framework.response import Response
 
 from .models import IdempotencyRecord
 
+IDEMPOTENT_WRITE_METHODS = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
+
 
 class IdempotencyConflict(APIException):
     status_code = 409
@@ -26,7 +28,11 @@ def with_idempotency(request, scope, callback, ttl_hours=24):
             return callback()
     if not raw_key or len(raw_key) > 128 or any(ord(char) < 33 or ord(char) > 126 for char in raw_key):
         raise ValidationError('Idempotency-Key 必须是 1-128 个无空格的 ASCII 字符')
-    if not request.user.is_authenticated or request.content_type != 'application/json':
+    if (
+        request.method not in IDEMPOTENT_WRITE_METHODS
+        or not request.user.is_authenticated
+        or request.content_type != 'application/json'
+    ):
         raise ValidationError('幂等请求仅支持已登录的 JSON 写操作')
     body = json.dumps(request.data, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     digest = hashlib.sha256(f'{request.method}|{request.get_full_path()}|{body}'.encode()).hexdigest()
