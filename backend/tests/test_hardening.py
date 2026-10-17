@@ -52,7 +52,8 @@ def test_forwarded_header_cannot_change_direct_client():
 
 
 @pytest.mark.django_db
-def test_login_username_limit_across_source_addresses():
+def test_login_username_limit_across_source_addresses(monkeypatch):
+    monkeypatch.setattr('apps.auth_app.throttling.time.time', lambda: 1_800_000_010.0)
     client = APIClient()
     for index in range(5):
         response = client.post('/api/v1/auth/login/', {'username': 'unknown', 'password': 'invalid'},
@@ -65,13 +66,19 @@ def test_login_username_limit_across_source_addresses():
 
 
 @pytest.mark.django_db
-def test_login_ip_limit_across_usernames():
+def test_login_ip_limit_across_usernames(monkeypatch):
+    clock = [1_800_000_010.0]
+    monkeypatch.setattr('apps.auth_app.throttling.time.time', lambda: clock[0])
     client = APIClient()
     for index in range(10):
         assert client.post('/api/v1/auth/login/', {'username': f'unknown-{index}', 'password': 'invalid'},
                            format='json', HTTP_X_FORWARDED_FOR=f'forged-{index}').status_code == 401
-    assert client.post('/api/v1/auth/login/', {'username': 'other', 'password': 'invalid'},
-                       format='json', HTTP_X_FORWARDED_FOR='forged-last').status_code == 429
+    blocked = client.post('/api/v1/auth/login/', {'username': 'other', 'password': 'invalid'},
+                          format='json', HTTP_X_FORWARDED_FOR='forged-last')
+    assert blocked.status_code == 429 and blocked['Retry-After'] == '50'
+    clock[0] += 60
+    assert client.post('/api/v1/auth/login/', {'username': 'next-window', 'password': 'invalid'},
+                       format='json', HTTP_X_FORWARDED_FOR='forged-next').status_code == 401
 
 
 @pytest.mark.django_db

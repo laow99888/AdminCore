@@ -21,17 +21,21 @@ DATABASE = 'sha256:' + 'c' * 64
     (['docker-compose.yml', 'compose.minimal.yml'], {'backend'}),
     (['docker-compose.yml', 'compose.realtime.yml'], set(release.ROLES)),
 ])
-def test_real_compose_definitions_support_shared_artifacts(files, roles):
+def test_real_compose_definitions_support_shared_artifacts(tmp_path, files, roles):
     if not shutil.which('docker'):
         pytest.skip('需要 Docker Compose 配置解析器')
     root = Path(__file__).resolve().parents[2]
-    args = ['docker', 'compose', '--env-file', str(root / '.env.example')]
+    # 服务自身也声明 env_file: .env；不能依赖开发机恰好存在的私有文件。
+    (tmp_path / '.env').write_text((root / '.env.example').read_text(encoding='utf-8')
+                                  + '\nDB_PASSWORD=synthetic-release-test-only\n', encoding='utf-8')
+    args = ['docker', 'compose', '--project-directory', str(tmp_path), '--env-file', str(tmp_path / '.env')]
     for file in files:
         args += ['-f', str(root / file)]
     environment = {**os.environ, 'COMPOSE_PROFILES': ''}
     result = subprocess.run(args + ['config', '--format', 'json'], cwd=root, env=environment,
                             capture_output=True, text=True, encoding='utf-8', check=True, timeout=30)
     effective = json.loads(result.stdout)
+    assert effective['services']['backend']['environment']['DB_PASSWORD'] == 'synthetic-release-test-only'
     assert set(effective['services']) & set(release.ROLES) == roles
     assert release.build_targets(effective) == ['backend', 'frontend']
 

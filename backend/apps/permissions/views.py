@@ -74,6 +74,9 @@ class RoleViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
 )
 class PermissionViewSet(EnvelopeResponseMixin, viewsets.ReadOnlyModelViewSet):
     """权限管理（只读）"""
+    # 响应 Mixin 提供 create/update/destroy，路由器会据此误登记写方法；
+    # 显式限制方法，同时保证运行时与 OpenAPI 均保持只读。
+    http_method_names = ['get', 'head', 'options']
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
     permission_classes = [IsAuthenticated]

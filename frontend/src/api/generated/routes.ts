@@ -822,20 +822,8 @@ export const sdkRoutes = {
     "get",
     "/api/v1/permissions/permissions/"
   ],
-  "permissions_permissions_create": [
-    "post",
-    "/api/v1/permissions/permissions/"
-  ],
-  "permissions_permissions_destroy": [
-    "delete",
-    "/api/v1/permissions/permissions/{id}/"
-  ],
   "permissions_permissions_retrieve": [
     "get",
-    "/api/v1/permissions/permissions/{id}/"
-  ],
-  "permissions_permissions_update": [
-    "put",
     "/api/v1/permissions/permissions/{id}/"
   ],
   "permissions_roles_list": [

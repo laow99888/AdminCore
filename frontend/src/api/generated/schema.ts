@@ -2687,8 +2687,7 @@ export interface paths {
         /** @description 权限管理（只读） */
         get: operations["permissions_permissions_list"];
         put?: never;
-        /** @description 权限管理（只读） */
-        post: operations["permissions_permissions_create"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2704,11 +2703,9 @@ export interface paths {
         };
         /** @description 权限管理（只读） */
         get: operations["permissions_permissions_retrieve"];
-        /** @description 权限管理（只读） */
-        put: operations["permissions_permissions_update"];
+        put?: never;
         post?: never;
-        /** @description 权限管理（只读） */
-        delete: operations["permissions_permissions_destroy"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -6086,19 +6083,6 @@ export interface components {
             code: number;
             data: components["schemas"]["Permission"];
             message: string;
-        };
-        /** @description 权限序列化器 */
-        PermissionRequest: {
-            /** 操作 */
-            action: string;
-            /** 权限代码 */
-            code: string;
-            /** 描述 */
-            description?: string;
-            /** 权限名 */
-            name: string;
-            /** 资源 */
-            resource: string;
         };
         Person: {
             /** Format: uuid */
@@ -14467,36 +14451,6 @@ export interface operations {
             };
         };
     };
-    permissions_permissions_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PermissionRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["PermissionRequest"];
-                "multipart/form-data": components["schemas"]["PermissionRequest"];
-            };
-        };
-        responses: {
-            201: {
-                headers: {
-                    /**
-                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
-                     * @example v1
-                     */
-                    "X-API-Version"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Permission"];
-                };
-            };
-        };
-    };
     permissions_permissions_retrieve: {
         parameters: {
             query?: never;
@@ -14521,65 +14475,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PermissionDetailResponse"];
                 };
-            };
-        };
-    };
-    permissions_permissions_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 标识此 权限 的 UUID 字符串。 */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PermissionRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["PermissionRequest"];
-                "multipart/form-data": components["schemas"]["PermissionRequest"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    /**
-                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
-                     * @example v1
-                     */
-                    "X-API-Version"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Permission"];
-                };
-            };
-        };
-    };
-    permissions_permissions_destroy: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description 标识此 权限 的 UUID 字符串。 */
-                id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    /**
-                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
-                     * @example v1
-                     */
-                    "X-API-Version"?: string;
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
         };
     };

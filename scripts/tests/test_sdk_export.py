@@ -39,6 +39,9 @@ def test_all_registered_routes_and_response_fields_are_present(full):
                   for method, operation in row.items() if method in {'get', 'post', 'put', 'patch', 'delete', 'head', 'options'}]
     assert len(operations) == len(set(operations))
     assert len(schema['info']['x-admincore-modules']) >= 13
+    for path in ('/api/v1/permissions/permissions/', '/api/v1/permissions/permissions/{id}/'):
+        methods = set(schema['paths'][path]) & {'get', 'post', 'put', 'patch', 'delete'}
+        assert methods == {'get'}, '权限定义目录必须只读，SDK不应发布不可调用的写操作'
 
 
 def test_export_is_deterministic_and_ignores_deployment_environment(full):
