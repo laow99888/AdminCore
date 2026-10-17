@@ -24,3 +24,4 @@ COPY security-headers.conf /etc/nginx/security-headers.conf
 COPY spa-csp.conf /etc/nginx/spa-csp.conf
 
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1

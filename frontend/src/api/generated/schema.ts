@@ -249,6 +249,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/{id}/repair-step/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_repair_step_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals/{id}/transfer/": {
         parameters: {
             query?: never;
@@ -1503,7 +1520,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description 查看详情时自动标记为已读 */
+        /** @description 只读详情；已读状态仅由收件人的显式写操作改变。 */
         get: operations["notifications_retrieve"];
         put?: never;
         post?: never;
@@ -3716,6 +3733,11 @@ export interface components {
             title: string;
             version: number;
         };
+        ApprovalAddSignResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
+        };
         ApprovalApprovedResponse: {
             code: number;
             data: components["schemas"]["ApprovalRequest"];
@@ -3727,6 +3749,11 @@ export interface components {
             message: string;
         };
         ApprovalCancelledResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
+        };
+        ApprovalCCResponse: {
             code: number;
             data: components["schemas"]["ApprovalRequest"];
             message: string;
@@ -3753,6 +3780,11 @@ export interface components {
         ApprovalDecisionRequest: {
             /** @default  */
             comment: string;
+        };
+        ApprovalDelegateResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
         };
         ApprovalFlow: {
             code: string;
@@ -3785,11 +3817,13 @@ export interface components {
             code: string;
             definition?: unknown;
             name: string;
+            version?: number;
         };
         ApprovalFlowDesignRequest: {
             code: string;
             definition?: unknown;
             name: string;
+            version?: number;
         };
         ApprovalFlowRequest: {
             code: string;
@@ -3802,6 +3836,11 @@ export interface components {
             message: string;
         };
         ApprovalRejectedResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
+        };
+        ApprovalRepairStepResponse: {
             code: number;
             data: components["schemas"]["ApprovalRequest"];
             message: string;
@@ -3871,6 +3910,21 @@ export interface components {
          * @enum {string}
          */
         ApprovalStatusEnum: "pending" | "approved" | "rejected" | "cancelled";
+        ApprovalTransferResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
+        };
+        ApprovalWorkflowActionRequest: {
+            /** @default  */
+            comment: string;
+            expected_version?: number;
+            /** Format: uuid */
+            step_id?: string;
+            /** Format: uuid */
+            target_user_id?: string;
+            user_ids?: string[];
+        };
         Authorization: {
             /** Format: uri */
             authorization_url: string;
@@ -5276,12 +5330,13 @@ export interface components {
             readonly id: string;
             name: string;
             readonly status: components["schemas"]["OnlineFormStatusEnum"];
-            readonly version: number;
+            version?: number;
         };
         OnlineFormDesignRequest: {
             code: string;
             definition?: unknown;
             name: string;
+            version?: number;
         };
         OnlineFormRecord: {
             /**
@@ -6000,6 +6055,7 @@ export interface components {
             code?: string;
             definition?: unknown;
             name?: string;
+            version?: number;
         };
         PatchedOnlineFormRecordRequest: {
             data?: unknown;
@@ -6026,6 +6082,7 @@ export interface components {
             definition?: unknown;
             kind?: components["schemas"]["ReportKindEnum"];
             name?: string;
+            version?: number;
         };
         /** @description 角色序列化器 */
         PatchedRoleRequest: {
@@ -6470,13 +6527,14 @@ export interface components {
             kind?: components["schemas"]["ReportKindEnum"];
             name: string;
             readonly status: components["schemas"]["OnlineFormStatusEnum"];
-            readonly version: number;
+            version?: number;
         };
         ReportDesignRequest: {
             code: string;
             definition?: unknown;
             kind?: components["schemas"]["ReportKindEnum"];
             name: string;
+            version?: number;
         };
         /**
          * @description * `report` - 报表
@@ -7279,8 +7337,7 @@ export interface components {
             bio?: string;
             /** 部门 */
             department?: string;
-            /** 电话 */
-            phone?: string;
+            readonly phone: string;
             /** 职位 */
             position?: string;
         };
@@ -7742,7 +7799,7 @@ export interface operations {
         parameters: {
             query?: {
                 /** @description 资源查询视角；无此参数时使用默认范围。 */
-                box?: "" | "todo" | "done" | "sent";
+                box?: "" | "todo" | "done" | "sent" | "cc" | "exceptions";
                 /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, decided_at。同值记录追加主键排序。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
@@ -7880,7 +7937,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalWorkflowActionRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -7892,7 +7955,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalRequest"];
+                    "application/json": components["schemas"]["ApprovalAddSignResponse"];
                 };
             };
         };
@@ -7967,7 +8030,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalWorkflowActionRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -7979,7 +8048,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalRequest"];
+                    "application/json": components["schemas"]["ApprovalCCResponse"];
                 };
             };
         };
@@ -7994,7 +8063,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalWorkflowActionRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -8006,7 +8081,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalRequest"];
+                    "application/json": components["schemas"]["ApprovalDelegateResponse"];
                 };
             };
         };
@@ -8044,7 +8119,7 @@ export interface operations {
             };
         };
     };
-    approvals_transfer_create: {
+    approvals_repair_step_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8054,7 +8129,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalWorkflowActionRequest"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -8066,7 +8147,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApprovalRequest"];
+                    "application/json": components["schemas"]["ApprovalRepairStepResponse"];
+                };
+            };
+        };
+    };
+    approvals_transfer_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalWorkflowActionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalTransferResponse"];
                 };
             };
         };
@@ -8133,6 +8247,12 @@ export interface operations {
                 page?: number;
                 /** @description 每页条数 */
                 page_size?: number;
+                /**
+                 * @description * `draft` - 草稿
+                 *     * `published` - 已发布
+                 *     * `archived` - 已归档
+                 */
+                status?: "archived" | "draft" | "published";
             };
             header?: never;
             path?: never;

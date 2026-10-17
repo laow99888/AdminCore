@@ -3,11 +3,25 @@ import hashlib
 import time
 
 from django.core.cache import cache
-from rest_framework.throttling import BaseThrottle
+from rest_framework.throttling import BaseThrottle, AnonRateThrottle, UserRateThrottle
+from apps.core.client_ip import request_ip
 from .login_captcha import CaptchaUnavailable
 
 
-class LoginRateThrottle(BaseThrottle):
+class TrustedClientIPMixin:
+    def get_ident(self, request):
+        return request_ip(request) or 'unknown'
+
+
+class TrustedAnonRateThrottle(TrustedClientIPMixin, AnonRateThrottle):
+    pass
+
+
+class TrustedUserRateThrottle(TrustedClientIPMixin, UserRateThrottle):
+    pass
+
+
+class LoginRateThrottle(TrustedClientIPMixin, BaseThrottle):
     def allow_request(self, request, view):
         now = time.time()
         window = int(now // 60)

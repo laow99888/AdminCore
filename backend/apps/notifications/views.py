@@ -84,21 +84,25 @@ class NotificationViewSet(QueryBudgetListMixin, mixins.ListModelMixin,
         return with_idempotency(request, 'notifications:create', action)
 
     def retrieve(self, request, *args, **kwargs):
-        """查看详情时自动标记为已读"""
+        """只读详情；已读状态仅由收件人的显式写操作改变。"""
         instance = self.get_object()
-        instance.mark_read()
         return Response({'code': 200, 'message': 'success', 'data': NotificationSerializer(instance).data})
 
     @action(detail=True, methods=['post'])
+    @transaction.atomic
     def mark_read(self, request, pk=None):
         """标记单条通知为已读"""
-        notification = self.get_object()
+        authorize_write(request)
+        from rest_framework.generics import get_object_or_404
+        notification = get_object_or_404(Notification.objects.select_for_update().filter(recipient=request.user), pk=pk)
         notification.mark_read()
         return Response({'code': 200, 'message': '已标记为已读', 'data': NotificationSerializer(notification).data})
 
     @action(detail=False, methods=['post'])
+    @transaction.atomic
     def mark_all_read(self, request):
         """标记全部通知为已读"""
+        authorize_write(request)
         now = timezone.now()
         updated = Notification.objects.filter(recipient=request.user, is_read=False).update(is_read=True, read_at=now)
         from apps.core.error_i18n import error_text

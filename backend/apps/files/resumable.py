@@ -19,6 +19,7 @@ from apps.core.data_scope import scope_queryset
 from apps.core.exceptions import APIError
 
 from .models import FileModel, ResumableUpload
+from .upload_validation import validate_upload_metadata
 
 MIN_CHUNK_SIZE = 256 * 1024
 MAX_CHUNK_SIZE = 10 * 1024 * 1024
@@ -66,6 +67,7 @@ def start_session(request, *, name, total_size, chunk_size, content_type='', exp
     chunk_size = _int_value(chunk_size, '分片大小')
     if total_size < 1 or total_size > getattr(settings, 'FILE_UPLOAD_MAX_SIZE', 50 * 1024 * 1024):
         raise APIError('文件大小超出限制', status_code=413)
+    validate_upload_metadata(name, total_size)
     if not MIN_CHUNK_SIZE <= chunk_size <= MAX_CHUNK_SIZE:
         raise APIError('分片大小必须在 256 KiB 至 10 MiB 之间')
     total_chunks = (total_size + chunk_size - 1) // chunk_size
@@ -130,50 +132,73 @@ def put_chunk(request, upload_id, index):
 def complete_session(request, upload_id):
     with transaction.atomic():
         actor = authorize_write(request, 'file:upload')
-        row = get_session(actor, upload_id, lock=True)
-        if row.status == 'completed' and row.file_id:
-            return row.file
-        if row.status != 'active':
+        snapshot = get_session(actor, upload_id, lock=True)
+        if snapshot.status == 'completed' and snapshot.file_id:
+            return snapshot.file
+        if snapshot.status != 'active':
             raise APIError('上传会话已失效', status_code=409)
-        chunks = row.chunks or {}
-        if len(chunks) != row.total_chunks or any(str(i) not in chunks for i in range(row.total_chunks)):
+        validate_upload_metadata(snapshot.original_name, snapshot.total_size)
+        chunks = dict(snapshot.chunks or {})
+        if len(chunks) != snapshot.total_chunks or any(str(i) not in chunks for i in range(snapshot.total_chunks)):
             raise APIError('仍有分片未上传')
-        temporary = tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode='w+b')
-        digest = hashlib.sha256()
+    # 合并和校验不持有用户/会话行锁，最终提交前再次锁定并复核。
+    file_obj = None
+    with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024, mode='w+b') as temporary:
+        digest, md5 = hashlib.sha256(), hashlib.md5()
+        total = 0
         try:
-            for index in range(row.total_chunks):
-                name = _chunk_name(row.pk, index)
-                with default_storage.open(name, 'rb') as source:
-                    while True:
-                        part = source.read(1024 * 1024)
-                        if not part:
-                            break
-                        digest.update(part)
+            for index in range(snapshot.total_chunks):
+                part_digest, part_size = hashlib.sha256(), 0
+                with default_storage.open(_chunk_name(snapshot.pk, index), 'rb') as source:
+                    while part := source.read(1024 * 1024):
+                        total += len(part)
+                        part_size += len(part)
+                        if total > snapshot.total_size:
+                            raise APIError('文件大小不符合会话约定', status_code=422)
+                        part_digest.update(part); digest.update(part); md5.update(part)
                         temporary.write(part)
-            actual = digest.hexdigest()
-            if row.expected_sha256 and actual != row.expected_sha256:
+                if part_size != chunks[str(index)]['size'] or part_digest.hexdigest() != chunks[str(index)]['sha256']:
+                    raise APIError('分片校验失败', status_code=422)
+            if total != snapshot.total_size or (snapshot.expected_sha256 and digest.hexdigest() != snapshot.expected_sha256):
                 raise APIError('文件校验失败', status_code=422)
-            temporary.seek(0)
-            uploaded = File(temporary, name=row.original_name)
-            file_obj = FileModel(
-                original_name=row.original_name,
-                file=uploaded,
-                file_type=os.path.splitext(row.original_name)[1].lower().lstrip('.')[:20],
-                size=row.total_size,
-                content_type=row.content_type,
-                md5=hashlib.md5(temporary.read()).hexdigest(),
-                uploader=actor,
-            )
-            temporary.seek(0)
-            file_obj.save()
-            row.status = 'completed'
-            row.file = file_obj
-            row.save(update_fields=['status', 'file', 'updated_at'])
-        finally:
-            temporary.close()
-    for index in range(row.total_chunks):
+        except Exception:
+            # 另一完成请求可能已提交并删除分片；只在重新授权后复用其结果。
+            with transaction.atomic():
+                current_actor = authorize_write(request, 'file:upload')
+                current = get_session(current_actor, upload_id, lock=True)
+                if current.status == 'completed' and current.file_id:
+                    return current.file
+            raise
+        committed = False
         try:
-            default_storage.delete(_chunk_name(row.pk, index))
+            temporary.seek(0)
+            extension = validate_upload_metadata(snapshot.original_name, snapshot.total_size)
+            file_obj = FileModel(original_name=snapshot.original_name, file_type=extension[:20], size=total,
+                content_type=snapshot.content_type, md5=md5.hexdigest(), uploader=actor,
+                created_at=timezone.now())
+            # 扫描和对象上传均在行锁之外；提交失败只补偿本次生成的唯一存储键。
+            file_obj.file.save(snapshot.original_name, File(temporary, name=snapshot.original_name), save=False)
+            with transaction.atomic():
+                actor = authorize_write(request, 'file:upload')
+                row = get_session(actor, upload_id, lock=True)
+                if row.status == 'completed' and row.file_id:
+                    return row.file
+                if row.status != 'active' or row.chunks != chunks:
+                    raise APIError('上传会话已变化，请重新读取状态', status_code=409)
+                validate_upload_metadata(row.original_name, row.total_size)
+                file_obj.uploader = actor
+                file_obj.save()
+                row.status = 'completed'
+                row.file = file_obj
+                row.save(update_fields=['status', 'file', 'updated_at'])
+            committed = True
+        finally:
+            if file_obj is not None and not committed:
+                from .serializers import cleanup_failed_upload
+                cleanup_failed_upload(file_obj)
+    for index in range(snapshot.total_chunks):
+        try:
+            default_storage.delete(_chunk_name(snapshot.pk, index))
         except Exception:
             pass
     return file_obj

@@ -1,4 +1,6 @@
 import re
+import math
+from datetime import date
 from rest_framework.exceptions import ValidationError
 
 KEY_RE = re.compile(r'^[a-z][a-z0-9_]{0,39}$')
@@ -39,10 +41,12 @@ def validate_definition(value):
         key, label, kind = field.get('key'), field.get('label'), field.get('type')
         if not isinstance(key, str) or not KEY_RE.fullmatch(key) or key in seen:
             raise ValidationError('字段标识无效或重复')
-        if not isinstance(label, str) or not 1 <= len(label) <= 120 or kind not in FIELD_TYPES:
+        if not isinstance(label, str) or not 1 <= len(label) <= 120 or not isinstance(kind, str) or kind not in FIELD_TYPES:
             raise ValidationError('字段标签或类型无效')
         seen.add(key)
-        row = {'key': key, 'label': label, 'type': kind, 'required': bool(field.get('required', False))}
+        if type(field.get('required', False)) is not bool:
+            raise ValidationError('必填配置必须为布尔值')
+        row = {'key': key, 'label': label, 'type': kind, 'required': field.get('required', False)}
         if 'default' in field:
             row['default'] = field['default']
         if kind == 'select':
@@ -59,7 +63,7 @@ def validate_definition(value):
             row['max_length'] = maximum
         if kind == 'number':
             for name in ('min', 'max'):
-                if name in field and (type(field[name]) not in (int, float) or abs(field[name]) > 10**12):
+                if name in field and (type(field[name]) not in (int, float) or not math.isfinite(field[name]) or abs(field[name]) > 10**12):
                     raise ValidationError('数值范围无效')
             if 'min' in field and 'max' in field and field['min'] > field['max']:
                 raise ValidationError('数值最小值不能大于最大值')
@@ -67,6 +71,8 @@ def validate_definition(value):
                 if name in field:
                     row[name] = field[name]
         _safe(row)
+        if 'default' in row:
+            validate_record({'fields': [{**row, 'required': False}]}, {key: row['default']})
         normalized.append(row)
     return {'fields': normalized}
 
@@ -79,26 +85,31 @@ def validate_record(definition, data):
         raise ValidationError('记录包含未登记字段')
     result = {}
     for key, field in fields.items():
-        if key not in data:
+        if key not in data and 'default' not in field:
             if field.get('required'):
                 raise ValidationError({key: '必填字段不能为空'})
-            if 'default' in field:
-                result[key] = field['default']
             continue
-        raw = data[key]
+        raw = data[key] if key in data else field['default']
+        if field.get('required') and (raw is None or isinstance(raw, str) and not raw.strip()):
+            raise ValidationError({key: '必填字段不能为空'})
         kind = field['type']
         if kind in {'text', 'textarea'}:
             if not isinstance(raw, str) or len(raw) > field['max_length']:
                 raise ValidationError({key: '文本值无效或超出长度'})
         elif kind == 'number':
-            if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            if isinstance(raw, bool) or not isinstance(raw, (int, float)) or not math.isfinite(raw) or abs(raw) > 10**12:
                 raise ValidationError({key: '数值无效'})
             if 'min' in field and raw < field['min'] or 'max' in field and raw > field['max']:
                 raise ValidationError({key: '数值超出范围'})
         elif kind == 'select' and (not isinstance(raw, str) or raw not in field['options']):
             raise ValidationError({key: '选项无效'})
-        elif kind == 'date' and (not isinstance(raw, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', raw)):
-            raise ValidationError({key: '日期格式必须为 YYYY-MM-DD'})
+        elif kind == 'date':
+            try:
+                if not isinstance(raw, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', raw):
+                    raise ValueError
+                date.fromisoformat(raw)
+            except ValueError:
+                raise ValidationError({key: '日期必须为有效的 YYYY-MM-DD'}) from None
         elif kind == 'boolean' and not isinstance(raw, bool):
             raise ValidationError({key: '布尔值无效'})
         result[key] = raw

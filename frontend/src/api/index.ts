@@ -175,8 +175,8 @@ export const reportsApi = {
   catalog: async (): Promise<ReportCatalogItem[]> => (await request.get<ApiResponse<ReportCatalogItem[]>>('/reports/catalog/')).data.data,
   list: (params?: ListParams) => getPaged<ReportDefinition>('/reports/definitions/', params),
   create: (data: Pick<ReportDefinition, 'name' | 'code' | 'kind' | 'definition'>) => request.post<ApiResponse<ReportDefinition>>('/reports/definitions/', data),
-  update: (id: string, data: Partial<Pick<ReportDefinition, 'name' | 'kind' | 'definition'>>) => request.patch<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/`, data),
-  publish: (id: string) => request.post<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/publish/`),
+  update: (id: string, data: Partial<Pick<ReportDefinition, 'name' | 'kind' | 'definition'>> & { version: number }) => request.patch<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/`, data),
+  publish: (id: string, version?: number) => request.post<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/publish/`, { version }),
   run: async (id: string) => (await request.get<ApiResponse<{ columns: string[]; rows: Array<Record<string, unknown>>; definition: Record<string, unknown>; generated_at: string }>>(`/reports/definitions/${id}/run/`)).data.data,
 }
 
@@ -270,7 +270,7 @@ export interface ApprovalFlowRow {
   definition: { nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> }
 }
 
-export type ApprovalBox = 'todo' | 'done' | 'sent'
+export type ApprovalBox = 'todo' | 'done' | 'sent' | 'cc' | 'exceptions'
 
 export const approvalsApi = {
   list: (box: ApprovalBox | undefined, params?: ListParams) =>
@@ -280,17 +280,18 @@ export const approvalsApi = {
   approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
   reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),
   cancel: (id: string) => request.post(`/approvals/${id}/cancel/`),
-  addSign: (id: string, target_user_id: string, comment = '') => request.post(`/approvals/${id}/add-sign/`, { target_user_id, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-add-sign-${id}`) } }),
-  transfer: (id: string, target_user_id: string, comment = '') => request.post(`/approvals/${id}/transfer/`, { target_user_id, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-transfer-${id}`) } }),
-  delegate: (id: string, target_user_id: string, comment = '') => request.post(`/approvals/${id}/delegate/`, { target_user_id, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-delegate-${id}`) } }),
+  repairStep: (id: string, target_user_id: string, step_id: string, expected_version: number, comment = '') => request.post(`/approvals/${id}/repair-step/`, { target_user_id, step_id, expected_version, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-repair-${id}`) } }),
+  addSign: (id: string, target_user_id: string, comment = '', expected_version?: number) => request.post(`/approvals/${id}/add-sign/`, { target_user_id, comment, expected_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-add-sign-${id}`) } }),
+  transfer: (id: string, target_user_id: string, comment = '', expected_version?: number) => request.post(`/approvals/${id}/transfer/`, { target_user_id, comment, expected_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-transfer-${id}`) } }),
+  delegate: (id: string, target_user_id: string, comment = '', expected_version?: number) => request.post(`/approvals/${id}/delegate/`, { target_user_id, comment, expected_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-delegate-${id}`) } }),
   cc: (id: string, user_ids: string[], comment = '') => request.post(`/approvals/${id}/cc/`, { user_ids, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-cc-${id}`) } }),
 }
 
 export const approvalFlowsApi = {
   list: (params?: ListParams) => getPaged<ApprovalFlowRow>('/approvals/flows/', params),
   create: (data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition'>) => request.post('/approvals/flows/', data),
-  update: (id: string, data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition'>) => request.put(`/approvals/flows/${id}/`, data),
-  publish: (id: string) => request.post(`/approvals/flows/${id}/publish/`),
+  update: (id: string, data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition' | 'version'>) => request.put(`/approvals/flows/${id}/`, data),
+  publish: (id: string, version?: number) => request.post(`/approvals/flows/${id}/publish/`, { version }),
   archive: (id: string) => request.post(`/approvals/flows/${id}/archive/`),
 }
 
@@ -300,8 +301,8 @@ export interface OnlineFormRecordRow { id: string; form: string; form_version: n
 export const onlineFormsApi = {
   list: (params?: ListParams) => getPaged<OnlineFormRow>('/online-forms/forms/', params),
   create: (data: Pick<OnlineFormRow, 'name' | 'code' | 'definition'>) => request.post('/online-forms/forms/', data),
-  update: (id: string, data: Pick<OnlineFormRow, 'name' | 'code' | 'definition'>) => request.put(`/online-forms/forms/${id}/`, data),
-  publish: (id: string) => request.post(`/online-forms/forms/${id}/publish/`),
+  update: (id: string, data: Pick<OnlineFormRow, 'name' | 'code' | 'definition' | 'version'>) => request.put(`/online-forms/forms/${id}/`, data),
+  publish: (id: string, version?: number) => request.post(`/online-forms/forms/${id}/publish/`, { version }),
   archive: (id: string) => request.post(`/online-forms/forms/${id}/archive/`),
   published: (code: string) => request.get<ApiResponse<OnlineFormRow>>(`/online-forms/published/${encodeURIComponent(code)}/`),
   records: (code: string, params?: ListParams) => getPaged<OnlineFormRecordRow>(`/online-forms/${encodeURIComponent(code)}/records/`, params),

@@ -20,4 +20,4 @@ class UserProfileAdmin(AuditedAdminMixin, admin.ModelAdmin):
 
     @admin.display(description='手机号（原值请在系统用户管理查看）')
     def masked_phone(self, obj):
-        return mask_phone(obj.phone)
+        return mask_phone(obj.user.phone)

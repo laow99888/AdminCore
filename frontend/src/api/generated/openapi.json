@@ -224,6 +224,25 @@
         ],
         "type": "object"
       },
+      "ApprovalAddSignResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
       "ApprovalApprovedResponse": {
         "properties": {
           "code": {
@@ -250,6 +269,25 @@
           },
           "data": {
             "$ref": "#/components/schemas/PeoplePage"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ApprovalCCResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalRequest"
           },
           "message": {
             "type": "string"
@@ -294,6 +332,7 @@
             "writeOnly": true
           },
           "content": {
+            "maxLength": 20000,
             "minLength": 1,
             "type": "string"
           },
@@ -348,9 +387,29 @@
         "properties": {
           "comment": {
             "default": "",
+            "maxLength": 4000,
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ApprovalDelegateResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
         "type": "object"
       },
       "ApprovalFlow": {
@@ -445,6 +504,10 @@
           "name": {
             "maxLength": 120,
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -465,6 +528,10 @@
             "maxLength": 120,
             "minLength": 1,
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -513,6 +580,25 @@
         "type": "object"
       },
       "ApprovalRejectedResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ApprovalRepairStepResponse": {
         "properties": {
           "code": {
             "type": "integer"
@@ -696,6 +782,55 @@
           "cancelled"
         ],
         "type": "string"
+      },
+      "ApprovalTransferResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalRequest"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
+      "ApprovalWorkflowActionRequest": {
+        "properties": {
+          "comment": {
+            "default": "",
+            "maxLength": 4000,
+            "type": "string"
+          },
+          "expected_version": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "step_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "target_user_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "user_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "type": "array"
+          }
+        },
+        "type": "object"
       },
       "Authorization": {
         "properties": {
@@ -5468,7 +5603,7 @@
             "readOnly": true
           },
           "version": {
-            "readOnly": true,
+            "minimum": 1,
             "type": "integer"
           }
         },
@@ -5476,8 +5611,7 @@
           "code",
           "id",
           "name",
-          "status",
-          "version"
+          "status"
         ],
         "type": "object"
       },
@@ -5493,6 +5627,10 @@
             "maxLength": 120,
             "minLength": 1,
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -7914,6 +8052,10 @@
             "maxLength": 120,
             "minLength": 1,
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -8019,6 +8161,10 @@
             "maxLength": 120,
             "minLength": 1,
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "type": "object"
@@ -9496,7 +9642,7 @@
             "readOnly": true
           },
           "version": {
-            "readOnly": true,
+            "minimum": 1,
             "type": "integer"
           }
         },
@@ -9504,8 +9650,7 @@
           "code",
           "id",
           "name",
-          "status",
-          "version"
+          "status"
         ],
         "type": "object"
       },
@@ -9524,6 +9669,10 @@
             "maxLength": 120,
             "minLength": 1,
             "type": "string"
+          },
+          "version": {
+            "minimum": 1,
+            "type": "integer"
           }
         },
         "required": [
@@ -12032,18 +12181,8 @@
             "type": "string"
           },
           "phone": {
-            "oneOf": [
-              {
-                "maxLength": 20,
-                "pattern": "^\\+?[0-9 ()-]{3,20}$",
-                "type": "string"
-              },
-              {
-                "maxLength": 0,
-                "type": "string"
-              }
-            ],
-            "title": "电话"
+            "readOnly": true,
+            "type": "string"
           },
           "position": {
             "maxLength": 100,
@@ -12051,6 +12190,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "phone"
+        ],
         "type": "object"
       },
       "UserRegistrationRequest": {
@@ -13162,7 +13304,9 @@
                 "",
                 "todo",
                 "done",
-                "sent"
+                "sent",
+                "cc",
+                "exceptions"
               ],
               "type": "string"
             }
@@ -13524,6 +13668,20 @@
             "required": false,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "description": "* `draft` - 草稿\n* `published` - 已发布\n* `archived` - 已归档",
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "enum": [
+                "archived",
+                "draft",
+                "published"
+              ],
+              "maxLength": 200,
+              "type": "string"
             }
           }
         ],
@@ -14002,12 +14160,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApprovalRequest"
+                  "$ref": "#/components/schemas/ApprovalAddSignResponse"
                 }
               }
             },
@@ -14183,12 +14360,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApprovalRequest"
+                  "$ref": "#/components/schemas/ApprovalCCResponse"
                 }
               }
             },
@@ -14237,12 +14433,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApprovalRequest"
+                  "$ref": "#/components/schemas/ApprovalDelegateResponse"
                 }
               }
             },
@@ -14348,6 +14563,79 @@
         }
       }
     },
+    "/api/v1/approvals/{id}/repair-step/": {
+      "post": {
+        "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
+        "operationId": "approvals_repair_step_create",
+        "parameters": [
+          {
+            "description": "标识此 审批申请 的 UUID 字符串。",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalRepairStepResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "approvals"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
     "/api/v1/approvals/{id}/transfer/": {
       "post": {
         "description": "审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策",
@@ -14364,12 +14652,31 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalWorkflowActionRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApprovalRequest"
+                  "$ref": "#/components/schemas/ApprovalTransferResponse"
                 }
               }
             },
@@ -22653,7 +22960,7 @@
     },
     "/api/v1/notifications/{id}/": {
       "get": {
-        "description": "查看详情时自动标记为已读",
+        "description": "只读详情；已读状态仅由收件人的显式写操作改变。",
         "operationId": "notifications_retrieve",
         "parameters": [
           {

@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { notifyError } from "@/api/request"
 import { usePageState } from '@/composables/usePageState'
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -97,7 +98,7 @@ async function showDetails(id: string) {
   try {
     currentEvent.value = await reliableEventsApi.detail(id)
     detailsVisible.value = true
-  } catch { ElMessage.error(uiText('事件详情加载失败，请重试')) }
+  } catch (error) { notifyError(error, uiText('事件详情加载失败，请重试')) }
   finally { detailsLoading.value = false }
 }
 async function retryEvent(id: string) {
@@ -109,7 +110,7 @@ async function retryEvent(id: string) {
     await reliableEventsApi.retry(id)
     ElMessage.success(uiText('已提交重试'))
     await loadEvents()
-  } catch { ElMessage.error(uiText('重试提交失败，请刷新状态后重试')) }
+  } catch (error) { notifyError(error, uiText('重试提交失败，请刷新状态后重试')) }
   finally { retrying.value = '' }
 }
 void loadEvents()

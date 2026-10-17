@@ -8,15 +8,19 @@ export const useTenantStore = defineStore('tenants', () => {
   const options = ref<TenantOption[]>([])
   const currentId = ref(localStorage.getItem('admincore.tenant') || '')
   const loaded = ref(false)
-  const current = computed(() => options.value.find(item => item.id === currentId.value) || options.value[0])
+  const current = computed(() => options.value.find(item => item.id === currentId.value))
+  let generation = 0
 
   async function load() {
     if (loaded.value) return
+    const owner = generation
     const response = await request.get<{ data: TenantOption[] }>('/organization/my-tenants/')
+    if (owner !== generation) return
     options.value = Array.isArray(response.data.data) ? response.data.data : []
     if (currentId.value && !options.value.some(item => item.id === currentId.value)) currentId.value = ''
-    if (!currentId.value && options.value.length === 1) currentId.value = options.value[0].id
+    if (!currentId.value && options.value.length) currentId.value = options.value[0].id
     if (currentId.value) localStorage.setItem('admincore.tenant', currentId.value)
+    else localStorage.removeItem('admincore.tenant')
     loaded.value = true
   }
 
@@ -27,6 +31,7 @@ export const useTenantStore = defineStore('tenants', () => {
   }
 
   function clear() {
+    generation++
     options.value = []
     currentId.value = ''
     loaded.value = false

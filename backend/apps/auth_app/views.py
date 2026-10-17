@@ -242,7 +242,11 @@ class AuthViewSet(BrowserSessionMixin, viewsets.ViewSet):
             return Response({'code': 401, 'message': '登录凭据已撤销', 'data': None}, status=401)
         serializer = ChangePasswordSerializer(data=request.data, context={'user': user})
         if serializer.is_valid():
-            if not user.check_password(serializer.validated_data['old_password']):
+            from .reauthentication import verify_password_with_budget
+            from rest_framework.exceptions import PermissionDenied
+            try:
+                verify_password_with_budget(user, serializer.validated_data['old_password'], 'password:change')
+            except PermissionDenied:
                 return Response({
                     'code': 400,
                     'message': '旧密码不正确',

@@ -7,6 +7,8 @@ import authApi from '../src/api/auth'
 import { ssoApi } from '../src/api/sso'
 import publicRequest from '../src/api/publicRequest'
 import { useAuthStore } from '../src/stores/auth'
+import { useTenantStore } from '../src/stores/tenants'
+import request from '../src/api/request'
 import { clearSession, discardMemorySession, getAccessToken, setAccessToken, setSession } from '../src/auth/tokenStorage'
 
 const token = (sid: string, marker = 1) => `fixture.${btoa(JSON.stringify({ sid, user_id: 'u', session_version: 1, marker }))}.fixture`
@@ -43,6 +45,37 @@ describe('Cookie 模式认证状态与旧请求隔离', () => {
     const auth = useAuthStore(); await auth.login('member', 'fixture')
     discardMemorySession()
     expect(auth.token).toBe(''); expect(auth.user).toBeNull(); expect(auth.isAuthenticated).toBe(false)
+  })
+
+  it('退出清除租户；迟到的旧身份租户列表不能恢复旧选择', async () => {
+    const auth = useAuthStore(); await auth.login('member', 'fixture')
+    const tenants = useTenantStore()
+    tenants.options = [{ id: 'old', slug: 'old', name: '旧租户', role: 'member' }]
+    tenants.select('old')
+    let finish!: (value: unknown) => void
+    const get = vi.spyOn(request, 'get').mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    try {
+      const pending = tenants.load()
+      await auth.logout()
+      finish({ data: { data: [{ id: 'old', slug: 'old', name: '旧租户', role: 'member' }] } })
+      await pending
+      expect(tenants.currentId).toBe(''); expect(tenants.options).toEqual([])
+      expect(localStorage.getItem('admincore.tenant')).toBeNull()
+    } finally { get.mockRestore() }
+  })
+
+  it('恢复租户时丢弃失效选择并确定性选择第一个成员租户', async () => {
+    localStorage.setItem('admincore.tenant', 'invalid')
+    const tenants = useTenantStore()
+    const get = vi.spyOn(request, 'get').mockResolvedValue({ data: { data: [
+      { id: 'first', slug: 'first', name: '首个租户', role: 'member' },
+      { id: 'second', slug: 'second', name: '第二租户', role: 'member' },
+    ] } })
+    try {
+      await tenants.load()
+      expect(tenants.currentId).toBe('first'); expect(localStorage.getItem('admincore.tenant')).toBe('first')
+      expect(get).toHaveBeenCalledWith('/organization/my-tenants/')
+    } finally { get.mockRestore() }
   })
 
   it('SSO 无可读refresh也能安装会话；已有身份不能被隐式覆盖', async () => {

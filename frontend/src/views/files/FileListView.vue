@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import { useLatestRead } from '@/composables/useLatestRead'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -56,7 +57,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
-import { errorMessage } from '@/api/request'
+import { notifyError, responseStatus } from '@/api/request'
 import FilePreviewDialog from '@/components/files/FilePreviewDialog.vue'
 import { canPreview } from '@/api/filePreview'
 import { isOfficeFormat, officePreviewConfig } from '@/api/officePreview'
@@ -126,16 +127,23 @@ const tableColumns = [
 ]
 
 const exportReady = ref(false)
+const beginRead = useLatestRead(() => { tableData.value = []; total.value = 0; exportReady.value = false; loading.value = false })
 const loadFiles = async () => {
+  const current = beginRead()
   exportReady.value = false
   loading.value = true
   try {
     const data = await filesApi.list({ page: currentPage.value, page_size: pageSize.value })
+    if (!current()) return
+    const last = Math.max(1, Math.ceil(data.pagination.total / pageSize.value))
+    if (currentPage.value > last) { currentPage.value = last; await loadFiles(); return }
     tableData.value = data.items
     exportReady.value = true
     total.value = data.pagination.total
+  } catch (error) {
+    if (current() && responseStatus(error) === 404 && currentPage.value > 1) { currentPage.value = 1; await loadFiles() }
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 
@@ -164,7 +172,7 @@ const handleDownload = async (row: FileRow) => {
   try {
     await downloadFile(filesApi.downloadUrl(row.id), row.original_name)
   } catch (error: unknown) {
-    ElMessage.error(errorMessage(error, uiText("下载失败")))
+    notifyError(error, uiText("下载失败"))
   }
 }
 
@@ -172,6 +180,7 @@ const handleDelete = (row: FileRow) => {
   ElMessageBox.confirm(uiText("确定删除文件 {p0} 吗？", { p0: row.original_name }), uiText("提示"), { type: 'warning' })
     .then(async () => {
       await filesApi.remove(row.id)
+      if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText('已移入回收站'))
       loadFiles()
     })

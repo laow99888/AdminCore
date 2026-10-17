@@ -102,6 +102,10 @@ export const sdkRoutes = {
     "post",
     "/api/v1/approvals/{id}/reject/"
   ],
+  "approvals_repair_step_create": [
+    "post",
+    "/api/v1/approvals/{id}/repair-step/"
+  ],
   "approvals_transfer_create": [
     "post",
     "/api/v1/approvals/{id}/transfer/"

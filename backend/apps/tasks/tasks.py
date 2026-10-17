@@ -152,7 +152,11 @@ def cleanup_expired_notifications(self, dry_run=False, _record=None, _expected_r
                       'retention_days': retention_days, 'dry_run': True}
             record.mark_success(result)
             return result
-        deleted, _ = expired.delete()
+        deleted = 0
+        # 每批独立提交，限制锁持有时间与 Django 删除收集器的内存占用。
+        while identifiers := list(expired.order_by('pk').values_list('pk', flat=True)[:500]):
+            count, _ = expired.filter(pk__in=identifiers).delete()
+            deleted += count
         record.mark_success(result={'deleted_notifications': deleted})
         return {'deleted_notifications': deleted}
     except Exception as exc:

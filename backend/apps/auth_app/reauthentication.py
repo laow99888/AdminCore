@@ -13,7 +13,7 @@ from .sessions import locked_request_session
 PASSWORD_CONFIRMATION_SCOPES = frozenset({'session:revoke', 'session:revoke-others', 'session:admin-revoke-all', 'email:verify',
                                          'totp:setup', 'totp:enable', 'totp:disable', 'totp:recovery-codes',
                                          'user:sensitive-read', 'api_credential:create', 'api_credential:revoke',
-                                         'sso:bind', 'sso:unbind', 'ip_policy:update', 'backup:restore'})
+                                         'sso:bind', 'sso:unbind', 'ip_policy:update', 'backup:restore', 'password:change'})
 
 
 class PasswordConfirmationUnavailable(APIException):
@@ -41,6 +41,14 @@ def require_recent_password(request, actor, scope):
     if not isinstance(password, str) or not password or len(password) > 4096:
         raise ValidationError({'current_password': '请提供当前密码'})
 
+    verify_password_with_budget(actor, password, scope)
+    return session
+
+
+def verify_password_with_budget(actor, password, scope):
+    """调用方在事务中锁定用户后调用；失败预算跨敏感操作共用。"""
+    if scope not in PASSWORD_CONFIRMATION_SCOPES or not connection.in_atomic_block:
+        raise RuntimeError('密码校验必须在用户锁内使用已注册范围')
     now = time.time()
     window = int(now // 60)
     retry_after = 60 - now % 60
@@ -69,4 +77,3 @@ def require_recent_password(request, actor, scope):
         except Exception:
             raise PasswordConfirmationUnavailable() from None
         raise PermissionDenied('当前密码不正确', code='password_confirmation_failed')
-    return session

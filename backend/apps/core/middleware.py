@@ -9,6 +9,7 @@ import time
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
 from django.utils.deprecation import MiddlewareMixin
 from django.http import JsonResponse
+from django.core.exceptions import PermissionDenied
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,9 @@ class ErrorHandlingMiddleware(MiddlewareMixin):
     """错误处理中间件 - 捕获未处理的异常"""
 
     def process_exception(self, request, exception):
+        if isinstance(exception, PermissionDenied):
+            # Django 已有 403 处理器；权限拒绝不是未处理的服务器错误。
+            return None
         logger.error(
             'Unhandled request exception',
             extra={

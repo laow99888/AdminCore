@@ -25,6 +25,33 @@ pytest_plugins = ['tests.conftest']
 pytestmark = pytest.mark.django_db
 
 
+def test_real_s3_resumable_commit_compensates_only_own_object(s3_storage, admin_client, monkeypatch):
+    import hashlib
+    from django.db import IntegrityError
+    from apps.files.models import ResumableUpload
+    body = b'A' * 262144
+    session = admin_client.post('/api/v1/files/uploads/', {'name': 'bounded.TXT', 'total_size': len(body), 'chunk_size': len(body)}, format='json')
+    assert session.status_code == 201
+    identifier = session.data['data']['id']
+    assert admin_client.put(f'/api/v1/files/uploads/{identifier}/chunks/0/', body, content_type='application/octet-stream',
+                           HTTP_X_CHUNK_SHA256=hashlib.sha256(body).hexdigest()).status_code == 200
+    original = ResumableUpload.save
+    def failure(self, *args, **kwargs):
+        if self.status == 'completed': raise IntegrityError('synthetic database failure')
+        return original(self, *args, **kwargs)
+    with monkeypatch.context() as failed:
+        failed.setattr(ResumableUpload, 'save', failure)
+        assert admin_client.post(f'/api/v1/files/uploads/{identifier}/complete/').status_code == 500
+    assert not FileModel.objects.exists()
+    assert all('/.chunks/' in key for key in media_keys(s3_storage))
+    completed = admin_client.post(f'/api/v1/files/uploads/{identifier}/complete/')
+    assert completed.status_code == 200, completed.content
+    row = FileModel.objects.get()
+    assert s3_storage.open(row.file.name).read() == body
+    assert admin_client.post(f'/api/v1/files/uploads/{identifier}/complete/').status_code == 200
+    assert FileModel.objects.count() == 1 and list(media_keys(s3_storage)) == [row.file.name]
+
+
 def dispatch_storage_deletions():
     """验收真实派发后的删除；pytest 外层事务不运行 on_commit 回调。"""
     from apps.core.models import OutboxEvent

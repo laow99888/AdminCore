@@ -12,6 +12,8 @@ from apps.permissions.permissions import HasPermission
 from .models import ReportDefinition
 from .serializers import ReportDesignSerializer, ReportSerializer
 from .services import catalog_for, execute_definition
+from apps.core.exceptions import APIError
+from rest_framework.generics import get_object_or_404
 
 
 class ReportViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
@@ -34,22 +36,27 @@ class ReportViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         actor = authorize_write(self.request, 'report:create', admin=True)
-        serializer.save(created_by=actor)
+        serializer.save(created_by=actor, version=1)
 
     @transaction.atomic
     def perform_update(self, serializer):
-        row = self.get_object()
+        authorize_write(self.request, 'report:update', admin=True)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=self.kwargs['pk'])
         if row.status != 'draft':
             from rest_framework.exceptions import ValidationError
             raise ValidationError('已发布报表不可直接修改，请复制为新草稿')
-        authorize_write(self.request, 'report:update', admin=True)
+        if serializer.validated_data.pop('version', None) != row.version:
+            raise APIError('报表已变化，请刷新后重试', status_code=409)
+        serializer.instance = row
         serializer.save(version=row.version + 1)
 
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def publish(self, request, *args, **kwargs):
-        row = self.get_object()
         actor = authorize_write(request, 'report:publish', admin=True)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=kwargs['pk'])
+        if 'version' in request.data and request.data['version'] != row.version:
+            raise APIError('报表已变化，请刷新后重试', status_code=409)
         if row.status != 'draft':
             return Response({'code': 409, 'message': '只有草稿可以发布', 'data': None}, status=status.HTTP_409_CONFLICT)
         row.status = 'published'; row.published_by = actor; row.published_at = timezone.now(); row.save(update_fields=['status', 'published_by', 'published_at', 'updated_at'])
@@ -58,8 +65,9 @@ class ReportViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     @transaction.atomic
     def archive(self, request, *args, **kwargs):
-        row = self.get_object()
+        self.get_object()
         authorize_write(request, 'report:update', admin=True)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=kwargs['pk'])
         row.status = 'archived'; row.save(update_fields=['status', 'updated_at'])
         return Response({'code': 200, 'message': '归档成功', 'data': ReportSerializer(row).data})
 

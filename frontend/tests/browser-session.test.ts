@@ -152,3 +152,20 @@ describe('Cookie 浏览器会话的内存与跨标签协议', () => {
     expect(run).not.toHaveBeenCalled()
   })
 })
+
+describe('Bearer 跨标签身份同步', () => {
+  beforeEach(() => { vi.stubEnv('VITE_AUTH_SESSION_TRANSPORT', 'bearer'); localStorage.clear() })
+  afterEach(() => { dispose?.(); dispose = undefined; localStorage.clear(); vi.unstubAllEnvs() })
+  it('相同会话轮换同步令牌；换账号或退出通知页面重置', () => {
+    localStorage.setItem('token', token('first'))
+    const changed = vi.fn(); dispose = startBrowserSessionSync(changed)
+    localStorage.setItem('token', token('first', 'rotated'))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'token' }))
+    expect(changed).not.toHaveBeenCalled()
+    localStorage.setItem('token', token('second'))
+    window.dispatchEvent(new StorageEvent('storage', { key: 'token' }))
+    expect(changed).toHaveBeenCalledOnce()
+    localStorage.removeItem('token'); window.dispatchEvent(new Event('focus'))
+    expect(changed).toHaveBeenCalledTimes(2)
+  })
+})

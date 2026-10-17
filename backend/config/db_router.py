@@ -60,7 +60,7 @@ def mark_write():
 def should_fallback():
     state = _state.get()
     return bool(state and state["replica_used"] and state["allow_replica"]
-                and not state["write_seen"])
+                and not state["write_seen"] and not state["force_primary"])
 
 
 def force_primary():
@@ -99,6 +99,9 @@ class PrimaryReplicaRouter:
     """Django database router with transaction and write-after-read guards."""
 
     def db_for_read(self, model, **hints):
+        # 身份、会话、权限、租户与安全配置必须看到主库最新撤销状态。
+        if getattr(getattr(model, '_meta', None), 'app_label', None) in {'auth_app', 'permissions', 'core', 'sessions', 'token_blacklist'}:
+            return PRIMARY_ALIAS
         state = _state.get()
         if not enabled() or state is None or not state["allow_replica"]:
             return PRIMARY_ALIAS

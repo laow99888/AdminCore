@@ -132,6 +132,15 @@ router.beforeEach(async (to, _from, next) => {
         return
       }
       if (!modules.pathEnabled(to.path)) { next('/'); return }
+      if (modules.enabled('organization')) {
+        const { useTenantStore } = await import('@/stores/tenants')
+        const tenants = useTenantStore()
+        const previous = tenants.currentId
+        try {
+          await tenants.load()
+          if (tenants.currentId !== previous) await auth.fetchUser(true)
+        } catch { next('/unavailable'); return }
+      }
       if (!canAccessPage(to.path, auth.user, modules.pagePermissions)) {
         ElMessage.error(uiText("没有访问此页面的权限"))
         next('/403')

@@ -14,10 +14,11 @@ class ReportSerializer(serializers.ModelSerializer):
 
 
 class ReportDesignSerializer(serializers.ModelSerializer):
+    version = serializers.IntegerField(required=False, min_value=1)
     class Meta:
         model = ReportDefinition
         fields = ['id', 'name', 'code', 'kind', 'status', 'version', 'definition']
-        read_only_fields = ['id', 'status', 'version']
+        read_only_fields = ['id', 'status']
 
     def validate_definition(self, value):
         return validate_definition(value)

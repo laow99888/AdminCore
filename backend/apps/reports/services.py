@@ -8,7 +8,7 @@ from apps.files.access import file_queryset_for_actor
 from apps.permissions.field_permissions import allowed_fields
 from apps.files.models import FileModel
 from apps.tasks.models import TaskRecord
-from .validators import DATA_SOURCES
+from .validators import DATA_SOURCES, validate_definition
 
 User = get_user_model()
 
@@ -22,6 +22,7 @@ def catalog_for(user):
 
 
 def execute_definition(user, definition):
+    definition = validate_definition(definition)
     spec = DATA_SOURCES[definition['data_source']]
     allowed = allowed_fields(user, spec['resource'], 'read')
     configured = {x['field'] for x in definition['dimensions']} | {definition['metric']['field']} | {x['field'] for x in definition['filters']}

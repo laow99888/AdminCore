@@ -68,7 +68,7 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         elif self.action not in {'restore', 'recycle_action', 'purge', 'acl'}:
             queryset = queryset.filter(is_deleted=False)
         from .access import file_queryset_for_actor
-        access = FileAccessGrant.MANAGE if self.action in {'restore', 'recycle_action', 'purge', 'acl'} else FileAccessGrant.READ
+        access = FileAccessGrant.MANAGE if self.action in {'recycle', 'restore', 'recycle_action', 'purge', 'acl'} else FileAccessGrant.READ
         return file_queryset_for_actor(queryset, self.request.user, access=access)
 
     def get_serializer_class(self):

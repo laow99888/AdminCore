@@ -6,6 +6,7 @@ from django.db import models
 from django.db import transaction
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
+from uuid import UUID
 
 from apps.core.models import BaseModel
 
@@ -30,7 +31,7 @@ def validate_flow_definition(definition):
         key, kind = node.get('id'), node.get('type')
         if not isinstance(key, str) or not key or len(key) > 64 or key in ids:
             raise ValidationError('流程节点标识必须唯一且有效')
-        if kind not in allowed:
+        if not isinstance(kind, str) or kind not in allowed:
             raise ValidationError('流程节点类型不受支持')
         ids.add(key)
         if kind in {'user', 'parallel', 'or'}:
@@ -39,8 +40,13 @@ def validate_flow_definition(definition):
                 raise ValidationError('审批节点必须配置审批人')
             if any(not isinstance(value, str) for value in assignees):
                 raise ValidationError('审批人标识必须为字符串')
+            try:
+                if len({UUID(value) for value in assignees}) != len(assignees):
+                    raise ValueError
+            except (ValueError, AttributeError):
+                raise ValidationError('审批人标识无效或重复') from None
             mode = node.get('mode', 'all' if kind in {'user', 'parallel'} else 'any')
-            if mode not in {'all', 'any'}:
+            if not isinstance(mode, str) or mode not in {'all', 'any'}:
                 raise ValidationError('审批节点模式只能是 all 或 any')
     kinds = {node['type'] for node in nodes}
     if kinds - allowed or sum(node['type'] == 'start' for node in nodes) != 1 or sum(node['type'] == 'end' for node in nodes) != 1:
@@ -50,11 +56,16 @@ def validate_flow_definition(definition):
         if not isinstance(edge, dict) or set(edge) - {'from', 'to'}:
             raise ValidationError('流程连线包含未知字段')
         source, target = edge.get('from'), edge.get('to')
-        if source not in ids or target not in ids or source == target:
+        if not isinstance(source, str) or not isinstance(target, str) or source not in ids or target not in ids or source == target:
             raise ValidationError('流程连线端点无效')
         adjacency[source].append(target)
     starts = [node['id'] for node in nodes if node['type'] == 'start'][0]
     ends = [node['id'] for node in nodes if node['type'] == 'end'][0]
+    # 运行器只支持节点间单链；多人会签/或签在节点内部表达。
+    incoming = {key: sum(values.count(key) for values in adjacency.values()) for key in ids}
+    if (len(nodes) < 3 or any(len(adjacency[key]) != (0 if key == ends else 1) for key in ids)
+            or any(incoming[key] != (0 if key == starts else 1) for key in ids)):
+        raise ValidationError('当前流程仅支持开始到结束的单链，分支请使用会签或或签节点')
     if not adjacency[starts] or any(key != starts and not any(key in values for values in adjacency.values()) for key in ids if key != starts):
         raise ValidationError('流程节点必须从开始节点可达')
     if not any(ends in values for values in adjacency.values()):
@@ -105,7 +116,7 @@ class ApprovalStep(BaseModel):
     mode = models.CharField(max_length=8, choices=MODE_CHOICES, default='all')
     sequence = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='pending')
-    assignee = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approval_steps')
+    assignee = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='approval_steps')
     candidates = models.JSONField(default=list)
     delegated_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='delegated_approval_steps')
     comment = models.TextField(blank=True)
@@ -142,7 +153,7 @@ class ApprovalAction(BaseModel):
 
 
 class ApprovalRequest(BaseModel):
-    """审批申请（当前为单级审批：提交 -> 指定审批人处理）"""
+    """审批申请：兼容单人审批和已发布的多级、会签、或签流程。"""
     TYPE_CHOICES = [
         ('leave', '请假'),
         ('purchase', '采购'),
@@ -159,8 +170,8 @@ class ApprovalRequest(BaseModel):
     title = models.CharField(max_length=200, verbose_name='标题')
     request_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='other', verbose_name='申请类型')
     content = models.TextField(verbose_name='申请内容')
-    applicant = models.ForeignKey(User, on_delete=models.CASCADE, related_name='applied_requests', verbose_name='申请人')
-    assignee = models.ForeignKey(User, on_delete=models.CASCADE, related_name='pending_approvals', verbose_name='当前审批人')
+    applicant = models.ForeignKey(User, on_delete=models.PROTECT, related_name='applied_requests', verbose_name='申请人')
+    assignee = models.ForeignKey(User, on_delete=models.PROTECT, related_name='pending_approvals', verbose_name='当前审批人')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='状态')
     decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
                                    related_name='processed_requests', verbose_name='处理人')

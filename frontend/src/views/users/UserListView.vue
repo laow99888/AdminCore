@@ -295,8 +295,8 @@ const loadUsers = async () => {
     exportFilters.value = filters
     exportReady.value = true
     total.value = data.pagination.total
-  } catch {
-    // 拦截器已提示
+  } catch (error) {
+    if (current === listGeneration && responseStatus(error) === 404 && currentPage.value > 1) { currentPage.value = 1; await loadUsers() }
   } finally {
     if (current === listGeneration) loading.value = false
   }
@@ -393,6 +393,7 @@ const handleDelete = (row: UserRow) => {
   })
     .then(async () => {
       await usersApi.remove(row.id)
+      if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText("删除成功"))
       loadUsers()
     })

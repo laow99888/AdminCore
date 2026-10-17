@@ -1,21 +1,43 @@
 <template>
-  <AppLayout><div class="page"><BaseCard><template #header><div class="head"><div><div class="title">{{ uiText('在线表单设计器') }}</div><div class="sub">{{ uiText('草稿可编辑，发布后版本固定；运行时只接受登记字段') }}</div></div><div class="actions"><BaseButton :disabled="saving" @click="newForm">{{ uiText('新建草稿') }}</BaseButton><BaseButton variant="primary" :disabled="!editing || editing.status !== 'draft' || saving" @click="save">{{ uiText('保存草稿') }}</BaseButton><BaseButton v-if="editing?.status === 'draft'" variant="primary" :disabled="saving" @click="publish">{{ uiText('发布') }}</BaseButton></div></div></template><el-alert v-if="error" :title="error" type="error" :closable="false"/><el-table :data="forms" stripe @row-click="select"><el-table-column prop="name" :label="uiText('名称')"/><el-table-column prop="code" :label="uiText('编码')"/><el-table-column prop="version" :label="uiText('版本')" width="90"/><el-table-column prop="status" :label="uiText('状态')" width="100"/></el-table></BaseCard>
+  <AppLayout><div class="page"><BaseCard><template #header><div class="head"><div><div class="title">{{ uiText('在线表单设计器') }}</div><div class="sub">{{ uiText('草稿可编辑，发布后版本固定；运行时只接受登记字段') }}</div></div><div class="actions"><BaseButton :disabled="saving" @click="newForm">{{ uiText('新建草稿') }}</BaseButton><BaseButton variant="primary" :disabled="!editing || editing.status !== 'draft' || saving" @click="save">{{ uiText('保存草稿') }}</BaseButton><BaseButton v-if="editing?.status === 'draft'" variant="primary" :disabled="saving" @click="publish">{{ uiText('发布') }}</BaseButton></div></div></template><el-alert v-if="error" :title="error" type="error" :closable="false"/><el-table :data="forms" stripe @row-click="select"><el-table-column prop="name" :label="uiText('名称')"/><el-table-column prop="code" :label="uiText('编码')"/><el-table-column prop="version" :label="uiText('版本')" width="90"/><el-table-column prop="status" :label="uiText('状态')" width="100"/></el-table><el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev, pager, next, total" :disabled="saving" @current-change="load" /></BaseCard>
     <BaseCard v-if="editing"><el-form label-width="90px" :disabled="editing.status !== 'draft' || saving"><el-form-item :label="uiText('名称')"><el-input v-model="editing.name"/></el-form-item><el-form-item :label="uiText('编码')"><el-input v-model="editing.code"/></el-form-item><div class="section"><span>{{ uiText('字段') }}</span><el-button size="small" :disabled="editing.status !== 'draft'" @click="addField">{{ uiText('添加字段') }}</el-button></div><el-table :data="fields" border><el-table-column :label="uiText('标识')"><template #default="{row}"><el-input v-model="row.key"/></template></el-table-column><el-table-column :label="uiText('标签')"><template #default="{row}"><el-input v-model="row.label"/></template></el-table-column><el-table-column :label="uiText('类型')"><template #default="{row}"><el-select v-model="row.type"><el-option v-for="type in types" :key="type" :label="type" :value="type"/></el-select></template></el-table-column><el-table-column :label="uiText('必填')" width="80"><template #default="{row}"><el-switch v-model="row.required"/></template></el-table-column><el-table-column :label="uiText('选项（逗号分隔）')"><template #default="{row}"><el-input v-model="row.optionsText" :disabled="row.type !== 'select'"/></template></el-table-column><el-table-column label="" width="60"><template #default="{ $index }"><el-button link type="danger" :aria-label="uiText('删除字段')" @click="fields.splice($index, 1)">×</el-button></template></el-table-column></el-table></el-form></BaseCard></div></AppLayout>
 </template>
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useLatestRead } from '@/composables/useLatestRead'
+import { errorMessage, notifyError } from '@/api/request'
 import { ElMessage } from 'element-plus'
 import AppLayout from '@/components/layout/AppLayout.vue'; import { BaseButton, BaseCard } from '@/components'; import { onlineFormsApi, type OnlineFormField, type OnlineFormRow } from '@/api'; import { uiText } from '@/i18n/uiText'
 type EditField = OnlineFormField & { optionsText: string }
 const forms = ref<OnlineFormRow[]>([]); const editing = ref<OnlineFormRow | null>(null); const fields = ref<EditField[]>([]); const saving = ref(false); const error = ref(''); const types = ['text','textarea','number','select','date','boolean'] as const
-function loadEditor(row: OnlineFormRow) { editing.value = JSON.parse(JSON.stringify(row)); fields.value = row.definition.fields.map((field) => ({ ...field, optionsText: (field.options || []).join(',') })) }
-function select(row: OnlineFormRow) { if (!saving.value) loadEditor(row) }
-function newForm() { loadEditor({ id: '', name: '', code: '', status: 'draft', version: 1, definition: { fields: [{ key: 'title', label: '标题', type: 'text', required: true, max_length: 200, optionsText: '' }] } as unknown as OnlineFormRow['definition'] }) }
-function addField() { fields.value.push({ key: `field_${fields.value.length + 1}`, label: '新字段', type: 'text', required: false, optionsText: '' }) }
+const page = ref(1), total = ref(0)
+const beginRead = useLatestRead(() => { forms.value = []; total.value = 0 })
+const guard = useUnsavedChanges({ source: () => editing.value?.status === 'draft' ? { editing: editing.value, fields: fields.value } : null, busy: () => saving.value, clear: () => { editing.value = null; fields.value = [] } })
+function loadEditor(row: OnlineFormRow) { editing.value = JSON.parse(JSON.stringify(row)); fields.value = row.definition.fields.map((field) => ({ ...field, optionsText: (field.options || []).join(',') })); guard.markClean() }
+async function select(row: OnlineFormRow) { if (!saving.value && await guard.confirmDiscard()) loadEditor(row) }
+async function newForm() { if (saving.value || !await guard.confirmDiscard()) return; loadEditor({ id: '', name: '', code: '', status: 'draft', version: 1, definition: { fields: [{ key: 'title', label: '标题', type: 'text', required: true, max_length: 200, optionsText: '' }] } as unknown as OnlineFormRow['definition'] }) }
+function addField() { fields.value.push({ key: `field_${crypto.randomUUID().replace(/-/g, '').slice(0, 12)}`, label: '新字段', type: 'text', required: false, optionsText: '' }) }
 function definition() { return { fields: fields.value.map(({ optionsText, ...field }) => ({ ...field, ...(field.type === 'select' ? { options: optionsText.split(',').map((item) => item.trim()).filter(Boolean) } : {}) })) } }
-async function load() { try { forms.value = (await onlineFormsApi.list({ page: 1, page_size: 100 })).items } catch (err) { error.value = err instanceof Error ? err.message : uiText('表单列表加载失败') } }
-async function save() { if (!editing.value || editing.value.status !== 'draft' || saving.value) return; saving.value = true; try { const data = { name: editing.value.name, code: editing.value.code, definition: definition() }; const response = editing.value.id ? await onlineFormsApi.update(editing.value.id, data) : await onlineFormsApi.create(data); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('表单草稿已保存')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('保存失败')) } finally { saving.value = false } }
-async function publish() { if (saving.value || editing.value?.status !== 'draft') return; if (!editing.value?.id) { await save(); if (!editing.value?.id) return }; saving.value = true; try { const response = await onlineFormsApi.publish(editing.value.id); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('表单已发布')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('发布失败')) } finally { saving.value = false } }
+async function load() { const current = beginRead(); try { const data = await onlineFormsApi.list({ page: page.value, page_size: 20 }); if (current()) { forms.value = data.items; total.value = data.pagination.total } } catch (err) { if (current()) error.value = errorMessage(err, uiText('列表加载失败')) } }
+async function save(): Promise<boolean> {
+  if (!editing.value || editing.value.status !== 'draft' || saving.value) return false
+  saving.value = true
+  try {
+    const payload = { name: editing.value.name, code: editing.value.code, definition: definition(), version: editing.value.version }
+    const response = editing.value.id ? await onlineFormsApi.update(editing.value.id, payload) : await onlineFormsApi.create(payload)
+    if (!guard.isSessionCurrent()) return false
+    loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('表单草稿已保存')); return true
+  } catch (err) { notifyError(err, uiText('保存失败')); return false } finally { saving.value = false }
+}
+async function publish() {
+  if (saving.value || editing.value?.status !== 'draft') return
+  if ((!editing.value.id || guard.dirty.value) && !await save()) return
+  if (!editing.value?.id) return
+  saving.value = true
+  try { const response = await onlineFormsApi.publish(editing.value.id, editing.value.version); if (!guard.isSessionCurrent()) return; loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('已发布')) }
+  catch (err) { notifyError(err, uiText('发布失败')) } finally { saving.value = false }
+}
 onMounted(load)
 </script>
 <style scoped>.page{display:grid;gap:16px}.head,.section{display:flex;align-items:center;justify-content:space-between;gap:12px}.actions{display:flex;gap:8px;flex-wrap:wrap}.title{font-weight:600;font-size:16px}.sub{color:var(--el-text-color-secondary);font-size:12px;margin-top:4px}.section{margin:18px 0 10px;font-weight:600}@media(max-width:768px){.head{align-items:flex-start;flex-direction:column}.actions{width:100%}.actions :deep(button){flex:1}}</style>

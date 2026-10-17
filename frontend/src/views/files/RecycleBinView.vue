@@ -50,10 +50,10 @@
 </template>
 
 <script setup lang="ts">
+import { notifyError } from "@/api/request"
 import { usePageState } from '@/composables/usePageState'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
 import { filesApi, type FileRow, type RecycleResult } from '@/api'
@@ -129,7 +129,7 @@ async function restore(items: FileRow[]) {
   remember(snapshot)
   busy.value = true
   try { await showResult(await filesApi.recycleAction('restore', snapshot)) }
-  catch { ElMessage.error(uiText('操作失败，请刷新状态后重试')) }
+  catch (error) { notifyError(error, uiText('操作失败，请刷新状态后重试')) }
   finally { busy.value = false }
 }
 async function previewPurge(items: FileRow[]) {
@@ -141,7 +141,7 @@ async function previewPurge(items: FileRow[]) {
     preview.value = await filesApi.recycleAction('purge', pendingRows.value, true)
     confirmation.value = ''
     purgeVisible.value = true
-  } catch { ElMessage.error(uiText('删除预览失败，请重试')) }
+  } catch (error) { notifyError(error, uiText('删除预览失败，请重试')) }
   finally { busy.value = false }
 }
 async function purge() {
@@ -151,7 +151,7 @@ async function purge() {
     const response = await filesApi.recycleAction('purge', pendingRows.value, false, confirmation.value)
     purgeVisible.value = false
     await showResult(response)
-  } catch { ElMessage.error(uiText('操作失败，请刷新状态后重试')) }
+  } catch (error) { notifyError(error, uiText('操作失败，请刷新状态后重试')) }
   finally { busy.value = false }
 }
 void loadFiles()

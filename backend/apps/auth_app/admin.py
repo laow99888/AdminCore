@@ -43,6 +43,58 @@ class UserAdmin(AuditedAdminMixin, BaseUserAdmin):
     change_password_form = RequiredPasswordChangeForm
 
     @transaction.atomic
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        if request.method == 'POST':
+            from apps.users.safety import lock_management_users
+            # 先锁管理员，再进入 Admin 审计读取目标的路径。
+            ids = [request.user.pk]
+            if object_id:
+                from uuid import UUID
+                try:
+                    ids.append(UUID(object_id))
+                except ValueError:
+                    pass
+            lock_management_users(ids)
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+    @transaction.atomic
+    def changelist_view(self, request, extra_context=None):
+        if request.method == 'POST':
+            from apps.users.safety import lock_management_users
+            from uuid import UUID
+            ids = [request.user.pk]
+            for value in request.POST.getlist('_selected_action'):
+                try:
+                    ids.append(UUID(value))
+                except ValueError:
+                    pass
+            lock_management_users(ids)
+        return super().changelist_view(request, extra_context)
+
+    @transaction.atomic
+    def delete_view(self, request, object_id, extra_context=None):
+        if request.method == 'POST':
+            from apps.users.safety import lock_management_users
+            from uuid import UUID
+            ids = [request.user.pk]
+            try:
+                ids.append(UUID(object_id))
+            except ValueError:
+                pass  # 交由 Django Admin 的无效对象处理，不在锁查询中产生 500。
+            lock_management_users(ids)
+        return super().delete_view(request, object_id, extra_context)
+
+    def delete_model(self, request, obj):
+        from apps.users.safety import protect_management_access
+        protect_management_access(request.user, [obj], deleting=True)
+        return super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        from apps.users.safety import protect_management_access
+        protect_management_access(request.user, list(queryset), deleting=True)
+        return super().delete_queryset(request, queryset)
+
+    @transaction.atomic
     def user_change_password(self, request, id, form_url=''):
         return super().user_change_password(request, id, form_url)
     readonly_fields = ('must_change_password', 'avatar_file', 'profile_version',
@@ -78,6 +130,10 @@ class UserAdmin(AuditedAdminMixin, BaseUserAdmin):
             for field in User._meta.concrete_fields:
                 if field.name not in form.changed_data:
                     setattr(obj, field.attname, getattr(current, field.attname))
+            if {'is_active', 'is_staff', 'is_superuser'} & set(form.changed_data):
+                from apps.users.safety import protect_management_access
+                protect_management_access(request.user, [current], values={
+                    field: getattr(obj, field) for field in ('is_active', 'is_staff', 'is_superuser')})
             if {'email', 'first_name', 'last_name', 'phone', 'avatar'} & set(form.changed_data):
                 obj.profile_version += 1
         super().save_model(request, obj, form, change)

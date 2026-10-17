@@ -78,7 +78,7 @@ class Menu(BaseModel):
     order = models.IntegerField(default=0, verbose_name='排序')
     parent = models.ForeignKey(
         'self',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         related_name='children',
@@ -86,7 +86,7 @@ class Menu(BaseModel):
     )
     permission = models.ForeignKey(
         Permission,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         null=True,
         blank=True,
         verbose_name='所需权限'

@@ -69,6 +69,9 @@ try:
         for value in os.getenv('ADMINCORE_TRUSTED_PROXIES', '').split(',') if value.strip())
 except ValueError:
     raise ImproperlyConfigured('ADMINCORE_TRUSTED_PROXIES 必须是逗号分隔的可信直接代理 IP/CIDR') from None
+# 仅由部署配置指定的容器服务名；不从请求头接受主机名。
+ADMINCORE_TRUSTED_PROXY_HOSTS = tuple(value.strip() for value in
+    os.getenv('ADMINCORE_TRUSTED_PROXY_HOSTS', '').split(',') if value.strip())
 
 # 应用配置
 INSTALLED_APPS = [
@@ -260,8 +263,8 @@ REST_FRAMEWORK = {
     ),
     # 限流
     'DEFAULT_THROTTLE_CLASSES': (
-        'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
+        'apps.auth_app.throttling.TrustedAnonRateThrottle',
+        'apps.auth_app.throttling.TrustedUserRateThrottle',
     ),
     'DEFAULT_THROTTLE_RATES': {
         'anon': '100/hour',

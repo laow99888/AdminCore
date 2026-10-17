@@ -22,6 +22,7 @@
         <el-card shadow="never">
           <template #header>{{ uiText('已保存报表') }}</template>
           <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" :disabled="busy" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
+          <el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev, pager, next, total" :disabled="busy" @current-change="load" />
           <BaseChart v-if="result && result.definition.chart_type !== 'table'" :option="chartOption" :height="340" :caption="uiText('报表图表')" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => toCellValue(row[column]))) }" />
           <el-table v-if="result" :data="result.rows" class="result"><el-table-column v-for="column in result.columns" :key="column" :prop="column" :label="column" /></el-table>
         </el-card>
@@ -32,6 +33,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useLatestRead } from '@/composables/useLatestRead'
+import { errorMessage } from '@/api/request'
 import { ElMessage } from 'element-plus'
 import { AppLayout } from '@/components'
 import BaseChart from '@/components/common/BaseChart.vue'
@@ -63,6 +67,9 @@ interface ReportForm {
   definition: ReportBuilderDefinition
 }
 const form = reactive<ReportForm>({ name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } })
+const page = ref(1), total = ref(0)
+const beginRead = useLatestRead(() => { rows.value = []; catalog.value = []; total.value = 0; result.value = null })
+const guard = useUnsavedChanges({ source: () => !selected.value || selected.value.status === 'draft' ? form : null, busy: () => busy.value, clear: () => { selected.value = null; form.name = ''; form.code = ''; result.value = null } })
 const currentSource = computed(() => catalog.value.find(item => item.key === form.definition.data_source))
 const chartOption = computed<EChartsOption>(() => {
   const rows = result.value?.rows || []
@@ -77,13 +84,22 @@ const chartOption = computed<EChartsOption>(() => {
 function resetFields() { form.definition.dimensions = []; dimension.value = ''; form.definition.metric.field = currentSource.value?.metrics[0] || 'id' }
 function setDimension(value: string) { form.definition.dimensions = value ? [{ field: value }] : [] }
 function toCellValue(value: unknown): string | number { return typeof value === 'string' || typeof value === 'number' ? value : value == null ? '' : String(value) }
-function loadEditor(row: ReportDefinition) { selected.value = row; const definition = JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition }); dimension.value = definition.dimensions?.[0]?.field || '' }
-function selectRow(row: ReportDefinition) { if (!busy.value) loadEditor(row) }
-function newDraft() { if (busy.value) return; selected.value = null; dimension.value = ''; error.value = ''; Object.assign(form, { name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } }) }
-function showError(err: unknown) { error.value = err instanceof Error ? err.message : uiText('操作失败') }
-async function load() { try { catalog.value = await reportsApi.catalog(); rows.value = (await reportsApi.list({ page_size: 100 })).items } catch (err) { showError(err) } }
-async function save() { if (busy.value || (selected.value && selected.value.status !== 'draft')) return; busy.value = true; error.value = ''; try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); loadEditor(response.data.data); ElMessage.success(uiText('已保存')); await load() } catch (err) { showError(err) } finally { busy.value = false } }
-async function publish() { if (busy.value || selected.value?.status !== 'draft') return; busy.value = true; error.value = ''; try { const response = await reportsApi.publish(selected.value.id); loadEditor(response.data.data); ElMessage.success(uiText('已发布')); await load() } catch (err) { showError(err) } finally { busy.value = false } }
+function loadEditor(row: ReportDefinition) { selected.value = row; const definition = JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition }); dimension.value = definition.dimensions?.[0]?.field || ''; guard.markClean() }
+async function selectRow(row: ReportDefinition) { if (!busy.value && await guard.confirmDiscard()) loadEditor(row) }
+async function newDraft() { if (busy.value || !await guard.confirmDiscard()) return; selected.value = null; dimension.value = ''; error.value = ''; Object.assign(form, { name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } }); guard.markClean() }
+function showError(err: unknown) { error.value = errorMessage(err, uiText('操作失败')) }
+async function load() { const current = beginRead(); try { const [sources, data] = await Promise.all([reportsApi.catalog(), reportsApi.list({ page: page.value, page_size: 20 })]); if (current()) { catalog.value = sources; rows.value = data.items; total.value = data.pagination.total } } catch (err) { if (current()) showError(err) } }
+async function save(): Promise<boolean> {
+  if (busy.value || (selected.value && selected.value.status !== 'draft')) return false
+  busy.value = true; error.value = ''
+  try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition, version: selected.value.version }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); if (!guard.isSessionCurrent()) return false; loadEditor(response.data.data); ElMessage.success(uiText('已保存')); await load(); return true } catch (err) { showError(err); return false } finally { busy.value = false }
+}
+async function publish() {
+  if (busy.value || selected.value?.status !== 'draft') return
+  if (guard.dirty.value && !await save()) return
+  busy.value = true; error.value = ''
+  try { const response = await reportsApi.publish(selected.value.id, selected.value.version); if (!guard.isSessionCurrent()) return; loadEditor(response.data.data); ElMessage.success(uiText('已发布')); await load() } catch (err) { showError(err) } finally { busy.value = false }
+}
 async function run(row: ReportDefinition) { if (busy.value) return; busy.value = true; error.value = ''; result.value = null; try { result.value = await reportsApi.run(row.id) } catch (err) { showError(err) } finally { busy.value = false } }
 onMounted(load)
 </script>

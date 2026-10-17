@@ -50,6 +50,7 @@ export function getRefreshToken(): string | null {
 export function setAccessToken(value: string): void {
   if (cookieSessionEnabled()) { clearLegacyTokens(); memoryAccess = value; changed(); return }
   storage()?.setItem(ACCESS_TOKEN_KEY, value)
+  changed()
 }
 
 export function setRefreshToken(value: string): void {
@@ -67,6 +68,7 @@ export function setSession(session: StoredSession): void {
   if (!target) return
   target.setItem(ACCESS_TOKEN_KEY, session.access)
   target.setItem(REFRESH_TOKEN_KEY, session.refresh)
+  changed()
 }
 
 export function clearSession(): void {
@@ -75,6 +77,7 @@ export function clearSession(): void {
   if (!target) return
   target.removeItem(ACCESS_TOKEN_KEY)
   target.removeItem(REFRESH_TOKEN_KEY)
+  changed()
 }
 
 export function getSessionSnapshot(): { access: string | null; refresh: string | null } {

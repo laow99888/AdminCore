@@ -168,21 +168,8 @@ class FileUploadSerializer(serializers.ModelSerializer):
         }
 
     def validate_file(self, value):
-        from apps.core.error_i18n import error_text
-        ext = os.path.splitext(value.name)[1].lower().lstrip('.')
-        allowed = [e.lower() for e in getattr(settings, 'FILE_UPLOAD_ALLOWED_EXTENSIONS', [])]
-        max_size = getattr(settings, 'FILE_UPLOAD_MAX_SIZE', 50 * 1024 * 1024)
-
-        if allowed and ext not in allowed:
-            raise serializers.ValidationError(
-                error_text('不支持的文件类型 ".{extension}"，允许的类型：{allowed}', extension=ext, allowed=', '.join(allowed))
-            )
-        if value.size == 0:
-            raise serializers.ValidationError('不允许上传空文件')
-        if value.size > max_size:
-            raise serializers.ValidationError(
-                error_text('文件大小超出限制（最大 {megabytes}MB）', megabytes=max_size // (1024 * 1024))
-            )
+        from .upload_validation import validate_upload_metadata
+        validate_upload_metadata(value.name, value.size)
 
         # 计算 MD5 用于去重比对
         md5 = hashlib.md5()

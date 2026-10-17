@@ -1,16 +1,32 @@
 #!/usr/bin/env bash
 # AdminCore 健康检查：compose 服务状态 + 后端 API + 前端页面
-# 用法：bash scripts/health_check.sh [前端地址，默认 http://localhost]
+# 用法：bash scripts/health_check.sh [前端地址，默认读取 Compose 发布端口]
 
 set -u
 
-FRONTEND_URL="${1:-http://localhost}"
+cd "$(dirname "$0")/.." || exit 1
+SERVICES="$(docker compose config --services)" || exit 1
+RUNNING="$(docker compose ps --status running --services)" || exit 1
+FRONTEND_URL="${1:-${FRONTEND_URL:-}}"
+if [ -z "$FRONTEND_URL" ]; then
+  PUBLISHED="$(docker compose port frontend 80)" || exit 1
+  PORT="${PUBLISHED##*:}"
+  case "$PORT" in ''|*[!0-9]*) echo '无法解析前端发布端口，请显式指定前端地址'; exit 1;; esac
+  FRONTEND_URL="http://127.0.0.1:$PORT"
+fi
+FRONTEND_URL="${FRONTEND_URL%/}"
 API_URL="${FRONTEND_URL}/api/v1/health/"
 
 fail=0
 
 echo "== 容器状态 =="
 docker compose ps --format 'table {{.Service}}\t{{.Status}}' || fail=1
+for service in $SERVICES; do
+  if ! printf '%s\n' "$RUNNING" | grep -Fxq "$service"; then
+    echo "FAIL：服务 $service 未运行"
+    fail=1
+  fi
+done
 
 echo
 echo "== 后端 API $API_URL =="
@@ -32,6 +48,7 @@ fi
 
 echo
 echo "== Celery worker =="
+if printf '%s\n' "$SERVICES" | grep -Fxq worker; then
 worker_ok=0
 for attempt in {1..8}; do
   if docker compose exec -T worker celery -A config inspect ping --timeout 3 2>/dev/null | grep -q pong; then
@@ -45,6 +62,9 @@ if [ "$worker_ok" -eq 1 ]; then
 else
   echo "FAIL：Celery worker 无响应"
   fail=1
+fi
+else
+  echo '当前预设未启用 worker，跳过队列检查'
 fi
 
 echo

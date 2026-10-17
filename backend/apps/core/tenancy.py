@@ -52,7 +52,14 @@ def activate_for_user(request, user):
     if not enabled() or not getattr(user, 'is_authenticated', False):
         return None
     from .models import Tenant, TenantMembership
+    # 只允许这两个身份引导入口在没有租户上下文时工作；业务入口仍强制选租户。
+    bootstrap = getattr(request, 'method', '') in {'GET', 'HEAD', 'OPTIONS'} and getattr(request, 'path', '') in {
+        '/api/v1/auth/me/', '/api/v1/organization/my-tenants/'}
     header = request.headers.get('X-AdminCore-Tenant', '').strip()
+    if bootstrap and not header:
+        clear_current_tenant()
+        request.tenant = None
+        return None
     if header:
         identifier = _parse_identifier(header)
         tenant = Tenant.objects.filter(pk=identifier, status=Tenant.STATUS_ACTIVE).first()

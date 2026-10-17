@@ -101,6 +101,6 @@ MEDIA_STARTED=1
 docker compose run --rm --no-deps -T --entrypoint python backend /app/docker/media_restore.py commit "$TOKEN"
 if [ -n "$RUNNING" ]; then docker compose start $RUNNING; fi
 STOPPED=0
-bash scripts/health_check.sh "${FRONTEND_URL:-http://localhost}"
+bash scripts/health_check.sh "${FRONTEND_URL:-}"
 COMPLETED=1
 echo "恢复完成；旧库 $ROLLBACK 保留；本地模式的旧媒体在 /app/media/.admincore-restore-$TOKEN/old，对象模式在配置的媒体前缀下 .admincore-restore-$TOKEN/old。确认业务验收后人工清理。"

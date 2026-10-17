@@ -25,6 +25,8 @@ def worker():
                        'tests/test_audit_fix_contracts.py', 'tests/test_audit_fix_storage_outbox.py',
                        'tests/test_tenant_object_contract.py', 'tests/test_multi_tenant.py',
                        'tests/test_advanced_approvals.py',
+                       'tests/test_audit_20261017_repairs.py',
+                       'tests/test_audit_20261017_concurrency.py',
                        'tests/test_reports.py',
                        'tests/test_task_reliability.py::test_terminal_import_summary_uses_committed_receipts',
                        'tests/test_api_credentials.py::test_disabled_then_reenabled_owner_never_revives_old_api_secret'])

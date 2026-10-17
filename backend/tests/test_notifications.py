@@ -22,14 +22,16 @@ class TestNotificationCenter:
         res = member_client.get('/api/v1/notifications/unread_count/')
         assert res.json()['data']['count'] == 0
 
-    def test_retrieve_marks_read(self, admin_client, member_client, member_user, admin_user):
+    def test_retrieve_is_read_only_and_explicit_action_marks_read(self, admin_client, member_client, member_user, admin_user):
         notification = admin_client.post('/api/v1/notifications/', {
             'recipient_ids': [str(member_user.id)], 'title': '自动已读',
         }, format='json').json()
         # 列表拿到通知 id（发送接口不返回列表）
         item_id = member_client.get('/api/v1/notifications/').json()['data']['items'][0]['id']
         res = member_client.get(f'/api/v1/notifications/{item_id}/')
-        assert res.json()['data']['is_read'] is True
+        assert res.json()['data']['is_read'] is False
+        assert member_client.post(f'/api/v1/notifications/{item_id}/mark_read/').status_code == 200
+        assert member_client.get(f'/api/v1/notifications/{item_id}/').json()['data']['is_read'] is True
 
     def test_member_cannot_send(self, member_client, admin_user):
         res = member_client.post('/api/v1/notifications/', {

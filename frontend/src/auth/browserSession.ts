@@ -1,7 +1,7 @@
 import publicRequest from '../api/publicRequest'
 import { API_BASE_URL } from '../api/baseUrl'
 import { cookieSessionEnabled, BROWSER_SESSION_MARKER, MEMORY_TOKEN_CHANGED } from './sessionTransport'
-import { announceBrowserSession, browserSessionMarker, clearLegacyTokens, clearSession, discardMemorySession, getAccessToken, setAccessToken } from './tokenStorage'
+import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, announceBrowserSession, browserSessionMarker, clearLegacyTokens, clearSession, discardMemorySession, getAccessToken, setAccessToken } from './tokenStorage'
 import { sessionClaims, tokensBelongToSameSession } from './sessionIdentity'
 
 const ENDPOINT = '/auth/browser-session/'
@@ -106,16 +106,21 @@ export async function discardCancelledBrowserLogin(access: string): Promise<void
 }
 
 export function startBrowserSessionSync(onChange: () => void): () => void {
-  if (!cookieSessionEnabled()) return () => {}
-  let known = browserSessionMarker()
-  const ownChange = () => { known = browserSessionMarker() }
+  const marker = () => cookieSessionEnabled() ? browserSessionMarker() : getAccessToken()
+  let known = marker()
+  const ownChange = () => { known = marker() }
   const check = () => {
-    if (known === browserSessionMarker()) return
-    known = browserSessionMarker()
-    discardMemorySession()
+    const next = marker()
+    if (known === next) return
+    const same = !cookieSessionEnabled() && tokensBelongToSameSession(known, next)
+    known = next
+    if (same) { window.dispatchEvent(new Event(MEMORY_TOKEN_CHANGED)); return }
+    if (cookieSessionEnabled()) discardMemorySession()
+    else window.dispatchEvent(new Event(MEMORY_TOKEN_CHANGED))
     onChange()
   }
-  const storage = (event: StorageEvent) => { if (event.key === null || event.key === BROWSER_SESSION_MARKER) check() }
+  const storage = (event: StorageEvent) => { if (event.key === null ||
+    (cookieSessionEnabled() ? event.key === BROWSER_SESSION_MARKER : [ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY].includes(event.key))) check() }
   window.addEventListener('storage', storage)
   window.addEventListener('focus', check)
   document.addEventListener('visibilitychange', check)

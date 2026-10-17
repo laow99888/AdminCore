@@ -14,6 +14,8 @@
           <el-tab-pane :label="uiText('待我审批')" name="todo" />
           <el-tab-pane :label="uiText('我已处理')" name="done" />
           <el-tab-pane :label="uiText('我的申请')" name="sent" />
+          <el-tab-pane :label="uiText('抄送我的')" name="cc" />
+          <el-tab-pane v-if="auth.user?.is_staff || auth.user?.is_superuser" :label="uiText('异常审批')" name="exceptions" />
         </el-tabs>
 
         <BaseTable
@@ -23,11 +25,12 @@
           :total="total"
           :current-page="currentPage"
           :page-size="pageSize"
+          :action-width="220"
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         >
           <template #actions="{ row }">
-            <el-button link type="primary" size="small" @click="currentApproval = row; detailVisible = true">{{ uiText("详情") }}</el-button>
+            <el-button link type="primary" size="small" @click="showDetail(row)">{{ uiText("详情") }}</el-button>
             <template v-if="activeBox === 'todo'">
               <el-button link type="success" size="small" @click="handleApprove(row)">{{ uiText("通过") }}</el-button>
               <el-button link type="danger" size="small" @click="handleReject(row)">{{ uiText("驳回") }}</el-button>
@@ -49,6 +52,19 @@
           <el-descriptions-item :label="uiText('审批意见')"><div style="white-space: pre-wrap; overflow-wrap: anywhere">{{ currentApproval.decision_comment || '—' }}</div></el-descriptions-item>
           <el-descriptions-item :label="uiText('处理时间')">{{ currentApproval.decided_at || '—' }}</el-descriptions-item>
         </el-descriptions>
+        <el-table v-if="currentApproval?.steps?.length" :data="currentApproval.steps">
+          <el-table-column prop="node_key" :label="uiText('节点')" />
+          <el-table-column prop="assignee_name" :label="uiText('审批人')" />
+          <el-table-column prop="delegated_to_name" :label="uiText('受托人')" />
+          <el-table-column prop="status" :label="uiText('状态')" />
+        </el-table>
+        <div v-if="currentApproval?.status === 'pending'" class="advanced-actions">
+          <el-button v-if="ownStep" :disabled="saving" @click="openAction('addSign')">{{ uiText('加签') }}</el-button>
+          <el-button v-if="ownStep?.assignee === auth.user?.id" :disabled="saving" @click="openAction('transfer')">{{ uiText('转交') }}</el-button>
+          <el-button v-if="ownStep?.assignee === auth.user?.id" :disabled="saving" @click="openAction('delegate')">{{ uiText('委托') }}</el-button>
+          <el-button v-if="activeBox !== 'cc'" :disabled="saving" @click="openAction('cc')">{{ uiText('抄送') }}</el-button>
+          <el-button v-if="activeBox === 'exceptions' && currentApproval.steps?.length" :disabled="saving" @click="openAction('repairStep')">{{ uiText('修复审批人') }}</el-button>
+        </div>
       </BaseDialog>
       <!-- 发起申请 -->
       <BaseDialog v-model="createVisible" :before-close="formGuard.confirmDiscard" :title="uiText('发起审批申请')" :loading="saving" @confirm="handleSubmit">
@@ -65,12 +81,27 @@
               <el-option :label="uiText('其他')" value="other" />
             </el-select>
           </el-form-item>
-          <el-form-item :label="uiText('审批人')" required>
+          <el-form-item :label="uiText('审批流程')">
+            <el-select v-model="flowId" clearable filterable :loading="flowsLoading" @visible-change="loadFlows" style="width: 100%">
+              <el-option v-for="flow in availableFlows" :key="flow.id" :label="`${flow.name} (v${flow.version})`" :value="flow.id" />
+            </el-select>
+            <el-button v-if="flowsHasMore" link :disabled="flowsLoading" @click="loadFlows(true, true)">{{ uiText('加载更多流程') }}</el-button>
+          </el-form-item>
+          <el-form-item v-if="!flowId" :label="uiText('审批人')" required>
             <PersonPicker v-model="assignee" purpose="approval" :disabled="saving || !createVisible" />
           </el-form-item>
           <el-form-item :label="uiText('内容')" required>
             <el-input v-model="createForm.content" type="textarea" :rows="4" :placeholder="uiText('申请说明')" />
           </el-form-item>
+        </el-form>
+      </BaseDialog>
+      <BaseDialog v-model="actionVisible" :before-close="actionGuard.confirmDiscard" :title="actionLabels[actionKind]" :loading="saving" @confirm="submitAction">
+        <el-form label-width="90px" :disabled="saving">
+          <el-form-item v-if="actionKind === 'repairStep'" :label="uiText('待处理步骤')" required>
+            <el-select v-model="repairStepId"><el-option v-for="step in currentApproval?.steps?.filter(item => item.status === 'pending')" :key="step.id" :label="`${step.node_key} / ${step.assignee_name || '—'}`" :value="step.id" /></el-select>
+          </el-form-item>
+          <el-form-item :label="uiText('目标人员')" required><PersonPicker v-model="actionTarget" purpose="approval" :disabled="saving || !actionVisible" /></el-form-item>
+          <el-form-item :label="uiText('审批意见')"><el-input v-model="actionComment" type="textarea" :maxlength="4000" /></el-form-item>
         </el-form>
       </BaseDialog>
     </div>
@@ -88,11 +119,50 @@ import type { Person } from '@/api/personnel'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton, BaseTable, BaseDialog } from '@/components'
-import { approvalsApi, newIdempotencyKey, type ApprovalRow, type ApprovalBox } from '@/api'
+import { approvalsApi, approvalFlowsApi, newIdempotencyKey, type ApprovalRow, type ApprovalBox, type ApprovalFlowRow } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { notifyError } from '@/api/request'
 import { useRealtimeUpdates } from '@/composables/useRealtimeUpdates'
+import { useLatestRead } from '@/composables/useLatestRead'
 
 const loading = ref(false)
 const saving = ref(false)
+const auth = useAuthStore()
+const flowId = ref(''), availableFlows = ref<ApprovalFlowRow[]>([]), flowsLoading = ref(false), flowsHasMore = ref(false)
+let flowsPage = 0
+const beginFlowRead = useLatestRead(() => { availableFlows.value = []; flowsPage = 0; flowsHasMore.value = false; flowsLoading.value = false })
+async function loadFlows(visible = true, more = false) {
+  if (!visible || flowsLoading.value || (!more && flowsPage)) return
+  const current = beginFlowRead()
+  flowsLoading.value = true
+  try { const data = await approvalFlowsApi.list({ status: 'published', page: more ? flowsPage + 1 : 1, page_size: 20 }); if (!current()) return; availableFlows.value = more ? [...availableFlows.value, ...data.items] : data.items; flowsPage = data.pagination.page; flowsHasMore.value = flowsPage < data.pagination.total_pages }
+  catch (error) { if (current()) notifyError(error, uiText('操作失败')) }
+  finally { if (current()) flowsLoading.value = false }
+}
+const actionVisible = ref(false), actionTarget = ref<Person | null>(null), actionComment = ref('')
+const actionKind = ref<'addSign' | 'transfer' | 'delegate' | 'cc' | 'repairStep'>('cc')
+const repairStepId = ref('')
+const actionLabels = { addSign: uiText('加签'), transfer: uiText('转交'), delegate: uiText('委托'), cc: uiText('抄送'), repairStep: uiText('修复审批人') }
+const ownStep = computed(() => currentApproval.value?.steps?.find(step => step.status === 'pending' &&
+  (step.assignee === auth.user?.id || step.delegated_to === auth.user?.id)))
+const actionGuard = useUnsavedChanges({ source: () => [actionTarget.value, actionComment.value], active: () => actionVisible.value,
+  busy: () => saving.value, clear: () => { actionVisible.value = false; actionTarget.value = null; actionComment.value = '' } })
+function showDetail(row: ApprovalRow) { currentApproval.value = row; detailVisible.value = true }
+function openAction(kind: typeof actionKind.value) { actionKind.value = kind; actionTarget.value = null; actionComment.value = ''; repairStepId.value = currentApproval.value?.steps?.find(step => step.status === 'pending')?.id || ''; actionVisible.value = true }
+async function submitAction() {
+  if (saving.value || !currentApproval.value || !actionTarget.value) return
+  saving.value = true
+  try {
+    const id = currentApproval.value.id, target = actionTarget.value.id, kind = actionKind.value
+    const repair = currentApproval.value.steps?.find(step => step.id === repairStepId.value)
+    if (kind === 'repairStep' && !repair) return
+    const response = kind === 'cc' ? await approvalsApi.cc(id, [target], actionComment.value) : kind === 'repairStep'
+      ? await approvalsApi.repairStep(id, target, repair!.id, repair!.version, actionComment.value)
+      : await approvalsApi[kind](id, target, actionComment.value, ownStep.value?.version)
+    if (!actionGuard.isSessionCurrent()) return
+    currentApproval.value = response.data.data; actionVisible.value = false; ElMessage.success(uiText('操作成功')); await loadList()
+  } catch (error) { notifyError(error, uiText('操作失败')) } finally { saving.value = false }
+}
 const dialogOpen = ref(false)
 const createVisible = computed({ get: () => dialogOpen.value, set: value => { if (!saving.value) dialogOpen.value = value } })
 const assignee = ref<Person | null>(null)
@@ -125,7 +195,7 @@ const createForm = reactive({
   content: '',
 })
 
-const formGuard = useUnsavedChanges({ source: () => ({ form: createForm, assignee: assignee.value }), active: () => createVisible.value, busy: () => saving.value, clear: () => { dialogOpen.value = false; assignee.value = null; Object.assign(createForm, { title: '', request_type: 'other', content: '' }) } })
+const formGuard = useUnsavedChanges({ source: () => ({ form: createForm, assignee: assignee.value, flow: flowId.value }), active: () => createVisible.value, busy: () => saving.value, clear: () => { dialogOpen.value = false; assignee.value = null; flowId.value = ''; Object.assign(createForm, { title: '', request_type: 'other', content: '' }) } })
 const tableColumns = [
   { prop: 'title', label: uiText("标题") },
   { prop: 'request_type', label: uiText("类型"), width: '100px', render: (v: string) => TYPE_LABELS[v] || v },
@@ -162,6 +232,7 @@ const handleBoxChange = () => {
 const handleCreate = () => {
   submission = undefined
   assignee.value = null
+  flowId.value = ''
   submitError.value = false
   Object.assign(createForm, { title: '', request_type: 'other', content: '' })
   createVisible.value = true
@@ -171,7 +242,7 @@ let submission: { fingerprint: string; key: string } | undefined
 
 const handleSubmit = async () => {
   if (saving.value) return
-  if (!createForm.title.trim() || !createForm.content.trim() || !assignee.value) {
+  if (!createForm.title.trim() || !createForm.content.trim() || (!flowId.value && !assignee.value)) {
     ElMessage.warning(uiText("请填写标题、审批人和申请内容"))
     return
   }
@@ -181,7 +252,7 @@ const handleSubmit = async () => {
     title: createForm.title,
     request_type: createForm.request_type,
     content: createForm.content,
-    assignee_id: assignee.value.id,
+    ...(flowId.value ? { flow_id: flowId.value } : { assignee_id: assignee.value!.id }),
   }
   const fingerprint = JSON.stringify(payload)
   if (submission?.fingerprint !== fingerprint) {
@@ -267,4 +338,5 @@ loadList()
 .no-action {
   color: var(--color-text-tertiary);
 }
+.advanced-actions { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); margin-top: var(--spacing-md); }
 </style>

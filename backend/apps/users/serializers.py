@@ -19,6 +19,7 @@ User = get_user_model()
 
 class UserProfileSerializer(MaskedContactSerializerMixin, serializers.ModelSerializer):
     """用户资料序列化器"""
+    phone = serializers.CharField(source='user.phone', read_only=True)
     class Meta:
         model = UserProfile
         fields = ('bio', 'phone', 'department', 'position')

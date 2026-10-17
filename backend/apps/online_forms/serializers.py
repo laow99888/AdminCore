@@ -14,10 +14,11 @@ class OnlineFormSerializer(serializers.ModelSerializer):
 
 
 class OnlineFormDesignSerializer(serializers.ModelSerializer):
+    version = serializers.IntegerField(required=False, min_value=1)
     class Meta:
         model = OnlineForm
         fields = ['id', 'name', 'code', 'status', 'version', 'definition']
-        read_only_fields = ['id', 'status', 'version']
+        read_only_fields = ['id', 'status']
     def validate_definition(self, value):
         return validate_definition(value)
     def validate_code(self, value):

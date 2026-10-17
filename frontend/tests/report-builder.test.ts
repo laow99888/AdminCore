@@ -2,6 +2,9 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import ElementPlus from 'element-plus'
+import { createPinia } from 'pinia'
+import { createMemoryHistory, createRouter } from 'vue-router'
+import { useAuthStore } from '../src/stores/auth'
 import { reportsApi, type ReportDefinition } from '../src/api'
 import ReportBuilderView from '../src/views/reports/ReportBuilderView.vue'
 
@@ -20,6 +23,15 @@ const definition: ReportDefinition = {
 }
 const catalog = [{ key: 'tasks', label: '任务', dimensions: ['status'], metrics: ['id'], filters: ['status'] }]
 
+async function mountReport() {
+  const pinia = createPinia(), auth = useAuthStore(pinia)
+  auth.token = 'isolated-report-test'
+  auth.user = { id: 'fixture', username: 'fixture', email: '', avatar: '', permissions: ['*'] }
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/report', component: { template: '<div />' } }] })
+  await router.push('/report')
+  return mount(ReportBuilderView, { global: { plugins: [pinia, router, ElementPlus] } })
+}
+
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(reportsApi.catalog).mockResolvedValue(catalog)
@@ -35,7 +47,7 @@ it.each([false, true])('保存后的目录重载期间禁用发布，重载失�
   let finish!: (value: typeof catalog) => void
   let reject!: (error: Error) => void
   const pending = new Promise<typeof catalog>((resolve, fail) => { finish = resolve; reject = fail })
-  const wrapper = mount(ReportBuilderView, { global: { plugins: [ElementPlus] } })
+  const wrapper = await mountReport()
   await flushPromises()
   await wrapper.get('tbody tr').trigger('click')
   vi.mocked(reportsApi.catalog).mockReturnValueOnce(pending)
@@ -51,7 +63,7 @@ it.each([false, true])('保存后的目录重载期间禁用发布，重载失�
   expect(button('发布').element.disabled).toBe(false)
   await button('发布').trigger('click')
   await flushPromises()
-  expect(reportsApi.publish).toHaveBeenCalledExactlyOnceWith('report-fixture')
+  expect(reportsApi.publish).toHaveBeenCalledExactlyOnceWith('report-fixture', 1)
   wrapper.unmount()
 })
 
@@ -59,14 +71,14 @@ it.each([false, true])('发布后的目录重载期间禁用运行，重载失�
   let finish!: (value: typeof catalog) => void
   let reject!: (error: Error) => void
   const pending = new Promise<typeof catalog>((resolve, fail) => { finish = resolve; reject = fail })
-  const wrapper = mount(ReportBuilderView, { global: { plugins: [ElementPlus] } })
+  const wrapper = await mountReport()
   await flushPromises()
   await wrapper.get('tbody tr').trigger('click')
   vi.mocked(reportsApi.catalog).mockReturnValueOnce(pending)
   const button = (text: string) => wrapper.findAll<HTMLButtonElement>('button').find(item => item.text() === text)!
   await button('发布').trigger('click')
   await flushPromises()
-  expect(reportsApi.publish).toHaveBeenCalledWith('report-fixture')
+  expect(reportsApi.publish).toHaveBeenCalledWith('report-fixture', 1)
   expect(button('运行').element.disabled).toBe(true)
   expect(reportsApi.run).not.toHaveBeenCalled()
   if (failed) reject(new Error('目录重载失败'))
@@ -77,4 +89,5 @@ it.each([false, true])('发布后的目录重载期间禁用运行，重载失�
   await button('运行').trigger('click')
   await flushPromises()
   expect(reportsApi.run).toHaveBeenCalledExactlyOnceWith('report-fixture')
+  wrapper.unmount()
 })

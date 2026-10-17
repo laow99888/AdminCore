@@ -127,7 +127,8 @@ def test_tenant_api_requires_header_for_multiple_memberships_and_closes_members(
     client.force_authenticate(user)
 
     ambiguous = client.get('/api/v1/organization/my-tenants/')
-    assert ambiguous.status_code == 400
+    assert ambiguous.status_code == 200
+    assert {item['id'] for item in ambiguous.data['data']} == {str(tenant_a.pk), str(tenant_b.pk)}
     selected = client.get('/api/v1/organization/my-tenants/', HTTP_X_ADMINCORE_TENANT=str(tenant_a.pk))
     assert selected.status_code == 200
     assert {item['id'] for item in selected.data['data']} == {str(tenant_a.pk), str(tenant_b.pk)}

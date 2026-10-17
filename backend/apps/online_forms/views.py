@@ -10,6 +10,8 @@ from apps.auth_app.write_authorization import authorize_write
 from apps.core.idempotency import with_idempotency
 from apps.core.mixins import EnvelopeResponseMixin
 from apps.permissions.permissions import HasPermission
+from apps.core.exceptions import APIError
+from rest_framework.generics import get_object_or_404
 from .models import OnlineForm, OnlineFormRecord
 from .serializers import OnlineFormDesignSerializer, OnlineFormRecordSerializer, OnlineFormSerializer
 from .validators import validate_record
@@ -31,23 +33,28 @@ class OnlineFormViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def perform_create(self, serializer):
         actor = authorize_write(self.request, 'online_form:create', admin=True)
-        serializer.save(created_by=actor)
+        serializer.save(created_by=actor, version=1)
 
     @transaction.atomic
     def perform_update(self, serializer):
-        row = self.get_object()
+        authorize_write(self.request, 'online_form:update', admin=True)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=self.kwargs['pk'])
         if row.status != 'draft':
             from rest_framework.exceptions import ValidationError
             raise ValidationError('已发布或归档表单不可直接修改')
-        authorize_write(self.request, 'online_form:update', admin=True)
+        if serializer.validated_data.pop('version', None) != row.version:
+            raise APIError('表单已变化，请刷新后重试', status_code=409)
+        serializer.instance = row
         serializer.save(version=row.version + 1)
 
     @extend_schema(responses=OnlineFormSerializer)
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, HasPermission], url_path='publish')
     @transaction.atomic
     def publish(self, request, pk=None):
-        row = self.get_object()
         authorize_write(request, 'online_form:publish', admin=True)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=pk)
+        if 'version' in request.data and request.data['version'] != row.version:
+            raise APIError('表单已变化，请刷新后重试', status_code=409)
         if row.status != 'draft':
             from rest_framework.exceptions import ValidationError
             raise ValidationError('只有草稿可以发布')
@@ -58,8 +65,9 @@ class OnlineFormViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, HasPermission], url_path='archive')
     @transaction.atomic
     def archive(self, request, pk=None):
-        row = self.get_object()
+        self.get_object()
         authorize_write(request, 'online_form:update', admin=True)
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=pk)
         row.status = 'archived'
         row.save(update_fields=['status', 'updated_at'])
         return Response({'code': 200, 'message': '表单已归档', 'data': OnlineFormSerializer(row).data})
@@ -80,7 +88,9 @@ class FormRecordViewSet(EnvelopeResponseMixin, viewsets.GenericViewSet, mixins.L
     # OpenAPI 生成阶段不会提供嵌套路由参数，使用空查询集避免 schema introspection 触发 KeyError。
     queryset = OnlineFormRecord.objects.none()
     serializer_class = OnlineFormRecordSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasPermission]
+    permission_map = {'list': 'online_form:record_read', 'retrieve': 'online_form:record_read',
+                      'create': 'online_form:record_create', 'partial_update': 'online_form:record_update'}
     http_method_names = ['get', 'post', 'patch', 'head', 'options']
 
     def get_queryset(self):
@@ -112,12 +122,11 @@ class FormRecordViewSet(EnvelopeResponseMixin, viewsets.GenericViewSet, mixins.L
 
     @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
-        row = self.get_object()
         authorize_write(request, 'online_form:record_update')
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=kwargs['pk'])
         expected = request.data.get('version')
         if expected != row.version:
-            from rest_framework.exceptions import ValidationError
-            raise ValidationError({'version': '记录已变化，请刷新后重试'})
+            raise APIError('记录已变化，请刷新后重试', status_code=409)
         row.data = validate_record(row.form.definition, request.data.get('data', request.data))
         row.version += 1
         row.save(update_fields=['data', 'version', 'updated_at'])

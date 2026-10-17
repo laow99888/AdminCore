@@ -3,6 +3,7 @@
 """
 
 from django.contrib.auth import get_user_model
+import json
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from apps.core.serializer_fields import TenantPrimaryKeyRelatedField
@@ -33,11 +34,13 @@ class ApprovalRequestSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_steps(self, obj):
-        return ApprovalStepSerializer(obj.steps.select_related('assignee', 'delegated_to').all(), many=True).data
+        rows = getattr(obj, '_prefetched_objects_cache', {}).get('steps')
+        return ApprovalStepSerializer(rows if rows is not None else obj.steps.select_related('assignee', 'delegated_to').all(), many=True).data
 
     @extend_schema_field(serializers.ListField(child=serializers.DictField()))
     def get_cc_recipients(self, obj):
-        return ApprovalCCSerializer(obj.cc_recipients.select_related('user').all(), many=True).data
+        rows = getattr(obj, '_prefetched_objects_cache', {}).get('cc_recipients')
+        return ApprovalCCSerializer(rows if rows is not None else obj.cc_recipients.select_related('user').all(), many=True).data
 
 
 class ApprovalStepSerializer(serializers.ModelSerializer):
@@ -73,9 +76,10 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
 
 
 class ApprovalFlowDesignSerializer(serializers.ModelSerializer):
+    version = serializers.IntegerField(required=False, min_value=1)
     class Meta:
         model = ApprovalFlow
-        fields = ['name', 'code', 'definition']
+        fields = ['name', 'code', 'definition', 'version']
 
     def validate_definition(self, value):
         try:
@@ -92,9 +96,10 @@ class ApprovalFlowDesignSerializer(serializers.ModelSerializer):
 
 
 class ApprovalWorkflowActionSerializer(serializers.Serializer):
-    comment = serializers.CharField(required=False, allow_blank=True, default='')
+    comment = serializers.CharField(required=False, allow_blank=True, default='', max_length=4000)
     target_user_id = serializers.UUIDField(required=False)
-    user_ids = serializers.ListField(child=serializers.UUIDField(), required=False)
+    user_ids = serializers.ListField(child=serializers.UUIDField(), required=False, max_length=100, allow_empty=False)
+    step_id = serializers.UUIDField(required=False)
     expected_version = serializers.IntegerField(required=False, min_value=1)
 
 
@@ -102,13 +107,28 @@ class ApprovalCreateSerializer(serializers.Serializer):
     """发起审批申请"""
     title = serializers.CharField(max_length=200)
     request_type = serializers.ChoiceField(choices=ApprovalRequest.TYPE_CHOICES, default='other')
-    content = serializers.CharField()
+    content = serializers.CharField(max_length=20000)
     assignee_id = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.filter(is_active=True), source='assignee', required=False,
     )
     assignee_username = serializers.CharField(write_only=True, required=False)
     flow_id = TenantPrimaryKeyRelatedField(queryset=ApprovalFlow.objects.filter(status='published'), source='flow', required=False)
     extra_data = serializers.JSONField(required=False, allow_null=True, default=None)
+
+    def validate_extra_data(self, value):
+        def depth(row, level=0):
+            if level > 5:
+                raise serializers.ValidationError('附加数据最多嵌套5层')
+            if isinstance(row, dict):
+                for child in row.values():
+                    depth(child, level + 1)
+            elif isinstance(row, list):
+                for child in row:
+                    depth(child, level + 1)
+        depth(value)
+        if len(json.dumps(value, ensure_ascii=False).encode('utf-8')) > 16384:
+            raise serializers.ValidationError('附加数据最多16KiB')
+        return value
 
     def validate(self, attrs):
         username = attrs.pop('assignee_username', None)
@@ -119,6 +139,8 @@ class ApprovalCreateSerializer(serializers.Serializer):
             if assignee is None:
                 raise serializers.ValidationError({'assignee_username': '审批人不存在或已禁用'})
             attrs['assignee'] = assignee
+        if 'flow' in attrs and 'assignee' in attrs:
+            raise serializers.ValidationError('流程和单个审批人只能选择一种')
         if 'assignee' not in attrs and 'flow' not in attrs:
             raise serializers.ValidationError({'assignee_username': '请选择审批人'})
         from apps.core.personnel import candidates
@@ -130,4 +152,4 @@ class ApprovalCreateSerializer(serializers.Serializer):
 
 class ApprovalDecisionSerializer(serializers.Serializer):
     """审批决策"""
-    comment = serializers.CharField(required=False, allow_blank=True, default='')
+    comment = serializers.CharField(required=False, allow_blank=True, default='', max_length=4000)

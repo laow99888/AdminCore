@@ -14,6 +14,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import F
 from django.db.models.deletion import ProtectedError
+from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, APIException
 import logging
@@ -123,8 +124,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         用户行是本模块全部写入的第一层锁；撤权不打断已完成锁内授权的事务。
         """
         actor_id = self.request.user.pk
-        rows = list(User.objects.select_for_update().filter(
-            pk__in={actor_id, *targets}).order_by('pk'))
+        from .safety import lock_management_users
+        rows = lock_management_users({actor_id, *targets})
         actor = next((row for row in rows if row.pk == actor_id), None)
         if actor is None or not actor.is_active:
             raise AuthenticationFailed('登录凭据已撤销，请重新登录')
@@ -175,6 +176,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         from apps.logs.audit import snapshot, write_audit
         instance = self._fresh_target(instance.pk)
+        from .safety import protect_management_access
+        protect_management_access(self.request.user, [instance], deleting=True)
         write_audit(request=self.request, resource='user', identifier=instance.pk, action='delete',
                     before=snapshot('user', instance))
         instance.delete()
@@ -183,6 +186,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         from apps.logs.audit import snapshot, write_audit
         serializer.instance = self._fresh_target(serializer.instance.pk)
+        from .safety import protect_management_access
+        protect_management_access(self.request.user, [serializer.instance], values=serializer.validated_data)
         self._revalidate_locked_roles(serializer)
         before = snapshot('user', serializer.instance)
         user = serializer.save()
@@ -209,6 +214,9 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                                          'data': bulk_user_result(user_ids, 403)}, status=403)
 
                     before = {row.pk: snapshot('user', row) for row in rows}
+                    from .safety import protect_management_access
+                    protect_management_access(request.user, rows, deleting=action == 'delete',
+                                              values={'is_active': False} if action == 'deactivate' else {})
 
                     if action == 'activate':
                         users.update(is_active=True, profile_version=F('profile_version') + 1)
@@ -242,6 +250,8 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                         'message': {'activate': '批量启用成功', 'deactivate': '批量停用成功', 'delete': '批量删除成功'}[action],
                         'data': bulk_user_result(user_ids, 200),
                     })
+            except DjangoPermissionDenied as exc:
+                return Response({'code': 403, 'message': str(exc), 'data': bulk_user_result(user_ids, 403)}, status=403)
             except APIException as exc:
                 return Response({'code': exc.status_code, 'message': str(exc.detail),
                                  'data': bulk_user_result(user_ids, exc.status_code)}, status=exc.status_code)

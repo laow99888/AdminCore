@@ -85,6 +85,7 @@
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useLatestRead } from '@/composables/useLatestRead'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 import { responseStatus } from '@/api/request'
@@ -162,16 +163,23 @@ const tableColumns = [
 ]
 
 const exportReady = ref(false)
+const beginRead = useLatestRead(() => { tableData.value = []; total.value = 0; exportReady.value = false; loading.value = false })
 const loadRoles = async () => {
+  const current = beginRead()
   exportReady.value = false
   loading.value = true
   try {
     const data = await rolesApi.list({ page: currentPage.value, page_size: pageSize.value })
+    if (!current()) return
+    const last = Math.max(1, Math.ceil(data.pagination.total / pageSize.value))
+    if (currentPage.value > last) { currentPage.value = last; await loadRoles(); return }
     tableData.value = data.items
     exportReady.value = true
     total.value = data.pagination.total
+  } catch (error) {
+    if (current() && responseStatus(error) === 404 && currentPage.value > 1) { currentPage.value = 1; await loadRoles() }
   } finally {
-    loading.value = false
+    if (current()) loading.value = false
   }
 }
 
@@ -225,6 +233,7 @@ const handleDelete = (row: RoleRow) => {
   ElMessageBox.confirm(uiText("确定删除角色 {p0} 吗？", { p0: row.name }), uiText("提示"), { type: 'warning' })
     .then(async () => {
       await rolesApi.remove(row.id)
+      if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText("删除成功"))
       loadRoles()
     })

@@ -59,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { notifyError } from "@/api/request"
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -144,7 +145,7 @@ const handleCancel = async (row: TaskRow) => {
     if (!actionGuard.isCurrent() || !auth.can('task:cancel')) return
     const res = await tasksApi.cancel(row.id)
     if (actionGuard.isCurrent()) { ElMessage.success(res.data?.message || uiText('任务已取消')); await loadTasks() }
-  } catch (error) { if (error !== 'cancel' && error !== 'close' && actionGuard.isCurrent()) ElMessage.error(uiText('任务操作未确认，请刷新检查状态')) }
+  } catch (error) { if (error !== 'cancel' && error !== 'close' && actionGuard.isCurrent()) notifyError(error, uiText('任务操作未确认，请刷新检查状态')) }
   finally { if (acting.value === row.id) acting.value = '' }
 }
 const handleResume = async (row: TaskRow) => {
@@ -155,7 +156,7 @@ const handleResume = async (row: TaskRow) => {
     if (!actionGuard.isCurrent() || !canResume(row)) return
     await tasksApi.resume(row.id)
     if (actionGuard.isCurrent()) { ElMessage.success(uiText('已登记接续未提交行')); await loadTasks() }
-  } catch (error) { if (error !== 'cancel' && error !== 'close' && actionGuard.isCurrent()) ElMessage.error(uiText('任务操作未确认，请刷新检查状态')) }
+  } catch (error) { if (error !== 'cancel' && error !== 'close' && actionGuard.isCurrent()) notifyError(error, uiText('任务操作未确认，请刷新检查状态')) }
   finally { if (acting.value === row.id) acting.value = '' }
 }
 

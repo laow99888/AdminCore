@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({ rejected: undefined as ((error: unknown) => Pr
   fulfilled: undefined as ((response: { config: { url: string; _sessionToken: string }; data: unknown }) => unknown) | undefined,
   request: Object.assign(vi.fn(), { defaults: { baseURL: '/api/v1' }, interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } }),
   post: vi.fn(), clear: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
-vi.mock('axios', () => ({ default: { create: () => mocks.request, post: mocks.post, isCancel: () => false } }))
+vi.mock('axios', () => ({ default: { create: () => mocks.request, post: mocks.post, isCancel: () => false, isAxiosError: (error: { isAxiosError?: boolean }) => error?.isAxiosError === true } }))
 vi.mock('../src/api/publicRequest', () => ({ default: { post: mocks.post } }))
 vi.mock('../src/router', () => ({ default: { currentRoute: { value: { path: '/settings/sessions' } }, push: mocks.push } }))
 vi.mock('../src/stores/auth', () => ({ useAuthStore: () => ({ clearSession: mocks.clear }) }))
@@ -25,6 +25,23 @@ describe('401 拦截器刷新与会话边界', () => {
   })
   afterEach(() => vi.unstubAllEnvs())
   const failure = (token = old) => ({ response: { status: 401 }, config: { url: '/auth/sessions/', headers: { Authorization: `Bearer ${token}` } } })
+  it('Axios错误优先显示业务信息，拦截器和页面不会重复弹窗', async () => {
+    const { errorMessage, notifyError } = await import('../src/api/request')
+    const error = Object.assign(new Error('Request failed with status code 403'), {
+      isAxiosError: true, response: { status: 403, data: { message: '目标人员超出授权范围' } }, config: { url: '/approvals/' },
+    })
+    expect(errorMessage(error, '失败')).toBe('目标人员超出授权范围')
+    await expect(mocks.rejected!(error)).rejects.toBe(error)
+    notifyError(error, '操作失败')
+    expect(ElMessage.error).toHaveBeenCalledExactlyOnceWith('目标人员超出授权范围')
+  })
+  it('下载的Blob错误正文解析后显示后端原因', async () => {
+    const blob = new Blob(['synthetic'], { type: 'application/json' })
+    Object.defineProperty(blob, 'text', { value: async () => JSON.stringify({ message: '文件已被撤销' }) })
+    const error = { isAxiosError: true, response: { status: 403, data: blob }, config: { url: '/files/download/' } }
+    await expect(mocks.rejected!(error)).rejects.toBe(error)
+    expect(ElMessage.error).toHaveBeenCalledExactlyOnceWith('文件已被撤销')
+  })
   it('刷新通过无JWT的独立公开传输发送，保留返回令牌兼容性', async () => {
     mocks.refresh.mockImplementation(async (_token, exchange) => {
       expect(await exchange('isolated-refresh')).toEqual({ access: fresh, refresh: 'rotated-refresh' })

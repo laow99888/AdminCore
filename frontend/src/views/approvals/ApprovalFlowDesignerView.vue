@@ -21,6 +21,7 @@
           <el-table-column :label="uiText('状态')" width="110"><template #default="{ row }"><el-tag>{{ statusLabel(row.status) }}</el-tag></template></el-table-column>
           <el-table-column :label="uiText('操作')" width="150"><template #default="{ row }"><el-button link type="primary" @click.stop="selectFlow(row)">{{ uiText('编辑') }}</el-button></template></el-table-column>
         </el-table>
+        <el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev, pager, next, total" :disabled="saving" @current-change="load" />
       </BaseCard>
 
       <BaseCard v-if="editing" class="editor-card">
@@ -51,6 +52,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useLatestRead } from '@/composables/useLatestRead'
+import { errorMessage, notifyError } from '@/api/request'
 import { ElMessage } from 'element-plus'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { BaseButton, BaseCard } from '@/components'
@@ -69,20 +73,40 @@ const error = ref('')
 const statusLabel = (status: string) => ({ draft: uiText('草稿'), published: uiText('已发布'), archived: uiText('已归档') }[status] || status)
 const isApproval = (node: EditableNode) => ['user', 'parallel', 'or'].includes(node.type)
 
+const page = ref(1), total = ref(0)
+const beginRead = useLatestRead(() => { flows.value = []; total.value = 0 })
+const guard = useUnsavedChanges({ source: () => editing.value?.status === 'draft' ? { editing: editing.value, nodes: nodes.value, edges: edges.value } : null, busy: () => saving.value, clear: () => { editing.value = null; nodes.value = []; edges.value = [] } })
 function loadEditor(flow: ApprovalFlowRow) {
   editing.value = JSON.parse(JSON.stringify(flow))
   nodes.value = (flow.definition.nodes || []).map((row) => ({ id: String(row.id || ''), type: String(row.type || 'user'), mode: row.mode === 'any' ? 'any' : 'all', assigneeText: Array.isArray(row.assignee_ids) ? row.assignee_ids.join(',') : '' }))
   edges.value = (flow.definition.edges || []).map((row) => ({ from: String(row.from || ''), to: String(row.to || '') }))
+  guard.markClean()
 }
-async function load() { loading.value = true; error.value = ''; try { flows.value = (await approvalFlowsApi.list({ page: 1, page_size: 100 })).items } catch (err) { error.value = err instanceof Error ? err.message : uiText('流程列表加载失败') } finally { loading.value = false } }
-function selectFlow(flow: ApprovalFlowRow) { if (!saving.value) loadEditor(flow) }
-function newFlow() { loadEditor({ id: '', name: '', code: '', status: 'draft', version: 1, definition: { nodes: [{ id: 'start', type: 'start' }, { id: 'approve', type: 'user', mode: 'all', assignee_ids: [] }, { id: 'end', type: 'end' }], edges: [{ from: 'start', to: 'approve' }, { from: 'approve', to: 'end' }] } }) }
-function addNode() { nodes.value.splice(Math.max(nodes.value.length - 1, 0), 0, { id: 'node-' + nodes.value.length, type: 'user', mode: 'all', assigneeText: '' }) }
+async function load() { const current = beginRead(); try { const data = await approvalFlowsApi.list({ page: page.value, page_size: 20 }); if (current()) { flows.value = data.items; total.value = data.pagination.total } } catch (err) { if (current()) error.value = errorMessage(err, uiText('列表加载失败')) } }
+async function selectFlow(row: ApprovalFlowRow) { if (!saving.value && await guard.confirmDiscard()) loadEditor(row) }
+async function newFlow() { if (saving.value || !await guard.confirmDiscard()) return; loadEditor({ id: '', name: '', code: '', status: 'draft', version: 1, definition: { nodes: [{ id: 'start', type: 'start' }, { id: 'approve', type: 'user', mode: 'all', assignee_ids: [] }, { id: 'end', type: 'end' }], edges: [{ from: 'start', to: 'approve' }, { from: 'approve', to: 'end' }] } }) }
+function addNode() { nodes.value.splice(Math.max(nodes.value.length - 1, 0), 0, { id: 'node-' + crypto.randomUUID(), type: 'user', mode: 'all', assigneeText: '' }) }
 function removeNode(index: number) { nodes.value.splice(index, 1) }
 function addEdge() { edges.value.push({ from: '', to: '' }) }
 function definition() { return { nodes: nodes.value.map((node) => ({ id: node.id.trim(), type: node.type, ...(isApproval(node) ? { mode: node.mode, assignee_ids: node.assigneeText.split(',').map((id) => id.trim()).filter(Boolean) } : {}) })), edges: edges.value.map((edge) => ({ from: edge.from.trim(), to: edge.to.trim() })) } }
-async function saveFlow() { if (!editing.value || editing.value.status !== 'draft' || saving.value) return; saving.value = true; try { const payload = { name: editing.value.name, code: editing.value.code, definition: definition() }; const response = editing.value.id ? await approvalFlowsApi.update(editing.value.id, payload) : await approvalFlowsApi.create(payload); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程草稿已保存')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('保存失败')) } finally { saving.value = false } }
-async function publishFlow() { if (saving.value || editing.value?.status !== 'draft') return; if (!editing.value?.id) { await saveFlow(); if (!editing.value?.id) return }; saving.value = true; try { const response = await approvalFlowsApi.publish(editing.value.id); loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程已发布')) } catch (err) { ElMessage.error(err instanceof Error ? err.message : uiText('发布失败')) } finally { saving.value = false } }
+async function saveFlow(): Promise<boolean> {
+  if (!editing.value || editing.value.status !== 'draft' || saving.value) return false
+  saving.value = true
+  try {
+    const payload = { name: editing.value.name, code: editing.value.code, definition: definition(), version: editing.value.version }
+    const response = editing.value.id ? await approvalFlowsApi.update(editing.value.id, payload) : await approvalFlowsApi.create(payload)
+    if (!guard.isSessionCurrent()) return false
+    loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程草稿已保存')); return true
+  } catch (err) { notifyError(err, uiText('保存失败')); return false } finally { saving.value = false }
+}
+async function publishFlow() {
+  if (saving.value || editing.value?.status !== 'draft') return
+  if ((!editing.value.id || guard.dirty.value) && !await saveFlow()) return
+  if (!editing.value?.id) return
+  saving.value = true
+  try { const response = await approvalFlowsApi.publish(editing.value.id, editing.value.version); if (!guard.isSessionCurrent()) return; loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('已发布')) }
+  catch (err) { notifyError(err, uiText('发布失败')) } finally { saving.value = false }
+}
 onMounted(load)
 </script>
 

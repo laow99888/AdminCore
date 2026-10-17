@@ -47,15 +47,24 @@ export interface PagedData<T = unknown> {
 
 /** 从未知异常中提取可展示的固定消息，避免业务组件把 catch 值当作 any。 */
 export function errorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message
-  if (typeof error === 'string' && error) return error
   if (axios.isAxiosError(error)) {
     const data: unknown = error.response?.data
     if (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) {
       return data.message
     }
   }
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error) return error
   return fallback
+}
+
+const notified = new WeakSet<object>()
+export function notifyError(error: unknown, fallback: string): void {
+  if (error && typeof error === 'object') {
+    if (notified.has(error)) return
+    notified.add(error)
+  }
+  ElMessage.error(errorMessage(error, fallback))
 }
 
 /** 从未知异常中提取 HTTP 状态，供业务组件处理冲突等明确分支。 */
@@ -83,7 +92,7 @@ request.interceptors.request.use((config) => {
     if (!config._retried) config._sessionToken = token
   }
   const tenant = localStorage.getItem('admincore.tenant')
-  if (tenant) config.headers['X-AdminCore-Tenant'] = tenant
+  if (tenant && !/\/organization\/my-tenants\//.test(config.url || '')) config.headers['X-AdminCore-Tenant'] = tenant
   return config
 })
 
@@ -152,7 +161,7 @@ request.interceptors.response.use(
     }
     return response
   },
-  (error) => {
+  async (error) => {
     if (axios.isCancel(error)) return Promise.reject(error)
     if (cookieSessionEnabled() && error.config?._sessionToken &&
         !tokensBelongToSameSession(error.config._sessionToken, getAccessToken())) {
@@ -165,6 +174,9 @@ request.interceptors.response.use(
       if (status === 401) {
         return handle401(error)
       }
+      if (error.response.data instanceof Blob && error.response.data.size <= 1024 * 1024) {
+        try { error.response.data = JSON.parse(await error.response.data.text()) } catch { /* 非 JSON 下载失败沿用固定提示。 */ }
+      }
       const { data } = error.response
       if (status === 403 && data?.data?.reason === 'password_change_required') {
         if (router.currentRoute.value.path !== '/change-password') router.replace('/change-password')
@@ -172,9 +184,11 @@ request.interceptors.response.use(
       }
       // 后端统一错误格式 {code, message, data}
       const message = (data && data.message) || uiText("请求失败（{p0}）", { p0: status })
-      ElMessage.error(status === 403 ? uiText("没有执行此操作的权限") : message)
+      error.message = message
+      notifyError(error, message)
     } else {
-      ElMessage.error(uiText("网络异常，请检查连接"))
+      error.message = uiText("网络异常，请检查连接")
+      notifyError(error, error.message)
     }
     return Promise.reject(error)
   }

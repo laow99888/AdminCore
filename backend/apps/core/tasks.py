@@ -29,7 +29,7 @@ def dispatch_outbox(limit=100):
     external = dispatch_external(limit)
     processed, failed = external['processed'], external['failed']
     from django.db.models import Q
-    eligible = (~Q(topic__in=['auth.email', 'notification.delivery', 'task.failed']) | Q(attempts__lt=5)) & ~Q(last_error='dispatch_exhausted')
+    eligible = (~Q(topic__in=['auth.email', 'notification.delivery', 'task.failed', 'notification.created']) | Q(attempts__lt=5)) & ~Q(last_error='dispatch_exhausted')
     for event_id, origin in list(OutboxEvent.objects.filter(eligible,
         status__in=['pending', 'failed'], available_at__lte=now,
     ).exclude(topic__in=TOPICS).order_by('created_at').values_list('id', 'request_id')[:max(0, limit - processed - failed)]):

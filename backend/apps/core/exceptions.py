@@ -6,6 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.exceptions import APIException
 from django.db.models.deletion import ProtectedError
+from django.db import DatabaseError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,13 @@ def custom_exception_handler(exc, context):
     - 未捕获异常记录日志并返回 500
     """
     from rest_framework.views import exception_handler as drf_exception_handler
+
+    if isinstance(exc, DatabaseError):
+        from config import db_router
+        if db_router.should_fallback():
+            response = Response({'code': 503, 'message': '只读服务暂不可用', 'data': None}, status=503)
+            response._admincore_replica_failure = True
+            return response
 
     if isinstance(exc, ProtectedError):
         return Response({'code': 409, 'message': '该记录仍被业务数据引用，请先处理关联记录', 'data': None},

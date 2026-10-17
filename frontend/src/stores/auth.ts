@@ -10,6 +10,7 @@ import { tokensBelongToSameSession } from '../api/tokenRefresh'
 import { announceBrowserSession, clearSession as clearStoredSession, getAccessToken, getRefreshToken, setSession as setStoredSession } from '../auth/tokenStorage'
 import { cookieSessionEnabled, MEMORY_TOKEN_CHANGED } from '../auth/sessionTransport'
 import { withBrowserSessionLock, discardCancelledBrowserLogin } from '../auth/browserSession'
+import { useTenantStore } from './tenants'
 
 export interface CurrentUser {
   id: string
@@ -88,6 +89,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function installSession(data: LoginResult) {
+    if (user.value?.id !== data.user.id) useTenantStore().clear()
     sessionGeneration++; fetching = undefined
     token.value = data.access
     refreshToken.value = data.refresh ?? ''
@@ -177,6 +179,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function clearSession() {
+    useTenantStore().clear()
     clearAvatar()
     sessionGeneration++
     fetching = undefined
@@ -202,13 +205,13 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const memoryChanged = () => {
-    if (!cookieSessionEnabled()) return
     const access = getAccessToken()
     if (!tokensBelongToSameSession(token.value, access)) {
       sessionGeneration++; fetching = undefined; user.value = null; fetchedAt = 0; clearAvatar()
+      useTenantStore().clear()
     }
     token.value = access ?? ''
-    refreshToken.value = ''
+    refreshToken.value = getRefreshToken() ?? ''
   }
   window.addEventListener(MEMORY_TOKEN_CHANGED, memoryChanged)
   onScopeDispose(() => window.removeEventListener(MEMORY_TOKEN_CHANGED, memoryChanged))
