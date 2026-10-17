@@ -45,7 +45,7 @@ STOPPED=0
 SWAPPED=0
 MEDIA_STARTED=0
 COMPLETED=0
-RUNNING=$(docker compose ps --status running --services | grep -E '^(frontend|worker|beat|backend)$' || true)
+RUNNING=$(docker compose ps --status running --services | grep -E '^(frontend|realtime|worker|beat|backend)$' || true)
 ROLLBACK_OK=1
 cleanup() {
   result=$?
@@ -53,7 +53,7 @@ cleanup() {
   if [ "$COMPLETED" = 0 ] && [ "$SWAPPED" = 1 ]; then
     echo '!!! 恢复失败，回滚数据库与媒体；保留失败现场。'
     STOPPED=1
-    docker compose stop frontend worker beat backend || ROLLBACK_OK=0
+    if [ -n "$RUNNING" ]; then docker compose stop $RUNNING || ROLLBACK_OK=0; fi
     if [ "$MEDIA_STARTED" = 1 ]; then
       docker compose run --rm --no-deps -T --entrypoint python backend /app/docker/media_restore.py rollback "$TOKEN" || ROLLBACK_OK=0
     fi
@@ -88,7 +88,7 @@ docker compose run --rm --no-deps -T --entrypoint python backend /app/docker/med
 
 echo '>>> 停写并切换数据库...'
 STOPPED=1
-docker compose stop frontend worker beat backend
+if [ -n "$RUNNING" ]; then docker compose stop $RUNNING; fi
 docker compose exec -T db sh -c 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres -v original="$POSTGRES_DB" -v stage="$1" -v old="$2"' sh "$STAGING" "$ROLLBACK" <<'SQL'
 SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = :'original' AND pid <> pg_backend_pid();
 BEGIN;

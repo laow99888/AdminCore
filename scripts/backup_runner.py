@@ -18,7 +18,7 @@ import tarfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-WRITERS = ('frontend', 'worker', 'beat', 'backend')
+WRITERS = ('frontend', 'realtime', 'worker', 'beat', 'backend')
 STAMP = re.compile(r'\d{8}-\d{6}')
 
 

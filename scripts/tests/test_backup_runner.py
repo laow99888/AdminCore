@@ -109,6 +109,68 @@ def test_failure_always_resumes_original_writers_and_keeps_partial(tmp_path):
     assert not list(tmp_path.glob('*.backup.json'))
 
 
+@pytest.mark.parametrize('failed', [False, True])
+def test_snapshot_stops_and_resumes_running_realtime_role(tmp_path, failed):
+    class RealtimeRunner(FakeRunner):
+        def command(self, args, **kwargs):
+            if args[0] == 'ps':
+                return b'db\nredis\nbackend\nfrontend\nworker\nbeat\nrealtime\n'
+            return super().command(args, **kwargs)
+    host = RealtimeRunner(tmp_path, failed=failed)
+    if failed:
+        with pytest.raises(runner.RunnerError):
+            host.snapshot({'record_id': 'fixture', 'retention_days': 30, 'retention_count': 7})
+    else:
+        host.snapshot({'record_id': 'fixture', 'retention_days': 30, 'retention_count': 7})
+    for operation in ('stop', 'start', 'up'):
+        calls = [args for args in host.operations if args[0] == operation]
+        assert len(calls) == 1 and 'realtime' in calls[0]
+
+
+@pytest.mark.skipif(runner.os.name == 'nt', reason='POSIX Bash contract runs in Linux')
+@pytest.mark.parametrize('failed', [False, True])
+def test_restore_coordinates_only_original_running_roles_including_realtime(tmp_path, failed):
+    import os
+    import shutil
+    import subprocess
+    scripts = tmp_path / 'scripts'
+    scripts.mkdir()
+    shutil.copyfile(ROOT / 'scripts/restore.sh', scripts / 'restore.sh')
+    (scripts / 'health_check.sh').write_text('#!/bin/sh\nexit 0\n')
+    backups = tmp_path / 'backups'
+    backups.mkdir()
+    stamp = '20261017-010000'
+    paths = [backups / f'admincore-db-{stamp}.dump', backups / f'admincore-media-{stamp}.tar.gz']
+    for path in paths:
+        path.write_bytes(b'only role coordination is tested; no database or Docker daemon')
+    (backups / f'admincore-{stamp}.sha256').write_text(''.join(f'{runner.digest(path)}  {path.name}\n' for path in paths))
+    binary = tmp_path / 'bin'
+    binary.mkdir()
+    docker = binary / 'docker'
+    docker.write_text('''#!/usr/bin/env python3
+import json, os, sys
+args = sys.argv[1:]
+with open(os.environ['ROLE_COMMAND_LOG'], 'a') as output:
+    output.write(json.dumps(args) + '\\n')
+if args[:2] == ['compose', 'ps']:
+    print('db\\nredis\\nbackend\\nfrontend\\nrealtime')
+if os.environ['ROLE_FAIL_COMMIT'] == '1' and 'commit' in args:
+    raise SystemExit(1)
+''')
+    docker.chmod(0o700)
+    log = tmp_path / 'commands.jsonl'
+    result = subprocess.run(['bash', str(scripts / 'restore.sh'), stamp], cwd=tmp_path,
+        env={**os.environ, 'PATH': str(binary) + os.pathsep + os.environ['PATH'],
+             'BACKUP_DIR': str(backups), 'ADMINCORE_BACKUP_COORDINATED': '1',
+             'ADMINCORE_RESTORE_CONFIRMED': '1', 'ROLE_COMMAND_LOG': str(log),
+             'ROLE_FAIL_COMMIT': str(int(failed))}, capture_output=True, text=True, timeout=20)
+    assert result.returncode == (1 if failed else 0), result.stdout + result.stderr
+    commands = [json.loads(line) for line in log.read_text().splitlines()]
+    for action in ('stop', 'start'):
+        calls = [args for args in commands if args[:2] == ['compose', action]]
+        assert calls and all(set(args[2:]) == {'frontend', 'backend', 'realtime'} for args in calls)
+
+
 def test_result_writeback_failure_does_not_repeat_or_mark_snapshot_failed(tmp_path):
     instance = FakeRunner(tmp_path)
     calls = []
