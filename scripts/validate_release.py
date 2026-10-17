@@ -53,7 +53,9 @@ def main():
         assert all('must-not-export' not in file.read_text(encoding='utf-8') for file in release.iterdir())
         check('发布文件不含环境值')
         # 将可变构建标签改指另一个镜像，覆盖文件仍必须使用原内容ID。
-        run(['docker', 'tag', base_image, project + '-backend:latest'])
+        # BuildKit 的基础镜像缓存不保证存在同名本地标签；使用本次已加载的前端镜像。
+        assert manifest['images']['frontend'] != manifest['images']['backend']
+        run(['docker', 'tag', manifest['images']['frontend'], project + '-backend:latest'])
         pinned = base + ['-f', str(release / 'compose.release.yml')]
         run(pinned + ['up', '-d', '--no-build', '--wait', '--wait-timeout', '30'])
         verify(workspace, ['compose.yml'], release, project=project)
