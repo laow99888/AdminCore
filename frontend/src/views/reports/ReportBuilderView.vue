@@ -21,7 +21,7 @@
         <el-card shadow="never">
           <template #header>{{ uiText('已保存报表') }}</template>
           <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
-          <BaseChart v-if="result && form.definition.chart_type !== 'table'" :option="chartOption" :height="340" caption="报表图表" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => row[column])) }" />
+          <BaseChart v-if="result && form.definition.chart_type !== 'table'" :option="chartOption" :height="340" caption="报表图表" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => toCellValue(row[column]))) }" />
           <el-table v-if="result" :data="result.rows" class="result"><el-table-column v-for="column in result.columns" :key="column" :prop="column" :label="column" /></el-table>
         </el-card>
       </el-col>
@@ -41,7 +41,7 @@ import { uiText } from '@/i18n/uiText'
 const catalog = ref<ReportCatalogItem[]>([])
 const rows = ref<ReportDefinition[]>([])
 const selected = ref<ReportDefinition | null>(null)
-const result = ref<{ columns: string[]; rows: Array<Record<string, any>> } | null>(null)
+const result = ref<{ columns: string[]; rows: Array<Record<string, unknown>> } | null>(null)
 const busy = ref(false)
 const dimension = ref('')
 type ReportChartType = 'table' | 'bar' | 'line' | 'pie' | 'area'
@@ -73,7 +73,8 @@ const chartOption = computed<EChartsOption>(() => {
 })
 function resetFields() { form.definition.dimensions = []; dimension.value = ''; form.definition.metric.field = currentSource.value?.metrics[0] || 'id' }
 function setDimension(value: string) { form.definition.dimensions = value ? [{ field: value }] : [] }
-function selectRow(row: ReportDefinition) { selected.value = row; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition: JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition }); dimension.value = row.definition.dimensions?.[0]?.field || '' }
+function toCellValue(value: unknown): string | number { return typeof value === 'string' || typeof value === 'number' ? value : value == null ? '' : String(value) }
+function selectRow(row: ReportDefinition) { selected.value = row; const definition = JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition }); dimension.value = definition.dimensions?.[0]?.field || '' }
 async function load() { catalog.value = await reportsApi.catalog(); rows.value = (await reportsApi.list({ page_size: 100 })).items; resetFields() }
 async function save() { busy.value = true; try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); selected.value = response.data.data; ElMessage.success(uiText('已保存')); await load() } finally { busy.value = false } }
 async function publish() { if (!selected.value) return; await reportsApi.publish(selected.value.id); ElMessage.success(uiText('已发布')); await load() }
