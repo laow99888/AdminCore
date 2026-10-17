@@ -5,11 +5,14 @@
 import request, { type ApiResponse } from './request'
 import type { CurrentUser } from '../stores/auth'
 import type { LoginCaptchaProof } from './loginCaptcha'
+import { browserSessionHeaders, logoutBrowserSession, validateBrowserSession } from '../auth/browserSession'
+import { cookieSessionEnabled } from '../auth/sessionTransport'
 
 /** 登录响应（后端 CustomTokenObtainPair 为平铺结构） */
 export interface LoginResult {
   access: string
-  refresh: string
+  refresh?: string
+  session_transport?: 'cookie'
   user: CurrentUser
 }
 
@@ -52,8 +55,11 @@ const authApi = {
     return blob
   },
   async login(username: string, password: string, otpCode?: string, captcha?: LoginCaptchaProof): Promise<LoginResult> {
-    const res = await request.post('/auth/login/', { username, password, ...(otpCode ? { otp_code: otpCode } : {}), ...(captcha ? { captcha_id: captcha.captcha_id, captcha_code: captcha.captcha_code } : {}) })
-    return res.data
+    const headers = await browserSessionHeaders()
+    const body = { username, password, ...(otpCode ? { otp_code: otpCode } : {}), ...(captcha ? { captcha_id: captcha.captcha_id, captcha_code: captcha.captcha_code } : {}) }
+    const res = cookieSessionEnabled() ? await request.post<LoginResult>('/auth/login/', body, { headers }) :
+      await request.post<LoginResult>('/auth/login/', body)
+    return validateBrowserSession(res.data)
   },
 
   async me(): Promise<CurrentUser> {
@@ -62,6 +68,7 @@ const authApi = {
   },
 
   async logout(): Promise<void> {
+    if (cookieSessionEnabled()) return logoutBrowserSession()
     await request.post('/auth/logout/')
   },
 

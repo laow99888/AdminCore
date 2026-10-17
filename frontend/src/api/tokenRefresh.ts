@@ -1,22 +1,8 @@
 interface RefreshResult { access: string | null; stale: boolean }
 type RefreshRequest = (refresh: string) => Promise<{ access?: unknown; refresh?: unknown }>
 import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken } from '../auth/tokenStorage'
-
-function identity(token: string | null): string | null {
-  if (!token) return null
-  try {
-    const raw = token.split('.')[1]
-    if (!raw) return null
-    const claims = JSON.parse(atob(raw.replace(/-/g, '+').replace(/_/g, '/')))
-    return typeof claims.sid === 'string' ? JSON.stringify([claims.sid, claims.user_id, claims.session_version]) : null
-  } catch { return null }
-}
-
-export function tokensBelongToSameSession(left: string | null, right: string | null): boolean {
-  if (!left || !right) return false
-  const leftIdentity = identity(left), rightIdentity = identity(right)
-  return leftIdentity ? leftIdentity === rightIdentity : left === right
-}
+import { sessionIdentity as identity } from '../auth/sessionIdentity'
+export { tokensBelongToSameSession } from '../auth/sessionIdentity'
 
 /** Serialize single-use refresh rotation across tabs without replaying old work as a new login. */
 export async function refreshSessionTokens(failedAccess: string | null, post: RefreshRequest): Promise<RefreshResult> {

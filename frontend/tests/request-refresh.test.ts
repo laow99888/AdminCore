@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tokensBelongToSameSession } from '../src/api/tokenRefresh'
 import { ElMessage } from 'element-plus'
 const mocks = vi.hoisted(() => ({ rejected: undefined as ((error: unknown) => Promise<unknown>) | undefined,
+  fulfilled: undefined as ((response: { config: { url: string; _sessionToken: string }; data: unknown }) => unknown) | undefined,
   request: Object.assign(vi.fn(), { defaults: { baseURL: '/api/v1' }, interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } }),
   post: vi.fn(), clear: vi.fn(), push: vi.fn(), refresh: vi.fn() }))
 vi.mock('axios', () => ({ default: { create: () => mocks.request, post: mocks.post, isCancel: () => false } }))
@@ -18,10 +19,11 @@ describe('401 拦截器刷新与会话边界', () => {
   beforeEach(async () => {
     vi.resetModules(); vi.clearAllMocks(); localStorage.clear()
     localStorage.setItem('token', old)
-    mocks.request.interceptors.response.use.mockImplementation((_fulfilled, rejected) => { mocks.rejected = rejected })
+    mocks.request.interceptors.response.use.mockImplementation((fulfilled, rejected) => { mocks.fulfilled = fulfilled; mocks.rejected = rejected })
     await import('../src/api/request')
     mocks.request.mockResolvedValue({ data: 'retried' })
   })
+  afterEach(() => vi.unstubAllEnvs())
   const failure = (token = old) => ({ response: { status: 401 }, config: { url: '/auth/sessions/', headers: { Authorization: `Bearer ${token}` } } })
   it('刷新通过无JWT的独立公开传输发送，保留返回令牌兼容性', async () => {
     mocks.refresh.mockImplementation(async (_token, exchange) => {
@@ -109,5 +111,27 @@ describe('401 拦截器刷新与会话边界', () => {
     resolve({ access: null, stale: false })
     await pending
     expect(mocks.clear).not.toHaveBeenCalled()
+  })
+  it('Cookie模式的TOTP证明401不自动刷新或退出，允许用户重新填写证明', async () => {
+    vi.stubEnv('VITE_AUTH_SESSION_TRANSPORT', 'cookie')
+    const storage = await import('../src/auth/tokenStorage')
+    storage.setSession({ access: old, session_transport: 'cookie' })
+    const error = { response: { status: 401 }, config: { url: '/auth/totp/enable/',
+      _sessionToken: old, _skipAuthRefresh: true, headers: { Authorization: `Bearer ${old}` } } }
+    await expect(mocks.rejected!(error)).rejects.toBe(error)
+    expect(mocks.refresh).not.toHaveBeenCalled(); expect(mocks.clear).not.toHaveBeenCalled()
+    expect(storage.getAccessToken()).toBe(old)
+    storage.discardMemorySession()
+  })
+  it('Cookie身份变化后丢弃迟到成功正文和错误提示，不把旧数据交给新页面', async () => {
+    vi.stubEnv('VITE_AUTH_SESSION_TRANSPORT', 'cookie')
+    const storage = await import('../src/auth/tokenStorage')
+    storage.setSession({ access: replacement, session_transport: 'cookie' })
+    expect(() => mocks.fulfilled!({ config: { url: '/users/', _sessionToken: old }, data: 'old-sensitive-data' })).toThrow('Session changed')
+    const error = { response: { status: 403, data: { message: 'old-sensitive-error' } },
+      config: { url: '/users/', _sessionToken: old } }
+    await expect(mocks.rejected!(error)).rejects.toMatchObject({ __CANCEL__: true })
+    expect(ElMessage.error).not.toHaveBeenCalled(); expect(mocks.clear).not.toHaveBeenCalled()
+    storage.discardMemorySession()
   })
 })

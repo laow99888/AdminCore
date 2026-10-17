@@ -21,8 +21,9 @@ function setup() {
   modules.config = { contract_version: 1, preset: 'standard', modules: ['tasks', 'notifications', 'realtime'].map(key => ({ key, title: key, enabled: true, dependencies: [], paths: [] })) }
   return { pinia, auth, modules }
 }
-async function header() {
+async function header(access?: string) {
   const state = setup()
+  if (access) state.auth.token = access
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { render: () => null } }] })
   await router.push('/'); await router.isReady()
   const wrapper = shallowMount(AppHeader, { global: { plugins: [state.pinia, i18n, router] } })
@@ -33,6 +34,17 @@ async function header() {
 describe('权限刷新保留实时退避与已加载列表', () => {
   beforeEach(() => { localStorage.clear(); vi.clearAllMocks(); vi.useFakeTimers() })
   afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
+
+  it('同设备access轮换保留流，安全会话替换才终止并重建', async () => {
+    const jwt = (sid: string, generation: number) => `fixture.${btoa(JSON.stringify({ sid, user_id: 'member', session_version: 1, generation }))}.fixture`
+    const { auth, wrapper } = await header(jwt('device', 1))
+    const stop = vi.mocked(startRealtimeClient).mock.results[0]!.value
+    auth.token = jwt('device', 2); await nextTick()
+    expect(startRealtimeClient).toHaveBeenCalledOnce(); expect(stop).not.toHaveBeenCalled()
+    auth.token = jwt('replacement', 1); await nextTick()
+    expect(startRealtimeClient).toHaveBeenCalledTimes(2); expect(stop).toHaveBeenCalledOnce()
+    wrapper.unmount(); expect(vi.getTimerCount()).toBe(0)
+  })
 
   it('相同身份/权限/模块的新对象不会重建连接或打断退避，真正撤权仍终止', async () => {
     const { auth, modules, wrapper } = await header()

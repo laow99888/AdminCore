@@ -16,11 +16,14 @@ import { apiLanguage } from './language'
 import publicRequest from './publicRequest'
 import { API_BASE_URL } from './baseUrl'
 import { getAccessToken } from '../auth/tokenStorage'
+import { cookieSessionEnabled } from '../auth/sessionTransport'
+import { refreshBrowserSession } from '../auth/browserSession'
 
 declare module 'axios' {
-  interface InternalAxiosRequestConfig {
+  interface AxiosRequestConfig {
     _retried?: boolean
     _sessionToken?: string | null
+    _skipAuthRefresh?: boolean
   }
 }
 
@@ -89,6 +92,7 @@ let refreshing: ReturnType<typeof refreshSessionTokens> | null = null
 let refreshingToken: string | null = null
 
 function refreshAccessToken(failedAccess: string | null) {
+  if (cookieSessionEnabled()) return refreshBrowserSession(failedAccess)
   return refreshSessionTokens(failedAccess, async refreshToken => {
     // 独立公开传输只携带当前语言，不带过期 access、不递归刷新，并限制超时。
     const res = await publicRequest.post('/auth/refresh/', {
@@ -114,9 +118,9 @@ async function handle401(error: AxiosError): Promise<unknown> {
   const failedAccess = typeof authorization === 'string' ? authorization.replace(/^Bearer /, '') : getAccessToken()
   const originalAccess = config?._sessionToken ?? failedAccess
   const isAuthEndpoint = /\/auth\/(login|refresh)\//.test(config?.url || '')
-  if (isAuthEndpoint || config?._retried) {
+  if (isAuthEndpoint || config?._retried || config._skipAuthRefresh) {
     // 登录/刷新本身的 401 由页面自行提示（登录页密码错误等）
-    if (!isAuthEndpoint && config?.headers?.Authorization === `Bearer ${getAccessToken()}`) forceRelogin()
+    if (!isAuthEndpoint && !config._skipAuthRefresh && config?.headers?.Authorization === `Bearer ${getAccessToken()}`) forceRelogin()
     return Promise.reject(error)
   }
   // 并发 401 只触发一次刷新，其余等待同一 Promise
@@ -141,9 +145,19 @@ async function handle401(error: AxiosError): Promise<unknown> {
 
 // 响应拦截器：统一错误处理；401 自动刷新并重放原请求
 request.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (cookieSessionEnabled() && response.config._sessionToken && !/\/auth\/login\//.test(response.config.url || '') &&
+        !tokensBelongToSameSession(response.config._sessionToken, getAccessToken())) {
+      throw Object.assign(new Error('Session changed before response'), { __CANCEL__: true })
+    }
+    return response
+  },
   (error) => {
     if (axios.isCancel(error)) return Promise.reject(error)
+    if (cookieSessionEnabled() && error.config?._sessionToken &&
+        !tokensBelongToSameSession(error.config._sessionToken, getAccessToken())) {
+      return Promise.reject(Object.assign(new Error('Session changed before error response'), { __CANCEL__: true }))
+    }
     // The login page owns credential, captcha, MFA, throttling and network feedback.
     if (/\/auth\/login\/(?:\?|$)/.test(error.config?.url || '')) return Promise.reject(error)
     if (error.response) {

@@ -105,6 +105,7 @@ import { useSidebar } from '../../composables/useSidebar'
 import { useModuleStore } from '@/stores/modules'
 import { useTenantStore } from '@/stores/tenants'
 import { REALTIME_EVENT, startRealtimeClient } from '@/utils/realtime'
+import { sessionIdentity } from '@/auth/sessionIdentity'
 
 const route = useRoute()
 const router = useRouter()
@@ -171,7 +172,7 @@ onMounted(() => {
 })
 onActivated(() => { active = true; startPolling() })
 onDeactivated(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
-watch([() => modules.enabled('notifications'), () => modules.enabled('realtime'), () => authStore.user?.id, () => authStore.token,
+watch([() => modules.enabled('notifications'), () => modules.enabled('realtime'), () => authStore.user?.id, () => sessionIdentity(authStore.token),
   () => authStore.user?.must_change_password, () => JSON.stringify(authStore.user?.permissions)], startPolling)
 onUnmounted(() => { active = false; unreadGeneration++; window.clearInterval(pollTimer); stopRealtime?.() })
 
@@ -203,8 +204,9 @@ const handleCommand = async (command: string) => {
       router.push('/settings')
       break
     case 'logout':
-      await authStore.logout()
-      router.push('/login')
+      try { await authStore.logout() }
+      catch { /* 服务端退出未确认时本地凭据仍已清除，登录页不展示旧页面。 */ }
+      finally { if (!authStore.isAuthenticated) void router.push('/login') }
       break
   }
 }

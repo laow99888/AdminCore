@@ -9,6 +9,7 @@ const profile = process.env.ADMINCORE_BUILD_PROFILE ?? 'full'
 if (!['full', 'minimal'].includes(profile)) throw new Error('ADMINCORE_BUILD_PROFILE must be full or minimal')
 const minimal = profile === 'minimal'
 const microFrontendsEnabled = process.env.ADMINCORE_MICRO_FRONTENDS_ENABLED === 'true'
+if (!['bearer', 'cookie'].includes(process.env.VITE_AUTH_SESSION_TRANSPORT ?? 'bearer')) throw new Error('VITE_AUTH_SESSION_TRANSPORT must be bearer or cookie')
 let buildOutput = path.resolve(import.meta.dirname, 'dist')
 
 export default defineConfig({

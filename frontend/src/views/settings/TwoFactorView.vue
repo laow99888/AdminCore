@@ -54,6 +54,7 @@ import { useAuthStore } from '@/stores/auth'
 import { uiText, registerUiMessages } from '@/i18n/uiText'
 import { twoFactorMessages } from '@/i18n/twoFactorMessages'
 import { getAccessToken } from '@/auth/tokenStorage'
+import { withBrowserSessionLock } from '@/auth/browserSession'
 registerUiMessages(twoFactorMessages)
 
 const auth = useAuthStore()
@@ -94,7 +95,10 @@ async function enable() {
   if (!/^\d{6}$/.test(otpCode.value.trim())) { error.value = uiText('首次启用请填写认证器的 6 位动态码'); return }
   const token = getAccessToken(), supplied = password.value, code = otpCode.value.trim()
   clearInputs(); busy.value = true; error.value = ''; notice.value = ''
-  try { const value = await totpApi.enable(supplied, code); applySession(value, token, true) }
+  try { await withBrowserSessionLock(async () => {
+    if (!current(token)) return
+    const value = await totpApi.enable(supplied, code); applySession(value, token, true)
+  }) }
   catch { if (current(token)) error.value = uiText('启用未确认，请检查密码和认证器动态码后重试。') }
   finally { if (alive) busy.value = false }
 }
@@ -106,7 +110,10 @@ async function modify(action: 'disable' | 'regenerate') {
   if (!alive || !password.value || !otpCode.value.trim()) { busy.value = false; return }
   const token = getAccessToken(), supplied = password.value, code = otpCode.value.trim()
   clearInputs(); busy.value = true; error.value = ''; notice.value = ''
-  try { const value = await totpApi[action](supplied, code); applySession(value, token, action !== 'disable') }
+  try { await withBrowserSessionLock(async () => {
+    if (!current(token)) return
+    const value = await totpApi[action](supplied, code); applySession(value, token, action !== 'disable')
+  }) }
   catch { if (current(token)) error.value = uiText('安全修改未确认，请重新输入密码和动态码或恢复码后重试。') }
   finally { if (alive) busy.value = false }
 }

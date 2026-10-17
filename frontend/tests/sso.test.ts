@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../src/api/request', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 vi.mock('../src/api/publicRequest', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 import request from '../src/api/request'
@@ -7,6 +7,20 @@ import { ssoApi } from '../src/api/sso'
 
 describe('企业登录公共传输与显式管理', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.mocked(publicRequest.get).mockResolvedValue({ data: { data: { enabled: false } } }); vi.mocked(request.post).mockResolvedValue({ data: { data: {} } }) })
+  afterEach(() => vi.unstubAllEnvs())
+  it('Cookie 完成携带同源CSRF协商且拒绝可读refresh泄漏', async () => {
+    vi.stubEnv('VITE_AUTH_SESSION_TRANSPORT', 'cookie')
+    const access = `fixture.${btoa(JSON.stringify({ sid: 'sso', user_id: 'member', session_version: 1 }))}.fixture`
+    vi.mocked(publicRequest.get).mockResolvedValue({ data: { data: { csrf_token: 'proof' } } })
+    vi.mocked(publicRequest.post).mockResolvedValue({ data: { data: { access, session_transport: 'cookie' } } })
+    expect(await ssoApi.complete({})).toEqual({ access, session_transport: 'cookie' })
+    expect(publicRequest.post).toHaveBeenCalledWith('/sso/complete/', {}, {
+      headers: { 'X-AdminCore-Session': 'cookie', 'X-CSRFToken': 'proof' }, signal: undefined,
+    })
+    expect(request.post).not.toHaveBeenCalled()
+    vi.mocked(publicRequest.post).mockResolvedValue({ data: { data: { access, refresh: 'forbidden', session_transport: 'cookie' } } })
+    await expect(ssoApi.complete({})).rejects.toThrow('Cookie session negotiation failed')
+  })
   it('公共配置/完成只走不附加 JWT 和自动刷新的传输', async () => {
     const signal = new AbortController().signal
     await ssoApi.config(signal)

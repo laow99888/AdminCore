@@ -2,6 +2,8 @@ import request, { type ApiResponse, type PagedData } from './request'
 import publicRequest from './publicRequest'
 import type { LoginResult } from './auth'
 import { validateLoginCaptcha, type LoginCaptchaChallenge } from './loginCaptcha'
+import { browserSessionHeaders, validateBrowserSession } from '../auth/browserSession'
+import { cookieSessionEnabled } from '../auth/sessionTransport'
 
 export interface SSOLocalProof { otp_code?: string; captcha_id?: string; captcha_code?: string }
 export interface ExternalIdentity {
@@ -24,8 +26,11 @@ export const ssoApi = {
     if (data.ready !== true || typeof data.mfa_required !== 'boolean') throw new Error('Invalid enterprise login response')
     return { ...data, captcha: validateLoginCaptcha(data.captcha) }
   },
-  complete: async (proof: SSOLocalProof, signal?: AbortSignal): Promise<LoginResult> =>
-    (await publicRequest.post<ApiResponse<LoginResult>>('/sso/complete/', proof, { signal })).data.data,
+  complete: async (proof: SSOLocalProof, signal?: AbortSignal): Promise<LoginResult> => {
+    const headers = await browserSessionHeaders()
+    return validateBrowserSession((await publicRequest.post<ApiResponse<LoginResult>>('/sso/complete/', proof,
+      { signal, ...(cookieSessionEnabled() ? { headers } : {}) })).data.data)
+  },
   cancel: async (signal?: AbortSignal): Promise<void> => { await publicRequest.post('/sso/cancel/', {}, { signal }) },
   list: async (page: number, pageSize: number, signal?: AbortSignal) =>
     (await request.get<ApiResponse<PagedData<ExternalIdentity>>>('/sso/identities/', { params: { page, page_size: pageSize }, signal })).data.data,

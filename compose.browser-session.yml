@@ -1,0 +1,11 @@
+# 显式启用浏览器 Cookie 模式；要求 .env 的 USE_TLS=True 和可信同源 HTTPS 入口。
+# 本文件不提供 TLS 终结；须先按部署文档配置代理，再与基础 Compose 一起构建。
+services:
+  backend:
+    environment:
+      AUTH_BROWSER_COOKIE_ENABLED: "True"
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_AUTH_SESSION_TRANSPORT: cookie

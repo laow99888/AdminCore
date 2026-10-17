@@ -8,6 +8,7 @@ import { useBrandStore } from './stores/brand'
 import { useThemeStore } from './stores/theme'
 import { errorReporter, installErrorReporting } from './utils/errorReporting'
 import { loadFullUiMessages } from './i18n/uiText'
+import { initializeBrowserSession, startBrowserSessionSync } from './auth/browserSession'
 
 // Element Plus 基础样式与暗色变量（必须先于全局覆盖引入）
 import 'element-plus/dist/index.css'
@@ -43,9 +44,15 @@ const disposeErrorReporting = installErrorReporting({
 })
 app.onUnmount(disposeErrorReporting)
 if (import.meta.hot) import.meta.hot.dispose(disposeErrorReporting)
-app.use(router)
-
 // 注册 i18n
 app.use(i18n)
 
-app.mount('#app')
+const disposeSessionSync = startBrowserSessionSync(() => window.location.replace('/login'))
+app.onUnmount(disposeSessionSync)
+if (import.meta.hot) import.meta.hot.dispose(disposeSessionSync)
+// Cookie 模式先完成内存会话恢复，再让路由检查登录态；旧模式不发起额外请求。
+void initializeBrowserSession().then(() => true, () => false).then(ready => {
+  app.use(router)
+  if (!ready) void router.isReady().then(() => router.replace('/unavailable'))
+  app.mount('#app')
+})

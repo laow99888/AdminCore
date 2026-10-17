@@ -7,7 +7,9 @@ import { ref, computed, watch, onScopeDispose } from 'vue'
 import authApi from '../api/auth'
 import type { LoginResult } from '../api/auth'
 import { tokensBelongToSameSession } from '../api/tokenRefresh'
-import { clearSession as clearStoredSession, getAccessToken, getRefreshToken, setSession as setStoredSession } from '../auth/tokenStorage'
+import { announceBrowserSession, clearSession as clearStoredSession, getAccessToken, getRefreshToken, setSession as setStoredSession } from '../auth/tokenStorage'
+import { cookieSessionEnabled, MEMORY_TOKEN_CHANGED } from '../auth/sessionTransport'
+import { withBrowserSessionLock, discardCancelledBrowserLogin } from '../auth/browserSession'
 
 export interface CurrentUser {
   id: string
@@ -88,23 +90,34 @@ export const useAuthStore = defineStore('auth', () => {
   function installSession(data: LoginResult) {
     sessionGeneration++; fetching = undefined
     token.value = data.access
-    refreshToken.value = data.refresh
-    setStoredSession({ access: data.access, refresh: data.refresh })
+    refreshToken.value = data.refresh ?? ''
+    setStoredSession(data)
     user.value = data.user
     fetchedAt = Date.now()
   }
   function replaceSecuritySession(data: LoginResult, previousAccess: string | null) {
-    if (!tokensBelongToSameSession(previousAccess, getAccessToken()) || data.user?.id !== user.value?.id || !data.access || !data.refresh) return false
+    if (!tokensBelongToSameSession(previousAccess, getAccessToken()) || data.user?.id !== user.value?.id || !data.access ||
+        (cookieSessionEnabled() ? data.session_transport !== 'cookie' : !data.refresh)) return false
     preservingSecuritySession.value = true
     try { installSession(data) } finally { preservingSecuritySession.value = false }
     return true
   }
   async function login(username: string, password: string, otpCode?: string, captcha?: import('../api/loginCaptcha').LoginCaptchaProof) {
     const generation = ++sessionGeneration
-    const data = await authApi.login(username, password, otpCode, captcha)
-    if (generation !== sessionGeneration) throw new Error('Login session changed')
-    preservingSecuritySession.value = true
-    try { installSession(data) } finally { preservingSecuritySession.value = false }
+    const data = await withBrowserSessionLock(async () => {
+      if (generation !== sessionGeneration) throw new Error('Login session changed')
+      const value = await authApi.login(username, password, otpCode, captcha).catch(error => {
+        if (cookieSessionEnabled()) announceBrowserSession('signed_out')
+        throw error
+      })
+      if (generation !== sessionGeneration) {
+        await discardCancelledBrowserLogin(value.access)
+        throw new Error('Login session changed')
+      }
+      preservingSecuritySession.value = true
+      try { installSession(value) } finally { preservingSecuritySession.value = false }
+      return value
+    })
     const installedGeneration = sessionGeneration
     const current = await authApi.me()
     if (installedGeneration !== sessionGeneration) throw new Error('Login session changed')
@@ -113,7 +126,10 @@ export const useAuthStore = defineStore('auth', () => {
     try { user.value = current; fetchedAt = Date.now() } finally { preservingSecuritySession.value = false }
     return data.user
   }
-  function cancelPendingLogin() { sessionGeneration++ }
+  function cancelPendingLogin() {
+    sessionGeneration++
+    if (cookieSessionEnabled() && !getAccessToken()) announceBrowserSession('signed_out')
+  }
 
   async function loginSSO(proof: import('../api/sso').SSOLocalProof, signal?: AbortSignal) {
     if (__ADMINCORE_MINIMAL_BUILD__) throw new Error('Enterprise sign-in is unavailable in this build')
@@ -122,10 +138,20 @@ export const useAuthStore = defineStore('auth', () => {
       const generation = ++sessionGeneration
       const { ssoApi } = await import('../api/sso')
       if (generation !== sessionGeneration || signal?.aborted) throw new Error('Login session changed')
-      const data = await ssoApi.complete(proof, signal)
-      if (generation !== sessionGeneration || signal?.aborted || getAccessToken()) throw new Error('Login session changed')
-      preservingSecuritySession.value = true
-      try { installSession(data) } finally { preservingSecuritySession.value = false }
+      const data = await withBrowserSessionLock(async () => {
+        if (generation !== sessionGeneration || signal?.aborted || getAccessToken()) throw new Error('Login session changed')
+        const value = await ssoApi.complete(proof, signal).catch(error => {
+          if (cookieSessionEnabled()) announceBrowserSession('signed_out')
+          throw error
+        })
+        if (generation !== sessionGeneration || signal?.aborted || getAccessToken()) {
+          await discardCancelledBrowserLogin(value.access)
+          throw new Error('Login session changed')
+        }
+        preservingSecuritySession.value = true
+        try { installSession(value) } finally { preservingSecuritySession.value = false }
+        return value
+      })
       const installedGeneration = sessionGeneration
       const current = await authApi.me()
       if (installedGeneration !== sessionGeneration) throw new Error('Login session changed')
@@ -167,12 +193,25 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function logout() {
-    try {
-      await authApi.logout()
-    } finally {
-      clearSession()
-    }
+    const owner = getAccessToken()
+    await withBrowserSessionLock(async () => {
+      if (cookieSessionEnabled() && !tokensBelongToSameSession(owner, getAccessToken())) return
+      try { await authApi.logout() }
+      finally { if (!cookieSessionEnabled() || tokensBelongToSameSession(owner, getAccessToken())) clearSession() }
+    })
   }
+
+  const memoryChanged = () => {
+    if (!cookieSessionEnabled()) return
+    const access = getAccessToken()
+    if (!tokensBelongToSameSession(token.value, access)) {
+      sessionGeneration++; fetching = undefined; user.value = null; fetchedAt = 0; clearAvatar()
+    }
+    token.value = access ?? ''
+    refreshToken.value = ''
+  }
+  window.addEventListener(MEMORY_TOKEN_CHANGED, memoryChanged)
+  onScopeDispose(() => window.removeEventListener(MEMORY_TOKEN_CHANGED, memoryChanged))
 
   return { token, refreshToken, user, isAuthenticated, login, loginSSO, fetchUser, logout, clearSession, can,
            avatarUrl, avatarLoading, avatarError, loadAvatar, avatarDecodeFailed, applyUser, replaceSecuritySession, preservingSecuritySession, cancelPendingLogin }
