@@ -29,12 +29,23 @@
         <el-form label-width="90px" :disabled="editing.status !== 'draft' || saving">
           <el-form-item :label="uiText('流程名称')"><el-input v-model="editing.name" /></el-form-item>
           <el-form-item :label="uiText('流程编码')"><el-input v-model="editing.code" /></el-form-item>
+          <el-form-item :label="uiText('条件流程 V2')"><el-switch v-model="versionTwo" :aria-label="uiText('条件流程 V2')" /></el-form-item>
+          <template v-if="versionTwo">
+            <el-alert :title="uiText('条件按连线顺序匹配，未匹配时走默认出口；每条路径必须经过审批')" type="info" :closable="false" />
+            <el-button class="mb" :disabled="inputs.length >= 20" @click="inputs.push({ key: '', type: 'decimal' })">{{ uiText('添加流程输入') }}</el-button>
+            <div v-for="(input, index) in inputs" :key="index" class="input-row">
+              <el-input v-model="input.key" :aria-label="uiText('流程输入字段') + ' ' + (index + 1)" maxlength="30" />
+              <el-select v-model="input.type" :aria-label="uiText('流程输入类型') + ' ' + (index + 1)"><el-option v-for="kind in ['text', 'integer', 'decimal', 'boolean', 'date']" :key="kind" :label="kind" :value="kind" /></el-select>
+              <el-button :aria-label="uiText('删除流程输入') + ' ' + (index + 1)" @click="inputs.splice(index, 1)">{{ uiText('删除') }}</el-button>
+            </div>
+          </template>
         </el-form>
         <div class="section-head"><span>{{ uiText('节点') }}</span><el-button size="small" :disabled="editing.status !== 'draft' || saving" @click="addNode">{{ uiText('添加节点') }}</el-button></div>
         <el-table :data="nodes" border>
           <el-table-column :label="uiText('标识')" min-width="140"><template #default="{ row }"><el-input v-model="row.id" :disabled="editing.status !== 'draft' || saving" /></template></el-table-column>
-          <el-table-column :label="uiText('类型')" width="140"><template #default="{ row }"><el-select v-model="row.type" :disabled="editing.status !== 'draft' || saving"><el-option label="start" value="start" /><el-option label="user" value="user" /><el-option label="parallel" value="parallel" /><el-option label="or" value="or" /><el-option label="end" value="end" /></el-select></template></el-table-column>
-          <el-table-column :label="uiText('审批人 ID（逗号分隔）')" min-width="260"><template #default="{ row }"><el-input v-model="row.assigneeText" :disabled="editing.status !== 'draft' || saving || !isApproval(row)" /></template></el-table-column>
+          <el-table-column :label="uiText('类型')" width="140"><template #default="{ row }"><el-select v-model="row.type" :disabled="editing.status !== 'draft' || saving"><el-option label="start" value="start" /><el-option label="user" value="user" /><el-option label="parallel" value="parallel" /><el-option label="or" value="or" /><el-option label="end" value="end" /><el-option v-if="versionTwo" :label="uiText('条件分支')" value="branch" /></el-select></template></el-table-column>
+          <el-table-column v-if="versionTwo" :label="uiText('审批人来源')" min-width="180"><template #default="{ row }"><el-select v-model="row.source" :disabled="editing.status !== 'draft' || saving || !isApproval(row)"><el-option :label="uiText('固定人员')" value="fixed" /><el-option :label="uiText('申请人')" value="applicant" /><el-option :label="uiText('角色成员')" value="role" /></el-select></template></el-table-column>
+          <el-table-column :label="uiText('审批人 ID（逗号分隔）')" min-width="260"><template #default="{ row }"><el-input v-model="row.assigneeText" :aria-label="uiText(row.source === 'role' ? '审批角色 ID' : '审批人 ID（逗号分隔）')" :disabled="editing.status !== 'draft' || saving || !isApproval(row) || (versionTwo && row.source === 'applicant')" /></template></el-table-column>
           <el-table-column :label="uiText('模式')" width="120"><template #default="{ row }"><el-select v-model="row.mode" :disabled="editing.status !== 'draft' || saving || !isApproval(row)"><el-option label="all" value="all" /><el-option label="any" value="any" /></el-select></template></el-table-column>
           <el-table-column :label="uiText('操作')" width="80"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft' || saving" :aria-label="uiText('删除节点')" @click="removeNode($index)">×</el-button></template></el-table-column>
         </el-table>
@@ -43,7 +54,15 @@
           <el-table-column :label="uiText('起点')"><template #default="{ row }"><el-input v-model="row.from" :disabled="editing.status !== 'draft' || saving" /></template></el-table-column>
           <el-table-column label="→" width="60" align="center" />
           <el-table-column :label="uiText('终点')"><template #default="{ row }"><el-input v-model="row.to" :disabled="editing.status !== 'draft' || saving" /></template></el-table-column>
-          <el-table-column :label="uiText('操作')" width="80"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft' || saving" :aria-label="uiText('删除连线')" @click="edges.splice($index, 1)">×</el-button></template></el-table-column>
+          <el-table-column v-if="versionTwo" :label="uiText('出口条件')" min-width="340"><template #default="{ row }">
+            <div v-if="nodes.some(node => node.id === row.from && node.type === 'branch')" class="edge-condition">
+              <el-switch v-model="row.fallback" :active-text="uiText('默认出口')" :disabled="editing.status !== 'draft' || saving" />
+              <template v-if="!row.fallback"><el-select v-model="row.field" :aria-label="uiText('条件字段')" :disabled="editing.status !== 'draft' || saving"><el-option v-for="input in inputs" :key="input.key" :label="input.key" :value="input.key" /></el-select>
+              <el-select v-model="row.op" :aria-label="uiText('比较操作')" :disabled="editing.status !== 'draft' || saving"><el-option v-for="op in ['eq', 'ne', 'lt', 'lte', 'gt', 'gte']" :key="op" :label="op" :value="op" /></el-select>
+              <el-input v-model="row.value" :aria-label="uiText('比较值')" :disabled="editing.status !== 'draft' || saving" /></template>
+            </div>
+          </template></el-table-column>
+          <el-table-column :label="uiText('操作')" width="180"><template #default="{ $index }"><el-button link type="danger" :disabled="editing.status !== 'draft' || saving" :aria-label="uiText('删除连线')" @click="edges.splice($index, 1)">{{ uiText('删除') }}</el-button><el-button link :aria-label="uiText('上移连线')" :disabled="editing.status !== 'draft' || saving || $index === 0" @click="moveEdge($index, -1)">{{ uiText('上移') }}</el-button><el-button link :aria-label="uiText('下移连线')" :disabled="editing.status !== 'draft' || saving || $index === edges.length - 1" @click="moveEdge($index, 1)">{{ uiText('下移') }}</el-button></template></el-table-column>
         </el-table>
       </BaseCard>
     </div>
@@ -60,9 +79,12 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import { BaseButton, BaseCard } from '@/components'
 import { approvalFlowsApi, type ApprovalFlowRow } from '@/api'
 import { uiText } from '@/i18n/uiText'
+import '@/components/codegen/messages'
 
-type EditableNode = { id: string; type: string; mode: 'all' | 'any'; assigneeText: string }
-type EditableEdge = { from: string; to: string }
+type EditableNode = { id: string; type: string; mode: 'all' | 'any'; assigneeText: string; source: 'fixed' | 'applicant' | 'role' }
+type EditableEdge = { from: string; to: string; fallback: boolean; field: string; op: string; value: string }
+const versionTwo = ref(false)
+const inputs = ref<Array<{ key: string; type: string }>>([])
 const flows = ref<ApprovalFlowRow[]>([])
 const editing = ref<ApprovalFlowRow | null>(null)
 const nodes = ref<EditableNode[]>([])
@@ -75,20 +97,46 @@ const isApproval = (node: EditableNode) => ['user', 'parallel', 'or'].includes(n
 
 const page = ref(1), total = ref(0)
 const beginRead = useLatestRead(() => { flows.value = []; total.value = 0 })
-const guard = useUnsavedChanges({ source: () => editing.value?.status === 'draft' ? { editing: editing.value, nodes: nodes.value, edges: edges.value } : null, busy: () => saving.value, clear: () => { editing.value = null; nodes.value = []; edges.value = [] } })
+const guard = useUnsavedChanges({ source: () => editing.value?.status === 'draft' ? { editing: editing.value, nodes: nodes.value, edges: edges.value, versionTwo: versionTwo.value, inputs: inputs.value } : null, busy: () => saving.value, clear: () => { editing.value = null; nodes.value = []; edges.value = []; inputs.value = []; versionTwo.value = false } })
 function loadEditor(flow: ApprovalFlowRow) {
   editing.value = JSON.parse(JSON.stringify(flow))
-  nodes.value = (flow.definition.nodes || []).map((row) => ({ id: String(row.id || ''), type: String(row.type || 'user'), mode: row.mode === 'any' ? 'any' : 'all', assigneeText: Array.isArray(row.assignee_ids) ? row.assignee_ids.join(',') : '' }))
-  edges.value = (flow.definition.edges || []).map((row) => ({ from: String(row.from || ''), to: String(row.to || '') }))
+  versionTwo.value = flow.definition.schema_version === 2
+  inputs.value = JSON.parse(JSON.stringify(flow.definition.inputs || []))
+  nodes.value = (flow.definition.nodes || []).map((row) => {
+    const source = row.assignee as { source: 'applicant' | 'role'; role_id?: string } | undefined
+    return { id: String(row.id || ''), type: String(row.type || 'user'), mode: row.mode === 'any' ? 'any' : 'all', source: source?.source || 'fixed', assigneeText: source?.role_id || (Array.isArray(row.assignee_ids) ? row.assignee_ids.join(',') : '') }
+  })
+  edges.value = (flow.definition.edges || []).map((row) => {
+    const condition = row.when as { field: string; op: string; value: unknown } | undefined
+    return { from: String(row.from || ''), to: String(row.to || ''), fallback: row.default === true, field: condition?.field || '', op: condition?.op || 'gte', value: condition ? String(condition.value) : '' }
+  })
   guard.markClean()
 }
 async function load() { const current = beginRead(); try { const data = await approvalFlowsApi.list({ page: page.value, page_size: 20 }); if (current()) { flows.value = data.items; total.value = data.pagination.total } } catch (err) { if (current()) error.value = errorMessage(err, uiText('列表加载失败')) } }
 async function selectFlow(row: ApprovalFlowRow) { if (!saving.value && await guard.confirmDiscard()) loadEditor(row) }
 async function newFlow() { if (saving.value || !await guard.confirmDiscard()) return; loadEditor({ id: '', name: '', code: '', status: 'draft', version: 1, definition: { nodes: [{ id: 'start', type: 'start' }, { id: 'approve', type: 'user', mode: 'all', assignee_ids: [] }, { id: 'end', type: 'end' }], edges: [{ from: 'start', to: 'approve' }, { from: 'approve', to: 'end' }] } }) }
-function addNode() { nodes.value.splice(Math.max(nodes.value.length - 1, 0), 0, { id: 'node-' + crypto.randomUUID(), type: 'user', mode: 'all', assigneeText: '' }) }
+function addNode() { nodes.value.splice(Math.max(nodes.value.length - 1, 0), 0, { id: 'node-' + crypto.randomUUID(), type: 'user', mode: 'all', assigneeText: '', source: 'fixed' }) }
 function removeNode(index: number) { nodes.value.splice(index, 1) }
-function addEdge() { edges.value.push({ from: '', to: '' }) }
-function definition() { return { nodes: nodes.value.map((node) => ({ id: node.id.trim(), type: node.type, ...(isApproval(node) ? { mode: node.mode, assignee_ids: node.assigneeText.split(',').map((id) => id.trim()).filter(Boolean) } : {}) })), edges: edges.value.map((edge) => ({ from: edge.from.trim(), to: edge.to.trim() })) } }
+function addEdge() { edges.value.push({ from: '', to: '', fallback: false, field: '', op: 'gte', value: '' }) }
+function moveEdge(index: number, offset: number) {
+  const [edge] = edges.value.splice(index, 1)
+  if (edge) edges.value.splice(index + offset, 0, edge)
+}
+function definition(): ApprovalFlowRow['definition'] {
+  const value = (edge: EditableEdge) => {
+    const kind = inputs.value.find(input => input.key === edge.field)?.type
+    if (kind === 'integer') { if (!/^-?[0-9]+$/.test(edge.value)) throw new Error(uiText('整数条件值无效')); return Number(edge.value) }
+    if (kind === 'boolean') { if (!['true', 'false'].includes(edge.value)) throw new Error(uiText('布尔条件请填写 true 或 false')); return edge.value === 'true' }
+    return edge.value
+  }
+  return {
+    ...(versionTwo.value ? { schema_version: 2 as const, inputs: inputs.value } : {}),
+    nodes: nodes.value.map(node => ({ id: node.id.trim(), type: node.type, ...(isApproval(node) ? { mode: node.mode,
+      ...(versionTwo.value && node.source !== 'fixed' ? { assignee: { source: node.source, ...(node.source === 'role' ? { role_id: node.assigneeText.trim() } : {}) } } : { assignee_ids: node.assigneeText.split(',').map(id => id.trim()).filter(Boolean) }) } : {}) })),
+    edges: edges.value.map(edge => ({ from: edge.from.trim(), to: edge.to.trim(),
+      ...(versionTwo.value && nodes.value.some(node => node.id === edge.from && node.type === 'branch') ? edge.fallback ? { default: true } : { when: { field: edge.field, op: edge.op, value: value(edge) } } : {}) })),
+  }
+}
 async function saveFlow(): Promise<boolean> {
   if (!editing.value || editing.value.status !== 'draft' || saving.value) return false
   saving.value = true
@@ -111,7 +159,10 @@ onMounted(load)
 </script>
 
 <style scoped>
-.flow-page { display: grid; gap: 16px; }
+.flow-page { display: grid; gap: 16px; min-width: 0; }
+.input-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.input-row > * { min-width: 0; }
+.edge-condition { display: grid; gap: 8px; }
 .header-row, .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .title { font-weight: 600; font-size: 16px; }

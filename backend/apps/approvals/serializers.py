@@ -29,6 +29,7 @@ class ApprovalRequestSerializer(serializers.ModelSerializer):
             'assignee', 'assignee_name', 'status', 'decided_by', 'decided_by_name',
             'decision_comment', 'decided_at', 'extra_data', 'created_at', 'flow', 'flow_name',
             'flow_version', 'current_node', 'workflow_version', 'steps', 'cc_recipients',
+            'business_module', 'business_record_id', 'business_snapshot',
         ]
         read_only_fields = fields
 
@@ -114,6 +115,11 @@ class ApprovalCreateSerializer(serializers.Serializer):
     assignee_username = serializers.CharField(write_only=True, required=False)
     flow_id = TenantPrimaryKeyRelatedField(queryset=ApprovalFlow.objects.filter(status='published'), source='flow', required=False)
     extra_data = serializers.JSONField(required=False, allow_null=True, default=None)
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and set(data) & {'business_module', 'business_record_id', 'business_snapshot'}:
+            raise serializers.ValidationError('不能从审批接口指定业务关联或快照')
+        return super().to_internal_value(data)
 
     def validate_extra_data(self, value):
         def depth(row, level=0):

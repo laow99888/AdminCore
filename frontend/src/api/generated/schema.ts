@@ -2175,6 +2175,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/online-forms/validate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["online_forms_validate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/departments/": {
         parameters: {
             query?: never;
@@ -3221,6 +3237,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/codegen/download/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["system_codegen_download_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/codegen/preview/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["system_codegen_preview_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/config/": {
         parameters: {
             query?: never;
@@ -3859,6 +3907,10 @@ export interface components {
              */
             readonly assignee: string;
             readonly assignee_name: string;
+            readonly business_module: string;
+            /** Format: uuid */
+            readonly business_record_id: string | null;
+            readonly business_snapshot: unknown;
             readonly cc_recipients: {
                 [key: string]: unknown;
             }[];
@@ -4649,6 +4701,17 @@ export interface components {
          * @enum {string}
          */
         FormatEnum: "png" | "jpeg" | "webp";
+        FormRecordCreateRequestRequest: {
+            data: unknown;
+        };
+        FormValidationRequest: {
+            data?: unknown;
+            definition: unknown;
+        };
+        FormValidationRequestRequest: {
+            data?: unknown;
+            definition: unknown;
+        };
         GatewayTaskDetail: {
             code: number;
             data: components["schemas"]["TaskSummary"];
@@ -4658,6 +4721,15 @@ export interface components {
             code: number;
             data: components["schemas"]["WorkItemSummary"];
             message: string;
+        };
+        GenerationPreview: {
+            definition: unknown;
+            files: {
+                [key: string]: string;
+            }[];
+        };
+        GenerationRequestRequest: {
+            definition: unknown;
         };
         Identity: {
             /** Format: date-time */
@@ -5360,9 +5432,6 @@ export interface components {
             readonly updated_at: string;
             readonly version: number;
         };
-        OnlineFormRecordRequest: {
-            data?: unknown;
-        };
         OnlineFormRequest: {
             code: string;
             definition?: unknown;
@@ -6016,6 +6085,10 @@ export interface components {
             rollout?: number;
             version?: number;
         };
+        PatchedFormRecordUpdateRequestRequest: {
+            data?: unknown;
+            version?: number;
+        };
         PatchedMembershipRequest: {
             /** Format: uuid */
             department?: string;
@@ -6056,9 +6129,6 @@ export interface components {
             definition?: unknown;
             name?: string;
             version?: number;
-        };
-        PatchedOnlineFormRecordRequest: {
-            data?: unknown;
         };
         PatchedPostRequest: {
             code?: string;
@@ -12778,11 +12848,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["OnlineFormRecordRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormRecordRequest"];
-                "multipart/form-data": components["schemas"]["OnlineFormRecordRequest"];
+                "application/json": components["schemas"]["FormRecordCreateRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormRecordCreateRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormRecordCreateRequestRequest"];
             };
         };
         responses: {
@@ -12840,9 +12910,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": components["schemas"]["PatchedOnlineFormRecordRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["PatchedOnlineFormRecordRequest"];
-                "multipart/form-data": components["schemas"]["PatchedOnlineFormRecordRequest"];
+                "application/json": components["schemas"]["PatchedFormRecordUpdateRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedFormRecordUpdateRequestRequest"];
+                "multipart/form-data": components["schemas"]["PatchedFormRecordUpdateRequestRequest"];
             };
         };
         responses: {
@@ -13131,6 +13201,36 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OnlineForm"];
+                };
+            };
+        };
+    };
+    online_forms_validate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormValidationRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormValidationRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormValidationRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormValidationRequest"];
                 };
             };
         };
@@ -16121,6 +16221,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CachePreviewResponse"];
+                };
+            };
+        };
+    };
+    system_codegen_download_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["GenerationRequestRequest"];
+                "multipart/form-data": components["schemas"]["GenerationRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": Blob;
+                };
+            };
+        };
+    };
+    system_codegen_preview_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerationRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["GenerationRequestRequest"];
+                "multipart/form-data": components["schemas"]["GenerationRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerationPreview"];
                 };
             };
         };

@@ -31,7 +31,8 @@ def validate_definition(value):
     if not isinstance(value, dict) or set(value) - {'data_source', 'chart_type', 'dimensions', 'metric', 'filters', 'limit'}:
         raise ValidationError('报表定义包含未登记属性')
     source = value.get('data_source')
-    spec = DATA_SOURCES.get(source) if isinstance(source, str) else None
+    from .sources import source_specs, validate_business_filter
+    spec = source_specs().get(source) if isinstance(source, str) else None
     if not spec:
         raise ValidationError('数据源不在白名单内')
     chart = value.get('chart_type', 'table')
@@ -69,6 +70,10 @@ def validate_definition(value):
         if item['operator'] != 'in' and isinstance(val, (dict, list)):
             raise ValidationError('筛选值必须为标量')
         field = item['field']
+        if 'service' in spec:
+            validate_business_filter(spec, item)
+            normalized_filters.append(dict(item))
+            continue
         for scalar in val if item['operator'] == 'in' else [val]:
             if field == 'is_active':
                 if type(scalar) is not bool or item['operator'] not in {'eq', 'in'}:

@@ -9,7 +9,7 @@ import { notifyError } from '../src/api/request'
 import { useAuthStore } from '../src/stores/auth'
 import ApprovalList from '../src/views/approvals/ApprovalListView.vue'
 
-vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value }))
+vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value, registerUiMessages: vi.fn() }))
 vi.mock('../src/api', () => ({ approvalsApi: { list: vi.fn() }, approvalFlowsApi: {}, newIdempotencyKey: vi.fn() }))
 vi.mock('../src/api/request', () => ({ notifyError: vi.fn() }))
 vi.mock('../src/stores/modules', () => ({ useModuleStore: () => ({ enabled: () => true, config: {} }) }))

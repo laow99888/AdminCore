@@ -1,0 +1,155 @@
+{
+  "schema_version": 2,
+  "module": "cg_orders",
+  "model": "PurchaseOrder",
+  "title": "采购订单",
+  "structure": "master_detail",
+  "fields": [
+    {
+      "name": "code",
+      "label": "订单编码",
+      "kind": "string",
+      "max_length": 40,
+      "unique": true,
+      "query": "contains",
+      "sortable": true
+    },
+    {
+      "name": "supplier",
+      "label": "供应商",
+      "kind": "relation",
+      "target": {
+        "module": "cg_suppliers",
+        "model": "Supplier",
+        "label": "name"
+      },
+      "query": "eq"
+    },
+    {
+      "name": "amount",
+      "label": "订单金额",
+      "kind": "decimal",
+      "max_digits": 18,
+      "decimal_places": 2,
+      "minimum": "0",
+      "form": false,
+      "query": "range",
+      "sortable": true
+    },
+    {
+      "name": "due_date",
+      "label": "到货日期",
+      "kind": "date",
+      "required": false,
+      "query": "range"
+    },
+    {
+      "name": "ordered_at",
+      "label": "下单时间",
+      "kind": "datetime",
+      "required": false,
+      "query": "range"
+    },
+    {
+      "name": "status",
+      "label": "订单状态",
+      "kind": "enum",
+      "choices": [
+        {
+          "value": "draft",
+          "label": "草稿"
+        },
+        {
+          "value": "confirmed",
+          "label": "已确认"
+        }
+      ],
+      "query": "eq"
+    },
+    {
+      "name": "category",
+      "label": "业务类别",
+      "kind": "dictionary",
+      "dictionary": "purchase_category",
+      "required": false
+    },
+    {
+      "name": "attachment",
+      "label": "采购附件",
+      "kind": "file",
+      "required": false
+    },
+    {
+      "name": "remarks",
+      "label": "备注",
+      "kind": "text",
+      "required": false,
+      "list": false
+    }
+  ],
+  "details": [
+    {
+      "name": "lines",
+      "label": "采购明细",
+      "model": "PurchaseLine",
+      "min_rows": 1,
+      "max_rows": 100,
+      "fields": [
+        {
+          "name": "product",
+          "label": "商品名称",
+          "kind": "string",
+          "max_length": 120
+        },
+        {
+          "name": "quantity",
+          "label": "数量",
+          "kind": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        {
+          "name": "price",
+          "label": "单价",
+          "kind": "decimal",
+          "max_digits": 12,
+          "decimal_places": 2,
+          "minimum": "0"
+        }
+      ]
+    },
+    {
+      "name": "notes",
+      "label": "附加说明",
+      "model": "PurchaseNote",
+      "max_rows": 20,
+      "fields": [
+        {
+          "name": "content",
+          "label": "内容",
+          "kind": "text"
+        }
+      ]
+    }
+  ],
+  "approval": {
+    "flow_code": "purchase-approval",
+    "title_field": "code"
+  },
+  "reports": {
+    "dimensions": [
+      "approval_status",
+      "category",
+      "created_at"
+    ],
+    "metrics": [
+      "amount"
+    ],
+    "filters": [
+      "approval_status",
+      "category",
+      "amount",
+      "created_at"
+    ]
+  }
+}

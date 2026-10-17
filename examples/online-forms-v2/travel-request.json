@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "sections": [{"key": "travel", "title": "行程信息"}, {"key": "cost", "title": "费用信息"}],
+  "fields": [
+    {"key": "title", "label": "申请标题", "type": "text", "required": true, "max_length": 200, "span": 2},
+    {"key": "international", "label": "境外出差", "type": "boolean", "default": false, "section": "travel"},
+    {"key": "passport", "label": "护照号码", "type": "text", "required": true, "section": "travel", "visible_when": [{"field": "international", "op": "eq", "value": true}]},
+    {"key": "start", "label": "开始日期", "type": "date", "required": true, "section": "travel"},
+    {"key": "end", "label": "结束日期", "type": "date", "required": true, "section": "travel"},
+    {"key": "budget", "label": "预算金额", "type": "decimal", "required": true, "min": "0.00", "scale": 2, "section": "cost", "help": "金额按十进制文本保存"},
+    {"key": "reason", "label": "预算说明", "type": "textarea", "section": "cost", "visible_when": [{"field": "budget", "op": "gte", "value": "1000.00"}], "required_when": [{"field": "budget", "op": "gte", "value": "1000.00"}]},
+    {"key": "costs", "label": "费用明细", "type": "detail", "min_rows": 1, "max_rows": 20, "section": "cost", "fields": [
+      {"key": "item", "label": "费用项目", "type": "text", "required": true},
+      {"key": "amount", "label": "单价", "type": "decimal", "scale": 2, "min": "0.00", "required": true},
+      {"key": "quantity", "label": "数量", "type": "number", "min": 1, "max": 100, "required": true, "default": 1}
+    ]}
+  ],
+  "rules": [{"left": "start", "op": "lte", "right": "end", "message": "开始日期不能晚于结束日期"}]
+}

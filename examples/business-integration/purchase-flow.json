@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "inputs": [
+    {
+      "key": "amount",
+      "type": "decimal"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start"
+    },
+    {
+      "id": "amount",
+      "type": "branch"
+    },
+    {
+      "id": "finance",
+      "type": "user",
+      "assignee": {
+        "source": "role",
+        "role_id": "00000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "id": "review",
+      "type": "user",
+      "assignee": {
+        "source": "role",
+        "role_id": "00000000-0000-4000-8000-000000000002"
+      }
+    },
+    {
+      "id": "end",
+      "type": "end"
+    }
+  ],
+  "edges": [
+    {
+      "from": "start",
+      "to": "amount"
+    },
+    {
+      "from": "amount",
+      "to": "finance",
+      "when": {
+        "field": "amount",
+        "op": "gte",
+        "value": "1000.00"
+      }
+    },
+    {
+      "from": "amount",
+      "to": "review",
+      "default": true
+    },
+    {
+      "from": "finance",
+      "to": "review"
+    },
+    {
+      "from": "review",
+      "to": "end"
+    }
+  ]
+}

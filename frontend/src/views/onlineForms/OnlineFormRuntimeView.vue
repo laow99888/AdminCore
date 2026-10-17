@@ -1,2 +1,142 @@
-<template><AppLayout><BaseCard v-if="form"><template #header><div class="title">{{ form.name }}</div></template><el-form label-width="110px" @submit.prevent="submit"><el-form-item v-for="field in form.definition.fields" :key="field.key" :for="`online-field-${field.key}`" :label="field.label" :required="field.required"><el-input :id="`online-field-${field.key}`" v-if="field.type === 'text' || field.type === 'textarea'" v-model="values[field.key]" :type="field.type === 'textarea' ? 'textarea' : 'text'"/><el-input-number :id="`online-field-${field.key}`" v-else-if="field.type === 'number'" v-model="values[field.key]"/><el-select :id="`online-field-${field.key}`" v-else-if="field.type === 'select'" v-model="values[field.key]"><el-option v-for="option in field.options" :key="option" :label="option" :value="option"/></el-select><el-date-picker :id="`online-field-${field.key}`" v-else-if="field.type === 'date'" v-model="values[field.key]" value-format="YYYY-MM-DD"/><el-switch :id="`online-field-${field.key}`" v-else v-model="values[field.key]"/></el-form-item><BaseButton variant="primary" :disabled="saving" @click="submit">{{ uiText('提交') }}</BaseButton></el-form></BaseCard><el-empty v-else :description="error || uiText('表单加载中')"/></AppLayout></template>
-<script setup lang="ts">import { onMounted, reactive, ref } from 'vue'; import { useRoute } from 'vue-router'; import { ElMessage } from 'element-plus'; import AppLayout from '@/components/layout/AppLayout.vue'; import { BaseButton, BaseCard } from '@/components'; import { onlineFormsApi, type OnlineFormRow } from '@/api'; import { uiText } from '@/i18n/uiText'; const route=useRoute(); const form=ref<OnlineFormRow>(); const values=reactive<Record<string, unknown>>({}); const error=ref(''); const saving=ref(false); async function load(){try{form.value=(await onlineFormsApi.published(String(route.params.code))).data.data; for(const field of form.value.definition.fields) if(field.default !== undefined) values[field.key]=field.default}catch(err){error.value=err instanceof Error?err.message:uiText('表单加载失败')}} async function submit(){if(!form.value || saving.value)return;saving.value=true;try{await onlineFormsApi.createRecord(form.value.code,values);ElMessage.success(uiText('提交成功'));for(const key of Object.keys(values))delete values[key]}catch{/* 请求层统一提示失败，保留输入供用户修正。 */}finally{saving.value=false}} onMounted(load)</script>
+<template>
+  <AppLayout
+    ><div class="runtime-page">
+      <BaseCard v-if="form"
+        ><template #header
+          ><h2>{{ form.name }}</h2></template
+        >
+        <OnlineFormRenderer
+          v-model="values"
+          :definition="form.definition"
+          :errors="errors"
+          :disabled="saving"
+        />
+        <p v-if="error" role="alert" class="error">{{ error }}</p>
+        <p v-if="success" role="status">{{ uiText("提交成功") }}</p>
+        <BaseButton variant="primary" :disabled="saving" @click="submit">{{
+          saving ? uiText("提交中") : uiText("提交")
+        }}</BaseButton> </BaseCard
+      ><BaseCard v-else
+        ><p v-if="loading" role="status">{{ uiText("表单加载中") }}</p>
+        <el-empty
+          v-else
+          :description="error || uiText('表单加载失败')"
+        /><el-button v-if="!loading" @click="load">{{
+          uiText("重试")
+        }}</el-button></BaseCard
+      >
+    </div></AppLayout
+  >
+</template>
+<script setup lang="ts">
+import "@/components/onlineForms/messages";
+import { ref, watch } from "vue";
+import { useRoute } from "vue-router";
+import AppLayout from "@/components/layout/AppLayout.vue";
+import { BaseButton, BaseCard } from "@/components";
+import { onlineFormsApi, type OnlineFormRow } from "@/api";
+import { errorMessage } from "@/api/request";
+import { uiText } from "@/i18n/uiText";
+import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
+import OnlineFormRenderer from "@/components/onlineForms/OnlineFormRenderer.vue";
+import {
+  activeValues,
+  fieldErrors,
+  initialValues,
+  type FormValues,
+} from "@/components/onlineForms/runtime";
+const route = useRoute(),
+  form = ref<OnlineFormRow>(),
+  values = ref<FormValues>({}),
+  errors = ref<Record<string, string>>({}),
+  error = ref(""),
+  success = ref(false),
+  saving = ref(false),
+  loading = ref(false);
+let read = 0,
+  pending: { body: string; key: string } | undefined;
+const guard = useUnsavedChanges({
+  source: () => values.value,
+  busy: () => saving.value,
+  clear: () => {
+    read++;
+    form.value = undefined;
+    values.value = {};
+    errors.value = {};
+    pending = undefined;
+  },
+});
+watch(
+  values,
+  () => {
+    success.value = false;
+    errors.value = {};
+  },
+  { deep: true, flush: "sync" },
+);
+async function load() {
+  const current = ++read;
+  form.value = undefined;
+  values.value = {};
+  error.value = "";
+  loading.value = true;
+  pending = undefined;
+  try {
+    const response = await onlineFormsApi.published(String(route.params.code));
+    if (current !== read || !guard.isSessionCurrent()) return;
+    form.value = response.data.data;
+    values.value = initialValues(form.value.definition.fields);
+    guard.markClean();
+  } catch (err) {
+    if (current === read && guard.isSessionCurrent())
+      error.value = errorMessage(err, uiText("表单加载失败"));
+  } finally {
+    if (current === read) loading.value = false;
+  }
+}
+async function submit() {
+  if (!form.value || saving.value) return;
+  saving.value = true;
+  error.value = "";
+  errors.value = {};
+  success.value = false;
+  const data =
+    form.value.definition.schema_version === 2
+      ? activeValues(form.value.definition.fields, values.value)
+      : values.value;
+  const body = JSON.stringify(data);
+  if (!pending || pending.body !== body)
+    pending = { body, key: `online-form-${crypto.randomUUID()}` };
+  try {
+    await onlineFormsApi.createRecord(form.value.code, data, pending.key);
+    if (!guard.isSessionCurrent()) return;
+    values.value = initialValues(form.value.definition.fields);
+    pending = undefined;
+    guard.markClean();
+    success.value = true;
+  } catch (err) {
+    if (guard.isSessionCurrent()) {
+      errors.value = fieldErrors(err);
+      error.value = errorMessage(err, uiText("提交失败，请检查字段"));
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+watch(() => route.params.code, load, { immediate: true });
+</script>
+<style scoped>
+.runtime-page {
+  min-width: 0;
+  max-width: 1100px;
+  margin: auto;
+}
+.runtime-page h2 {
+  font-size: 18px;
+  margin: 0;
+}
+.error {
+  color: var(--el-color-danger);
+  overflow-wrap: anywhere;
+}
+</style>

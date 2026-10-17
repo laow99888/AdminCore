@@ -14,6 +14,9 @@ def script_json(value):
 
 
 def render(definition: Definition):
+    if getattr(definition, 'schema_version', 1) == 2:
+        from .render_v2 import render_v2
+        return render_v2(definition)
     module, model = definition.module, definition.model
     fields = definition.fields
     names = tuple(field.name for field in fields)

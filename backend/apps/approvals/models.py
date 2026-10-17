@@ -17,6 +17,9 @@ def validate_flow_definition(definition):
     """Validate the small, deterministic graph format used by the workflow API."""
     if not isinstance(definition, dict):
         raise ValidationError('流程定义必须是对象')
+    if 'schema_version' in definition:
+        from .graph import validate_graph
+        return validate_graph(definition)
     nodes = definition.get('nodes')
     edges = definition.get('edges', [])
     if not isinstance(nodes, list) or not 1 <= len(nodes) <= 100:
@@ -182,6 +185,9 @@ class ApprovalRequest(BaseModel):
     flow_version = models.PositiveIntegerField(null=True, blank=True)
     current_node = models.CharField(max_length=64, blank=True)
     workflow_version = models.PositiveIntegerField(default=1)
+    business_module = models.CharField(max_length=20, blank=True)
+    business_record_id = models.UUIDField(null=True, blank=True)
+    business_snapshot = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = '审批申请'

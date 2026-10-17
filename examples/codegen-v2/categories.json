@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "module": "cg_categories",
+  "model": "Category",
+  "title": "商品分类",
+  "structure": "tree",
+  "fields": [
+    {
+      "name": "code",
+      "label": "分类编码",
+      "kind": "string",
+      "unique": true,
+      "query": "eq"
+    },
+    {
+      "name": "name",
+      "label": "分类名称",
+      "kind": "string",
+      "query": "contains",
+      "sortable": true
+    },
+    {
+      "name": "rank",
+      "label": "排序",
+      "kind": "integer",
+      "minimum": 0,
+      "maximum": 10000,
+      "sortable": true
+    }
+  ],
+  "ordering": ["rank", "name"]
+}

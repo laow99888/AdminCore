@@ -1,0 +1,15 @@
+{
+  "data_source": "cg_orders",
+  "chart_type": "table",
+  "dimensions": [
+    {
+      "field": "approval_status"
+    }
+  ],
+  "metric": {
+    "field": "amount",
+    "aggregation": "sum"
+  },
+  "filters": [],
+  "limit": 100
+}

@@ -640,6 +640,19 @@
             "readOnly": true,
             "type": "string"
           },
+          "business_module": {
+            "readOnly": true,
+            "type": "string"
+          },
+          "business_record_id": {
+            "format": "uuid",
+            "nullable": true,
+            "readOnly": true,
+            "type": "string"
+          },
+          "business_snapshot": {
+            "readOnly": true
+          },
           "cc_recipients": {
             "items": {
               "additionalProperties": {},
@@ -752,6 +765,9 @@
           "applicant_name",
           "assignee",
           "assignee_name",
+          "business_module",
+          "business_record_id",
+          "business_snapshot",
           "cc_recipients",
           "content",
           "created_at",
@@ -3340,6 +3356,35 @@
         ],
         "type": "object"
       },
+      "FormRecordCreateRequestRequest": {
+        "properties": {
+          "data": {}
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "FormValidationRequest": {
+        "properties": {
+          "data": {},
+          "definition": {}
+        },
+        "required": [
+          "definition"
+        ],
+        "type": "object"
+      },
+      "FormValidationRequestRequest": {
+        "properties": {
+          "data": {},
+          "definition": {}
+        },
+        "required": [
+          "definition"
+        ],
+        "type": "object"
+      },
       "FormatEnum": {
         "description": "* `png` - png\n* `jpeg` - jpeg\n* `webp` - webp",
         "enum": [
@@ -3384,6 +3429,34 @@
           "code",
           "data",
           "message"
+        ],
+        "type": "object"
+      },
+      "GenerationPreview": {
+        "properties": {
+          "definition": {},
+          "files": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "definition",
+          "files"
+        ],
+        "type": "object"
+      },
+      "GenerationRequestRequest": {
+        "properties": {
+          "definition": {}
+        },
+        "required": [
+          "definition"
         ],
         "type": "object"
       },
@@ -5694,12 +5767,6 @@
         ],
         "type": "object"
       },
-      "OnlineFormRecordRequest": {
-        "properties": {
-          "data": {}
-        },
-        "type": "object"
-      },
       "OnlineFormRequest": {
         "properties": {
           "code": {
@@ -7972,6 +8039,16 @@
         },
         "type": "object"
       },
+      "PatchedFormRecordUpdateRequestRequest": {
+        "properties": {
+          "data": {},
+          "version": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "PatchedMembershipRequest": {
         "properties": {
           "department": {
@@ -8057,12 +8134,6 @@
             "minimum": 1,
             "type": "integer"
           }
-        },
-        "type": "object"
-      },
-      "PatchedOnlineFormRecordRequest": {
-        "properties": {
-          "data": {}
         },
         "type": "object"
       },
@@ -23642,6 +23713,67 @@
         }
       }
     },
+    "/api/v1/online-forms/validate/": {
+      "post": {
+        "operationId": "online_forms_validate_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormValidationRequestRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/FormValidationRequestRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/FormValidationRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormValidationRequest"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "online-forms"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
     "/api/v1/online-forms/{code}/records/": {
       "get": {
         "description": "把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}\n\nlist 已由 StandardPagination.get_paginated_response 统一包装；\n自定义 action 自行构造 Response 的不受影响。",
@@ -23766,20 +23898,21 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/OnlineFormRecordRequest"
+                "$ref": "#/components/schemas/FormRecordCreateRequestRequest"
               }
             },
             "application/x-www-form-urlencoded": {
               "schema": {
-                "$ref": "#/components/schemas/OnlineFormRecordRequest"
+                "$ref": "#/components/schemas/FormRecordCreateRequestRequest"
               }
             },
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/OnlineFormRecordRequest"
+                "$ref": "#/components/schemas/FormRecordCreateRequestRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "201": {
@@ -23905,17 +24038,17 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PatchedOnlineFormRecordRequest"
+                "$ref": "#/components/schemas/PatchedFormRecordUpdateRequestRequest"
               }
             },
             "application/x-www-form-urlencoded": {
               "schema": {
-                "$ref": "#/components/schemas/PatchedOnlineFormRecordRequest"
+                "$ref": "#/components/schemas/PatchedFormRecordUpdateRequestRequest"
               }
             },
             "multipart/form-data": {
               "schema": {
-                "$ref": "#/components/schemas/PatchedOnlineFormRecordRequest"
+                "$ref": "#/components/schemas/PatchedFormRecordUpdateRequestRequest"
               }
             }
           }
@@ -29932,6 +30065,129 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CachePreviewResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "system"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/system/codegen/download/": {
+      "post": {
+        "operationId": "system_codegen_download_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequestRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequestRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "jwtAuth": []
+          }
+        ],
+        "tags": [
+          "system"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
+    "/api/v1/system/codegen/preview/": {
+      "post": {
+        "operationId": "system_codegen_preview_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequestRequest"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequestRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationPreview"
                 }
               }
             },

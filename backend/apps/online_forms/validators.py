@@ -28,6 +28,9 @@ def _safe(value, depth=0):
 
 
 def validate_definition(value):
+    if isinstance(value, dict) and 'schema_version' in value:
+        from .schema_v2 import normalize_definition
+        return normalize_definition(value)
     if not isinstance(value, dict) or set(value) - {'fields'} or not isinstance(value.get('fields'), list):
         raise ValidationError('表单定义必须只包含 fields 数组')
     fields = value['fields']
@@ -78,6 +81,9 @@ def validate_definition(value):
 
 
 def validate_record(definition, data):
+    if definition.get('schema_version') == 2:
+        from .schema_v2 import normalize_record
+        return normalize_record(definition, data)
     if not isinstance(data, dict):
         raise ValidationError('记录数据必须为对象')
     fields = {field['key']: field for field in definition['fields']}

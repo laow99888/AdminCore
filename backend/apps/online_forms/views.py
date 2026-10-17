@@ -1,20 +1,58 @@
 from django.db import transaction
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework import mixins, status, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.views import APIView
+from rest_framework.throttling import UserRateThrottle
 from apps.auth_app.write_authorization import authorize_write
 from apps.core.idempotency import with_idempotency
 from apps.core.mixins import EnvelopeResponseMixin
-from apps.permissions.permissions import HasPermission
+from apps.permissions.permissions import HasPermission, IsAdmin
 from apps.core.exceptions import APIError
 from rest_framework.generics import get_object_or_404
 from .models import OnlineForm, OnlineFormRecord
 from .serializers import OnlineFormDesignSerializer, OnlineFormRecordSerializer, OnlineFormSerializer
-from .validators import validate_record
+from .validators import validate_definition, validate_record
+
+
+class FormValidationRequest(serializers.Serializer):
+    definition = serializers.JSONField()
+    data = serializers.JSONField(required=False)
+
+
+class FormRecordCreateRequest(serializers.Serializer):
+    data = serializers.JSONField()
+
+
+class FormRecordUpdateRequest(FormRecordCreateRequest):
+    version = serializers.IntegerField(min_value=1)
+
+
+class FormValidationThrottle(UserRateThrottle):
+    scope = 'online_form_validation'
+    rate = '60/min'
+
+
+class FormValidationView(APIView):
+    permission_classes = [IsAuthenticated, IsAdmin, HasPermission]
+    required_permission = 'online_form:read'
+    throttle_classes = [FormValidationThrottle]
+
+    @extend_schema(request=FormValidationRequest, responses=FormValidationRequest)
+    def post(self, request):
+        serializer = FormValidationRequest(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        definition = validate_definition(serializer.validated_data['definition'])
+        result = {'definition': definition}
+        if 'data' in serializer.validated_data:
+            result['data'] = validate_record(definition, serializer.validated_data['data'])
+        response = Response({'code': 200, 'message': 'success', 'data': result})
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
 
 class OnlineFormViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
@@ -58,8 +96,9 @@ class OnlineFormViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         if row.status != 'draft':
             from rest_framework.exceptions import ValidationError
             raise ValidationError('只有草稿可以发布')
+        row.definition = validate_definition(row.definition)
         row.status, row.published_by, row.published_at = 'published', request.user, timezone.now()
-        row.save(update_fields=['status', 'published_by', 'published_at', 'updated_at'])
+        row.save(update_fields=['definition', 'status', 'published_by', 'published_at', 'updated_at'])
         return Response({'code': 200, 'message': '表单已发布', 'data': OnlineFormSerializer(row).data})
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, HasPermission], url_path='archive')
@@ -107,24 +146,33 @@ class FormRecordViewSet(EnvelopeResponseMixin, viewsets.GenericViewSet, mixins.L
             return Response({'code': 403, 'message': '无权查看表单记录', 'data': None}, status=403)
         return super().list(request, *args, **kwargs)
 
+    @extend_schema(request=FormRecordCreateRequest, responses={201: OnlineFormRecordSerializer})
     @transaction.atomic
     def create(self, request, *args, **kwargs):
-        form = OnlineForm.objects.filter(code=kwargs['code'], status='published').first()
+        authorize_write(request, 'online_form:record_create')
+        if not isinstance(request.data, dict):
+            raise ValidationError('表单记录必须为 JSON 对象')
+        form = OnlineForm.objects.select_for_update().filter(code=kwargs['code'], status='published').first()
         if form is None:
             from rest_framework.exceptions import NotFound
             raise NotFound('表单不存在或未发布')
-        authorize_write(request, 'online_form:record_create')
         data = validate_record(form.definition, request.data.get('data', request.data))
         def execute():
             row = OnlineFormRecord.objects.create(form=form, form_version=form.version, owner=request.user, data=data)
             return Response({'code': 201, 'message': '提交成功', 'data': OnlineFormRecordSerializer(row).data}, status=201)
         return with_idempotency(request, 'online_form:record_create', execute)
 
+    @extend_schema(request=FormRecordUpdateRequest, responses=OnlineFormRecordSerializer)
     @transaction.atomic
     def partial_update(self, request, *args, **kwargs):
         authorize_write(request, 'online_form:record_update')
-        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=kwargs['pk'])
+        if not isinstance(request.data, dict):
+            raise ValidationError('表单记录必须为 JSON 对象')
         expected = request.data.get('version')
+        if type(expected) is not int or expected < 1:
+            raise ValidationError({'version': '必须提交正整数版本号'})
+        get_object_or_404(OnlineForm.objects.select_for_update(), code=kwargs['code'], status='published')
+        row = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=kwargs['pk'])
         if expected != row.version:
             raise APIError('记录已变化，请刷新后重试', status_code=409)
         row.data = validate_record(row.form.definition, request.data.get('data', request.data))

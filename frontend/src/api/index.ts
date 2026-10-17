@@ -241,6 +241,10 @@ export interface ApprovalRow {
   flow?: string | null
   flow_name?: string | null
   flow_version?: number | null
+  business_module?: string
+  business_record_id?: string | null
+  business_snapshot?: Record<string, unknown>
+  extra_data?: Record<string, unknown> | null
   current_node?: string
   workflow_version?: number
   steps?: ApprovalStepRow[]
@@ -267,7 +271,7 @@ export interface ApprovalFlowRow {
   code: string
   status: 'draft' | 'published' | 'archived'
   version: number
-  definition: { nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> }
+  definition: { schema_version?: 2; inputs?: Array<{ key: string; type: string }>; nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> }
 }
 
 export type ApprovalBox = 'todo' | 'done' | 'sent' | 'cc' | 'exceptions'
@@ -275,7 +279,7 @@ export type ApprovalBox = 'todo' | 'done' | 'sent' | 'cc' | 'exceptions'
 export const approvalsApi = {
   list: (box: ApprovalBox | undefined, params?: ListParams) =>
     getPaged<ApprovalRow>('/approvals/', { ...(box ? { box } : {}), ...params }),
-  create: (data: { title: string; request_type: string; content: string; flow_id?: string } & ({ assignee_id: string; assignee_username?: never } | { assignee_username: string; assignee_id?: never } | { assignee_id?: never; assignee_username?: never }), key = newIdempotencyKey('approval-create')) =>
+  create: (data: { title: string; request_type: string; content: string; flow_id?: string; extra_data?: Record<string, unknown> } & ({ assignee_id: string; assignee_username?: never } | { assignee_username: string; assignee_id?: never } | { assignee_id?: never; assignee_username?: never }), key = newIdempotencyKey('approval-create')) =>
     request.post('/approvals/', data, { headers: { 'Idempotency-Key': key } }),
   approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
   reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),
@@ -295,8 +299,11 @@ export const approvalFlowsApi = {
   archive: (id: string) => request.post(`/approvals/flows/${id}/archive/`),
 }
 
-export interface OnlineFormField { key: string; label: string; type: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'boolean'; required: boolean; default?: unknown; options?: string[]; max_length?: number; min?: number; max?: number }
-export interface OnlineFormRow { id: string; name: string; code: string; status: 'draft' | 'published' | 'archived'; version: number; definition: { fields: OnlineFormField[] } }
+export interface OnlineFormCondition { field: string; op: 'eq' | 'ne' | 'in' | 'empty' | 'not_empty' | 'lt' | 'lte' | 'gt' | 'gte'; value?: unknown }
+export interface OnlineFormRule { left: string; op: 'lt' | 'lte' | 'gt' | 'gte' | 'eq'; right: string; message: string }
+export interface OnlineFormField { key: string; label: string; type: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'boolean' | 'decimal' | 'datetime' | 'multiselect' | 'detail'; required: boolean; default?: unknown; options?: string[]; max_length?: number; min?: number | string; max?: number | string; scale?: number; section?: string; span?: 1 | 2; help?: string; placeholder?: string; visible_when?: OnlineFormCondition[]; required_when?: OnlineFormCondition[]; fields?: OnlineFormField[]; min_rows?: number; max_rows?: number; rules?: OnlineFormRule[] }
+export interface OnlineFormDefinition { schema_version?: 2; fields: OnlineFormField[]; sections?: { key: string; title: string }[]; rules?: OnlineFormRule[] }
+export interface OnlineFormRow { id: string; name: string; code: string; status: 'draft' | 'published' | 'archived'; version: number; definition: OnlineFormDefinition }
 export interface OnlineFormRecordRow { id: string; form: string; form_version: number; owner: string; owner_name?: string; data: Record<string, unknown>; version: number; created_at: string; updated_at: string }
 export const onlineFormsApi = {
   list: (params?: ListParams) => getPaged<OnlineFormRow>('/online-forms/forms/', params),
@@ -304,6 +311,7 @@ export const onlineFormsApi = {
   update: (id: string, data: Pick<OnlineFormRow, 'name' | 'code' | 'definition' | 'version'>) => request.put(`/online-forms/forms/${id}/`, data),
   publish: (id: string, version?: number) => request.post(`/online-forms/forms/${id}/publish/`, { version }),
   archive: (id: string) => request.post(`/online-forms/forms/${id}/archive/`),
+  validate: (definition: OnlineFormDefinition, data?: Record<string, unknown>) => request.post<ApiResponse<{ definition: OnlineFormDefinition; data?: Record<string, unknown> }>>('/online-forms/validate/', { definition, ...(data === undefined ? {} : { data }) }),
   published: (code: string) => request.get<ApiResponse<OnlineFormRow>>(`/online-forms/published/${encodeURIComponent(code)}/`),
   records: (code: string, params?: ListParams) => getPaged<OnlineFormRecordRow>(`/online-forms/${encodeURIComponent(code)}/records/`, params),
   createRecord: (code: string, data: Record<string, unknown>, key = newIdempotencyKey('online-form-record')) => request.post(`/online-forms/${encodeURIComponent(code)}/records/`, { data }, { headers: { 'Idempotency-Key': key } }),

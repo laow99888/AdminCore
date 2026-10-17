@@ -6,6 +6,9 @@ export const frontendExtensions = [{
   key: 'api_credentials', path: '/integrations/credentials', permission: 'api_credential:read', title: '开放凭证',
   component: () => import('../views/settings/APICredentialsView.vue'),
 }, ...(__ADMINCORE_MINIMAL_BUILD__ ? [] : [{
+  key: 'system', path: '/system/codegen', permission: 'codegen:generate', title: '代码生成器',
+  component: () => import('../views/system/CodegenView.vue'),
+}, {
   key: 'ip_policy', path: '/system/ip-policy', permission: 'ip_policy:read', title: 'IP 访问策略',
   component: () => import('../views/system/IPPolicyView.vue'),
 }, {

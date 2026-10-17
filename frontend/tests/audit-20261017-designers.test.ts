@@ -10,7 +10,7 @@ import Flow from '../src/views/approvals/ApprovalFlowDesignerView.vue'
 import Form from '../src/views/onlineForms/OnlineFormDesignerView.vue'
 import Report from '../src/views/reports/ReportBuilderView.vue'
 
-vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value }))
+vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value, registerUiMessages: vi.fn() }))
 vi.mock('../src/components/layout/AppLayout.vue', () => ({ default: defineComponent({ template: '<main><slot /></main>' }) }))
 vi.mock('../src/components', () => ({
   AppLayout: defineComponent({ template: '<main><slot /></main>' }),
@@ -41,7 +41,7 @@ for (const cfg of configs) {
     vi.mocked(cfg.api.update).mockImplementation(async (_id, value) => ({ data: { data: { ...row, ...value, version: 8 } } }) as never)
     vi.mocked(cfg.api.publish).mockResolvedValue({ data: { data: { ...row, name: '未保存名称', status: 'published', version: 8 } } } as never)
     const pinia = createPinia(), auth = useAuthStore(pinia)
-    auth.token = 'isolated-editor'; auth.user = { id: 'editor', username: 'editor', email: '', avatar: '', permissions: ['*'] }
+    auth.token = 'isolated-editor'; auth.user = { id: 'editor', username: 'editor', email: '', avatar: '', permissions: ['*'], is_staff: true }
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/edit', component: { template: '<div />' } }, { path: '/other', component: { template: '<div />' } }] })
     await router.push('/edit')
     const wrapper = mount(cfg.component, { global: { plugins: [pinia, router, ElementPlus] } })

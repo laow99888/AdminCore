@@ -43,7 +43,7 @@ class Command(BaseCommand):
             else:
                 plan = make_plan(root, raw, files)
                 # 差异可失败（例如旧文件不是文本），保存前完整检验。
-                difference = preview_diff(root, files)
+                difference = preview_diff(root, files, raw)
                 if options['plan']:
                     with Path(options['plan']).open('x', encoding='utf-8') as destination:
                         json.dump(plan, destination, ensure_ascii=False, indent=2)

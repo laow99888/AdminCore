@@ -52,6 +52,7 @@
           <el-descriptions-item :label="uiText('审批意见')"><div style="white-space: pre-wrap; overflow-wrap: anywhere">{{ currentApproval.decision_comment || '—' }}</div></el-descriptions-item>
           <el-descriptions-item :label="uiText('处理时间')">{{ currentApproval.decided_at || '—' }}</el-descriptions-item>
         </el-descriptions>
+        <pre v-if="currentApproval?.business_module" class="business-snapshot" :aria-label="uiText('提交时的业务快照')">{{ JSON.stringify(currentApproval.business_snapshot, null, 2) }}</pre>
         <el-table v-if="currentApproval?.steps?.length" :data="currentApproval.steps">
           <el-table-column prop="node_key" :label="uiText('节点')" />
           <el-table-column prop="assignee_name" :label="uiText('审批人')" />
@@ -90,6 +91,11 @@
           <el-form-item v-if="!flowId" :label="uiText('审批人')" required>
             <PersonPicker v-model="assignee" purpose="approval" :disabled="saving || !createVisible" />
           </el-form-item>
+          <el-form-item v-for="field in selectedFlowInputs" :key="field.key" :label="field.key" required>
+            <el-switch v-if="field.type === 'boolean'" v-model="flowValues[field.key]" :aria-label="field.key" />
+            <el-input-number v-else-if="field.type === 'integer'" v-model="flowValues[field.key]" :aria-label="field.key" :precision="0" :min="-2147483648" :max="2147483647" />
+            <el-input v-else v-model="flowValues[field.key]" :aria-label="field.key" :placeholder="field.type === 'date' ? 'YYYY-MM-DD' : field.type === 'decimal' ? '0.00' : ''" />
+          </el-form-item>
           <el-form-item :label="uiText('内容')" required>
             <el-input v-model="createForm.content" type="textarea" :rows="4" :placeholder="uiText('申请说明')" />
           </el-form-item>
@@ -109,11 +115,12 @@
 </template>
 
 <script setup lang="ts">
+import '@/components/codegen/messages'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import PersonPicker from '@/components/common/PersonPicker.vue'
 import type { Person } from '@/api/personnel'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -129,6 +136,13 @@ const loading = ref(false)
 const saving = ref(false)
 const auth = useAuthStore()
 const flowId = ref(''), availableFlows = ref<ApprovalFlowRow[]>([]), flowsLoading = ref(false), flowsHasMore = ref(false)
+// 与 API 的受限输入契约一致；金额始终使用文本，不转换为浮点数。
+const flowValues = reactive<Record<string, any>>({})
+const selectedFlowInputs = computed(() => availableFlows.value.find(flow => flow.id === flowId.value)?.definition.inputs || [])
+watch(flowId, () => {
+  for (const key of Object.keys(flowValues)) delete flowValues[key]
+  for (const field of selectedFlowInputs.value) flowValues[field.key] = field.type === 'boolean' ? false : field.type === 'integer' ? 0 : ''
+})
 let flowsPage = 0
 const beginFlowRead = useLatestRead(() => { availableFlows.value = []; flowsPage = 0; flowsHasMore.value = false; flowsLoading.value = false })
 async function loadFlows(visible = true, more = false) {
@@ -195,7 +209,7 @@ const createForm = reactive({
   content: '',
 })
 
-const formGuard = useUnsavedChanges({ source: () => ({ form: createForm, assignee: assignee.value, flow: flowId.value }), active: () => createVisible.value, busy: () => saving.value, clear: () => { dialogOpen.value = false; assignee.value = null; flowId.value = ''; Object.assign(createForm, { title: '', request_type: 'other', content: '' }) } })
+const formGuard = useUnsavedChanges({ source: () => ({ form: createForm, assignee: assignee.value, flow: flowId.value, flowValues }), active: () => createVisible.value, busy: () => saving.value, clear: () => { dialogOpen.value = false; assignee.value = null; flowId.value = ''; Object.assign(createForm, { title: '', request_type: 'other', content: '' }) } })
 const tableColumns = [
   { prop: 'title', label: uiText("标题") },
   { prop: 'request_type', label: uiText("类型"), width: '100px', render: (v: string) => TYPE_LABELS[v] || v },
@@ -254,7 +268,7 @@ const handleSubmit = async () => {
     title: createForm.title,
     request_type: createForm.request_type,
     content: createForm.content,
-    ...(flowId.value ? { flow_id: flowId.value } : { assignee_id: assignee.value!.id }),
+    ...(flowId.value ? { flow_id: flowId.value, ...(availableFlows.value.find(flow => flow.id === flowId.value)?.definition.schema_version === 2 ? { extra_data: { ...flowValues } } : {}) } : { assignee_id: assignee.value!.id }),
   }
   const fingerprint = JSON.stringify(payload)
   if (submission?.fingerprint !== fingerprint) {
@@ -319,6 +333,7 @@ loadList()
 </script>
 
 <style scoped>
+.business-snapshot { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 400px; overflow: auto; }
 .approval-container {
   width: 100%;
 }

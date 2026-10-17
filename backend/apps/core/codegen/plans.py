@@ -17,6 +17,22 @@ def digest(value):
     return hashlib.sha256(value).hexdigest()
 
 
+def protected_file(definition, name):
+    if not isinstance(definition, dict) or definition.get('schema_version') != 2:
+        return False
+    module = definition.get('module')
+    return name in {f'backend/apps/{module}/extensions.py', f'frontend/src/views/{module}/RecordListView.vue'}
+
+
+def check_generation_version(root, definition):
+    """未登记到运行中 registry 的源码副本也不能被 V1 意外降级。"""
+    if not isinstance(definition, dict) or definition.get('schema_version') == 2:
+        return
+    manifest = safe_target(root, f"backend/apps/{definition.get('module')}/manifest.py")
+    if manifest.exists() and b'AdminCore.codegen.v2' in manifest.read_bytes():
+        raise GenerationError('现有V2模块必须使用V2定义重新生成')
+
+
 def safe_target(root, relative):
     if (not isinstance(relative, str) or any(piece in ('', '.', '..') or piece.endswith((' ', '.'))
             for piece in relative.split('/'))):
@@ -48,11 +64,14 @@ def checked_root(root):
     return root
 
 
-def preview_diff(root, files):
+def preview_diff(root, files, definition=None):
     root = checked_root(root)
+    check_generation_version(root, definition)
     result = []
     for name, content in sorted(files.items()):
         target = safe_target(root, name)
+        if target.exists() and protected_file(definition, name):
+            continue
         try:
             before = target.read_text(encoding='utf-8') if target.exists() else ''
         except UnicodeError as error:
@@ -64,13 +83,14 @@ def preview_diff(root, files):
 
 def make_plan(root, definition, files):
     root = checked_root(root)
+    check_generation_version(root, definition)
     entries = []
     for name, content in sorted(files.items()):
         target = safe_target(root, name)
         before = target.read_bytes() if target.exists() else None
         after = content.encode('utf-8')
         entries.append({'path': name, 'before_sha256': digest(before) if before is not None else None,
-            'after_sha256': digest(after), 'state': 'same' if before == after else 'changed' if before is not None else 'new'})
+            'after_sha256': digest(after), 'state': 'preserved' if before is not None and protected_file(definition, name) else 'same' if before == after else 'changed' if before is not None else 'new'})
     return {'plan_version': PLAN_VERSION, 'definition': definition, 'entries': entries}
 
 
@@ -96,6 +116,7 @@ def write_lock(root):
 def apply_plan(root, plan, definition, files, selected):
     root = checked_root(root)
     with write_lock(root):
+        check_generation_version(root, definition)
         return _apply_plan(root, plan, definition, files, selected)
 
 
@@ -119,6 +140,8 @@ def _apply_plan(root, plan, definition, files, selected):
         entry = expected[name]
         target = safe_target(root, name)
         before = target.read_bytes() if target.exists() else None
+        if before is not None and protected_file(definition, name):
+            raise GenerationError('业务扩展文件只允许首次创建，不能重新生成覆盖：' + name)
         if entry.get('before_sha256') != (digest(before) if before is not None else None) or entry.get('after_sha256') != digest(files[name].encode('utf-8')):
             raise GenerationError('文件或生成结果已变化，请重新预览：' + name)
         targets[name] = (target, before)

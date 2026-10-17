@@ -133,73 +133,15 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
         return ApprovalRequestSerializer
 
     def _workflow_steps(self, application, flow):
-        from .models import validate_flow_definition
-        try:
-            validate_flow_definition(flow.definition)
-        except Exception as exc:
-            raise ValidationError('流程定义不受支持，请管理员修正后重新发布') from exc
-        nodes = {node['id']: node for node in flow.definition['nodes']}
-        edges = {edge['from']: edge['to'] for edge in flow.definition.get('edges', [])}
-        current = next(node for node in flow.definition['nodes'] if node['type'] == 'start')
-        sequence = 0
-        while current['type'] != 'end':
-            next_id = edges.get(current['id'])
-            if not next_id:
-                break
-            current = nodes[next_id]
-            if current['type'] in {'user', 'parallel', 'or'}:
-                mode = current.get('mode', 'all' if current['type'] in {'user', 'parallel'} else 'any')
-                requested_ids = current.get('assignee_ids', [])
-                found = {str(user.pk): user for user in get_user_model().objects.filter(pk__in=requested_ids, is_active=True)}
-                users = [found[user_id] for user_id in requested_ids if user_id in found]
-                if not users or len(users) != len(set(requested_ids)):
-                    from apps.core.error_i18n import error_text
-                    raise ValidationError({'flow_id': error_text('流程节点 {node_id} 包含无效审批人', node_id=current['id'])})
-                for user in users:
-                    ApprovalStep.objects.create(request=application, node_key=current['id'], kind=current['type'],
-                                                mode=mode, sequence=sequence, assignee=user,
-                                                candidates=[str(row.pk) for row in users])
-                application.current_node = current['id']
-                application.assignee = users[0]
-                break
-            sequence += 1
-        application.save(update_fields=['current_node', 'assignee', 'updated_at'])
+        from .engine import enter_next
+        enter_next(application, initial=True)
 
     def _advance_workflow(self, application):
-        flow = application.flow
-        nodes = {node['id']: node for node in flow.definition['nodes']}
-        edges = {edge['from']: edge['to'] for edge in flow.definition.get('edges', [])}
-        current_id = application.current_node
-        current = nodes.get(current_id)
-        target_id = edges.get(current_id) if current else None
-        while target_id:
-            target = nodes[target_id]
-            if target['type'] == 'end':
-                application.status = 'approved'
-                application.decided_by = application.decided_by or application.applicant
-                application.decided_at = timezone.now()
-                application.current_node = target_id
-                application.save(update_fields=['status', 'decided_by', 'decided_at', 'current_node', 'updated_at'])
-                return
-            if target['type'] in {'user', 'parallel', 'or'}:
-                requested_ids = target.get('assignee_ids', [])
-                found = {str(user.pk): user for user in get_user_model().objects.filter(pk__in=requested_ids, is_active=True)}
-                users = [found[user_id] for user_id in requested_ids if user_id in found]
-                if len(users) != len(requested_ids) or not users:
-                    raise APIError('下一节点包含停用或已删除的审批人，请管理员调整后重试', status_code=409)
-                mode = target.get('mode', 'all' if target['type'] in {'user', 'parallel'} else 'any')
-                for user in users:
-                    ApprovalStep.objects.create(request=application, node_key=target['id'], kind=target['type'],
-                                                mode=mode, sequence=(max(application.steps.values_list('sequence', flat=True), default=0) + 1),
-                                                assignee=user, candidates=[str(row.pk) for row in users])
-                application.current_node = target['id']
-                application.assignee = users[0]
-                application.workflow_version += 1
-                application.save(update_fields=['current_node', 'assignee', 'workflow_version', 'updated_at'])
-                self._notice(application, [user.pk for user in users],
-                    f'node:{target_id}:{application.workflow_version}', f'待审批：{application.title}')
-                return
-            target_id = edges.get(target_id)
+        from .engine import enter_next
+        users = enter_next(application)
+        if users:
+            self._notice(application, [user.pk for user in users],
+                f'node:{application.current_node}:{application.workflow_version}', f'待审批：{application.title}')
 
     def _workflow_decide(self, request, application, approved, comment):
         step = ApprovalStep.objects.select_for_update().filter(request=application, status='pending').filter(
@@ -208,6 +150,7 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
             return Response({'code': 403, 'message': '只有当前流程节点审批人可以处理该申请', 'data': None}, status=403)
         step.status = 'approved' if approved else 'rejected'
         step.acted_by = request.user
+        application.decided_by = request.user
         step.acted_at = timezone.now()
         step.comment = comment
         step.version += 1
@@ -228,6 +171,8 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
         elif not siblings.filter(status='pending').exists():
             self._advance_workflow(application)
         if application.status in {'approved', 'rejected'}:
+            from .engine import synchronize_business
+            synchronize_business(application, request)
             self._notice(application, [application.applicant_id], f'result:{application.status}',
                 f'申请已通过：{application.title}' if approved else f'申请已驳回：{application.title}')
         return None
@@ -265,14 +210,15 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
             with transaction.atomic():
                 flow = serializer.validated_data.pop('flow', None)
                 if flow is not None:
-                    first_ids = next((n.get('assignee_ids', []) for n in flow.definition['nodes'] if n['type'] in {'user', 'parallel', 'or'}), [])
-                    assignee = get_user_model().objects.filter(pk=first_ids[0], is_active=True).first() if first_ids else None
-                    if assignee is None:
-                        raise ValidationError({'flow_id': '流程首个审批节点没有有效审批人'})
-                    serializer.validated_data['assignee'] = assignee
+                    flow = get_object_or_404(ApprovalFlow.objects.select_for_update(), pk=flow.pk, status='published')
+                    # 非空外键暂用申请人；实际审批人由所选路径解析，不能按节点数组顺序猜测。
+                    serializer.validated_data['assignee'] = request.user
                 application = ApprovalRequest.objects.create(applicant=request.user, flow=flow,
                     flow_version=flow.version if flow else None, **serializer.validated_data)
                 if flow:
+                    from .engine import input_data
+                    application.extra_data = input_data(flow.definition, application.extra_data)
+                    application.save(update_fields=['extra_data'])
                     self._workflow_steps(application, flow)
                 enqueue_event(
                     topic='notification.created', event_key=f'approval:{application.id}:submitted',
@@ -364,6 +310,8 @@ class ApprovalRequestViewSet(QueryBudgetListMixin, viewsets.GenericViewSet,
         if not changed:
             return Response({'code': 400, 'message': '申请已处理，无法撤回', 'data': None}, status=400)
         application.steps.filter(status='pending').update(status='cancelled', updated_at=timezone.now())
+        from .engine import synchronize_business
+        synchronize_business(application, request)
         self._log(request, 'delete', application, before=before)
         return Response({'code': 200, 'message': '申请已撤回',
                          'data': ApprovalRequestSerializer(application).data})

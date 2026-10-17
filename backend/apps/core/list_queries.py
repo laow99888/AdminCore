@@ -16,6 +16,7 @@ def allowed_query_parameters(view):
     if view.ordering_fields:
         names.add('ordering')
     names.update(view.list_query_choices)
+    names.update(getattr(view, 'generated_query_parameters', ()))
     return names
 
 

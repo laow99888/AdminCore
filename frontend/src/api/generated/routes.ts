@@ -622,6 +622,10 @@ export const sdkRoutes = {
     "get",
     "/api/v1/online-forms/published/{code}/"
   ],
+  "online_forms_validate_create": [
+    "post",
+    "/api/v1/online-forms/validate/"
+  ],
   "online_forms_records_list": [
     "get",
     "/api/v1/online-forms/{code}/records/"
@@ -977,6 +981,14 @@ export const sdkRoutes = {
   "system_cache_preview_create": [
     "post",
     "/api/v1/system/cache/preview/"
+  ],
+  "system_codegen_download_create": [
+    "post",
+    "/api/v1/system/codegen/download/"
+  ],
+  "system_codegen_preview_create": [
+    "post",
+    "/api/v1/system/codegen/preview/"
   ],
   "system_config_list": [
     "get",

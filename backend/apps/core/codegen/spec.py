@@ -45,6 +45,9 @@ def integer(value, label, low, high):
 
 
 def parse_definition(value):
+    if isinstance(value, dict) and value.get('schema_version') == 2:
+        from .spec_v2 import parse_definition_v2
+        return parse_definition_v2(value)
     if not isinstance(value, dict) or set(value) - {'module', 'title', 'model', 'fields', 'table'}:
         raise GenerationError('定义只能包含登记字段')
     module = text(value.get('module'), '模块标识', 20)
@@ -81,7 +84,7 @@ def parse_definition(value):
             manifest = import_module('apps.' + module + '.manifest')
         except ImportError as error:
             raise GenerationError('同名模块缺少可核验的生成标记') from error
-        if (getattr(manifest, 'GENERATED_BY', None) != 'AdminCore.codegen.v1'
+        if (getattr(manifest, 'GENERATED_BY', None) not in {'AdminCore.codegen.v1', 'AdminCore.codegen.v2'}
                 or existing.api_prefix != declaration.api_prefix or existing.paths != declaration.paths):
             raise GenerationError('同名模块不是兼容的生成模块')
         registry = tuple(item for item in MODULES if item.key != module)
