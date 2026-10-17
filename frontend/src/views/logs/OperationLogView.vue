@@ -149,18 +149,18 @@ const loginLogs = ref<LoginLogRow[]>([])
 const exceptionLogs = ref<ExceptionLogRow[]>([])
 type LogRow = OperationLogRow | LoginLogRow | ExceptionLogRow
 const printRows = computed<LogRow[]>(() => activeTab.value === 'operation' ? operationLogs.value : activeTab.value === 'login' ? loginLogs.value : exceptionLogs.value)
-const printColumns = computed<PrintColumn<Record<string, any>>[]>(() => activeTab.value === 'operation' ? [
+const printColumns = computed<PrintColumn<LogRow>[]>(() => activeTab.value === 'operation' ? [
   { label: uiText('时间'), value: row => row.created_at },
-  { label: uiText('操作'), value: row => row.action },
-  { label: uiText('资源'), value: row => row.resource },
-  { label: uiText('状态码'), value: row => row.status },
+  { label: uiText('操作'), value: row => 'action' in row ? row.action : '' },
+  { label: uiText('资源'), value: row => 'resource' in row ? row.resource : '' },
+  { label: uiText('状态码'), value: row => 'status' in row ? row.status : '' },
 ] : activeTab.value === 'login' ? [
   { label: uiText('时间'), value: row => row.created_at },
-  { label: uiText('用户名'), value: row => row.username },
-  { label: uiText('结果'), value: row => uiText(row.status === 'success' ? '成功' : '失败') },
+  { label: uiText('用户名'), value: row => 'username' in row ? row.username : '' },
+  { label: uiText('结果'), value: row => 'status' in row ? uiText(row.status === 'success' ? '成功' : '失败') : '' },
 ] : [
   { label: uiText('时间'), value: row => row.created_at },
-  { label: uiText('级别'), value: row => row.level },
+  { label: uiText('级别'), value: row => 'level' in row ? row.level : '' },
 ])
 
 const ACTION_LABELS: Record<string, string> = {
