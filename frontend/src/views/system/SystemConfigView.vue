@@ -10,7 +10,7 @@
         <el-form-item v-for="row in rows" :key="row.key" :label="uiText(row.label)">
           <div class="config-field">
             <template v-if="row.kind === 'image'">
-              <img v-if="values[row.key]" :src="values[row.key]" :alt="uiText('产品 Logo')" class="logo-preview" />
+              <img v-if="values[row.key]" :src="String(values[row.key])" :alt="uiText('产品 Logo')" class="logo-preview" />
               <input type="file" accept="image/png,image/jpeg,image/webp" :aria-label="uiText('选择 Logo 图片')" :disabled="saving || readingLogo || !auth.can('config:update')" @change="selectLogo($event, row.key)" />
               <el-button v-if="auth.can('config:update')" @click="values[row.key] = ''">{{ uiText('移除 Logo') }}</el-button>
             </template>
@@ -42,7 +42,7 @@ import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 const auth = useAuthStore()
 const brand = useBrandStore()
 const rows = ref<ConfigRow[]>([])
-const values = reactive<Record<string, any>>({})
+const values = reactive<Record<string, string | number>>({})
 const loading = ref(false)
 const savingKey = ref('')
 const saving = computed(() => !!savingKey.value)
@@ -88,7 +88,7 @@ async function load() {
 async function save(row: ConfigRow) {
   if (saving.value || loading.value || readingLogo.value || conflict.active.value || conflict.loading.value || !auth.can('config:update')) return
   const value = values[row.key]
-  if ((row.kind === 'integer' && (!Number.isInteger(value) || value < row.minimum || value > row.maximum)) ||
+  if ((row.kind === 'integer' && (typeof value !== 'number' || !Number.isInteger(value) || value < row.minimum || value > row.maximum)) ||
       (row.kind === 'string' && (typeof value !== 'string' || value.trim().length < row.minimum || value.trim().length > row.maximum))) {
     error.value = uiText('参数值不符合允许范围')
     return
