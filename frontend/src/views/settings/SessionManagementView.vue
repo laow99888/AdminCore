@@ -14,7 +14,7 @@
       <p v-if="loading" role="status">{{ uiText('正在加载有效会话') }}</p>
       <BaseTable :key="admin ? 'users' : 'sessions'" :data="rows" :columns="columns" :loading="loading" :total="total" :current-page="page" :page-size="pageSize" :show-index="false" :show-actions="!admin || canRevoke" :action-width="admin ? 180 : 130" @update:current-page="changePage" @update:page-size="changeSize">
         <template #actions="{ row }">
-          <BaseButton size="large" variant="ghost" :disabled="busy || loading || (admin && row.is_current_user)" @click="prepare(row)">{{ uiText(admin ? '全部设备下线' : '下线设备') }}</BaseButton>
+          <BaseButton size="large" variant="ghost" :disabled="busy || loading || (admin && 'is_current_user' in row && row.is_current_user)" @click="prepare(row)">{{ uiText(admin ? '全部设备下线' : '下线设备') }}</BaseButton>
         </template>
       </BaseTable>
       <p v-if="admin" class="hint">{{ uiText('全部设备下线只作用于所选用户；当前管理员不能在此下线自己。') }}</p>

@@ -7,7 +7,7 @@
       <div class="search"><el-input v-model="search" :aria-label="uiText('搜索岗位或用户名')" :placeholder="uiText('搜索岗位或用户名')" maxlength="100" clearable @keyup.enter="searchRows" /><BaseButton :disabled="loading" @click="searchRows">{{ uiText('搜索') }}</BaseButton><BaseButton :disabled="loading" @click="loadRows">{{ uiText('刷新') }}</BaseButton></div>
       <el-alert v-if="error" :title="uiText('列表加载失败，请刷新重试')" type="error" :closable="false" />
       <BaseTable :data="rows" :columns="columns" :loading="loading" :total="total" :current-page="page" :page-size="pageSize" :action-width="130" @update:currentPage="changePage" @update:pageSize="changeSize">
-        <template #actions="{ row }"><el-button v-if="section === 'posts'" link type="primary" :disabled="formBusy" @click="edit(row)">{{ uiText('编辑') }}</el-button><el-button link type="danger" :disabled="formBusy" @click="remove(row)">{{ uiText(section === 'posts' ? '删除' : '移除任职') }}</el-button></template>
+        <template #actions="{ row }"><el-button v-if="section === 'posts' && 'code' in row" link type="primary" :disabled="formBusy" @click="edit(row)">{{ uiText('编辑') }}</el-button><el-button link type="danger" :disabled="formBusy" @click="remove(row)">{{ uiText(section === 'posts' ? '删除' : '移除任职') }}</el-button></template>
       </BaseTable>
     </BaseCard>
     <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(section === 'posts' ? (form.id ? '编辑岗位' : '新增岗位') : '分配岗位')" :loading="formBusy" :confirm-disabled="conflict.active.value || choicesLoading || !!choicesError" @confirm="save">

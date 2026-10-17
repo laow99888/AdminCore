@@ -14,7 +14,7 @@
   </div>
 </template>
 
-<script setup lang="ts" generic="T extends Record<string, any>">
+<script setup lang="ts" generic="T extends object">
 import { computed, nextTick, onActivated, onDeactivated, onMounted, onScopeDispose, ref, useSlots, watch } from 'vue'
 import { ElTableV2, type TableV2Instance, type Column } from 'element-plus/es/components/table-v2/index'
 import 'element-plus/es/components/table-v2/style/css'
@@ -32,7 +32,8 @@ const invalid = computed(() => {
   if (props.data.length > 10000 || !props.columns.length || props.columns.length > 30 || new Set(props.columns.map(col => col.prop)).size !== props.columns.length || props.columns.some(col => !col.prop || col.prop.startsWith('__'))) return true
   const keys = new Set<string>()
   for (const row of props.data) {
-    const key = row?.[props.rowKey]
+    if (row === null || typeof row !== 'object') return true
+    const key: unknown = Reflect.get(row, props.rowKey)
     if ((typeof key !== 'string' && typeof key !== 'number') || key === '' || (typeof key === 'number' && !Number.isFinite(key)) || keys.has(String(key))) return true
     keys.add(String(key))
   }
@@ -48,7 +49,8 @@ const virtualColumns = computed<Column[]>(() => {
 function display(key: string, row: T, index: number) {
   if (key === '__index') return String(index + 1)
   const column = props.columns.find(col => col.prop === key)
-  const value = column?.render ? column.render(row[key], row) : row[key]
+  const cell: unknown = Reflect.get(row, key)
+  const value = column?.render ? column.render(cell, row) : cell
   return typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number' ? String(value) : ''
 }
 const rowProperties = ({ rowIndex }: { rowIndex: number }) => ({ 'aria-rowindex': rowIndex + 2 })

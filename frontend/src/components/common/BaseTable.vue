@@ -36,7 +36,7 @@
         :show-overflow-tooltip="col.showOverflow !== false"
       >
         <template v-if="col.render" #default="{ row }">
-          {{ col.render(row[col.prop], row) }}
+          {{ col.render(cellValue(row, col.prop), row) }}
         </template>
       </el-table-column>
 
@@ -83,17 +83,17 @@
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends object">
 import { uiText } from "@/i18n/uiText"
 
-import { computed, ref, defineEmits } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import { Inbox } from 'lucide-vue-next'
 import type { TableInstance } from 'element-plus'
 import { useTablePreferencesStore } from '@/stores/tablePreferences'
 
 type RenderCell<T> = { bivarianceHack(value: unknown, row: T): string | number | void }['bivarianceHack']
 
-interface Column<T = any> {
+interface Column<T = unknown> {
   prop: string
   label: string
   width?: string | number
@@ -103,7 +103,7 @@ interface Column<T = any> {
   render?: RenderCell<T>
 }
 
-interface Props<T = any> {
+interface Props<T = unknown> {
   data: T[]
   columns: Column<T>[]
   loading?: boolean
@@ -119,7 +119,7 @@ interface Props<T = any> {
   size?: 'small' | 'default' | 'large'
 }
 
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props<T>>(), {
   loading: false,
   total: 0,
   currentPage: 1,
@@ -135,15 +135,18 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   'update:currentPage': [value: number]
   'update:pageSize': [value: number]
-  'selection-change': [value: any[]]
-  'edit': [row: any]
-  'delete': [row: any]
+  'selection-change': [value: T[]]
+  'edit': [row: T]
+  'delete': [row: T]
 }>()
+
+defineSlots<{ actions(props: { row: T }): unknown; toolbar(): unknown }>()
 
 const tableRef = ref<TableInstance>()
 const tablePreferences = useTablePreferencesStore()
 const effectiveDensity = computed(() => props.size ? (props.size === 'small' ? 'compact' : 'comfortable') : tablePreferences.density)
-const selectedRows = ref<any[]>([])
+const selectedRows = shallowRef<T[]>([])
+const cellValue = (row: unknown, prop: string): unknown => row !== null && typeof row === 'object' ? Reflect.get(row, prop) : undefined
 
 // 暴露表格实例和选中行，父组件可调用 clearSelection 等方法
 defineExpose({ tableRef, selectedRows })
@@ -156,16 +159,16 @@ const handlePageSizeChange = (size: number) => {
   emit('update:pageSize', size)
 }
 
-const handleSelectionChange = (rows: any[]) => {
+const handleSelectionChange = (rows: T[]) => {
   selectedRows.value = rows
   emit('selection-change', rows)
 }
 
-const handleEdit = (row: any) => {
+const handleEdit = (row: T) => {
   emit('edit', row)
 }
 
-const handleDelete = (row: any) => {
+const handleDelete = (row: T) => {
   emit('delete', row)
 }
 </script>
