@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import DatabaseError, connections, transaction
 
 from .exceptions import APIError
+from .tenancy import TenantQuerysetMixin
 
 
 @contextmanager
@@ -44,7 +45,7 @@ def query_budget(using='default'):
         raise
 
 
-class QueryBudgetListMixin:
+class QueryBudgetListMixin(TenantQuerysetMixin):
     # 未声明时不向客户端开放排序，禁止 DRF 按 serializer 字段隐式扩大白名单。
     ordering_fields = ()
     list_query_choices = {}

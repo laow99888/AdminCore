@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Department, OrganizationMembership, DataScopeGrant
+from .serializer_fields import TenantPrimaryKeyRelatedField
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
@@ -28,7 +29,7 @@ class MembershipSerializer(serializers.ModelSerializer):
 class ScopeGrantSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
     version = serializers.IntegerField(min_value=0)
-    departments = serializers.PrimaryKeyRelatedField(queryset=Department.objects.filter(is_active=True), many=True, required=False)
+    departments = TenantPrimaryKeyRelatedField(queryset=Department.objects.filter(is_active=True), many=True, required=False)
 
     class Meta:
         model = DataScopeGrant

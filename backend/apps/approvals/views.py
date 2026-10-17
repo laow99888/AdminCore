@@ -11,6 +11,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
+from rest_framework.generics import get_object_or_404
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
@@ -444,7 +445,7 @@ class ApprovalFlowViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def publish(self, request, pk=None):
         authorize_write(request, admin=True)
-        flow = ApprovalFlow.objects.select_for_update().get(pk=pk)
+        flow = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=pk)
         if flow.status != 'draft':
             return Response({'code': 400, 'message': '只有草稿可以发布', 'data': None}, status=400)
         from .models import validate_flow_definition
@@ -459,7 +460,7 @@ class ApprovalFlowViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     @transaction.atomic
     def archive(self, request, pk=None):
         authorize_write(request, admin=True)
-        flow = ApprovalFlow.objects.select_for_update().get(pk=pk)
+        flow = get_object_or_404(self.get_queryset().select_for_update(of=('self',)), pk=pk)
         flow.status = 'archived'
         flow.save(update_fields=['status', 'updated_at'])
         return Response({'code': 200, 'message': '流程已归档', 'data': ApprovalFlowSerializer(flow).data})

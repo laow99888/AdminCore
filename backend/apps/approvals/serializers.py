@@ -5,6 +5,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
+from apps.core.serializer_fields import TenantPrimaryKeyRelatedField
 
 from .models import ApprovalAction, ApprovalCC, ApprovalFlow, ApprovalRequest, ApprovalStep, validate_flow_definition
 
@@ -106,7 +107,7 @@ class ApprovalCreateSerializer(serializers.Serializer):
         queryset=User.objects.filter(is_active=True), source='assignee', required=False,
     )
     assignee_username = serializers.CharField(write_only=True, required=False)
-    flow_id = serializers.PrimaryKeyRelatedField(queryset=ApprovalFlow.objects.filter(status='published'), source='flow', required=False)
+    flow_id = TenantPrimaryKeyRelatedField(queryset=ApprovalFlow.objects.filter(status='published'), source='flow', required=False)
     extra_data = serializers.JSONField(required=False, allow_null=True, default=None)
 
     def validate(self, attrs):

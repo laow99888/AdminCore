@@ -14,6 +14,20 @@ def enabled():
 def current_tenant_id():
     return _current_tenant.get()
 
+
+class TenantQuerysetMixin:
+    # 每次请求重新限定类级查询集；模型 Manager 不会在 .all() 克隆时重跑。
+    # 不使用类 docstring，避免作为 DRF 视图说明继承到所有 OpenAPI 操作。
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        identifier = current_tenant_id() if enabled() else None
+        if identifier is not None:
+            from .models import BaseModel
+            if issubclass(queryset.model, BaseModel):
+                queryset = queryset.filter(tenant_id=identifier)
+        return queryset
+
 def set_current_tenant(identifier):
     return _current_tenant.set(str(identifier) if identifier is not None else None)
 

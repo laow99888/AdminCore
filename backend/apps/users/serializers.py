@@ -11,6 +11,7 @@ from rest_framework.exceptions import PermissionDenied
 from apps.permissions.models import Role, UserRole
 from .models import UserProfile
 from apps.core.sensitive import MaskedContactSerializerMixin, phone_input_field
+from apps.core.serializer_fields import TenantPrimaryKeyRelatedField
 from apps.permissions.field_permissions import enforce_write_fields, filter_read_fields
 
 User = get_user_model()
@@ -86,7 +87,7 @@ class UserCreateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin
     """用户创建序列化器"""
     password = serializers.CharField(write_only=True, required=True)
     phone = phone_input_field()
-    role_ids = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(),
+    role_ids = TenantPrimaryKeyRelatedField(queryset=Role.objects.all(),
                                                   many=True, required=False, write_only=True, source='assigned_roles')
 
     class Meta:
@@ -122,7 +123,7 @@ class UserUpdateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin
     # 兼容旧客户端提交的改密标志；该字段只读，不能通过用户编辑接口清除。
     must_change_password = serializers.BooleanField(read_only=True)
     version = serializers.IntegerField(source='profile_version', min_value=1, required=False, help_text='更新时必填：读取详情返回的 version；版本过期返回 409 且不写入。')
-    role_ids = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(),
+    role_ids = TenantPrimaryKeyRelatedField(queryset=Role.objects.all(),
                                                   many=True, required=False, write_only=True, source='assigned_roles')
 
     class Meta:

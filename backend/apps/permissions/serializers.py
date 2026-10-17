@@ -6,6 +6,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.helpers import lazy_serializer
 from django.db import transaction
+from apps.core.serializer_fields import TenantPrimaryKeyRelatedField
 from .models import Role, Permission, Menu, UserRole
 from .field_permissions import validate_field_permissions
 
@@ -33,7 +34,7 @@ class RoleSerializer(serializers.ModelSerializer):
     # Role 与 Permission 通过 RolePermission 中间表关联，显式取权限明细
     permissions = serializers.SerializerMethodField()
     version = serializers.IntegerField(min_value=0, required=False, help_text='更新时必须传当前 version；新建省略或传 0；版本过期返回 409 且不写入。')
-    permission_ids = serializers.PrimaryKeyRelatedField(
+    permission_ids = TenantPrimaryKeyRelatedField(
         queryset=Permission.objects.all(),
         many=True,
         required=False,
