@@ -66,6 +66,10 @@ const buttonType = computed(() => {
 
 /* 按钮风格 */
 .variant-primary {
+  --el-button-text-color: var(--admincore-primary-on-color, var(--color-dark-950));
+  --el-button-hover-text-color: var(--admincore-primary-on-color, var(--color-dark-950));
+  --el-button-active-text-color: var(--admincore-primary-on-color, var(--color-dark-950));
+  --el-button-disabled-text-color: var(--admincore-primary-on-color, var(--color-dark-950));
   background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
   border: none;
 }

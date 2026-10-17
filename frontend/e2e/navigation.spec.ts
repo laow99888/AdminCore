@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { colorContrast } from '../src/utils/themeColors'
 
 const envelope = (data: unknown) => ({ code: 200, message: 'success', data })
 async function setup(page: Page, english = false) {
@@ -29,6 +30,26 @@ async function setup(page: Page, english = false) {
   return state
 }
 const tabs = (page: Page) => page.locator('.navigation-shell .navigation-tab')
+
+for (const dark of [false, true]) test(`默认${dark ? '深色' : '浅色'}主按钮在悬停和聚焦时保持文字对比度`, async ({ page }) => {
+  await setup(page)
+  await page.addInitScript(dark => localStorage.setItem('theme', dark ? 'dark' : 'light'), dark)
+  await page.goto('/users')
+  const button = page.getByRole('button', { name: '搜索', exact: true })
+  for (const state of ['normal', 'hover', 'focus']) {
+    if (state === 'hover') await button.hover()
+    if (state === 'focus') await button.focus()
+    await expect.poll(async () => {
+      const { foreground, stops } = await button.evaluate(element => {
+        const css = getComputedStyle(element)
+        return { foreground: css.color, stops: [500, 600].map(step => css.getPropertyValue(`--color-primary-${step}`).trim()) }
+      })
+      const rgb = foreground.match(/[\d.]+/g)!.slice(0, 3).map(Number)
+      const hex = '#' + rgb.map(value => Math.round(value).toString(16).padStart(2, '0')).join('')
+      return Math.min(...stops.map(stop => colorContrast(hex, stop)))
+    }).toBeGreaterThanOrEqual(4.5)
+  }
+})
 
 test('菜单搜索支持键盘选择、无结果和手机入口，受当前权限约束', async ({ page }) => {
   const state = await setup(page)
