@@ -39,6 +39,7 @@ def compose(mode, *arguments, input=None, allowed_failure=False):
     files = ['docker-compose.yml', 'compose.minimal.yml', 'compose.realtime.yml', str(FOLDER / 'override.yml')]
     if mode == 'channels': files.append(str(FOLDER / 'channels.yml'))
     if mode == 'off': files.append(str(FOLDER / 'off.yml'))
+    if mode == 'protocol': files.append(str(FOLDER / 'protocol.yml'))
     command = ['docker', 'compose', '-p', PROJECT, '--env-file', str(FOLDER / 'fixture.env')]
     for file in files: command += ['-f', file]
     return run(command + list(arguments), input=input, allowed_failure=allowed_failure)
@@ -116,6 +117,29 @@ def wait_leases(count, mode='channels'):
 def close_streams():
     for response in STREAMS: response.close()
     STREAMS.clear()
+
+
+def protocol_regression():
+    source = (ROOT / 'scripts/sse_protocol_fixture.py').read_text(encoding='utf-8')
+    command = "from pathlib import Path; import os; Path('/tmp/sse_protocol_fixture.py').write_text(" + repr(source) + ",encoding='utf-8'); os.execvp('gunicorn', ['gunicorn','sse_protocol_fixture:application','--chdir','/tmp','--worker-class','asgi','--workers','1','--bind','0.0.0.0:8000'])"
+    (FOLDER / 'protocol.yml').write_text('services:\n  realtime:\n    entrypoint: ["python"]\n    command: '
+                                       + json.dumps(['-c', command]) + '\n', encoding='utf-8')
+    try:
+        compose('protocol', 'up', '-d', '--wait', '--wait-timeout', '60', '--no-deps', 'realtime')
+        deadline = time.monotonic() + 15
+        while True:
+            response = requests.get(BASE + 'realtime/events/', timeout=(2, 2))
+            if response.content == b'isolated-sse-protocol': break
+            if time.monotonic() >= deadline: raise AssertionError('协议夹具未就绪')
+            time.sleep(.2)
+        with requests.Session() as client:
+            # 同一客户端连接固定 Nginx worker，稳定命中其上游连接缓存。
+            for _ in range(10):
+                with client.get(BASE + 'realtime/events/', timeout=(2, 2)) as response:
+                    check('真实 Nginx 连续短流不复用仍在异步收尾的上游连接',
+                          response.status_code == 200 and response.content == b'isolated-sse-protocol')
+    finally:
+        compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '60', '--no-deps', 'realtime')
 
 
 def capacity(stages=((24, 360),), destination=None):
@@ -247,6 +271,7 @@ def main(*, include_capacity_edge=False):
         compose('minimal', 'build', 'backend', 'frontend')
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'backend', 'frontend', 'realtime')
         ready()
+        protocol_regression()
         services = compose('minimal', 'ps', '--status', 'running', '--services').stdout.split()
         check('精简 SSE 四服务无需 Redis/worker/beat', set(services) == {'db', 'backend', 'frontend', 'realtime'})
         for language, message in [('en-US', 'The sign-in credentials have expired.'), ('zh-CN', '登录凭据已失效')]:
@@ -373,5 +398,5 @@ print('filled')
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--include-capacity-edge', action='store_true',
-                        help='另执行100条真实连接探索；当前1CPU配置曾发生重连超时，失败保留证据')
+                        help='另执行每0.1秒到达一条的100条真实连接基线；不等同百条瞬时突发')
     main(include_capacity_edge=parser.parse_args().include_capacity_edge)
