@@ -13,7 +13,7 @@ SPEC.loader.exec_module(module)
 
 @pytest.fixture
 def copied(tmp_path):
-    for name in ['backend/requirements.txt', 'backend/requirements.lock', 'backend/requirements.minimal.txt', 'backend/requirements.minimal.lock', 'backend/Dockerfile',
+    for name in ['backend/requirements.txt', 'backend/requirements.lock', 'backend/requirements.dev.txt', 'backend/requirements.dev.lock', 'backend/requirements.minimal.txt', 'backend/requirements.minimal.lock', 'backend/Dockerfile',
                  'frontend/package.json', 'frontend/package-lock.json', 'frontend/.npmrc', 'frontend/Dockerfile',
                  'frontend/vendor/xlsx-0.20.3.tgz', '.python-version', '.nvmrc', 'docker-compose.yml']:
         target = tmp_path / name
@@ -75,6 +75,35 @@ def test_direct_python_drift(copied):
     target = copied / 'backend/requirements.txt'
     target.write_text(target.read_text(encoding='utf-8').replace('Django==5.2.18', 'Django==5.2.19'), encoding='utf-8')
     with pytest.raises(ValueError, match='哈希锁不一致'):
+        module.check(copied)
+
+
+def test_development_tool_cannot_enter_production_lock(copied):
+    target = copied / 'backend/requirements.lock'
+    target.write_text(target.read_text(encoding='utf-8') + '\npytest==9.1.1 --hash=sha256:' + '0' * 64 + '\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='生产哈希锁不能包含开发工具'):
+        module.check(copied)
+
+
+def test_development_direct_drift(copied):
+    target = copied / 'backend/requirements.dev.txt'
+    target.write_text(target.read_text(encoding='utf-8').replace('pytest==9.1.1', 'pytest==9.1.2'), encoding='utf-8')
+    with pytest.raises(ValueError, match='开发直接依赖与哈希锁不一致'):
+        module.check(copied)
+
+
+def test_development_lock_cannot_drift_from_production(copied):
+    target = copied / 'backend/requirements.dev.lock'
+    target.write_text(target.read_text(encoding='utf-8').replace('django==5.2.18', 'django==5.2.19'), encoding='utf-8')
+    with pytest.raises(ValueError, match='完整包含同版本生产依赖'):
+        module.check(copied)
+
+
+def test_development_lock_reuses_reviewed_production_hashes(copied):
+    target = copied / 'backend/requirements.dev.lock'
+    content = target.read_text(encoding='utf-8')
+    target.write_text(module.re.sub(r'sha256:[0-9a-f]{64}', 'sha256:' + '0' * 64, content, count=1), encoding='utf-8')
+    with pytest.raises(ValueError, match='开发依赖哈希必须复用生产锁'):
         module.check(copied)
 
 

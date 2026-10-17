@@ -45,7 +45,7 @@ cd backend
 python -m venv venv
 # Windows PowerShell：.\venv\Scripts\Activate.ps1
 # Linux Bash：source venv/bin/activate
-python -m pip install --require-hashes -r requirements.lock
+python -m pip install --require-hashes -r requirements.dev.lock
 DJANGO_ENV=development python manage.py migrate
 DJANGO_ENV=development python manage.py bootstrap_admincore  # 使用明确配置的管理员密码初始化
 DJANGO_ENV=development python manage.py runserver 127.0.0.1:8000

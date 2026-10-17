@@ -37,14 +37,6 @@ nh3==0.3.7
 # API 文档
 drf-spectacular==0.30.0
 
-# 开发工具
-black==26.10.1
-flake8==7.4.1
-pytest==9.1.1
-pytest-django==4.14.0
-pytest-cov==7.1.0
-
 # 生产环境
 gunicorn==26.2.0
 whitenoise==6.12.0
-django-extensions==4.1

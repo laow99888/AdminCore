@@ -48,6 +48,12 @@ def check(root=ROOT):
     direct = python_pins(read('backend/requirements.txt'))
     locked = python_pins(read('backend/requirements.lock'), hashed=True)
     require(all(locked.get(name) == version for name, version in direct.items()), 'Python直接依赖与哈希锁不一致，请重新生成requirements.lock')
+    dev_direct = python_pins(read('backend/requirements.dev.txt'))
+    dev_locked = python_pins(read('backend/requirements.dev.lock'), hashed=True)
+    require(not dev_direct.keys() & direct.keys(), '开发直接依赖不能重复声明生产依赖')
+    require(not dev_direct.keys() & locked.keys(), '生产哈希锁不能包含开发工具')
+    require(all(dev_locked.get(name) == version for name, version in dev_direct.items()), '开发直接依赖与哈希锁不一致')
+    require(all(dev_locked.get(name) == version for name, version in locked.items()), '开发哈希锁必须完整包含同版本生产依赖')
     minimal_direct = python_pins(read('backend/requirements.minimal.txt'))
     minimal_locked = python_pins(read('backend/requirements.minimal.lock'), hashed=True)
     require(all(direct.get(name) == version for name, version in minimal_direct.items()), '精简直接依赖必须与完整清单同版本')
@@ -62,6 +68,8 @@ def check(root=ROOT):
                 result.setdefault(name, set()).update(value.strip() for value in values)
         return result
     full_hashes = hashes(read('backend/requirements.lock'))
+    dev_hashes = hashes(read('backend/requirements.dev.lock'))
+    require(all(values == dev_hashes.get(name) for name, values in full_hashes.items()), '开发依赖哈希必须复用生产锁已审核的包摘要')
     require(all(values == full_hashes.get(name) for name, values in hashes(read('backend/requirements.minimal.lock')).items()), '精简依赖哈希必须复用完整锁已审核的包摘要')
     require(not {'pandas', 'numpy', 'openpyxl', 'pypdf', 'boto3', 'botocore', 'django-storages', 'nh3', 'authlib', 'joserfc', 'pytest', 'ipython', 'django-extensions'} & minimal_locked.keys(), '精简哈希锁不能包含可选重依赖或开发工具')
     package = json.loads(read('frontend/package.json'))
@@ -89,7 +97,7 @@ def check(root=ROOT):
     require('engine-strict=true' in read('frontend/.npmrc') and 'save-exact=true' in read('frontend/.npmrc'), 'npm必须保持精确保存和引擎校验')
     require(package['dependencies']['@tiptap/pm'] == package['dependencies']['@tiptap/starter-kit'] == package['dependencies']['@tiptap/vue-3'], 'Tiptap依赖必须同步')
     require(package['devDependencies']['vitest'] == package['devDependencies']['@vitest/coverage-v8'], 'Vitest与覆盖率依赖必须同步')
-    return {'passed': True, 'python_direct': len(direct), 'python_locked': len(locked), 'python_minimal_direct': len(minimal_direct), 'python_minimal_locked': len(minimal_locked), 'npm_direct': sum(len(package[key]) for key in ['dependencies', 'devDependencies']), 'network': False, 'files_modified': False}
+    return {'passed': True, 'python_direct': len(direct), 'python_locked': len(locked), 'python_dev_direct': len(dev_direct), 'python_dev_locked': len(dev_locked), 'python_minimal_direct': len(minimal_direct), 'python_minimal_locked': len(minimal_locked), 'npm_direct': sum(len(package[key]) for key in ['dependencies', 'devDependencies']), 'network': False, 'files_modified': False}
 
 
 if __name__ == '__main__':
