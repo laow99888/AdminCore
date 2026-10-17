@@ -208,3 +208,30 @@ def test_failed_start_collects_only_owned_service_logs(source, tmp_path):
             module.run_project(target, 'up')
     ownership.assert_called_once_with(target.resolve())
     assert run.call_args_list[1].args[0][-6:] == ['logs', '--no-color', '--tail', '100', 'backend', 'db']
+
+
+def test_start_retries_once_after_buildkit_status_stream_eof(source, tmp_path):
+    target = tmp_path / 'generated'
+    create(source, target)
+    with patch.object(module, 'verify_ownership'), patch.object(module.subprocess, 'run') as run:
+        def lose_stream(*args, **kwargs):
+            kwargs['stdout'].write('target worker: failed to receive status: rpc error: code = Unavailable\n')
+            return subprocess.CompletedProcess([], 1)
+        calls = iter((lose_stream, lambda *args, **kwargs: subprocess.CompletedProcess([], 0)))
+        run.side_effect = lambda *args, **kwargs: next(calls)(*args, **kwargs)
+        assert module.run_project(target, 'up') == 0
+    assert len(run.call_args_list) == 2
+    assert run.call_args_list[1].args[0] == run.call_args_list[0].args[0]
+
+
+def test_start_does_not_retry_for_an_old_buildkit_error(source, tmp_path):
+    target = tmp_path / 'generated'
+    create(source, target)
+    folder = target / '.codex-validation'
+    folder.mkdir()
+    (folder / 'project-start.log').write_text('failed to receive status: rpc error: code = Unavailable\n')
+    with patch.object(module, 'verify_ownership'), patch.object(module.subprocess, 'run') as run:
+        run.side_effect = [subprocess.CompletedProcess([], 1), subprocess.CompletedProcess([], 0)]
+        with pytest.raises(module.ProjectError, match='启动失败'):
+            module.run_project(target, 'up')
+    assert run.call_args_list[1].args[0][-6:] == ['logs', '--no-color', '--tail', '100', 'backend', 'db']

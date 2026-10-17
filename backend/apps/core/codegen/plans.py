@@ -3,6 +3,7 @@ from pathlib import Path, PurePosixPath
 import hashlib
 import json
 import os
+import stat
 import tempfile
 import uuid
 import difflib
@@ -149,6 +150,10 @@ def _apply_plan(root, plan, definition, files, selected):
                 with os.fdopen(descriptor, 'wb') as output:
                     output.write(files[name].encode('utf-8'))
                     output.flush(); os.fsync(output.fileno())
+                # 生成的是源码；新文件供部署用户读取，覆盖时保留原有权限。
+                # mkstemp 的 0600 不能直接带入非 root 运行镜像。
+                mode = stat.S_IMODE(target.stat().st_mode) if before is not None else 0o644
+                os.chmod(partial, mode)
                 safe_target(root, name)
                 if (target.read_bytes() if target.exists() else None) != before:
                     raise GenerationError('替换前原文件已变化：' + name)

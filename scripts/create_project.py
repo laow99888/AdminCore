@@ -241,8 +241,20 @@ def run_project(root, action):
     folder = root / '.codex-validation'
     folder.mkdir(exist_ok=True)
     logfile = folder / 'project-start.log'
+    log_start = logfile.stat().st_size if logfile.exists() else 0
     with logfile.open('a', encoding='utf-8') as output:
         result = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=1200)
+        # Docker Desktop/BuildKit occasionally loses the status stream after the
+        # services have already been created. A single retry is safe because
+        # Compose is idempotent and ownership was checked above.
+        output.flush()
+        with logfile.open('rb') as current_log:
+            current_log.seek(max(log_start, logfile.stat().st_size - 12000))
+            log_tail = current_log.read().decode('utf-8', errors='replace')
+        if result.returncode and 'failed to receive status: rpc error: code = Unavailable' in log_tail:
+            output.write('\n检测到Docker状态流瞬断，重试一次项目启动。\n')
+            output.flush()
+            result = subprocess.run(command, cwd=root, stdout=output, stderr=subprocess.STDOUT, timeout=1200)
         if result.returncode:
             # 只读取已确认归属的项目日志；不导出 inspect/config 环境或凭据。
             try:

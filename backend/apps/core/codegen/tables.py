@@ -34,11 +34,18 @@ def inspect_table(table, module, model, title):
         cursor.execute('''SELECT confdeltype FROM pg_constraint
             WHERE conrelid=%s::regclass AND contype='f' ''', [connection.ops.quote_name(table)])
         if any(row[0] not in ('a', 'r') for row in cursor.fetchall()):
-            raise GenerationError('创建者外键必须拒绝级联删除或置空')
-    structural = {'id': 'uuid', 'creator_id': 'uuid', 'version': 'integer',
-        'created_at': 'timestamp with time zone', 'updated_at': 'timestamp with time zone'}
-    if any(name not in columns or columns[name][0] != kind or columns[name][1] for name, kind in structural.items()):
+            raise GenerationError('平台外键必须拒绝级联删除或置空')
+    # 业务模型继承 BaseModel 时会带上可空的多租户关联；它和 creator_id
+    # 都是平台结构字段，不应被当成可生成的业务字段。
+    structural = {'id': 'uuid', 'creator_id': 'uuid', 'tenant_id': 'uuid',
+        'version': 'integer', 'created_at': 'timestamp with time zone',
+        'updated_at': 'timestamp with time zone'}
+    required_structural = ('id', 'creator_id', 'version', 'created_at', 'updated_at')
+    if any(name not in columns or columns[name][0] != structural[name] or columns[name][1]
+           for name in required_structural):
         raise GenerationError('业务表必须包含非空UUID主键/创建者、整数版本和时区时间戳')
+    if 'tenant_id' not in columns or columns['tenant_id'][0] != 'uuid' or not columns['tenant_id'][1]:
+        raise GenerationError('业务表必须包含可空UUID平台字段tenant_id')
     primary = [row['columns'] for row in constraints.values() if row.get('primary_key')]
     if primary != [['id']]:
         raise GenerationError('业务表必须以id为唯一UUID主键')
@@ -51,8 +58,12 @@ def inspect_table(table, module, model, title):
         raise GenerationError('已有表必须包含version>=1数据库约束')
     user = get_user_model()._meta
     foreign = [(row['columns'], row['foreign_key']) for row in constraints.values() if row.get('foreign_key')]
-    if len(foreign) != 1 or foreign[0] != (['creator_id'], (user.db_table, user.pk.column)):
-        raise GenerationError('业务表仅支持creator_id关联当前用户；其他关系需人工建模')
+    from apps.core.models import Tenant
+    tenant = Tenant._meta
+    allowed_foreign = [(['creator_id'], (user.db_table, user.pk.column)),
+        (['tenant_id'], (tenant.db_table, tenant.pk.column))]
+    if sorted(foreign) != sorted(allowed_foreign):
+        raise GenerationError('业务表仅支持creator_id关联当前用户及tenant_id关联平台租户；其他关系需人工建模')
     if any(row.get('unique') and row['columns'] != ['id'] for row in constraints.values()):
         raise GenerationError('业务表包含额外唯一约束，需要人工建模及冲突处理')
     fields = []

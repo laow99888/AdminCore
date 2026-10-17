@@ -108,7 +108,8 @@ def main():
     if not node: raise RuntimeError('验收需要Node.js和Playwright Chromium')
     report = {'passed': False, 'project': PROJECT, 'ports': PORTS}
     retained = "from django.contrib.auth import get_user_model; from apps.files.models import FileModel; from apps.core.models import SystemConfig; from django.db.migrations.recorder import MigrationRecorder; import hashlib,json; u=get_user_model().objects.get(username='minimal_retained'); f=FileModel.objects.get(original_name='retained.txt'); print(hashlib.sha256(json.dumps([str(u.pk),u.email,u.password,str(f.pk),f.lifecycle_version,f.file.read().decode(),SystemConfig.objects.get(key='brand.name').value,sorted(MigrationRecorder.Migration.objects.values_list('app','name'))],sort_keys=True).encode()).hexdigest())"
-    packages = "['pandas','numpy','openpyxl','pypdf','boto3','botocore','storages','nh3','pytest','django_extensions']"
+    packages = "['pandas','numpy','openpyxl','pypdf','boto3','botocore','storages','nh3']"
+    development_packages = "['pytest','black','flake8','django_extensions']"
     def browser(mode):
         run([node, str(ROOT / 'scripts/minimal_build_browser.mjs'), str(ROOT / 'frontend'), str(FOLDER), mode])
     try:
@@ -116,7 +117,7 @@ def main():
         compose('minimal', 'up', '-d', '--wait', '--wait-timeout', '150', 'db', 'backend', 'frontend')
         ready()
         check('精简镜像只启动数据库/后端/前端', set(compose('minimal', 'ps', '--status', 'running', '--services').stdout.split()) == {'db','backend','frontend'})
-        check('被裁剪重依赖及开发工具实际不可导入', snippet('import importlib.util; assert settings.ADMINCORE_BUILD_PROFILE=="minimal"; assert all(importlib.util.find_spec(name) is None for name in '+packages+'); print("trimmed")') == 'trimmed')
+        check('被裁剪重依赖及开发工具实际不可导入', snippet('import importlib.util; assert settings.ADMINCORE_BUILD_PROFILE=="minimal"; assert all(importlib.util.find_spec(name) is None for name in '+packages+' + '+development_packages+'); print("trimmed")') == 'trimmed')
         check('精简镜像保留全部正向迁移且空库已应用', '[ ]' not in compose('minimal', 'exec', '-T', 'backend', 'python', 'manage.py', 'showmigrations', '--plan').stdout)
         token = api('auth/login/', method='POST', data={'username':'admin','password':password}).json()['access']
         api('auth/change_password/', token, 'POST', {'old_password':password,'new_password':changed,'new_password2':changed})
@@ -150,6 +151,7 @@ def main():
         compose('full','up','-d','--wait','--wait-timeout','150','frontend')
         ready()
         check('完整重建后恢复重依赖', snippet('import importlib.util; assert settings.ADMINCORE_BUILD_PROFILE=="full"; assert all(importlib.util.find_spec(name) for name in '+packages+'); print("restored")', 'full')=='restored')
+        check('完整生产镜像仍不包含开发工具', snippet('import importlib.util; assert all(importlib.util.find_spec(name) is None for name in '+development_packages+'); print("isolated")', 'full')=='isolated')
         check('完整镜像重启迁移保留账号/文件字节/版本/品牌/迁移记录',snippet(retained,'full')==original)
         check('原密码在完整镜像重新登录', api('auth/login/',method='POST',data={'username':'admin','password':changed}).status_code==200)
         browser('full'); check('完整重建恢复可选页面和资产')

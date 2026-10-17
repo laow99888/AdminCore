@@ -3,6 +3,8 @@ import ast
 from copy import deepcopy
 from io import StringIO
 import json
+import os
+import stat
 from pathlib import Path
 import pytest
 from django.core.management import call_command
@@ -115,6 +117,17 @@ def test_stale_plan_hash_checks_before_any_write(tmp_path):
         plans.apply_plan(tmp_path, plan, raw, files, names)
     assert not plans.safe_target(tmp_path, names[0]).exists()
     assert changed.read_text() == 'new external data'
+
+
+@pytest.mark.skipif(os.name == 'nt', reason='POSIX 文件权限由 Linux 镜像验证')
+def test_generated_sources_readable_by_runtime_and_preserve_existing_modes(tmp_path):
+    existing = tmp_path / 'existing.py'
+    existing.write_text('old', encoding='utf-8')
+    existing.chmod(0o640)
+    files = {'new.py': 'new', 'existing.py': 'updated'}
+    plans.apply_plan(tmp_path, plans.make_plan(tmp_path, {}, files), {}, files, list(files))
+    assert stat.S_IMODE((tmp_path / 'new.py').stat().st_mode) == 0o644
+    assert stat.S_IMODE(existing.stat().st_mode) == 0o640
 
 
 @pytest.mark.parametrize('selected', [[], ['bogus'], ['a', 'a'], [1]])
