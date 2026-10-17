@@ -21,7 +21,7 @@
       <el-col :xs="24" :lg="16">
         <el-card shadow="never">
           <template #header>{{ uiText('已保存报表') }}</template>
-          <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
+          <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" :disabled="busy" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
           <BaseChart v-if="result && result.definition.chart_type !== 'table'" :option="chartOption" :height="340" :caption="uiText('报表图表')" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => toCellValue(row[column]))) }" />
           <el-table v-if="result" :data="result.rows" class="result"><el-table-column v-for="column in result.columns" :key="column" :prop="column" :label="column" /></el-table>
         </el-card>
