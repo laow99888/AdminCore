@@ -62,6 +62,6 @@ test('重试冲突保留失败记录，按钮可以再次使用', async ({ page 
   await page.goto('/reliability/events')
   await page.getByRole('button', { name: '重新派发', exact: true }).click()
   await page.getByRole('button', { name: '确定', exact: true }).click()
-  await expect(page.getByText('重试提交失败，请刷新状态后重试')).toBeVisible()
+  await expect(page.getByText('只能重试失败事件', { exact: true })).toHaveCount(1)
   await expect(page.getByRole('button', { name: '重新派发', exact: true })).toBeEnabled()
 })

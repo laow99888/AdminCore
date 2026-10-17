@@ -28,13 +28,13 @@ function pdfFixture() {
   return Buffer.from(text)
 }
 
-async function setup(page: Page, type = 'png', failure = false, delayed = false) {
+async function setup(page: Page, type = 'png', failure = false, delayed = false, access = 'isolated-preview-fixture') {
   // 在生产 CSP 下运行真实 PDF worker，不能依赖预览服务器较宽松的默认头。
   await page.route('**/files', async route => {
     const response = await route.fetch()
     await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': csp } })
   })
-  await page.addInitScript(() => localStorage.setItem('token', 'isolated-preview-fixture'))
+  await page.addInitScript(access => localStorage.setItem('token', access), access)
   const record = { id: 'f1', original_name: `private.${type}`, file_type: type, size: 500, size_display: '500 B', download_count: 0, created_at: '' }
   let previewRequests = 0
   await page.route('**/api/v1/**', async route => {
@@ -46,7 +46,7 @@ async function setup(page: Page, type = 'png', failure = false, delayed = false)
     if (path.endsWith('/files/')) return route.fulfill({ json: envelope({ items: [record], pagination: { total: 1, page: 1, page_size: 10, total_pages: 1 } }) })
     if (path.endsWith('/preview/')) {
       previewRequests++
-      expect(route.request().headers().authorization).toBe('Bearer isolated-preview-fixture')
+      expect(route.request().headers().authorization).toBe(`Bearer ${access}`)
       expect(route.request().url()).not.toContain('token=')
       if (delayed) await new Promise(resolve => setTimeout(resolve, 800))
       if (failure && previewRequests === 1) return route.fulfill({ status: 422, json: { code: 422, message: '文件内容损坏或与扩展名不符，无法预览', data: null } })
@@ -145,11 +145,7 @@ test('预览 401 使用共享刷新流程重放，令牌仍只在请求头', asy
     localStorage.setItem('token', oldAccess)
     localStorage.setItem('refreshToken', oldRefresh)
   }, { oldAccess, oldRefresh })
-  await setup(page)
-  await page.evaluate(({ oldAccess, oldRefresh }) => {
-    localStorage.setItem('token', oldAccess)
-    localStorage.setItem('refreshToken', oldRefresh)
-  }, { oldAccess, oldRefresh })
+  await setup(page, 'png', false, false, oldAccess)
   let attempts = 0
   await page.route('**/api/v1/auth/refresh/', route => route.fulfill({ json: envelope({ access: newAccess, refresh: newRefresh }) }))
   await page.route('**/api/v1/files/f1/preview/', route => {

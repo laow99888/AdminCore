@@ -219,6 +219,8 @@ const loadList = async () => {
       page_size: pageSize.value,
     })
     if (current()) { tableData.value = data.items; total.value = data.pagination.total }
+  } catch (error) {
+    if (current()) notifyError(error, uiText('列表加载失败'))
   } finally {
     if (current()) loading.value = false
   }

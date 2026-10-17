@@ -7,7 +7,7 @@ async function setup(page: Page, authenticated = true, english = false) {
   const state = { enabled: false, available: true, fail: false, statusFail: false, loginStatus: 0, logins: [] as Record<string, unknown>[], writes: [] as { path: string; body: unknown }[], setupExpires: 600,
     hold: undefined as Promise<void> | undefined, user: { id: 'member', username: 'member', email: '', avatar: '', is_staff: false, permissions: [], totp_enabled: false } }
   await page.addInitScript(({ authenticated, english, access }) => {
-    if (authenticated) { localStorage.setItem('token', access); localStorage.setItem('refreshToken', 'fixture-refresh') }
+    if (authenticated && !localStorage.getItem('token')) { localStorage.setItem('token', access); localStorage.setItem('refreshToken', 'fixture-refresh') }
     if (english) localStorage.setItem('language', 'en-US')
   }, { authenticated, english, access: jwt('old') })
   await page.route('**/api/v1/**', async route => {
@@ -147,6 +147,8 @@ test('跨标签会话切换清除种子和恢复码，同会话access轮换保�
     window.dispatchEvent(new StorageEvent('storage', { key: 'token', oldValue: previous, newValue: access }))
   }, jwt('other-tab'))
   await expect(page.getByText(seed, { exact: true })).toHaveCount(0)
+  await expect(page).not.toHaveURL(/\/settings\/two-factor$/)
+  await page.goto('/settings/two-factor')
   await expect(page.getByRole('button', { name: '生成认证器密钥' })).toBeVisible()
   await enable(page)
   await page.evaluate(access => {
