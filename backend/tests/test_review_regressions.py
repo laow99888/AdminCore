@@ -135,15 +135,20 @@ def test_cancelled_import_never_writes(admin_user, admin_client):
 
 
 def test_import_persists_queue_id_before_publish(admin_user, admin_client):
-    from apps.data_io.tasks import dispatch_task
-    record = import_record(admin_user)
+    from apps.core.tasks import dispatch_outbox
+    response = admin_client.post('/api/v1/data-io/import/', {'resource': 'users',
+        'file': SimpleUploadedFile('users.csv', b'username,email\nreview_import,review@example.com\n')}, format='multipart')
+    assert response.status_code == 200
+    record = TaskRecord.objects.get(pk=response.json()['data']['id'])
     with patch.object(run_data_import, 'apply_async') as enqueue:
-        def published(*, args, task_id):
+        def published(*, args, task_id, **kwargs):
             record.refresh_from_db()
-            assert record.celery_task_id == task_id
+            assert record.celery_task_id == task_id == str(record.pk)
+            assert args == [str(record.pk)]
             return type('Queued', (), {'id': task_id})()
         enqueue.side_effect = published
-        assert dispatch_task(run_data_import, str(record.pk)) == record.celery_task_id
+        assert dispatch_outbox() == {'processed': 1, 'failed': 0}
+        enqueue.assert_called_once()
 
 
 def test_revoked_import_permission_blocks_retry_and_worker(admin_user, admin_client):

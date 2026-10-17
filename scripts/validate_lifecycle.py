@@ -83,7 +83,7 @@ def hold_cleanup(identifier, cutoff):
     return original_check(identifier, cutoff)
 
 
-with patch('apps.tasks.lifecycle.import_in_use', hold_cleanup), patch('apps.data_io.views.dispatch_task'):
+with patch('apps.tasks.lifecycle.import_in_use', hold_cleanup):
     with ThreadPoolExecutor(max_workers=2) as pool:
         cleaning = pool.submit(isolated, lifecycle.clean)
         try:
@@ -112,7 +112,7 @@ def hold_retry(**values):
     return row
 
 
-with patch.object(TaskRecord.objects, 'create', side_effect=hold_retry), patch('apps.data_io.views.dispatch_task'):
+with patch.object(TaskRecord.objects, 'create', side_effect=hold_retry):
     with ThreadPoolExecutor(max_workers=2) as pool:
         retrying = pool.submit(isolated, retry, task)
         try:

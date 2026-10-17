@@ -8,29 +8,9 @@ from celery import shared_task
 from apps.tasks.routing import RegisteredPolicyTask
 from django.utils import timezone
 from django.db import transaction
-from django.conf import settings
-from uuid import uuid4
 from datetime import timedelta
-from kombu.exceptions import OperationalError
 
 logger = logging.getLogger(__name__)
-
-
-def dispatch_task(func, *args):
-    """派发 Celery 任务；broker 不可用时降级为同步执行（开发/无 Redis 环境）"""
-    from apps.tasks.models import TaskRecord
-    task_id = str(uuid4())
-    TaskRecord.objects.filter(pk=args[0], status='pending').update(celery_task_id=task_id)
-    try:
-        result = func.apply_async(args=args, task_id=task_id)
-        return result.id or task_id
-    except OperationalError as exc:
-        if not settings.DEBUG:
-            TaskRecord.objects.filter(pk=args[0], status='pending').update(status='failed', error='任务队列不可用')
-            raise
-        logger.warning('Celery broker 不可用（%s），任务改为同步执行', exc)
-        func(*args)
-        return ''
 
 
 @shared_task(bind=True, name='data_io.run_data_import', soft_time_limit=300, time_limit=330,

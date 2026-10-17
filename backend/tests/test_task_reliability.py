@@ -50,6 +50,30 @@ def test_duplicate_delivery_and_success_replay_are_blocked(admin_client):
     assert admin_client.post(f'/api/v1/tasks/{record.pk}/resume/').status_code == 409
 
 
+@pytest.mark.parametrize('debug', [True, False])
+def test_import_broker_failure_never_falls_back_to_synchronous_writes(admin_client, settings, debug):
+    settings.DEBUG = debug
+    record = submit(admin_client)
+    with patch.object(run_data_import, 'apply_async', side_effect=ConnectionError('private-broker-address')), \
+            patch.object(run_data_import, 'run') as synchronous:
+        assert dispatch_outbox() == {'processed': 0, 'failed': 1}
+        synchronous.assert_not_called()
+    record.refresh_from_db()
+    event = OutboxEvent.objects.get(topic='import.requested')
+    assert record.status == 'pending' and event.status == 'failed'
+    assert event.last_error == 'ConnectionError'
+    assert not User.objects.filter(username__in=['first', 'second']).exists()
+    assert not record.import_execution.batch.receipts.exists()
+    OutboxEvent.objects.filter(pk=event.pk).update(available_at=timezone.now() - timedelta(seconds=1))
+    with patch.object(run_data_import, 'apply_async') as publish:
+        assert dispatch_outbox() == {'processed': 1, 'failed': 0}
+        assert publish.call_args.kwargs['task_id'] == record.celery_task_id == str(record.pk)
+    run_data_import(str(record.pk))
+    assert run_data_import(str(record.pk)) == {'skipped': True}
+    assert User.objects.filter(username__in=['first', 'second']).count() == 2
+    assert record.import_execution.batch.receipts.count() == 2
+
+
 def test_cancel_after_committed_row_resumes_only_remaining(admin_client):
     record = submit(admin_client)
     from apps.data_io.resources import get_resource

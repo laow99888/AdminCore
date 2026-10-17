@@ -28,7 +28,6 @@ from apps.tasks.serializers import TaskRecordSerializer
 from .resources import get_resource, IMPORT_EXPORT_RESOURCES, export_queryset, import_allowed
 from apps.permissions.field_permissions import allowed_fields
 from .serializers import DataImportSerializer, DataExportSerializer, DataResourceDirectorySerializer
-from .tasks import dispatch_task, run_data_import
 
 # 导入文件仅允许这两种格式（.xls 旧格式未引入 xlrd 依赖，不支持）
 IMPORT_ALLOWED_EXTENSIONS = ['xlsx', 'csv']
