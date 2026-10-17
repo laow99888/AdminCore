@@ -143,6 +143,7 @@ class Command(BaseCommand):
             ('announcements_menu_v1', ('/notifications/announcements',)),
             ('online_users_menu_v1', ('/system/online-users',)),
             ('message_templates_menu_v1', ('/notifications/templates',)),
+            ('codegen_menu_v2', ('/system/codegen',)),
         )
         for key, paths in legacy_groups:
             with transaction.atomic():

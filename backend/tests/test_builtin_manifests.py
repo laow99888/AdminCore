@@ -137,8 +137,8 @@ def test_reinitialize_preserves_deleted_menus_customizations_roles_and_configura
     admin_user.save()
     call_command('bootstrap_admincore', stdout=StringIO())
     removed = set(Menu.objects.filter(path__in=['/files', '/tasks/schedules', '/system/config',
-        '/notifications/templates', '/example']).values_list('path', flat=True))
-    assert len(removed) == 5
+        '/notifications/templates', '/example', '/system/codegen']).values_list('path', flat=True))
+    assert len(removed) == 6
     Menu.objects.filter(path__in=removed).delete()
     Menu.objects.filter(path='/organization').update(name='本项目组织', order=71, is_visible=False)
     SystemConfig.objects.create(key='files.retention_days', value=48)
@@ -154,6 +154,26 @@ def test_reinitialize_preserves_deleted_menus_customizations_roles_and_configura
     assert list(RolePermission.objects.order_by('id').values_list('id', 'role_id', 'permission_id')) == grants
     assert set(BootstrapState.objects.values_list('key', flat=True)) == markers
     assert SystemConfig.objects.get(key='files.retention_days').value == 48
+
+
+@pytest.mark.django_db
+def test_existing_database_gets_codegen_menu_once_without_overwriting_customizations(admin_user, settings):
+    from apps.core.models import BootstrapState
+    from apps.permissions.models import Menu, Permission
+    settings.ADMINCORE_MODULES = tuple(module.key for module in MODULES)
+    admin_user.set_password('ManifestFixture#987654321')
+    admin_user.save()
+    BootstrapState.objects.create(key='default_menus_v1')
+    old = Menu.objects.create(name='自定义首页', path='/', icon='home', order=77)
+    call_command('bootstrap_admincore', stdout=StringIO())
+    row = Menu.objects.get(path='/system/codegen')
+    assert row.permission_id == Permission.objects.get(code='codegen:generate').pk
+    assert BootstrapState.objects.filter(key='codegen_menu_v2').exists()
+    old.refresh_from_db()
+    assert old.name == '自定义首页' and old.order == 77
+    row.delete()
+    call_command('bootstrap_admincore', stdout=StringIO())
+    assert not Menu.objects.filter(path='/system/codegen').exists()
 
 
 @pytest.mark.django_db
