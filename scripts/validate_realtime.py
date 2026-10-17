@@ -4,6 +4,7 @@
 """
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import argparse
 import json
 import secrets
 import socket
@@ -12,6 +13,8 @@ import time
 import uuid
 
 import requests
+
+from realtime_capacity import measure
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = 'admincore-realtime-' + uuid.uuid4().hex[:8]
@@ -115,7 +118,85 @@ def close_streams():
     STREAMS.clear()
 
 
-def main():
+def capacity(stages=((24, 360),), destination=None):
+    destination = destination or FOLDER
+    destination.mkdir(parents=True, exist_ok=True)
+    identifier = compose('channels', 'ps', '-q', 'realtime').stdout.strip()
+
+    def observe():
+        code = """import json
+from pathlib import Path
+root=Path('/sys/fs/cgroup')
+def counters(name):
+    return {key:int(value) for key,value in (line.split() for line in (root/name).read_text().splitlines())}
+print(json.dumps({'memory_current':int((root/'memory.current').read_text()),
+ 'memory_peak':int((root/'memory.peak').read_text()), 'memory_max':int((root/'memory.max').read_text()),
+ 'cpu_max':(root/'cpu.max').read_text().strip(), 'memory_events':counters('memory.events'),
+ 'cpu':counters('cpu.stat')}))"""
+        result = json.loads(run(['docker', 'exec', identifier, 'python', '-c', code]).stdout)
+        result.update(json.loads(run(['docker', 'inspect', '--format',
+            '{"running":{{.State.Running}},"oom_killed":{{.State.OOMKilled}},"restart_count":{{.RestartCount}},"command":{{json .Config.Cmd}}}',
+            identifier]).stdout))
+        assert result['memory_max'] == 512 * 1024 * 1024 and result['cpu_max'].split() == ['100000', '100000']
+        assert result['command'][result['command'].index('--workers') + 1] == '1'
+        result.update(json.loads(snippet("""import json
+from django.db import connection
+from django.utils import timezone
+from apps.core.models import RealtimeLease
+with connection.cursor() as cursor:
+    cursor.execute("SELECT coalesce(state,'unknown'),count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state")
+    connections=dict(cursor.fetchall())
+print(json.dumps({'total_leases':RealtimeLease.objects.count(),
+ 'active_leases':RealtimeLease.objects.filter(expires_at__gt=timezone.now()).count(), 'db_connections':connections}))""")))
+        return result
+
+    results = []
+    for count, seconds in stages:
+        prefix = 'capacity-' + secrets.token_hex(4)
+        # 仅在受保护的隔离库中通过原生签发服务登记设备；不绕过实际 SSE/refresh 鉴权。
+        snippet(f'''import json, os, secrets
+from django.contrib.auth import get_user_model
+from django.contrib.auth.hashers import make_password
+from apps.auth_app.sessions import issue_session
+from apps.permissions.models import Role, Permission, RolePermission, UserRole
+from apps.core.models import DataScopeGrant
+from apps.notifications.models import Notification
+from apps.tasks.models import TaskRecord
+from apps.approvals.models import ApprovalRequest
+role=Role.objects.create(name={prefix!r})
+RolePermission.objects.create(role=role,permission=Permission.objects.get(code='task:read'))
+DataScopeGrant.objects.create(role=role,resource='task',scope='self')
+password=make_password(secrets.token_urlsafe(40))
+pairs=[]
+for index in range({count + int(count == 100)}):
+    user=get_user_model().objects.create(username={prefix!r}+'-'+str(index),password=password,must_change_password=False)
+    UserRole.objects.create(user=user,role=role)
+    Notification.objects.create(recipient=user,title='PRIVATE_CAPACITY_NOTIFICATION')
+    TaskRecord.objects.create(creator=user,name='PRIVATE_CAPACITY_TASK',status='running',progress=37)
+    ApprovalRequest.objects.create(applicant=user,assignee=user,title='PRIVATE_CAPACITY_APPROVAL')
+    token=issue_session(user)
+    pairs.append({{'access':str(token.access_token),'refresh':str(token)}})
+with os.fdopen(os.open('/tmp/realtime-capacity-access.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as output:
+    json.dump(pairs,output)
+print('capacity fixtures ready')
+''')
+        private_file = FOLDER / 'capacity-access.json'
+        try:
+            compose('channels', 'cp', 'backend:/tmp/realtime-capacity-access.json', str(private_file))
+            actors = json.loads(private_file.read_text(encoding='utf-8'))
+        finally:
+            private_file.unlink(missing_ok=True)
+            compose('channels', 'exec', '-T', 'backend', 'python', '-c',
+                    "from pathlib import Path; Path('/tmp/realtime-capacity-access.json').unlink(missing_ok=True)")
+        result = measure(BASE, actors[:count], observe, destination / f'capacity-{count}-report.json',
+                         seconds=seconds, overflow=actors[-1] if count == 100 else None,
+                         arrival_seconds=.1 if count == 100 else 0)
+        results.append(result)
+        check(f'{count}条真实连接持续{seconds}秒、重连/轮换/资源及租约回收', result['passed'])
+    return results
+
+
+def main(*, include_capacity_edge=False):
     for port in PORTS:
         with socket.socket() as listener: listener.bind(('127.0.0.1', port))
     FOLDER.mkdir(parents=True)
@@ -132,6 +213,7 @@ def main():
     override = 'services:\n'
     for service in ['backend', 'worker', 'beat', 'realtime']:
         override += f'  {service}:\n    env_file: !override\n      - "{env_file.as_posix()}"\n    image: {PROJECT}-backend\n'
+        if service == 'realtime': override += '    mem_limit: 512m\n    cpus: 1.0\n'
     override += f'  frontend:\n    image: {PROJECT}-frontend\n    ports: !override\n      - "127.0.0.1:18431:80"\n'
     (FOLDER / 'override.yml').write_text(override, encoding='utf-8')
     (FOLDER / 'channels.yml').write_text('''services:
@@ -269,18 +351,27 @@ print('filled')
         event, value = frame(stream(token))
         check('模块关闭期间升级及重新启用恢复', event == 'snapshot' and 'tasks' in value['topics'])
         close_streams()
+        # 前面人为填充的百条过期租约属于基线，容量阶段另用真实 HTTP 长连接。
+        stages = ((24, 360), (100, 35)) if include_capacity_edge else ((24, 360),)
+        report['capacity'] = capacity(stages=stages)
         report['passed'] = True
     finally:
         close_streams()
         report['checks'] = CHECKS
         if report['passed']:
             compose('channels', 'down', '-v', '--remove-orphans')
+            run(['docker', 'image', 'rm', PROJECT + '-backend', PROJECT + '-frontend'])
             env_file.unlink()
-            report['cleaned'] = ['isolated containers and volumes', str(env_file)]
+            report['cleaned'] = ['isolated containers, volumes and image tags', str(env_file)]
         else:
             compose('channels', 'logs', '--no-color', allowed_failure=True)
+            compose('channels', 'stop', allowed_failure=True)
         (FOLDER / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
         print(json.dumps({'evidence': str(FOLDER), **report}, ensure_ascii=False), flush=True)
 
 
-if __name__ == '__main__': main()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--include-capacity-edge', action='store_true',
+                        help='另执行100条真实连接探索；当前1CPU配置曾发生重连超时，失败保留证据')
+    main(include_capacity_edge=parser.parse_args().include_capacity_edge)
