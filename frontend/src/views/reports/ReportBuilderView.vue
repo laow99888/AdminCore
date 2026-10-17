@@ -14,7 +14,7 @@
             <el-form-item :label="uiText('维度')"><el-select v-model="dimension" clearable @change="setDimension"><el-option v-for="field in currentSource?.dimensions || []" :key="field" :label="field" :value="field" /></el-select></el-form-item>
             <el-form-item :label="uiText('指标')"><el-select v-model="form.definition.metric.field"><el-option v-for="field in currentSource?.metrics || []" :key="field" :label="field" :value="field" /></el-select></el-form-item>
             <el-form-item :label="uiText('聚合')"><el-select v-model="form.definition.metric.aggregation"><el-option label="count" value="count" /><el-option label="sum" value="sum" /><el-option label="avg" value="avg" /></el-select></el-form-item>
-            <el-form-item><el-button type="primary" :loading="busy" @click="save">{{ uiText('保存草稿') }}</el-button><el-button :disabled="!selected?.id || selected.status !== 'draft'" @click="publish">{{ uiText('发布') }}</el-button></el-form-item>
+            <el-form-item><el-button type="primary" :loading="busy" @click="save">{{ uiText('保存草稿') }}</el-button><el-button :disabled="busy || !selected?.id || selected.status !== 'draft'" @click="publish">{{ uiText('发布') }}</el-button></el-form-item>
           </el-form>
         </el-card>
       </el-col>
