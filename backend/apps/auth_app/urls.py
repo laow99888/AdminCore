@@ -10,6 +10,7 @@ from .recovery_views import (RecoveryConfigView, RecoveryRequestView, RecoveryRe
                              VerificationRequestView, VerificationConfirmView)
 from .totp_views import TOTPView, TOTPSetupView, TOTPChangeView, TOTPDisableView, TOTPRecoveryCodesView
 from .captcha_views import LoginCaptchaView
+from .browser_session_views import BrowserSessionView
 
 router = DefaultRouter()
 router.register(r'sessions', PersonalSessionViewSet, basename='personal-sessions')
@@ -17,6 +18,7 @@ router.register(r'online-users', OnlineUserViewSet, basename='online-users')
 router.register(r'', AuthViewSet, basename='auth')
 
 urlpatterns = [
+    path('browser-session/', BrowserSessionView.as_view(), name='browser-session'),
     path('login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('login-captcha/', LoginCaptchaView.as_view(), name='login-captcha'),
     path('recovery/config/', RecoveryConfigView.as_view(), name='recovery-config'),

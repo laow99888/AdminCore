@@ -118,6 +118,18 @@ export const sdkRoutes = {
     "post",
     "/api/v1/auth/avatar/"
   ],
+  "auth_browser_session_destroy": [
+    "delete",
+    "/api/v1/auth/browser-session/"
+  ],
+  "auth_browser_session_retrieve": [
+    "get",
+    "/api/v1/auth/browser-session/"
+  ],
+  "auth_browser_session_create": [
+    "post",
+    "/api/v1/auth/browser-session/"
+  ],
   "auth_change_password_create": [
     "post",
     "/api/v1/auth/change_password/"

@@ -204,6 +204,29 @@ def test_real_code_pkce_rsa_flow_one_use_local_permissions_and_short_session(mem
     assert 'id_token' not in repr(flow.__dict__)
 
 
+def test_cookie_completion_requires_csrf_before_consuming_real_oidc_flow(settings, member, peer):
+    from apps.auth_app.browser_session import DEV_COOKIE_NAME as COOKIE_NAME
+    settings.AUTH_BROWSER_COOKIE_ENABLED = True
+    settings.DEBUG = True
+    client = APIClient(enforce_csrf_checks=True, HTTP_ORIGIN=ORIGIN, HTTP_HOST='localhost:9000')
+    authorized(client)
+    client.defaults['HTTP_X_ADMINCORE_SESSION'] = 'cookie'
+    response = complete(client)
+    assert response.status_code == 403 and COOKIE_NAME not in response.cookies
+    assert LoginFlow.objects.get().completed_at is None and not SSOSession.objects.exists()
+    csrf = client.get('/api/v1/auth/browser-session/').data['data']['csrf_token']
+    response = client.post(BASE + 'complete/', {}, format='json', HTTP_X_CSRFTOKEN=csrf)
+    assert response.status_code == 200
+    assert 'refresh' not in response.data['data'] and response.cookies[COOKIE_NAME]['httponly']
+    access = AccessToken(response.data['data']['access'])
+    assert access['sso'] is True
+    rotated = client.post('/api/v1/auth/browser-session/', {'session_id': access['sid']},
+                          format='json', HTTP_X_CSRFTOKEN=client.cookies['csrftoken'].value)
+    assert rotated.status_code == 200 and 'refresh' not in rotated.data['data']
+    again = client.post(BASE + 'complete/', {}, format='json', HTTP_X_CSRFTOKEN=client.cookies['csrftoken'].value)
+    assert again.status_code == 401
+
+
 @pytest.mark.parametrize('claims', [
     {'nonce': 'wrong-nonce'}, {'iss': 'https://other.example'}, {'aud': 'other-client'},
     {'aud': ['fixture-client', 'other']}, {'azp': 'other-client'}, {'sub': ''},

@@ -1,6 +1,7 @@
 import re
 
 from rest_framework import serializers
+from apps.core.schema import TokenPairSerializer
 
 from .models import ExternalIdentity
 
@@ -69,7 +70,5 @@ class SSOLoginUserSerializer(serializers.Serializer):
     must_change_password = serializers.BooleanField()
 
 
-class CompletedSerializer(serializers.Serializer):
-    access = serializers.CharField()
-    refresh = serializers.CharField()
+class CompletedSerializer(TokenPairSerializer):
     user = SSOLoginUserSerializer()

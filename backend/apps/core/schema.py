@@ -1,6 +1,6 @@
 """统一响应结构和自定义 JWT 的 OpenAPI 定义。"""
 from drf_spectacular.contrib.rest_framework_simplejwt import SimpleJWTScheme
-from drf_spectacular.utils import extend_schema_serializer, inline_serializer
+from drf_spectacular.utils import extend_schema_serializer, inline_serializer, OpenApiParameter
 from rest_framework import serializers
 from drf_spectacular.openapi import AutoSchema
 from .query_budget import QueryBudgetListMixin
@@ -19,6 +19,13 @@ def envelope(name, data=None):
 
 
 MessageResponse = envelope('MessageResponse')
+
+BROWSER_SESSION_PARAMETERS = [
+    OpenApiParameter('X-AdminCore-Session', str, OpenApiParameter.HEADER, enum=['cookie'],
+                     description='显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求'),
+    OpenApiParameter('X-CSRFToken', str, OpenApiParameter.HEADER,
+                     description='Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项'),
+]
 
 
 class QueryBudgetSchema(AutoSchema):
@@ -56,7 +63,9 @@ class QueryBudgetSchema(AutoSchema):
 
 class TokenPairSerializer(serializers.Serializer):
     access = serializers.CharField()
-    refresh = serializers.CharField()
+    refresh = serializers.CharField(required=False, help_text='旧版 Bearer 传输返回；Cookie 传输不返回')
+    session_transport = serializers.ChoiceField(choices=['cookie'], required=False)
+    csrf_token = serializers.CharField(required=False)
 
 
 class LoginRequestSerializer(serializers.Serializer):

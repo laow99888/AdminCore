@@ -17,6 +17,7 @@ PUBLIC_ROUTES = frozenset({
     "/api/v1/health/live/",
     "/api/v1/brand/",
     "/api/v1/auth/login/",
+    "/api/v1/auth/browser-session/",
     "/api/v1/auth/login-captcha/",
     "/api/v1/auth/recovery/config/",
     "/api/v1/auth/recovery/request/",

@@ -539,5 +539,9 @@
   "记录数据必须为对象": "Validation failed.",
   "请选择有效抄送人": "Validation failed.",
   "转办成功": "Operation completed successfully.",
-  "选项无效": "Validation failed."
+  "选项无效": "Validation failed.",
+  "浏览器会话已变化，请重新加载": "The browser session has changed. Please reload.",
+  "浏览器会话请求来源无效": "The browser session request origin is invalid.",
+  "浏览器会话请求校验失败": "The browser session request failed CSRF validation.",
+  "浏览器会话需要 HTTPS": "Browser sessions require HTTPS."
 }

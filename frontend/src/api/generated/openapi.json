@@ -1143,6 +1143,83 @@
         ],
         "type": "object"
       },
+      "BrowserAccess": {
+        "properties": {
+          "access": {
+            "type": "string"
+          },
+          "csrf_token": {
+            "type": "string"
+          },
+          "session_transport": {
+            "$ref": "#/components/schemas/SessionTransportEnum"
+          }
+        },
+        "required": [
+          "access",
+          "csrf_token",
+          "session_transport"
+        ],
+        "type": "object"
+      },
+      "BrowserAccessResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BrowserAccess"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
+      "BrowserCSRF": {
+        "properties": {
+          "csrf_token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "csrf_token"
+        ],
+        "type": "object"
+      },
+      "BrowserCSRFResponse": {
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BrowserCSRF"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "type": "object"
+      },
+      "BrowserSessionRequestRequest": {
+        "properties": {
+          "session_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "BulkUserActionActionEnum": {
         "description": "* `activate` - activate\n* `deactivate` - deactivate\n* `delete` - delete",
         "enum": [
@@ -1477,8 +1554,15 @@
           "access": {
             "type": "string"
           },
-          "refresh": {
+          "csrf_token": {
             "type": "string"
+          },
+          "refresh": {
+            "description": "旧版 Bearer 传输返回；Cookie 传输不返回",
+            "type": "string"
+          },
+          "session_transport": {
+            "$ref": "#/components/schemas/SessionTransportEnum"
           },
           "user": {
             "$ref": "#/components/schemas/SSOLoginUser"
@@ -1486,7 +1570,6 @@
         },
         "required": [
           "access",
-          "refresh",
           "user"
         ],
         "type": "object"
@@ -3773,8 +3856,15 @@
           "access": {
             "type": "string"
           },
-          "refresh": {
+          "csrf_token": {
             "type": "string"
+          },
+          "refresh": {
+            "description": "旧版 Bearer 传输返回；Cookie 传输不返回",
+            "type": "string"
+          },
+          "session_transport": {
+            "$ref": "#/components/schemas/SessionTransportEnum"
           },
           "user": {
             "$ref": "#/components/schemas/LoginUser"
@@ -3782,7 +3872,6 @@
         },
         "required": [
           "access",
-          "refresh",
           "user"
         ],
         "type": "object"
@@ -9274,8 +9363,15 @@
           "access": {
             "type": "string"
           },
-          "refresh": {
+          "csrf_token": {
             "type": "string"
+          },
+          "refresh": {
+            "description": "旧版 Bearer 传输返回；Cookie 传输不返回",
+            "type": "string"
+          },
+          "session_transport": {
+            "$ref": "#/components/schemas/SessionTransportEnum"
           },
           "user": {
             "$ref": "#/components/schemas/User"
@@ -9283,7 +9379,6 @@
         },
         "required": [
           "access",
-          "refresh",
           "user"
         ],
         "type": "object"
@@ -10241,6 +10336,13 @@
         ],
         "type": "object"
       },
+      "SessionTransportEnum": {
+        "description": "* `cookie` - cookie",
+        "enum": [
+          "cookie"
+        ],
+        "type": "string"
+      },
       "StartRequest": {
         "properties": {
           "captcha_code": {
@@ -10436,6 +10538,9 @@
           "access": {
             "type": "string"
           },
+          "csrf_token": {
+            "type": "string"
+          },
           "recovery_codes": {
             "items": {
               "type": "string"
@@ -10443,7 +10548,11 @@
             "type": "array"
           },
           "refresh": {
+            "description": "旧版 Bearer 传输返回；Cookie 传输不返回",
             "type": "string"
+          },
+          "session_transport": {
+            "$ref": "#/components/schemas/SessionTransportEnum"
           },
           "user": {
             "$ref": "#/components/schemas/User"
@@ -10451,7 +10560,6 @@
         },
         "required": [
           "access",
-          "refresh",
           "user"
         ],
         "type": "object"
@@ -11196,13 +11304,19 @@
           "access": {
             "type": "string"
           },
-          "refresh": {
+          "csrf_token": {
             "type": "string"
+          },
+          "refresh": {
+            "description": "旧版 Bearer 传输返回；Cookie 传输不返回",
+            "type": "string"
+          },
+          "session_transport": {
+            "$ref": "#/components/schemas/SessionTransportEnum"
           }
         },
         "required": [
-          "access",
-          "refresh"
+          "access"
         ],
         "type": "object"
       },
@@ -14414,6 +14528,410 @@
         }
       }
     },
+    "/api/v1/auth/browser-session/": {
+      "delete": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
+        "operationId": "auth_browser_session_destroy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRFToken",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No response body",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "tags": [
+          "auth"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "get": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
+        "operationId": "auth_browser_session_retrieve",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserCSRFResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "tags": [
+          "auth"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      },
+      "post": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
+        "operationId": "auth_browser_session_create",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-CSRFToken",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserSessionRequestRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowserAccessResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            },
+            "description": "",
+            "headers": {
+              "X-API-Version": {
+                "description": "API lifecycle; see /api/versions/. Does not change authentication, caching or response body.",
+                "example": "v1",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ],
+        "tags": [
+          "auth"
+        ],
+        "x-api-lifecycle": {
+          "deprecated_at": null,
+          "migration_url": null,
+          "status": "active",
+          "sunset_at": null,
+          "version": "v1"
+        }
+      }
+    },
     "/api/v1/auth/change_password/": {
       "post": {
         "description": "修改密码",
@@ -14631,6 +15149,27 @@
       "post": {
         "description": "自定义登录视图",
         "operationId": "auth_login_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15191,6 +15730,27 @@
       "post": {
         "description": "刷新 Token\n\n注意保持 AllowAny（类默认）：调用时机是 access 已过期，\n请求头里没有有效 Bearer，鉴权只依赖 body 中的 refresh token。",
         "operationId": "auth_refresh_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15251,6 +15811,27 @@
       "post": {
         "description": "用户注册",
         "operationId": "auth_register_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15456,6 +16037,7 @@
     },
     "/api/v1/auth/totp/": {
       "get": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_retrieve",
         "responses": {
           "200": {
@@ -15497,6 +16079,7 @@
     },
     "/api/v1/auth/totp/disable/": {
       "get": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_disable_retrieve",
         "responses": {
           "200": {
@@ -15536,7 +16119,29 @@
         }
       },
       "post": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_disable_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15587,6 +16192,7 @@
     },
     "/api/v1/auth/totp/enable/": {
       "get": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_enable_retrieve",
         "responses": {
           "200": {
@@ -15626,7 +16232,29 @@
         }
       },
       "post": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_enable_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15677,6 +16305,7 @@
     },
     "/api/v1/auth/totp/recovery-codes/": {
       "get": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_recovery_codes_retrieve",
         "responses": {
           "200": {
@@ -15716,7 +16345,29 @@
         }
       },
       "post": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_recovery_codes_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15767,6 +16418,7 @@
     },
     "/api/v1/auth/totp/setup/": {
       "get": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_setup_retrieve",
         "responses": {
           "200": {
@@ -15806,6 +16458,7 @@
         }
       },
       "post": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "auth_totp_setup_create",
         "requestBody": {
           "content": {
@@ -28397,7 +29050,29 @@
     },
     "/api/v1/sso/complete/": {
       "post": {
+        "description": "仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。",
         "operationId": "sso_complete_create",
+        "parameters": [
+          {
+            "description": "显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求",
+            "in": "header",
+            "name": "X-AdminCore-Session",
+            "schema": {
+              "enum": [
+                "cookie"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项",
+            "in": "header",
+            "name": "X-CSRFToken",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

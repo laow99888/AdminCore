@@ -44,6 +44,19 @@ def test_all_registered_routes_and_response_fields_are_present(full):
         assert methods == {'get'}, '权限定义目录必须只读，SDK不应发布不可调用的写操作'
 
 
+def test_cookie_transport_schema_does_not_publish_refresh_in_browser_response(full):
+    _, _, schema = full
+    path = schema['paths']['/api/v1/auth/browser-session/']
+    assert {'get', 'post', 'delete'} <= set(path)
+    assert path['post']['security'] == [{}]
+    assert any(item['name'] == 'X-CSRFToken' and item['required'] for item in path['post']['parameters'])
+    schemas = schema['components']['schemas']
+    assert 'refresh' not in schemas['BrowserAccess']['properties']
+    assert {'access', 'csrf_token', 'session_transport'} <= set(schemas['BrowserAccess']['required'])
+    assert 'refresh' not in schemas['LoginResponse']['required']
+    assert any(item['name'] == 'X-AdminCore-Session' for item in schema['paths']['/api/v1/auth/login/']['post']['parameters'])
+
+
 def test_export_is_deterministic_and_ignores_deployment_environment(full):
     folder, first, _ = full
     second = folder / 'repeat.json'

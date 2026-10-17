@@ -383,6 +383,25 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/browser-session/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
+        get: operations["auth_browser_session_retrieve"];
+        put?: never;
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
+        post: operations["auth_browser_session_create"];
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
+        delete: operations["auth_browser_session_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/change_password/": {
         parameters: {
             query?: never;
@@ -675,6 +694,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         get: operations["auth_totp_retrieve"];
         put?: never;
         post?: never;
@@ -691,8 +711,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         get: operations["auth_totp_disable_retrieve"];
         put?: never;
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         post: operations["auth_totp_disable_create"];
         delete?: never;
         options?: never;
@@ -707,8 +729,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         get: operations["auth_totp_enable_retrieve"];
         put?: never;
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         post: operations["auth_totp_enable_create"];
         delete?: never;
         options?: never;
@@ -723,8 +747,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         get: operations["auth_totp_recovery_codes_retrieve"];
         put?: never;
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         post: operations["auth_totp_recovery_codes_create"];
         delete?: never;
         options?: never;
@@ -739,8 +765,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         get: operations["auth_totp_setup_retrieve"];
         put?: never;
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         post: operations["auth_totp_setup_create"];
         delete?: never;
         options?: never;
@@ -3040,6 +3068,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description 仅显式请求 cookie 传输时生效；安全检查先于任何凭据签发。 */
         post: operations["sso_complete_create"];
         delete?: never;
         options?: never;
@@ -3966,6 +3995,28 @@ export interface components {
             ready: number | null;
             status: components["schemas"]["QueueMetricStatusEnum"];
         };
+        BrowserAccess: {
+            access: string;
+            csrf_token: string;
+            session_transport: components["schemas"]["SessionTransportEnum"];
+        };
+        BrowserAccessResponse: {
+            code: number;
+            data: components["schemas"]["BrowserAccess"];
+            message: string;
+        };
+        BrowserCSRF: {
+            csrf_token: string;
+        };
+        BrowserCSRFResponse: {
+            code: number;
+            data: components["schemas"]["BrowserCSRF"];
+            message: string;
+        };
+        BrowserSessionRequestRequest: {
+            /** Format: uuid */
+            session_id?: string;
+        };
         /**
          * @description * `activate` - activate
          *     * `deactivate` - deactivate
@@ -4050,7 +4101,10 @@ export interface components {
         };
         Completed: {
             access: string;
-            refresh: string;
+            csrf_token?: string;
+            /** @description 旧版 Bearer 传输返回；Cookie 传输不返回 */
+            refresh?: string;
+            session_transport?: components["schemas"]["SessionTransportEnum"];
             user: components["schemas"]["SSOLoginUser"];
         };
         CompleteRequest: {
@@ -4720,7 +4774,10 @@ export interface components {
         };
         LoginResponse: {
             access: string;
-            refresh: string;
+            csrf_token?: string;
+            /** @description 旧版 Bearer 传输返回；Cookie 传输不返回 */
+            refresh?: string;
+            session_transport?: components["schemas"]["SessionTransportEnum"];
             user: components["schemas"]["LoginUser"];
         };
         LoginTrend: {
@@ -6366,7 +6423,10 @@ export interface components {
         };
         RegisteredSession: {
             access: string;
-            refresh: string;
+            csrf_token?: string;
+            /** @description 旧版 Bearer 传输返回；Cookie 传输不返回 */
+            refresh?: string;
+            session_transport?: components["schemas"]["SessionTransportEnum"];
             user: components["schemas"]["User"];
         };
         RegisterResponse: {
@@ -6637,6 +6697,11 @@ export interface components {
         SessionRevokeResult: {
             revoked_count: number;
         };
+        /**
+         * @description * `cookie` - cookie
+         * @enum {string}
+         */
+        SessionTransportEnum: "cookie";
         SSOAuthorizationResponse: {
             code: number;
             data: components["schemas"]["Authorization"];
@@ -6936,7 +7001,10 @@ export interface components {
         TenantStatusEnum: "active" | "suspended" | "closed";
         TokenPair: {
             access: string;
-            refresh: string;
+            csrf_token?: string;
+            /** @description 旧版 Bearer 传输返回；Cookie 传输不返回 */
+            refresh?: string;
+            session_transport?: components["schemas"]["SessionTransportEnum"];
         };
         TOTPChangeResponse: {
             code: number;
@@ -6952,8 +7020,11 @@ export interface components {
         };
         TOTPResult: {
             access: string;
+            csrf_token?: string;
             recovery_codes?: string[];
-            refresh: string;
+            /** @description 旧版 Bearer 传输返回；Cookie 传输不返回 */
+            refresh?: string;
+            session_transport?: components["schemas"]["SessionTransportEnum"];
             user: components["schemas"]["User"];
         };
         TOTPSetup: {
@@ -8341,6 +8412,267 @@ export interface operations {
             };
         };
     };
+    auth_browser_session_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserCSRFResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            429: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    auth_browser_session_create: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRFToken": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["BrowserSessionRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowserAccessResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            401: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            429: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    auth_browser_session_destroy: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-CSRFToken": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            403: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            409: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            429: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
     auth_change_password_create: {
         parameters: {
             query?: never;
@@ -8458,7 +8790,12 @@ export interface operations {
     auth_login_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -8759,7 +9096,12 @@ export interface operations {
     auth_refresh_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -8789,7 +9131,12 @@ export interface operations {
     auth_register_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -8947,7 +9294,12 @@ export interface operations {
     auth_totp_disable_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -8999,7 +9351,12 @@ export interface operations {
     auth_totp_enable_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -9051,7 +9408,12 @@ export interface operations {
     auth_totp_recovery_codes_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };
@@ -15332,7 +15694,12 @@ export interface operations {
     sso_complete_create: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description 显式协商 Cookie 传输，服务端默认关闭；须先取得 CSRF 并从同源请求 */
+                "X-AdminCore-Session"?: "cookie";
+                /** @description Cookie 传输的状态变更请求必须携带 CSRF；普通 Bearer 传输无需此项 */
+                "X-CSRFToken"?: string;
+            };
             path?: never;
             cookie?: never;
         };

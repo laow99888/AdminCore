@@ -12,11 +12,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.auth_app.authentication import SessionJWTAuthentication
+from apps.auth_app.browser_session import BrowserSessionMixin
 from apps.auth_app.models import AuthSession
 from apps.auth_app.reauthentication import require_recent_password
 from apps.core.modules import module_enabled
 from apps.core.query_budget import QueryBudgetListMixin, query_budget
-from apps.core.schema import envelope, MessageResponse
+from apps.core.schema import envelope, MessageResponse, BROWSER_SESSION_PARAMETERS
 from apps.logs.audit import snapshot, write_audit
 from apps.permissions.permissions import HasPermission, IsAdmin, has_permission_code
 from . import service
@@ -104,8 +105,9 @@ class StatusView(PublicView):
         return Response({'code': 200, 'message': 'success', 'data': service.login_status(request, config)})
 
 
-class CompleteView(PublicView):
-    @extend_schema(request=CompleteSerializer, responses=envelope('SSOCompletedResponse', CompletedSerializer()))
+class CompleteView(BrowserSessionMixin, PublicView):
+    @extend_schema(request=CompleteSerializer, responses=envelope('SSOCompletedResponse', CompletedSerializer()),
+                   parameters=BROWSER_SESSION_PARAMETERS)
     def post(self, request):
         serializer = CompleteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

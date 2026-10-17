@@ -299,6 +299,7 @@ SPECTACULAR_SETTINGS = {
 AUTH_SESSION_ABSOLUTE_SECONDS = int(os.getenv('AUTH_SESSION_ABSOLUTE_SECONDS', '86400'))
 AUTH_SESSION_IDLE_SECONDS = int(os.getenv('AUTH_SESSION_IDLE_SECONDS', '1800'))
 AUTH_SESSION_TOUCH_SECONDS = int(os.getenv('AUTH_SESSION_TOUCH_SECONDS', '60'))
+AUTH_BROWSER_COOKIE_ENABLED = os.getenv('AUTH_BROWSER_COOKIE_ENABLED', 'False').lower() == 'true'
 AUTH_REAUTH_USER_FAILURE_LIMIT = 10
 AUTH_REAUTH_SCOPE_FAILURE_LIMIT = 5
 AUTH_LOGIN_CAPTCHA_ENABLED = os.getenv('AUTH_LOGIN_CAPTCHA_ENABLED', 'False').lower() == 'true'
@@ -456,6 +457,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # TLS 相关开关：仅在前置 HTTPS 网关终结 TLS 时启用（USE_TLS=True），
 # 否则 http 部署会被 SECURE_SSL_REDIRECT 重定向到不可达的 https
 USE_TLS = os.getenv('USE_TLS', 'False').lower() == 'true'
+
+if AUTH_BROWSER_COOKIE_ENABLED and not USE_TLS and (not DEBUG or os.getenv('DJANGO_ENV') in {'production', 'demo'}):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured('浏览器 Cookie 会话在非调试环境必须启用 USE_TLS')
 
 if not DEBUG:
     SECURE_SSL_REDIRECT = USE_TLS

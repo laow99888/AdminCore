@@ -4,8 +4,9 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.core.schema import envelope
+from apps.core.schema import envelope, TokenPairSerializer, BROWSER_SESSION_PARAMETERS
 from . import totp
+from .browser_session import BrowserSessionMixin
 from .serializers import UserSerializer
 from .recovery_views import StrictSerializer, NoStoreView
 
@@ -30,14 +31,12 @@ class TOTPSetupSerializer(serializers.Serializer):
     expires_at = serializers.DateTimeField()
 
 
-class TOTPResultSerializer(serializers.Serializer):
-    access = serializers.CharField()
-    refresh = serializers.CharField()
+class TOTPResultSerializer(TokenPairSerializer):
     user = UserSerializer()
     recovery_codes = serializers.ListField(child=serializers.CharField(), required=False)
 
 
-class TOTPView(NoStoreView):
+class TOTPView(BrowserSessionMixin, NoStoreView):
     permission_classes = [IsAuthenticated]
 
     def input(self, request, serializer_class):
@@ -62,7 +61,8 @@ class TOTPSetupView(TOTPView):
 class TOTPChangeView(TOTPView):
     operation = 'enable'
 
-    @extend_schema(request=TOTPProofRequest, responses=envelope('TOTPChangeResponse', TOTPResultSerializer()))
+    @extend_schema(request=TOTPProofRequest, responses=envelope('TOTPChangeResponse', TOTPResultSerializer()),
+                   parameters=BROWSER_SESSION_PARAMETERS)
     def post(self, request):
         data = self.input(request, TOTPProofRequest)
         return Response({'code': 200, 'message': '双因素设置已更新', 'data': totp.change(request, self.operation, data['otp_code'])})

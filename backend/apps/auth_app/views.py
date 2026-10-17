@@ -7,7 +7,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import AuthenticationFailed
 from collections.abc import Mapping
 from apps.core.schema import envelope, MessageResponse
-from apps.core.schema import TokenPairSerializer, LoginRequestSerializer
+from apps.core.schema import TokenPairSerializer, LoginRequestSerializer, BROWSER_SESSION_PARAMETERS
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import TokenError
 from .throttling import LoginRateThrottle
+from .browser_session import BrowserSessionMixin
 from apps.core.client_ip import request_ip
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -36,10 +37,20 @@ from .serializers import (
 User = get_user_model()
 
 
+class LoginResponseSerializer(TokenPairSerializer):
+    user = inline_serializer('LoginUser', fields={
+        **{name: serializers.CharField() for name in ['id', 'username', 'email', 'avatar']},
+        'must_change_password': serializers.BooleanField()})
+
+
+class RegisteredSessionSerializer(TokenPairSerializer):
+    user = UserSerializer()
+
+
 @extend_schema_view(
-    post=extend_schema(request=LoginRequestSerializer, responses=inline_serializer('LoginResponse', fields={'access': serializers.CharField(), 'refresh': serializers.CharField(), 'user': inline_serializer('LoginUser', fields={**{name: serializers.CharField() for name in ['id', 'username', 'email', 'avatar']}, 'must_change_password': serializers.BooleanField()})})),
+    post=extend_schema(request=LoginRequestSerializer, responses=LoginResponseSerializer, parameters=BROWSER_SESSION_PARAMETERS),
 )
-class CustomTokenObtainPairView(TokenObtainPairView):
+class CustomTokenObtainPairView(BrowserSessionMixin, TokenObtainPairView):
     """自定义登录视图"""
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [LoginRateThrottle]
@@ -88,13 +99,13 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 @extend_schema_view(
-    register=extend_schema(request=UserRegistrationSerializer, responses={201: envelope('RegisterResponse', inline_serializer('RegisteredSession', fields={'access': serializers.CharField(), 'refresh': serializers.CharField(), 'user': UserSerializer()}))}),
-    refresh=extend_schema(request=inline_serializer('RefreshRequest', fields={'refresh': serializers.CharField()}), responses=envelope('RefreshResponse', TokenPairSerializer())),
+    register=extend_schema(request=UserRegistrationSerializer, responses={201: envelope('RegisterResponse', RegisteredSessionSerializer())}, parameters=BROWSER_SESSION_PARAMETERS),
+    refresh=extend_schema(request=inline_serializer('RefreshRequest', fields={'refresh': serializers.CharField()}), responses=envelope('RefreshResponse', TokenPairSerializer()), parameters=BROWSER_SESSION_PARAMETERS),
     logout=extend_schema(request=None, responses=MessageResponse),
     me=extend_schema(responses=envelope('CurrentUserResponse', UserSerializer())),
     change_password=extend_schema(request=ChangePasswordSerializer, responses=MessageResponse),
 )
-class AuthViewSet(viewsets.ViewSet):
+class AuthViewSet(BrowserSessionMixin, viewsets.ViewSet):
     """认证相关端点"""
     permission_classes = [AllowAny]
 
