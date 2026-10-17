@@ -483,7 +483,7 @@ jobs:
           path: |
             .codex-validation/admincore-browser-session-*/report.json
             .codex-validation/admincore-browser-session-*/browser-report.json
-            .codex-validation/admincore-browser-session-*/contract.log
+            .codex-validation/admincore-browser-session-*/sso-browser-report.json
             .codex-validation/admincore-browser-session-*/browser-session-desktop.png
             .codex-validation/admincore-browser-session-*/browser-session-mobile.png
   foundation:
