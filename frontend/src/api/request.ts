@@ -24,7 +24,7 @@ declare module 'axios' {
   }
 }
 
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   code: number
   message: string
   data: T
@@ -37,7 +37,7 @@ export interface Pagination {
   total_pages: number
 }
 
-export interface PagedData<T = any> {
+export interface PagedData<T = unknown> {
   items: T[]
   pagination: Pagination
 }
