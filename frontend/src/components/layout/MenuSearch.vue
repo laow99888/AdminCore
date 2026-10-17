@@ -1,7 +1,9 @@
 <template>
   <div class="menu-search">
-    <el-autocomplete v-model="query" class="desktop-search" :fetch-suggestions="suggest" :trigger-on-focus="false"
-      :placeholder="uiText('搜索菜单')" :aria-label="uiText('搜索菜单')" clearable @select="select" />
+    <div class="desktop-search">
+      <el-autocomplete v-model="query" :fetch-suggestions="suggest" :trigger-on-focus="false"
+        :placeholder="uiText('搜索菜单')" :aria-label="uiText('搜索菜单')" clearable @select="select" />
+    </div>
     <button class="mobile-search" :aria-label="uiText('搜索菜单')" @click="opened = true"><Search :size="18" /></button>
     <el-dialog v-model="opened" :title="uiText('搜索菜单')" width="min(420px, 92vw)" append-to-body>
       <el-autocomplete v-model="query" :fetch-suggestions="suggest" :trigger-on-focus="false"

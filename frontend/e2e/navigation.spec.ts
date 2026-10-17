@@ -35,6 +35,11 @@ test('菜单搜索支持键盘选择、无结果和手机入口，受当前权�
   state.permissions = ['user:read']
   await page.goto('/')
   const mobile = page.viewportSize()!.width <= 768
+  await expect(page.locator('.app-header')).toBeVisible()
+  const headerBox = (await page.locator('.app-header').boundingBox())!
+  const searchBox = (await page.locator('.menu-search').boundingBox())!
+  expect(searchBox.y).toBeGreaterThanOrEqual(headerBox.y)
+  expect(searchBox.y + searchBox.height).toBeLessThanOrEqual(headerBox.y + headerBox.height)
   if (mobile) await page.getByRole('button', { name: '搜索菜单', exact: true }).click()
   const input = page.locator('input[aria-label="搜索菜单"]:visible')
   await input.fill('管理')
