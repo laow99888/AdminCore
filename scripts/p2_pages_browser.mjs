@@ -9,10 +9,6 @@ const origin = `http://127.0.0.1:${port}`, browser = await chromium.launch({ hea
 const checks = [], failures = [], diagnostics = []
 let stage = 'login'
 const response = (page, path, method) => page.waitForResponse(res => new URL(res.url()).pathname === '/api/v1/' + path && res.request().method() === method)
-async function choose(page, label, option) {
-  await page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: label, exact: true }) }).locator('.el-select__wrapper').click()
-  await page.getByRole('option', { name: option, exact: true }).click()
-}
 async function flow(page, name) {
   await page.goto('/approvals/flows')
   await page.getByRole('button', { name: '新建草稿', exact: true }).click()
@@ -68,17 +64,19 @@ async function online(page, name) {
 async function report(page, name) {
   stage = 'report-open-and-configure'
   await page.goto('/reports')
-  await page.getByRole('textbox', { name: '名称', exact: true }).fill(name + '报表')
-  await page.getByRole('textbox', { name: '编码', exact: true }).fill(name + '-report')
-  await choose(page, '图表', 'bar')
-  await choose(page, '维度', 'status')
+  const identity = page.locator('.report-design-form > .report-fields')
+  await identity.locator('input').nth(0).fill(name + '报表')
+  await identity.locator('input').nth(1).fill(name + '-report')
+  await page.getByLabel('图表', { exact: true }).selectOption('bar')
+  await page.getByRole('button', { name: '添加维度', exact: true }).click()
+  await page.getByLabel('维度字段', { exact: true }).selectOption('status')
   stage = 'report-save'
   const saved = response(page, 'reports/definitions/', 'POST')
   await page.getByRole('button', { name: '保存草稿', exact: true }).click()
   const row = await (await saved).json()
   expect(row.data.id).toBeTruthy()
   await expect(page.getByText('已保存', { exact: true })).toBeVisible()
-  await expect(page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: '维度', exact: true }) })).toContainText('status')
+  await expect(page.getByLabel('维度字段', { exact: true })).toHaveValue('status')
   stage = 'report-publish'
   const published = response(page, `reports/definitions/${row.data.id}/publish/`, 'POST')
   const publishButton = page.getByRole('button', { name: '发布', exact: true })
@@ -117,7 +115,7 @@ async function report(page, name) {
   for (let attempt = 0; attempt < 3; attempt++) {
     await page.reload()
     await page.getByRole('row').filter({ hasText: name + '报表' }).click()
-    await expect(page.locator('.el-select').filter({ has: page.getByRole('combobox', { name: '维度', exact: true }) })).toContainText('status')
+    await expect(page.getByLabel('维度字段', { exact: true })).toHaveValue('status')
     await expect(page.getByRole('button', { name: '保存草稿', exact: true })).toBeDisabled()
   }
 }
@@ -150,7 +148,7 @@ try {
         await context.tracing.stop()
       } catch (error) {
         failures.push(name + '-' + feature)
-        diagnostics.push({ case: name + '-' + feature, stage, error: error?.name || 'Error' })
+        diagnostics.push({ case: name + '-' + feature, stage, error: String(error?.message || error).slice(0, 500) })
         await page.screenshot({ path: resolve(evidence, `${name}-${feature}-failure.png`), fullPage: true })
         await context.tracing.stop({ path: resolve(evidence, `${name}-${feature}-failure.zip`) })
         process.stderr.write(String(error) + '\n')
