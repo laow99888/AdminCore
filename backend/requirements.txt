@@ -8,7 +8,7 @@ djangorestframework-simplejwt==5.5.1
 django-filter==26.2
 cryptography==50.0.2
 Authlib==1.9.1
-joserfc==1.6.8
+joserfc==1.7.5
 
 # 数据库
 psycopg2-binary==2.9.13
@@ -26,7 +26,7 @@ pypdf==6.20.1
 openpyxl==3.1.5
 pandas==3.0.6
 django-storages==1.14.6
-boto3==1.43.112
+boto3==1.43.114
 
 # 工具库
 python-dotenv==1.2.4
