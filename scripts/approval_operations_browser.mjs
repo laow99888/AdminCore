@@ -29,7 +29,9 @@ export async function validateApprovalOperations({ page, name, evidence, expect,
   checks.push(`${name}: create and publish same-code release; in-flight application stays on old release`);
 
   await page.goto('/approvals');
+  await page.reload();
   row = page.getByRole('row').filter({ hasText: title });
+  await expect(row).toBeVisible();
   await row.getByRole('button', { name: '详情', exact: true }).click();
   let detail = page.getByRole('dialog', { name: '申请详情', exact: true });
   await detail.getByRole('button', { name: '退回指定节点', exact: true }).click();
