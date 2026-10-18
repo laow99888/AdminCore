@@ -90,7 +90,7 @@ def code_identifier(code):
 
 
 def challenge_valid(challenge, user):
-    return (challenge is not None and user.is_active and challenge.user_id == user.pk
+    return (challenge is not None and user.is_active and not user.is_service_account and challenge.user_id == user.pk
             and challenge.consumed_at is None and challenge.expires_at > timezone.now()
             and challenge.email == user.email.strip().casefold()
             and challenge.session_version == user.session_version
@@ -100,6 +100,8 @@ def challenge_valid(challenge, user):
 
 
 def create_challenge(user, purpose, request):
+    if user.is_service_account:
+        raise ValidationError('机器身份不能申请交互登录凭据')
     now = timezone.now()
     EmailChallenge.objects.filter(user=user, purpose=purpose, consumed_at__isnull=True).update(consumed_at=now)
     challenge = EmailChallenge.objects.create(user=user, purpose=purpose, email=user.email.strip().casefold(),
@@ -112,7 +114,7 @@ def create_challenge(user, purpose, request):
 @transaction.atomic
 def request_reset(request, username, email):
     user = User.objects.select_for_update().filter(username=username).first()
-    if user and user.is_active and user.email_verified and user.verified_email == email.strip().casefold():
+    if user and user.is_active and not user.is_service_account and user.email_verified and user.verified_email == email.strip().casefold():
         create_challenge(user, 'reset', request)
 
 

@@ -9,8 +9,10 @@ from collections.abc import Mapping
 
 from django.conf import settings
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from .models import FileModel, FileAccessGrant
+from .library_serializers import OrganizationSerializer
 
 
 class FileSerializer(serializers.ModelSerializer):
@@ -18,13 +20,14 @@ class FileSerializer(serializers.ModelSerializer):
     uploader_name = serializers.CharField(source='uploader.username', read_only=True, default=None)
     file = serializers.SerializerMethodField()
     size_display = serializers.SerializerMethodField()
+    organization = serializers.SerializerMethodField()
 
     class Meta:
         model = FileModel
         fields = [
             'id', 'original_name', 'file', 'file_type', 'size', 'size_display',
             'content_type', 'md5', 'description', 'uploader', 'uploader_name',
-            'download_count', 'created_at', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version',
+            'download_count', 'created_at', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version', 'organization',
         ]
         read_only_fields = fields
 
@@ -33,6 +36,12 @@ class FileSerializer(serializers.ModelSerializer):
         path = reverse('file-download', args=[obj.pk])
         request = self.context.get('request')
         return request.build_absolute_uri(path) if request else path
+
+    @extend_schema_field(OrganizationSerializer)
+    def get_organization(self, obj):
+        from .library import organization_data
+        rows = getattr(obj, 'personal_organization', [])
+        return organization_data(rows[0] if rows else None)
 
     def get_size_display(self, obj) -> str:
         """人类可读的文件大小"""

@@ -16,6 +16,7 @@ FIELDS = {
     'user_role': ('id', 'user_id', 'role_id'),
     'user_profile': ('id', 'user_id', 'department', 'position'),
     'lifecycle': ('category', 'count', 'ids'),
+    'list_view': ('id', 'module', 'owner_id', 'shared', 'version', 'definition_sha256'),
 }
 
 from apps.core.modules import MODULES

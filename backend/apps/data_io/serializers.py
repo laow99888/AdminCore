@@ -59,6 +59,7 @@ class DataResourceSerializer(serializers.Serializer):
     label = serializers.CharField()
     importable = serializers.BooleanField()
     exportable = serializers.BooleanField()
+    business = serializers.BooleanField(required=False)
 
 
 class DataResourceDirectorySerializer(serializers.Serializer):

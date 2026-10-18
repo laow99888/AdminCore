@@ -159,14 +159,15 @@ def replace_avatar(request, data):
             asset.save(update_fields=['file', 'updated_at'])
         with transaction.atomic():
             user = locked_user(request, data['profile_version'])
-            if user.avatar_file_id:
-                user.avatar_file.soft_delete(actor=user)
+            previous_avatar = user.avatar_file
             asset.is_deleted = False
             asset.deleted_at = None
             asset.save(update_fields=['is_deleted', 'deleted_at', 'updated_at'])
             user.avatar_file = asset
             user.profile_version += 1
             user.save(update_fields=['avatar_file', 'profile_version', 'updated_at'])
+            if previous_avatar:
+                previous_avatar.soft_delete(actor=user)
             audit(request, user, 'replace_avatar')
         return user
     except Exception as exc:
@@ -184,11 +185,12 @@ def replace_avatar(request, data):
 def remove_avatar(request, data):
     require_avatar_module()
     user = locked_user(request, data['profile_version'])
-    if user.avatar_file_id:
-        user.avatar_file.soft_delete(actor=user)
+    previous_avatar = user.avatar_file
     user.avatar_file = None
     user.avatar = ''
     user.profile_version += 1
     user.save(update_fields=['avatar_file', 'avatar', 'profile_version', 'updated_at'])
+    if previous_avatar:
+        previous_avatar.soft_delete(actor=user)
     audit(request, user, 'remove_avatar')
     return user

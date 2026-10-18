@@ -6,6 +6,7 @@
       :model-value="modelValue"
       :errors="errors"
       :disabled="disabled"
+      :attachment-context="attachmentContext"
       @update:model-value="emit('update:modelValue', $event)"
     />
     <section
@@ -20,6 +21,7 @@
         :model-value="modelValue"
         :errors="errors"
         :disabled="disabled"
+        :attachment-context="attachmentContext"
         @update:model-value="emit('update:modelValue', $event)"
       />
     </section>
@@ -27,6 +29,7 @@
 </template>
 <script setup lang="ts">
 import type { OnlineFormDefinition } from "@/api";
+import type { OnlineAttachmentContext } from '@/api/onlineFormAttachments';
 import type { FormValues } from "./runtime";
 import OnlineFormFields from "./OnlineFormFields.vue";
 defineProps<{
@@ -34,6 +37,7 @@ defineProps<{
   modelValue: FormValues;
   errors?: Record<string, string>;
   disabled?: boolean;
+  attachmentContext?: OnlineAttachmentContext;
 }>();
 const emit = defineEmits<{ "update:modelValue": [value: FormValues] }>();
 </script>

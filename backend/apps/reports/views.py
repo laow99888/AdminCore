@@ -10,8 +10,9 @@ from apps.auth_app.write_authorization import authorize_write
 from apps.core.mixins import EnvelopeResponseMixin
 from apps.permissions.permissions import HasPermission
 from .models import ReportDefinition
-from .serializers import ReportDesignSerializer, ReportSerializer
-from .services import catalog_for, execute_definition
+from .serializers import ReportDesignSerializer, ReportSerializer, ReportRunRequestSerializer, ReportDetailsRequestSerializer
+from .services import catalog_for
+from .dashboards import design_details, run_design, validate_design
 from apps.core.exceptions import APIError
 from rest_framework.generics import get_object_or_404
 
@@ -20,7 +21,7 @@ class ReportViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     queryset = ReportDefinition.objects.select_related('created_by', 'published_by').all()
     serializer_class = ReportSerializer
     permission_classes = [IsAuthenticated, HasPermission]
-    permission_map = {'list': 'report:read', 'retrieve': 'report:read', 'create': 'report:create', 'update': 'report:update', 'partial_update': 'report:update', 'publish': 'report:publish', 'archive': 'report:update', 'run': 'report:execute'}
+    permission_map = {'list': 'report:read', 'retrieve': 'report:read', 'create': 'report:create', 'update': 'report:update', 'partial_update': 'report:update', 'publish': 'report:publish', 'archive': 'report:update', 'run': 'report:execute', 'details': 'report:execute'}
     http_method_names = ['get', 'post', 'put', 'patch', 'head', 'options']
     search_fields = ['name', 'code']
     ordering_fields = ['name', 'code', 'created_at', 'updated_at']
@@ -59,6 +60,7 @@ class ReportViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
             raise APIError('报表已变化，请刷新后重试', status_code=409)
         if row.status != 'draft':
             return Response({'code': 409, 'message': '只有草稿可以发布', 'data': None}, status=status.HTTP_409_CONFLICT)
+        validate_design(row.definition)
         row.status = 'published'; row.published_by = actor; row.published_at = timezone.now(); row.save(update_fields=['status', 'published_by', 'published_at', 'updated_at'])
         return Response({'code': 200, 'message': '发布成功', 'data': ReportSerializer(row).data})
 
@@ -71,16 +73,29 @@ class ReportViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         row.status = 'archived'; row.save(update_fields=['status', 'updated_at'])
         return Response({'code': 200, 'message': '归档成功', 'data': ReportSerializer(row).data})
 
-    @action(detail=True, methods=['get'])
+    @extend_schema(request=ReportRunRequestSerializer, responses=dict)
+    @action(detail=True, methods=['get', 'post'])
     def run(self, request, *args, **kwargs):
         row = self.get_object()
         if row.status != 'published':
             return Response({'code': 409, 'message': '只有已发布报表可以运行', 'data': None}, status=status.HTTP_409_CONFLICT)
         try:
-            data = execute_definition(request.user, row.definition)
+            data = run_design(request.user, row.definition, request.data if request.method == 'POST' else None)
         except PermissionError as exc:
             return Response({'code': 403, 'message': str(exc), 'data': None}, status=status.HTTP_403_FORBIDDEN)
-        return Response({'code': 200, 'message': 'success', 'data': data})
+        return Response({'code': 200, 'message': 'success', 'data': data}, headers={'Cache-Control': 'private, no-store'})
+
+    @extend_schema(request=ReportDetailsRequestSerializer, responses=dict)
+    @action(detail=True, methods=['post'])
+    def details(self, request, *args, **kwargs):
+        row = self.get_object()
+        if row.status != 'published':
+            return Response({'code': 409, 'message': '只有已发布报表可以运行', 'data': None}, status=409)
+        try:
+            data = design_details(request.user, row.definition, request.data)
+        except PermissionError as exc:
+            return Response({'code': 403, 'message': str(exc), 'data': None}, status=403)
+        return Response({'code': 200, 'message': 'success', 'data': data}, headers={'Cache-Control': 'private, no-store'})
 
 
 class ReportCatalogView(APIView):

@@ -11,7 +11,10 @@
           :label="field.label"
           :for="`${prefix}${field.key}`"
           :required="required(field, active, fields)"
-          :error="errors[`${prefix}${field.key}`]"
+          :error="
+            errors[`${prefix}${field.key}`] ||
+            uiText(computationError(field.computation, active, field.scale))
+          "
         >
           <template v-if="field.type === 'detail'">
             <div class="details">
@@ -48,6 +51,7 @@
                   :prefix="`${prefix}${field.key}.${index}.`"
                   :errors="errors"
                   :disabled="disabled"
+                  :attachment-context="attachmentContext"
                   @update:model-value="updateRow(field, index, $event)"
                 />
               </section>
@@ -64,7 +68,11 @@
             v-else
             :id="`${prefix}${field.key}`"
             :field="field"
-            :model-value="modelValue[field.key]"
+            :model-value="
+              field.computation ? active[field.key] : modelValue[field.key]
+            "
+            :disabled="field.computation ? true : undefined"
+            :attachment-context="attachmentContext"
             @update:model-value="update(field.key, $event)"
           />
           <small v-if="field.help" class="help">{{ field.help }}</small>
@@ -77,8 +85,11 @@
 import "./messages";
 import { computed } from "vue";
 import type { OnlineFormField } from "@/api";
+import type { OnlineAttachmentContext } from '@/api/onlineFormAttachments';
 import { uiText } from "@/i18n/uiText";
 import OnlineFieldInput from "./OnlineFieldInput.vue";
+import "./computationMessages";
+import { computationError } from "./computations";
 import {
   activeValues,
   initialValues,
@@ -94,6 +105,7 @@ const props = withDefaults(
     errors?: Record<string, string>;
     disabled?: boolean;
     section?: string;
+    attachmentContext?: OnlineAttachmentContext;
   }>(),
   { prefix: "", errors: () => ({}) },
 );

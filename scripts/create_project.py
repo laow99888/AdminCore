@@ -37,8 +37,11 @@ def safe_source_path(name):
 def allowed_file(name):
     path = safe_source_path(name)
     denied = {'.git', '.codex-validation', 'node_modules', 'venv', '.venv', '__pycache__',
-              '.pytest_cache', 'backups', 'test-results', 'playwright-report', 'coverage', 'dist'}
+              '.pytest_cache', 'backups', 'test-results', 'playwright-report', 'coverage', 'dist',
+              '.admincore-upgrade', '.admincore-upgrade.lock'}
     if any(part in denied for part in path.parts):
+        return False
+    if name in (META, 'compose.project.yml', 'PROJECT.md'):
         return False
     if name.startswith(('backend/media/', 'backend/logs/', 'backend/staticfiles/')):
         return False
@@ -88,6 +91,24 @@ def snapshot(source, ref='HEAD'):
 
 def manifest(files):
     return {name: hashlib.sha256(value[0]).hexdigest() for name, value in sorted(files.items())}
+
+
+def plan_digest(value):
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=True).encode()).hexdigest()
+
+
+def local_digest(root, name):
+    """拒绝任何层级的链接、Windows junction 以及目录/文件冲突。"""
+    current = root
+    for part in safe_source_path(name).parts:
+        current = current / part
+        if current.is_symlink() or current.is_junction():
+            return 'unsafe_path'
+        if current != root / name and current.exists() and not current.is_dir():
+            return 'unsafe_path'
+    if not current.resolve().is_relative_to(root) or (current.exists() and not current.is_file()):
+        return 'unsafe_path'
+    return hashlib.sha256(current.read_bytes()).hexdigest() if current.is_file() else None
 
 
 def check_ports(frontend_port, backend_port):
@@ -162,7 +183,8 @@ def create_project(target, *, name, preset='minimal', source=ROOT, ref='HEAD',
         '首次管理员admin的随机密码仅保存在本目录 `.env`，首次登录必须改密；不要提交该文件。\n'
         '访问 http://127.0.0.1:' + str(frontend_port) + ' 。当前只绑定本机HTTP，公网TLS须按部署手册独立配置。\n'
         '本项目没有复制Git历史；可自行git init提交源码和admincore.project.json，环境与数据不入Git。\n'
-        '升级前阅读 docs/底座版本与项目升级.md；upgrade-plan只比较摘要，绝不自动覆盖、迁移或删除。\n', encoding='utf-8')
+        '升级前阅读 docs/底座版本与项目升级.md；先upgrade-plan审阅，再upgrade-apply，验收通过后upgrade-accept推进基线。\n'
+        '源码升级不迁移数据库；未验收时可upgrade-restore恢复，环境文件和业务数据不进入源码备份。\n', encoding='utf-8')
     return metadata
 
 
@@ -275,19 +297,19 @@ def upgrade_plan(root, source, ref='HEAD'):
     changes = []
     for path in sorted(set(baseline['files']) | set(proposed)):
         before, after = baseline['files'].get(path), proposed.get(path)
-        local = root.joinpath(*PurePosixPath(path).parts)
-        unsafe = local.is_symlink() or not local.resolve().is_relative_to(root)
-        if unsafe or (local.exists() and not local.is_file()):
-            current = 'unsafe_path'
-        else:
-            current = hashlib.sha256(local.read_bytes()).hexdigest() if local.is_file() else None
+        current = local_digest(root, path)
+        unsafe = current == 'unsafe_path'
         if before != after or before != current:
             changes.append({'path': path, 'upstream_changed': before != after, 'local_changed': before != current,
                 'action': 'delete' if after is None else 'add' if before is None else 'modify',
-                'conflict': unsafe or (before != after and before != current and current != after)})
-    return {'schema_version': 1, 'from_revision': baseline['source_revision'], 'to_revision': revision,
+                'conflict': unsafe or (before != after and before != current and current != after),
+                'before': before, 'current': current, 'after': after})
+    result = {'schema_version': 1, 'from_revision': baseline['source_revision'], 'to_revision': revision,
             'from_version': baseline['base_version'], 'to_version': version, 'changes': changes,
             'conflicts': sum(row['conflict'] for row in changes), 'read_only': True}
+    result['plan_id'] = plan_digest({'baseline': baseline, 'proposed': proposed,
+                                     'changes': changes, 'revision': revision})
+    return result
 
 
 def main():

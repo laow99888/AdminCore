@@ -20,4 +20,11 @@ describe('独立开放凭证 API', () => {
     await apiCredentialsApi.revoke('a/b', 'confirmation')
     expect(request.post).toHaveBeenLastCalledWith('/api-credentials/credentials/a%2Fb/revoke/', { current_password: 'confirmation' })
   })
+  it('轮换携带乐观锁版本，统计有界天数且允许取消', async () => {
+    await apiCredentialsApi.rotate('a/b', 3, 'confirmation')
+    expect(request.post).toHaveBeenLastCalledWith('/api-credentials/credentials/a%2Fb/rotate/', { version: 3, current_password: 'confirmation' })
+    const signal = new AbortController().signal
+    await apiCredentialsApi.statistics('a/b', 30, signal)
+    expect(request.get).toHaveBeenLastCalledWith('/api-credentials/credentials/a%2Fb/statistics/', { params: { days: 30 }, signal })
+  })
 })

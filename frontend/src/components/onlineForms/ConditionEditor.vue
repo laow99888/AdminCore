@@ -18,10 +18,11 @@
         ><el-option
           v-for="op in ops.filter(
             (o) =>
-              !['lt', 'lte', 'gt', 'gte'].includes(o.value) ||
+              (!['file', 'relation'].includes(source(rule.field)?.type || '') || ['empty', 'not_empty'].includes(o.value)) &&
+              (!['lt', 'lte', 'gt', 'gte'].includes(o.value) ||
               ['number', 'decimal', 'date', 'datetime'].includes(
                 source(rule.field)?.type || '',
-              ),
+              )),
           )"
           :key="op.value"
           :label="uiText(op.label)"

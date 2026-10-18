@@ -1,8 +1,9 @@
 <template>
   <div class="base-table" :class="`density-${effectiveDensity}`" :data-table-density="effectiveDensity">
     <!-- 表头操作栏 -->
-    <div class="table-toolbar" v-if="showToolbar">
-      <slot name="toolbar"></slot>
+    <div class="table-toolbar" v-if="showToolbar || preferenceKey">
+      <slot v-if="showToolbar" name="toolbar"></slot>
+      <TableColumnSettings v-if="preferenceKey" class="column-settings-trigger" :preference-key="preferenceKey" :columns="columns" @change="columnLayout = $event" />
     </div>
 
     <!-- 表格 -->
@@ -26,11 +27,12 @@
 
       <!-- 数据列 -->
       <el-table-column
-        v-for="col in columns"
+        v-for="col in displayedColumns"
         :key="col.prop"
         :prop="col.prop"
         :label="col.label"
         :width="col.width"
+        :fixed="col.fixed"
         :align="col.align || 'left'"
         :sortable="col.sortable || false"
         :show-overflow-tooltip="col.showOverflow !== false"
@@ -86,10 +88,12 @@
 <script setup lang="ts" generic="T extends object">
 import { uiText } from "@/i18n/uiText"
 
-import { computed, ref, shallowRef } from 'vue'
+import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { Inbox } from 'lucide-vue-next'
 import type { TableInstance } from 'element-plus'
 import { useTablePreferencesStore } from '@/stores/tablePreferences'
+import TableColumnSettings from './TableColumnSettings.vue'
+import { normalizeColumns, type ColumnPin, type ColumnPreference } from '@/composables/useColumnPreferences'
 
 type RenderCell<T> = { bivarianceHack(value: unknown, row: T): string | number | void }['bivarianceHack']
 
@@ -100,6 +104,7 @@ interface Column<T = unknown> {
   align?: 'left' | 'center' | 'right'
   showOverflow?: boolean
   sortable?: boolean | 'custom'
+  fixed?: ColumnPin
   render?: RenderCell<T>
 }
 
@@ -117,6 +122,8 @@ interface Props<T = unknown> {
   showPagination?: boolean
   actionWidth?: string | number
   size?: 'small' | 'default' | 'large'
+  preferenceKey?: string
+  selectionIds?: string[]
 }
 
 const props = withDefaults(defineProps<Props<T>>(), {
@@ -143,9 +150,29 @@ const emit = defineEmits<{
 defineSlots<{ actions(props: { row: T }): unknown; toolbar(): unknown }>()
 
 const tableRef = ref<TableInstance>()
+const columnLayout = ref<ColumnPreference[]>([])
+const displayedColumns = computed(() => {
+  if (!props.preferenceKey) return props.columns
+  const known = new Map(props.columns.map(column => [column.prop, column]))
+  return normalizeColumns(columnLayout.value, props.columns).filter(item => item.visible)
+    .map(item => ({ ...known.get(item.prop)!, fixed: item.fixed }))
+})
 const tablePreferences = useTablePreferencesStore()
 const effectiveDensity = computed(() => props.size ? (props.size === 'small' ? 'compact' : 'comfortable') : tablePreferences.density)
 const selectedRows = shallowRef<T[]>([])
+let syncingSelection = false, selectionGeneration = 0
+watch(() => [props.data, props.selectionIds], async () => {
+  if (!props.selectionIds) return
+  const current = ++selectionGeneration
+  syncingSelection = true
+  await nextTick()
+  if (current !== selectionGeneration) return
+  tableRef.value?.clearSelection()
+  const ids = new Set(props.selectionIds)
+  for (const row of props.data) if (ids.has(String(Reflect.get(row, 'id')))) tableRef.value?.toggleRowSelection(row, true)
+  await nextTick()
+  if (current === selectionGeneration) syncingSelection = false
+}, { immediate: true })
 const cellValue = (row: unknown, prop: string): unknown => row !== null && typeof row === 'object' ? Reflect.get(row, prop) : undefined
 
 // 暴露表格实例和选中行，父组件可调用 clearSelection 等方法
@@ -161,6 +188,7 @@ const handlePageSizeChange = (size: number) => {
 
 const handleSelectionChange = (rows: T[]) => {
   selectedRows.value = rows
+  if (syncingSelection) return
   emit('selection-change', rows)
 }
 
@@ -189,6 +217,7 @@ const handleDelete = (row: T) => {
   gap: var(--spacing-md);
   flex-wrap: wrap;
 }
+.column-settings-trigger { margin-left: auto; }
 
 .table-pagination {
   display: flex;

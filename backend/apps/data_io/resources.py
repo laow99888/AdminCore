@@ -69,6 +69,14 @@ def import_allowed(user, resource):
     from apps.core.data_scope import unrestricted_user_creation
     from apps.core.modules import module_enabled
     config = get_resource(resource)
+    if config and config.get('business'):
+        from .business import require
+        from rest_framework.exceptions import APIException
+        try:
+            require(user, resource)
+            return True
+        except APIException:
+            return False
     if not config or not config['importable'] or not has_permission_code(user, 'data_io:import'):
         return False
     if not all(has_permission_code(user, code) for code in config['import_permissions']):
@@ -170,4 +178,9 @@ def export_queryset(resource, user, filters):
 
 def get_resource(name):
     """获取资源配置，不存在返回 None"""
-    return IMPORT_EXPORT_RESOURCES.get(name)
+    return all_resources().get(name)
+
+
+def all_resources():
+    from .business import resources
+    return {**IMPORT_EXPORT_RESOURCES, **resources()}

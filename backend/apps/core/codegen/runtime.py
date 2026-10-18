@@ -19,10 +19,61 @@ from rest_framework.response import Response
 
 from apps.auth_app.sessions import locked_request_session
 from apps.core.data_scope import scope_queryset
+from apps.core.error_i18n import error_text
 from apps.core.modules import MODULES, module_enabled
 from apps.core.query_budget import query_budget
 from apps.core.tenancy import current_tenant_id, enabled
 from apps.permissions.permissions import has_permission_code
+from apps.permissions.field_permissions import business_allowed_fields
+from .list_workbench import ListWorkbenchMixin, parse_advanced
+
+
+def serializer_read_fields(serializer):
+    request = serializer.context.get('request')
+    if request is None:
+        return None
+    resource = getattr(serializer, 'field_resource', serializer.Meta.model._meta.app_label)
+    cache = serializer.context.setdefault('business_read_fields', {})
+    if resource not in cache:
+        cache[resource] = business_allowed_fields(request.user, resource, 'read')
+    return cache[resource]
+
+
+def redact_generated_data(data, schema, actor, prefix='', allowed=None):
+    if allowed is None:
+        allowed = business_allowed_fields(actor, schema['module'], 'read')
+    if allowed is None:
+        return data
+    result = dict(data)
+    for field in schema['fields']:
+        if prefix + field['name'] not in allowed:
+            result.pop(field['name'], None)
+    if not prefix and schema.get('structure') == 'tree' and 'parent' not in allowed:
+        result.pop('parent', None)
+    if isinstance(result.get('display_labels'), dict):
+        result['display_labels'] = {key: value for key, value in result['display_labels'].items() if prefix + key in allowed}
+    for group in schema.get('details', ()):
+        if group['name'] not in allowed:
+            result.pop(group['name'], None)
+        elif group['name'] in result:
+            result[group['name']] = [redact_generated_data(row, {'module': schema['module'], 'fields': group['fields']}, actor,
+                                                         group['name'] + '.', allowed) for row in result[group['name']]]
+    return result
+
+
+def enforce_business_write(actor, schema, values):
+    allowed = business_allowed_fields(actor, schema['module'], 'write')
+    if allowed is None:
+        return
+    mapping = {field['name'] + ('_id' if field['kind'] in {'relation', 'file'} else ''): field['name'] for field in schema['fields']}
+    supplied = {mapping.get(key, 'parent' if key == 'parent_id' else key) for key in values if key != 'version'}
+    required = set(supplied)
+    # 明细是整组替换，必须拥有所有子字段写权限，防止隐式删除或重置隐藏字段。
+    for group in schema['details']:
+        if group['name'] in supplied:
+            required.update(group['name'] + '.' + field['name'] for field in group['fields'])
+    if required - allowed:
+        raise PermissionDenied(error_text('没有写入字段权限：{fields}', fields=', '.join(sorted(required - allowed))))
 
 
 def prepare_labels(serializer, rows):
@@ -31,7 +82,10 @@ def prepare_labels(serializer, rows):
     if request is None:
         return
     cache = serializer.context.setdefault('generated_labels', {})
+    allowed = serializer_read_fields(serializer)
     for field in serializer.field_spec:
+        if allowed is not None and getattr(serializer, 'field_prefix', '') + field['name'] not in allowed:
+            continue
         if field['kind'] not in {'relation', 'file', 'dictionary'}:
             continue
         key = json.dumps(field, sort_keys=True)
@@ -57,6 +111,38 @@ def prepare_labels(serializer, rows):
                 pass
 
 
+def refresh_replayed_labels(data, schema, actor):
+    """缓存重放不能沿用旧的关联标签；每组批量复核当前权限及行范围。"""
+    def refresh(rows, fields):
+        rows = [{**row, 'display_labels': {field['name']: '' for field in fields
+                 if field['name'] in row and field.get('kind') in {'relation', 'file', 'dictionary'}}} for row in rows]
+        for field in fields:
+            name = field['name']
+            identifiers = {str(row[name]) for row in rows if row.get(name) is not None}
+            if not identifiers or field.get('kind') not in {'relation', 'file', 'dictionary'}:
+                continue
+            labels = {}
+            try:
+                if field['kind'] == 'dictionary':
+                    labels = {item['value']: item['label'] for item in dictionary_options(field)}
+                else:
+                    queryset, label = reference_queryset(field, actor)
+                    labels = {str(item['pk']): str(item[label]) for item in
+                              queryset.filter(pk__in=identifiers).values('pk', label)}
+            except (PermissionDenied, ValidationError):
+                pass
+            for row in rows:
+                if name in row:
+                    row['display_labels'][name] = labels.get(str(row[name]), '')
+        return rows
+
+    result = refresh([data], schema['fields'])[0]
+    for group in schema.get('details', ()):
+        if isinstance(result.get(group['name']), list):
+            result[group['name']] = refresh(result[group['name']], group['fields'])
+    return result
+
+
 class GeneratedListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
         rows = list(data.all() if hasattr(data, 'all') else data)
@@ -72,7 +158,13 @@ class VersionConflict(APIException):
 class GeneratedSerializerMixin:
     def to_representation(self, instance):
         prepare_labels(self, [instance])
-        return super().to_representation(instance)
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if request is not None:
+            return redact_generated_data(data, {'module': getattr(self, 'field_resource', self.Meta.model._meta.app_label),
+                'fields': self.field_spec, 'details': self.detail_spec,
+                'structure': 'tree' if 'parent' in self.fields else 'single'}, request.user, getattr(self, 'field_prefix', ''), serializer_read_fields(self))
+        return data
 
     def get_display_labels(self, instance) -> dict[str, str]:
         cache = self.context.get('generated_labels', {})
@@ -93,6 +185,11 @@ class GeneratedSerializerMixin:
                 allowed.add('parent')
         if not isinstance(data, dict) or set(data) - allowed:
             raise ValidationError({'non_field_errors': ['只能提交可编辑的登记字段']})
+        request = self.context.get('request')
+        if request is not None:
+            permitted = business_allowed_fields(request.user, getattr(self, 'field_resource', self.Meta.model._meta.app_label), 'write')
+            if permitted is not None and any(getattr(self, 'field_prefix', '') + name not in permitted for name in data if name != 'version'):
+                raise PermissionDenied('没有写入字段权限')
         for field in self.field_spec:
             raw = data.get(field['name'])
             if field['kind'] == 'decimal' and raw is not None and not isinstance(raw, str):
@@ -130,6 +227,9 @@ def reference_queryset(field, actor):
         raise ValidationError('关联显示字段必须为普通文本字段')
     if not has_permission_code(actor, declaration.key + ':read'):
         raise PermissionDenied('没有关联业务读取权限')
+    permitted = business_allowed_fields(actor, declaration.key, 'read')
+    if permitted is not None and label.name not in permitted:
+        raise PermissionDenied('没有关联显示字段读取权限')
     return scope_queryset(model.objects.all(), actor, declaration.key, 'creator_id', fallback='self'), label.name
 
 
@@ -219,6 +319,8 @@ class GeneratedService:
         if not module_enabled(self.module):
             raise NotFound()
         actor = self.locked_actor(request, action)
+        if action != 'delete':
+            enforce_business_write(actor, self.schema, values)
         if self.schema['structure'] == 'tree':
             # 每个树模型共用一个锁，防止两个操作者同时移动产生环。
             from apps.core.models import BootstrapState
@@ -273,11 +375,29 @@ class GeneratedService:
         # after_save 可能操作明细，清除旧预取缓存后计算实际写入摘要。
         row._prefetched_objects_cache = {}
         self.audit(request=request, actor=actor, resource=self.module, identifier=row.pk, action=action,
-                   before=before, after=self.projection(row))
+                   before=before, after=self.projection(row), record=getattr(request, 'task_record', None))
         return row
 
 
-class GeneratedViewMixin:
+class GeneratedViewMixin(ListWorkbenchMixin):
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        read = business_allowed_fields(request.user, self.generated_schema['module'], 'read')
+        if read is not None:
+            response.data['data']['field_permissions'] = {'read': sorted(read), 'write': sorted(
+                business_allowed_fields(request.user, self.generated_schema['module'], 'write'))}
+        return response
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        if isinstance(getattr(response, 'data', None), dict) and isinstance(response.data.get('data'), dict):
+            data = response.data['data']
+            if 'id' in data:
+                data = redact_generated_data(data, self.generated_schema, request.user)
+                if response.get('Idempotency-Replayed') == 'true':
+                    data = refresh_replayed_labels(data, self.generated_schema, request.user)
+                response.data = {**response.data, 'data': data}
+        return super().finalize_response(request, response, *args, **kwargs)
+
     def _business_action(self, request, operation):
         from apps.core.idempotency import with_idempotency
         from .integrations import business_action
@@ -306,10 +426,32 @@ class GeneratedViewMixin:
         return self._business_action(request, 'withdraw')
 
     def filter_queryset(self, queryset):
+        permitted = business_allowed_fields(self.request.user, self.generated_schema['module'], 'read')
+        if getattr(self, 'action', '') == 'list' and permitted is not None:
+            params = self.request.query_params
+            needed = set()
+            for field in self.generated_schema['fields']:
+                if field['query'] != 'none' and any(field['name'] + suffix in params for suffix in
+                        (['_min', '_max'] if field['query'] == 'range' else [''])):
+                    needed.add(field['name'])
+            if params.get('search'):
+                needed.update(self.search_fields)
+            if params.get('ordering'):
+                needed.update(name.strip().lstrip('-') for name in params['ordering'].split(',') if name.strip().lstrip('-') in
+                              {field['name'] for field in self.generated_schema['fields']})
+            if 'parent' in params:
+                needed.add('parent')
+            if needed - permitted:
+                raise PermissionDenied('没有筛选或排序字段读取权限')
         queryset = super().filter_queryset(queryset)
         if getattr(self, 'action', '') != 'list':
             return queryset
         params = self.request.query_params
+        if 'advanced' in params:
+            queryset = queryset.filter(parse_advanced(self, params['advanced']))
+        if permitted is not None and not params.get('ordering') and any(name.lstrip('-') in
+                {field['name'] for field in self.generated_schema['fields']} - permitted for name in self.ordering):
+            queryset = queryset.order_by('-created_at', '-id')
         for field in self.generated_schema['fields']:
             name, query = field['name'], field['query']
             for suffix, lookup in ([('_min', '__gte'), ('_max', '__lte')] if query == 'range' else [('', '__icontains' if query == 'contains' else '')] if query != 'none' else []):
@@ -342,7 +484,7 @@ class GeneratedViewMixin:
 
     @property
     def generated_query_parameters(self):
-        names = []
+        names = ['advanced']
         for field in self.generated_schema['fields']:
             if field['query'] != 'none':
                 for suffix in (['_min', '_max'] if field['query'] == 'range' else ['']):
@@ -362,6 +504,9 @@ class GeneratedViewMixin:
         if set(params) - {'field', 'q', 'page'} or any(len(params.getlist(key)) != 1 or len(params[key]) > 200 or '\x00' in params[key] for key in params):
             raise ValidationError('选项查询参数无效')
         key = params.get('field', '')
+        permitted = business_allowed_fields(request.user, self.generated_schema['module'], 'read')
+        if permitted is not None and key not in permitted:
+            raise PermissionDenied('没有选项字段读取权限')
         fields = {item['name']: item for item in self.generated_schema['fields']}
         for detail in self.generated_schema['details']:
             fields.update({detail['name'] + '.' + item['name']: item for item in detail['fields']})
@@ -385,6 +530,8 @@ class GeneratedViewMixin:
                 if field is None:
                     queryset = self.generated_service.visible(request.user)
                     label = next((item['name'] for item in self.generated_schema['fields'] if item['kind'] == 'string'), 'pk')
+                    if permitted is not None and label not in permitted:
+                        raise PermissionDenied('没有父节点显示字段读取权限')
                 else:
                     queryset, label = reference_queryset(field, request.user)
                 if params.get('q'):

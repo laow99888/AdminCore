@@ -30,6 +30,19 @@ def canonical_resource(resource):
     return RESOURCE_ALIASES.get(resource, resource)
 
 
+def field_policy_registry():
+    """只接纳显式模块契约；关闭模块保留角色配置语义，不扫描数据库模型。"""
+    from apps.core.modules import MODULES
+    from django.core.exceptions import ImproperlyConfigured
+    result = dict(FIELD_POLICY_FIELDS)
+    for module in MODULES:
+        for resource, fields in module.field_policies:
+            if resource in result:
+                raise ImproperlyConfigured('字段权限资源重复：' + resource)
+            result[resource] = frozenset(fields)
+    return result
+
+
 def validate_field_permissions(value):
     """验证角色字段策略并返回去重后的规范化副本。"""
     from apps.core.error_i18n import error_text
@@ -38,9 +51,10 @@ def validate_field_permissions(value):
     if not isinstance(value, Mapping):
         raise ValidationError({'field_permissions': '字段策略必须是对象'})
     result = {}
+    registry = field_policy_registry()
     for raw_resource, raw_policy in value.items():
         resource = canonical_resource(raw_resource)
-        allowed = FIELD_POLICY_FIELDS.get(resource)
+        allowed = registry.get(resource)
         if allowed is None or raw_resource != resource:
             raise ValidationError({'field_permissions': error_text('不支持字段策略资源：{resource}', resource=raw_resource)})
         if not isinstance(raw_policy, Mapping) or set(raw_policy) - {'read', 'write'}:
@@ -69,17 +83,31 @@ def _declared_policies(user, resource):
 
 def allowed_fields(user, resource, action):
     """返回当前用户对资源的字段集合；无声明策略时返回完整登记集合。"""
+    fields, _reason = resolve_field_policy(user, resource, action, _declared_policies(user, resource))
+    return fields
+
+
+def resolve_field_policy(user, resource, action, declared_policies):
+    """请求授权与诊断共享组合规则；调用方可提供同次读取的角色策略快照。"""
     canonical = canonical_resource(resource)
-    all_fields = FIELD_POLICY_FIELDS.get(canonical)
+    all_fields = field_policy_registry().get(canonical)
     if all_fields is None:
         raise ValueError(f'未登记字段策略资源：{resource}')
     if user and (user.is_superuser or user.is_staff):
-        return set(all_fields)
-    policies = [policy.get(canonical) for policy in _declared_policies(user, canonical)
+        return set(all_fields), 'administrator'
+    policies = [policy.get(canonical) for policy in declared_policies
                 if isinstance(policy, Mapping) and canonical in policy]
     if not policies:
-        return set(all_fields)
-    return {field for policy in policies for field in policy.get(action, [])}
+        return set(all_fields), 'legacy_unrestricted'
+    return ({field for policy in policies if isinstance(policy, Mapping)
+             for field in policy.get(action, []) if field in all_fields}, 'explicit_union')
+
+
+def business_allowed_fields(user, resource, action):
+    """未重新生成契约的旧模块保持原行为；登记后的模块统一走角色实时策略。"""
+    if resource not in field_policy_registry():
+        return None
+    return allowed_fields(user, resource, action)
 
 
 def enforce_write_fields(user, resource, fields, *, allow=()):

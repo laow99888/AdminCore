@@ -41,6 +41,8 @@ Thumbs.db
 
 # 本地版本验收日志（包含未通过检查的诊断证据）
 .codex-validation/
+.admincore-upgrade/
+.admincore-upgrade.lock
 
 # 各目录的本地环境配置（仅提交示例配置）
 .env.*

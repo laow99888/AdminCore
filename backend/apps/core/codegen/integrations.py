@@ -43,6 +43,39 @@ def sync_approval(application, request):
                   action='update', before=before, after=service.projection(row))
 
 
+def redact_approval_snapshot(application, actor, data):
+    """按查看者当前权限过滤冻结快照；字段改名/模块失效时采取关闭访问。"""
+    from apps.permissions.field_permissions import business_allowed_fields
+    from apps.permissions.permissions import has_permission_code
+    try:
+        schema, _, _ = registered_module(application.business_module)
+    except NotFound:
+        return {**data, 'title': '业务审批', 'extra_data': {}, 'business_snapshot': {}}
+    if not schema.get('approval'):
+        return {**data, 'title': schema['title'], 'extra_data': {}, 'business_snapshot': {}}
+    allowed = business_allowed_fields(actor, application.business_module, 'read')
+    if not module_enabled(application.business_module) or not has_permission_code(actor, application.business_module + ':read'):
+        allowed = set()
+    snapshot = data.get('business_snapshot') or {}
+    title_field = next(field for field in schema['fields'] if field['name'] == schema['approval']['title_field'])
+    title_key = title_field['label'] + ' (' + title_field['name'] + ')'
+    # 可见标题由冻结快照按当前权限投影；存储及通知只使用不含业务字段的标题。
+    data = {**data, 'title': (schema['title'] + '：' + str(snapshot.get('fields', {}).get(title_key, application.business_record_id)))[:200]
+            if allowed is None or title_field['name'] in allowed else schema['title']}
+    if allowed is None:
+        return data
+    fields = {field['label'] + ' (' + field['name'] + ')' for field in schema['fields'] if field['name'] in allowed}
+    details = {}
+    for group in schema['details']:
+        label = group['label'] + ' (' + group['name'] + ')'
+        if group['name'] in allowed and isinstance(snapshot.get('details', {}).get(label), list):
+            names = {field['label'] + ' (' + field['name'] + ')' for field in group['fields'] if group['name'] + '.' + field['name'] in allowed}
+            details[label] = [{key: value for key, value in row.items() if key in names} for row in snapshot['details'][label]]
+    return {**data, 'title': data['title'] if schema['approval']['title_field'] in allowed else schema['title'],
+            'extra_data': {key: value for key, value in (data.get('extra_data') or {}).items() if key in allowed},
+            'business_snapshot': {'fields': {key: value for key, value in snapshot.get('fields', {}).items() if key in fields}, 'details': details}}
+
+
 def business_action(service, request, identifier, version, operation):
     from apps.approvals.models import ApprovalFlow, ApprovalRequest, ApprovalAction, validate_flow_definition
     from apps.approvals.engine import enter_next, input_data
@@ -106,12 +139,34 @@ def business_action(service, request, identifier, version, operation):
         if len(encoded.encode()) > 131072:
             raise ValidationError('业务审批快照不能超过128KiB')
         snapshot = json.loads(encoded)
+        # 提交时重新授权并锁定全部附件（含明细），随后与快照同事务登记历史保护。
+        # 读取/管理附件的 ACL 不因业务或审批引用自动扩大。
+        from .runtime import reference_queryset
+        file_ids = set()
+        def collect_files(instance, fields):
+            file_ids.update(getattr(instance, field['name'] + '_id') for field in fields
+                            if field['kind'] == 'file' and getattr(instance, field['name'] + '_id') is not None)
+        collect_files(row, schema['fields'])
+        for group in schema['details']:
+            for child in getattr(row, group['name']).all():
+                collect_files(child, group['fields'])
+        if file_ids:
+            queryset, _ = reference_queryset({'kind': 'file'}, actor)
+            available = list(queryset.select_for_update(of=('self',)).filter(pk__in=file_ids).order_by('pk'))
+            if {item.pk for item in available} != file_ids or any(item.tenant_id != row.tenant_id for item in available):
+                raise ValidationError('审批附件不可用或不在授权范围内')
         before = service.projection(row)
         application = ApprovalRequest.objects.create(
-            title=(schema['title'] + '：' + str(getattr(row, schema['approval']['title_field'])))[:200],
+            # 审批列表搜索、通知及站外投递不应复制可被字段权限隐藏的业务值。
+            title=(schema['title'] + '：' + str(row.pk))[:200],
             request_type='other', content='业务审批：' + schema['title'], applicant=actor, assignee=actor,
             flow=flow, flow_version=flow.version, extra_data=data, tenant_id=row.tenant_id,
             business_module=service.module, business_record_id=row.pk, business_snapshot=snapshot)
+        from apps.approvals.models import ApprovalFileReference
+        ApprovalFileReference.objects.bulk_create([
+            ApprovalFileReference(request=application, file_id=identifier, tenant_id=row.tenant_id)
+            for identifier in sorted(file_ids)
+        ])
         users = enter_next(application, initial=True)
         row.approval_status = 'pending'; row.approval_request = application; row.version += 1
         row.save(update_fields=['approval_status', 'approval_request', 'version', 'updated_at'])

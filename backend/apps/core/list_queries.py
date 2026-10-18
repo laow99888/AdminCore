@@ -26,7 +26,10 @@ def validate_list_query(request, view):
         raise ValidationError({'query': '存在不支持的查询参数'})
     if any(len(params.getlist(key)) != 1 for key in params):
         raise ValidationError({'query': '查询参数不能重复'})
-    if any(len(value) > MAX_QUERY_VALUE_LENGTH for value in params.values()):
+    limits = {'advanced': 4096} if 'advanced' in getattr(view, 'generated_query_parameters', ()) else {}
+    if 'advanced' in limits and len(params.get('advanced', '')) > limits['advanced']:
+        raise ValidationError({'advanced': '高级条件最多4096个字符'})
+    if any(len(value) > limits.get(key, MAX_QUERY_VALUE_LENGTH) for key, value in params.items()):
         raise ValidationError({'query': '查询参数最多200个字符'})
     if any('\x00' in value for value in params.values()):
         raise ValidationError({'query': '查询参数包含无效字符'})

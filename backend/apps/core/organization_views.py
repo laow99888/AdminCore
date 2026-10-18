@@ -23,7 +23,7 @@ class OrganizationViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
                     partial_update=extend_schema(responses=envelope('DepartmentPatchedResponse', DepartmentSerializer())),
                     destroy=extend_schema(responses=MessageResponse))
 class DepartmentViewSet(OrganizationViewSet):
-    queryset = Department.objects.all()
+    queryset = Department.objects.select_related('leader').all()
     serializer_class = DepartmentSerializer
     search_fields = ['name']
     ordering_fields = ['order', 'name', 'created_at']
@@ -45,7 +45,11 @@ class DepartmentViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_create(self, serializer):
-        authorize_write(self.request, admin=True)
+        leader = serializer.validated_data.get('leader')
+        authorize_write(self.request, admin=True, related_users=(leader.pk,) if leader else ())
+        if leader:
+            leader.refresh_from_db()
+            serializer.validate_leader(leader)
         rows = self.lock_tree()
         self.validate_tree(serializer, rows)
         if serializer.validated_data['version'] != 0:
@@ -55,7 +59,11 @@ class DepartmentViewSet(OrganizationViewSet):
 
     @transaction.atomic
     def perform_update(self, serializer):
-        authorize_write(self.request, admin=True)
+        leader = serializer.validated_data.get('leader')
+        authorize_write(self.request, admin=True, related_users=(leader.pk,) if leader else ())
+        if leader:
+            leader.refresh_from_db()
+            serializer.validate_leader(leader)
         rows = self.lock_tree()
         row = rows.get(serializer.instance.pk)
         if row is None or serializer.validated_data.get('version') != row.version:
@@ -75,7 +83,7 @@ class DepartmentViewSet(OrganizationViewSet):
         row = rows.get(instance.pk)
         if row is None:
             raise VersionConflict()
-        if row.children.exists() or row.members.exists() or row.datascopegrant_set.exists():
+        if row.children.exists() or row.members.exists() or row.appointments.exists() or row.datascopegrant_set.exists():
             raise ValidationError('部门仍有关联数据，请调整关联或停用部门')
         before = DepartmentSerializer(row).data
         row.delete()
@@ -88,7 +96,7 @@ class DepartmentViewSet(OrganizationViewSet):
                     partial_update=extend_schema(responses=envelope('MembershipPatchedResponse', MembershipSerializer())),
                     destroy=extend_schema(responses=MessageResponse))
 class MembershipViewSet(OrganizationViewSet):
-    queryset = OrganizationMembership.objects.select_related('user', 'department').all()
+    queryset = OrganizationMembership.objects.select_related('user', 'department').exclude(user__is_service_account=True)
     serializer_class = MembershipSerializer
     search_fields = ['user__username']
     filterset_fields = ['department', 'user']

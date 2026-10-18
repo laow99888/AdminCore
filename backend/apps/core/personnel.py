@@ -13,7 +13,7 @@ from .pagination import StandardPagination
 
 
 def candidates(actor):
-    return scope_queryset(get_user_model().objects.filter(is_active=True), actor, 'user', 'pk')
+    return scope_queryset(get_user_model().objects.filter(is_active=True, is_service_account=False), actor, 'user', 'pk')
 
 
 class PersonSerializer(serializers.ModelSerializer):

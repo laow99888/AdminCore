@@ -25,7 +25,7 @@ from apps.permissions.permissions import HasPermission, has_permission_code
 from apps.tasks.models import TaskRecord
 from apps.tasks.serializers import TaskRecordSerializer
 
-from .resources import get_resource, IMPORT_EXPORT_RESOURCES, export_queryset, import_allowed
+from .resources import get_resource, all_resources, export_queryset, import_allowed
 from apps.permissions.field_permissions import allowed_fields
 from .serializers import DataImportSerializer, DataExportSerializer, DataResourceDirectorySerializer
 
@@ -292,7 +292,7 @@ class DataResourcesView(DataModuleView):
     def get(self, request):
         from apps.core.modules import module_enabled
         resources = []
-        for key, config in IMPORT_EXPORT_RESOURCES.items():
+        for key, config in all_resources().items():
             if key == 'files' and not module_enabled('files'):
                 continue
             if config.get('module') and not module_enabled(config['module']):
@@ -300,5 +300,6 @@ class DataResourcesView(DataModuleView):
             importable = import_allowed(request.user, key)
             exportable = config['exportable'] and has_permission_code(request.user, 'data_io:export') and all(has_permission_code(request.user, code) for code in config['permissions'])
             if importable or exportable:
-                resources.append({'resource': key, 'label': config['label'], 'importable': importable, 'exportable': exportable})
+                resources.append({'resource': key, 'label': config['label'], 'importable': importable, 'exportable': exportable,
+                                  **({'business': True} if config.get('business') else {})})
         return Response({'code': 200, 'message': 'success', 'data': {'resources': resources, 'max_rows': EXPORT_MAX_ROWS, 'max_bytes': EXPORT_MAX_BYTES}})

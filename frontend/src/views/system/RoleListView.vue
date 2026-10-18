@@ -6,6 +6,7 @@
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("角色列表") }}</div>
             <div class="role-header-actions">
+              <el-button v-if="auth.can('user:read') && auth.can('role:read') && (auth.user?.is_staff || auth.user?.is_superuser)" @click="diagnosticsVisible = true">{{ uiText('字段权限诊断') }}</el-button>
               <DataImportButton resource="roles" :loading="loading" />
               <DataExportButton :loading="loading || !exportReady" resource="roles" />
               <LocalExportButton resource="roles" :title="uiText('角色列表')" :rows="tableData" :columns="printColumns" :loading="loading || !exportReady" :current-page="currentPage" :owner-key="printOwner" />
@@ -34,6 +35,7 @@
         </BaseTable>
       </BaseCard>
 
+      <FieldPolicyDiagnostics :visible="diagnosticsVisible" @close="diagnosticsVisible = false" />
       <!-- 角色编辑 -->
       <BaseDialog v-model="dialogVisible" :before-close="formGuard.confirmDiscard" :title="formData.id ? uiText('编辑角色') : uiText('新增角色')" :loading="saving || conflict.loading.value" :confirm-disabled="conflict.active.value" @confirm="handleSave">
         <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
@@ -41,6 +43,9 @@
         <el-form :model="formData" label-width="90px" :disabled="saving">
           <el-form-item :label="uiText('角色名')" required>
             <el-input v-model="formData.name" />
+          </el-form-item>
+          <el-form-item :label="uiText('字段权限')">
+            <FieldPolicyEditor v-model="formData.field_permissions" :resources="modules.config?.field_policy_resources || {}" />
           </el-form-item>
           <el-form-item :label="uiText('描述')">
             <el-input v-model="formData.description" type="textarea" :rows="3" />
@@ -83,6 +88,9 @@
 
 <script setup lang="ts">
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import FieldPolicyEditor from '@/components/common/FieldPolicyEditor.vue'
+import FieldPolicyDiagnostics from '@/components/common/FieldPolicyDiagnostics.vue'
+import { useModuleStore } from '@/stores/modules'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useLatestRead } from '@/composables/useLatestRead'
@@ -103,6 +111,7 @@ import LocalExportButton from '@/components/common/LocalExportButton.vue'
 import type { PrintColumn } from '@/utils/printDocument'
 
 const auth = useAuthStore()
+const modules = useModuleStore()
 const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
 const printColumns = computed<PrintColumn<RoleRow>[]>(() => [
   { label: uiText('角色名'), value: row => row.name },
@@ -113,6 +122,7 @@ const loading = ref(false)
 const saving = ref(false)
 const formError = ref('')
 const dialogVisible = ref(false)
+const diagnosticsVisible = ref(false)
 const permDialogVisible = ref(false)
 const currentRole = ref<RoleRow | null>(null)
 const allPermissions = ref<Array<{ id: string; name: string; code: string }>>([])
@@ -129,9 +139,10 @@ const formData = reactive({
   description: '',
   is_active: true,
   permission_ids: [] as string[],
+  field_permissions: {} as NonNullable<RoleRow['field_permissions']>,
 })
 
-const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => auth.can('role:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', version: 0, name: '', description: '', is_active: true, permission_ids: [] }) } })
+const formGuard = useUnsavedChanges({ source: () => formData, active: () => dialogVisible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => auth.can('role:update') && !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { dialogVisible.value = false; Object.assign(formData, { id: '', version: 0, name: '', description: '', is_active: true, permission_ids: [], field_permissions: {} }) } })
 const conflict = useEditConflict<RoleRow>({ identifier: () => dialogVisible.value ? formData.id : '', current: () => formGuard.isCurrent(), fetch: rolesApi.detail, apply: row => { applyRole(row); formGuard.markClean() } })
 const conflictRows = computed(() => {
   const server = conflict.latest.value
@@ -141,9 +152,10 @@ const conflictRows = computed(() => {
     { label: uiText('描述'), local: formData.description, server: server.description },
     { label: uiText('状态'), local: String(formData.is_active), server: String(server.is_active) },
     { label: uiText('权限'), local: formData.permission_ids.join(', '), server: server.permissions.map(permission => permission.id).join(', ') },
+    { label: uiText('字段权限'), local: JSON.stringify(formData.field_permissions), server: JSON.stringify(server.field_permissions || {}) },
   ]
 })
-function applyRole(row: RoleRow) { Object.assign(formData, { id: row.id, version: row.version, name: row.name, description: row.description, is_active: row.is_active, permission_ids: row.permissions.map(permission => permission.id) }); formError.value = '' }
+function applyRole(row: RoleRow) { Object.assign(formData, { id: row.id, version: row.version, name: row.name, description: row.description, is_active: row.is_active, permission_ids: row.permissions.map(permission => permission.id), field_permissions: JSON.parse(JSON.stringify(row.field_permissions || {})) }); formError.value = '' }
 const tableColumns = [
   { prop: 'name', label: uiText("角色名") },
   { prop: 'description', label: uiText("描述") },
@@ -185,7 +197,7 @@ const loadRoles = async () => {
 
 const handleCreate = () => {
   conflict.reset(); formError.value = ''
-  Object.assign(formData, { id: '', version: 0, name: '', description: '', is_active: true, permission_ids: [] })
+  Object.assign(formData, { id: '', version: 0, name: '', description: '', is_active: true, permission_ids: [], field_permissions: {} })
   dialogVisible.value = true
 }
 
@@ -207,6 +219,7 @@ const handleSave = async () => {
       description: formData.description,
       is_active: formData.is_active,
       permission_ids: formData.permission_ids,
+      field_permissions: formData.field_permissions,
     }
     if (formData.id) {
       await rolesApi.update(formData.id, payload)

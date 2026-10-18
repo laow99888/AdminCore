@@ -2,6 +2,25 @@
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { validateBusinessIO } from './business_io_browser.mjs';
+import { validateReportWorkbench } from './report_workbench_browser.mjs';
+import { validateOrganizationAppointments } from './organization_appointments_browser.mjs';
+import { validateApprovalOperations, validateApprovalCalendarDiagnostics } from './approval_operations_browser.mjs';
+import { validateListWorkbench } from './list_workbench_browser.mjs';
+import { validateBusinessSearch } from './business_search_browser.mjs';
+import { validateFileLibrary } from './file_library_browser.mjs';
+import { validateFileReferences } from './file_references_browser.mjs';
+import { validateFileDocuments } from './file_documents_browser.mjs';
+import { validateNotificationPreferences } from './notification_preferences_browser.mjs';
+import { validateFieldDiagnostics } from './field_diagnostics_browser.mjs';
+import { validateOnlineFormLifecycle } from './online_form_lifecycle_browser.mjs';
+import { validateOnlineFormAttachments } from './online_form_attachments_browser.mjs';
+import { validateOnlineFormApprovals } from './online_form_approvals_browser.mjs';
+import { validateOnlineFormRelations } from './online_form_relations_browser.mjs';
+import { validateReportDeepening } from './report_deepening_browser.mjs';
+import { validateNotificationDigests } from './notification_digests_browser.mjs';
+import { validateCredentialRotation } from './credential_rotation_browser.mjs';
+import { validateServiceIdentities } from './service_identities_browser.mjs';
 const [workspace, evidence] = process.argv.slice(2);
 const require = createRequire(resolve(workspace, 'package.json'));
 const { chromium, devices, expect: baseExpect } = require('@playwright/test');
@@ -32,7 +51,11 @@ try {
         const response = await context.request.post('/api/v1/' + path, { headers, data });
         expect(response.status(), await response.text()).toBe(status); return (await response.json()).data;
       }
-      const flow = (await get('approvals/flows/')).items[0];
+      if (process.env.ADMINCORE_BUSINESS_IO === '1') await validateBusinessIO({ page, context, headers, name, evidence, expect, checks });
+      await validateListWorkbench({ page, context, headers, name, evidence, expect, checks });
+      await validateBusinessSearch({ page, context, headers, name, evidence, expect, checks });
+      await validateFileLibrary({ page, context, headers, name, evidence, expect, checks });
+      const flow = (await get('approvals/flows/')).items.find(item => item.code === 'purchase-approval');
       await page.goto('/approvals/flows');
       await page.getByRole('row').filter({ hasText: '采购金额审批' }).getByRole('button', { name: '编辑', exact: true }).click();
       await expect(page.getByRole('switch', { name: '条件流程 V2', exact: true })).toBeChecked();
@@ -59,6 +82,34 @@ try {
       }
       const low = await create('0.10', 'low');
       await page.goto('/cg-orders');
+      const amountHeader = page.getByRole('columnheader', { name: /^订单金额(?:\s|$)/ });
+      await expect(amountHeader).toBeVisible();
+      // 同一页真实配置列，验证持久化、固定、顺序、手机弹层及键盘可操作入口。
+      await page.getByRole('button', { name: '列设置', exact: true }).click();
+      const columnSettings = page.getByRole('group', { name: '列设置', exact: true });
+      await expect(columnSettings).toBeVisible();
+      await columnSettings.getByRole('button', { name: '订单编码 下移', exact: true }).click();
+      await expect(columnSettings.locator('[data-column-setting]').first()).toHaveAttribute('data-column-setting', 'supplier');
+      await columnSettings.locator('[data-column-setting="amount"]').getByText('订单金额', { exact: true }).click();
+      await expect(columnSettings.getByRole('checkbox', { name: '订单金额', exact: true })).not.toBeChecked();
+      const pinSelector = columnSettings.getByRole('combobox', { name: '订单编码 固定位置', exact: true });
+      await pinSelector.focus();
+      await pinSelector.press('ArrowDown');
+      await page.getByRole('option', { name: '固定左侧', exact: true }).click();
+      await expect(columnSettings.locator('[data-column-setting="code"]').getByText('固定左侧', { exact: true })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: resolve(evidence, `v3-${name}-column-settings.png`), fullPage: true });
+      await columnSettings.getByRole('button', { name: '关闭列设置', exact: true }).click();
+      await expect(amountHeader).toHaveCount(0);
+      await page.reload();
+      await expect(amountHeader).toHaveCount(0);
+      await page.getByRole('button', { name: '列设置', exact: true }).click();
+      await expect(columnSettings.locator('[data-column-setting]').first()).toHaveAttribute('data-column-setting', 'supplier');
+      await expect(columnSettings.locator('[data-column-setting="code"]').getByText('固定左侧', { exact: true })).toBeVisible();
+      await columnSettings.getByRole('button', { name: '恢复默认', exact: true }).click();
+      await columnSettings.getByRole('button', { name: '关闭列设置', exact: true }).click();
+      await expect(amountHeader).toBeVisible();
+      checks.push(`${name}: column visibility, order, pinning, reload persistence, reset and responsive settings`);
       let tr = page.getByRole('row').filter({ hasText: low.code });
       await tr.getByRole('button', { name: '提交审批', exact: true }).click();
       await page.getByRole('button', { name: '确定', exact: true }).click();
@@ -114,11 +165,75 @@ try {
       await page.screenshot({ path: resolve(evidence, `v3-${name}-report.png`), fullPage: true });
       expect(errors).toEqual([]);
       checks.push(`${name}: registered report source, exact decimal totals and responsive UI`);
+      await validateReportWorkbench({ page, name, evidence, expect, checks, get, post });
+      await validateOrganizationAppointments({ page, context, name, evidence, expect, checks, get, post, password });
+      await validateApprovalOperations({ page, name, evidence, expect, checks, get, post });
+      await validateApprovalCalendarDiagnostics({ page, name, evidence, expect, checks, get, post });
+      expect(errors).toEqual([]);
       await context.tracing.stop();
     } catch (error) {
       await page.screenshot({ path: resolve(evidence, `v3-${name}-failure.png`), fullPage: true });
       await context.tracing.stop({ path: resolve(evidence, `v3-${name}-failure.zip`) });
       throw error;
+    } finally { await context.close(); }
+  }
+  // 附件历史用例保留撤回的订单；在两端报表基线验收结束后再创建，避免污染汇总夹具。
+  for (const [name, device] of [['desktop', devices['Desktop Chrome']], ['mobile', devices['iPhone SE']]]) {
+    const context = await browser.newContext({ ...device, baseURL });
+    await context.tracing.start({ screenshots: true, snapshots: true });
+    const page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    try {
+      await page.goto('/login');
+      await page.getByPlaceholder('用户名', { exact: true }).fill('admin');
+      await page.getByPlaceholder('密码', { exact: true }).fill(password);
+      await page.getByRole('button', { name: '登录', exact: true }).click();
+      await expect(page).toHaveURL(baseURL + '/');
+      const token = await page.evaluate(() => localStorage.getItem('token'));
+      const headers = { Authorization: 'Bearer ' + token };
+      await validateFileReferences({ page, context, headers, name, evidence, expect, checks });
+      await validateFileDocuments({ page, context, headers, name, evidence, expect, checks });
+      await validateNotificationPreferences({ page, context, headers, name, evidence, expect, checks });
+      await validateNotificationDigests({ page, context, headers, name, evidence, expect, checks });
+      await validateFieldDiagnostics({ page, context, headers, name, evidence, expect, checks });
+      await validateOnlineFormLifecycle({ page, context, headers, name, evidence, expect, checks });
+      await validateOnlineFormAttachments({ page, context, headers, name, evidence, expect, checks });
+      await validateOnlineFormApprovals({ page, context, headers, name, evidence, expect, checks });
+      await validateOnlineFormRelations({ page, context, headers, name, evidence, expect, checks });
+      const get = async path => {
+        const response = await context.request.get('/api/v1/' + path, { headers });
+        expect(response.status(), await response.text()).toBe(200);
+        return (await response.json()).data;
+      };
+      const post = async (path, data, status = 200) => {
+        const response = await context.request.post('/api/v1/' + path, { headers, data });
+        expect(response.status(), await response.text()).toBe(status);
+        return (await response.json()).data;
+      };
+      await validateReportDeepening({ page, name, evidence, expect, checks, get, post });
+      expect(errors).toEqual([]);
+      await context.tracing.stop();
+    } catch (error) {
+      await page.screenshot({ path: resolve(evidence, `file-references-${name}-failure.png`), fullPage: true });
+      await context.tracing.stop({ path: resolve(evidence, `file-references-${name}-failure.zip`) });
+      throw error;
+    } finally { await context.close(); }
+  }
+  // 一次性密钥不进入 trace/HAR 或失败截图，使用单独浏览器上下文。
+  for (const [name, device] of [['desktop', devices['Desktop Chrome']], ['mobile', devices['iPhone SE']]]) {
+    const context = await browser.newContext({ ...device, baseURL });
+    const page = await context.newPage(), errors = [];
+    page.on('pageerror', error => errors.push(error.name));
+    try {
+      await page.goto('/login');
+      await page.getByPlaceholder('用户名', { exact: true }).fill('admin');
+      await page.getByPlaceholder('密码', { exact: true }).fill(password);
+      await page.getByRole('button', { name: '登录', exact: true }).click();
+      await expect(page).toHaveURL(baseURL + '/');
+      const token = await page.evaluate(() => localStorage.getItem('token'));
+      await validateCredentialRotation({ page, context, headers: { Authorization: 'Bearer ' + token }, password, name, evidence, expect, checks });
+      await validateServiceIdentities({ page, context, headers: { Authorization: 'Bearer ' + token }, password, name, evidence, expect, checks });
+      expect(errors).toEqual([]);
     } finally { await context.close(); }
   }
   passed = true;

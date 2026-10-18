@@ -17,6 +17,7 @@
           <el-tab-pane :label="uiText('抄送我的')" name="cc" />
           <el-tab-pane v-if="auth.user?.is_staff || auth.user?.is_superuser" :label="uiText('异常审批')" name="exceptions" />
         </el-tabs>
+        <ApprovalDiagnostics v-if="activeBox === 'exceptions'" />
 
         <BaseTable
           :data="tableData"
@@ -56,15 +57,17 @@
         <el-table v-if="currentApproval?.steps?.length" :data="currentApproval.steps">
           <el-table-column prop="node_key" :label="uiText('节点')" />
           <el-table-column prop="assignee_name" :label="uiText('审批人')" />
+          <el-table-column :label="uiText('主管解析记录')" min-width="200"><template #default="{ row }"><span v-if="row.assignment_context?.source === 'department_leader'">{{ row.assignment_context.department_name }} · {{ row.assignment_context.assignee_name }} · {{ row.assignment_context.resolved_on }}</span><span v-else>—</span></template></el-table-column>
           <el-table-column prop="delegated_to_name" :label="uiText('受托人')" />
           <el-table-column prop="status" :label="uiText('状态')" />
         </el-table>
+        <ApprovalOperations v-if="detailVisible && currentApproval" :application="currentApproval" @changed="updateDetail" />
         <div v-if="currentApproval?.status === 'pending'" class="advanced-actions">
           <el-button v-if="ownStep" :disabled="saving" @click="openAction('addSign')">{{ uiText('加签') }}</el-button>
           <el-button v-if="ownStep?.assignee === auth.user?.id" :disabled="saving" @click="openAction('transfer')">{{ uiText('转交') }}</el-button>
           <el-button v-if="ownStep?.assignee === auth.user?.id" :disabled="saving" @click="openAction('delegate')">{{ uiText('委托') }}</el-button>
           <el-button v-if="activeBox !== 'cc'" :disabled="saving" @click="openAction('cc')">{{ uiText('抄送') }}</el-button>
-          <el-button v-if="activeBox === 'exceptions' && currentApproval.steps?.length" :disabled="saving" @click="openAction('repairStep')">{{ uiText('修复审批人') }}</el-button>
+          <el-button v-if="activeBox === 'exceptions'" :disabled="saving" @click="openAction('repairStep')">{{ uiText('修复审批人') }}</el-button>
         </div>
       </BaseDialog>
       <!-- 发起申请 -->
@@ -84,7 +87,7 @@
           </el-form-item>
           <el-form-item :label="uiText('审批流程')">
             <el-select v-model="flowId" clearable filterable :loading="flowsLoading" @visible-change="loadFlows" style="width: 100%">
-              <el-option v-for="flow in availableFlows" :key="flow.id" :label="`${flow.name} (v${flow.version})`" :value="flow.id" />
+              <el-option v-for="flow in availableFlows" :key="flow.id" :label="`${flow.name} (v${flow.revision || 1})`" :value="flow.id" />
             </el-select>
             <el-button v-if="flowsHasMore" link :disabled="flowsLoading" @click="loadFlows(true, true)">{{ uiText('加载更多流程') }}</el-button>
           </el-form-item>
@@ -103,7 +106,7 @@
       </BaseDialog>
       <BaseDialog v-model="actionVisible" :before-close="actionGuard.confirmDiscard" :title="actionLabels[actionKind]" :loading="saving" @confirm="submitAction">
         <el-form label-width="90px" :disabled="saving">
-          <el-form-item v-if="actionKind === 'repairStep'" :label="uiText('待处理步骤')" required>
+          <el-form-item v-if="actionKind === 'repairStep' && currentApproval?.flow" :label="uiText('待处理步骤')" required>
             <el-select v-model="repairStepId"><el-option v-for="step in currentApproval?.steps?.filter(item => item.status === 'pending')" :key="step.id" :label="`${step.node_key} / ${step.assignee_name || '—'}`" :value="step.id" /></el-select>
           </el-form-item>
           <el-form-item :label="uiText('目标人员')" required><PersonPicker v-model="actionTarget" purpose="approval" :disabled="saving || !actionVisible" /></el-form-item>
@@ -122,6 +125,9 @@ import { uiText } from "@/i18n/uiText"
 
 import { computed, reactive, ref, watch } from 'vue'
 import PersonPicker from '@/components/common/PersonPicker.vue'
+import ApprovalOperations from './ApprovalOperations.vue'
+import ApprovalDiagnostics from './ApprovalDiagnostics.vue'
+import { approvalDiagnosticsApi } from '@/api/approvalDiagnostics'
 import type { Person } from '@/api/personnel'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AppLayout from '../../components/layout/AppLayout.vue'
@@ -162,6 +168,7 @@ const ownStep = computed(() => currentApproval.value?.steps?.find(step => step.s
 const actionGuard = useUnsavedChanges({ source: () => [actionTarget.value, actionComment.value], active: () => actionVisible.value,
   busy: () => saving.value, clear: () => { actionVisible.value = false; actionTarget.value = null; actionComment.value = '' } })
 function showDetail(row: ApprovalRow) { currentApproval.value = row; detailVisible.value = true }
+function updateDetail(row: ApprovalRow) { currentApproval.value = row; void loadList() }
 function openAction(kind: typeof actionKind.value) { actionKind.value = kind; actionTarget.value = null; actionComment.value = ''; repairStepId.value = currentApproval.value?.steps?.find(step => step.status === 'pending')?.id || ''; actionVisible.value = true }
 async function submitAction() {
   if (saving.value || !currentApproval.value || !actionTarget.value) return
@@ -169,10 +176,11 @@ async function submitAction() {
   try {
     const id = currentApproval.value.id, target = actionTarget.value.id, kind = actionKind.value
     const repair = currentApproval.value.steps?.find(step => step.id === repairStepId.value)
-    if (kind === 'repairStep' && !repair) return
+    if (kind === 'repairStep' && currentApproval.value.flow && !repair) return
     const response = kind === 'cc' ? await approvalsApi.cc(id, [target], actionComment.value) : kind === 'repairStep'
-      ? await approvalsApi.repairStep(id, target, repair!.id, repair!.version, actionComment.value)
-      : await approvalsApi[kind](id, target, actionComment.value, ownStep.value?.version)
+      ? currentApproval.value.flow ? await approvalsApi.repairStep(id, target, repair!.id, repair!.version, actionComment.value)
+        : await approvalDiagnosticsApi.repairLegacy(id, target, currentApproval.value.workflow_version!, actionComment.value)
+      : await approvalsApi[kind](id, target, actionComment.value, ownStep.value?.version, currentApproval.value.workflow_version)
     if (!actionGuard.isSessionCurrent()) return
     currentApproval.value = response.data.data; actionVisible.value = false; ElMessage.success(uiText('操作成功')); await loadList()
   } catch (error) { notifyError(error, uiText('操作失败')) } finally { saving.value = false }
@@ -296,7 +304,8 @@ const decide = async (row: ApprovalRow, action: 'approve' | 'reject') => {
       cancelButtonText: uiText("取消"),
       inputPlaceholder: uiText("审批意见"),
     })
-    await (action === 'approve' ? approvalsApi.approve(row.id, value) : approvalsApi.reject(row.id, value))
+    const step = row.steps?.find(item => item.status === 'pending' && (item.assignee === auth.user?.id || item.delegated_to === auth.user?.id))
+    await approvalsApi[action](row.id, value, row.workflow_version, step?.id)
     ElMessage.success(uiText("已{p0}", { p0: tip }))
     loadList()
   } catch {

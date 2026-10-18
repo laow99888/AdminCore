@@ -147,6 +147,7 @@ def prepare_delivery(payload):
     elif actor is None or actor.must_change_password or not (actor.is_staff or actor.is_superuser) or actor.session_version != row.actor_session_version or not has_permission_code(actor, 'template:send'): reason = 'sender_revoked'
     elif row.actor_session_id and not valid_sender_session(row, actor): reason = 'sender_session_revoked'
     elif user is None or not candidates(actor).filter(pk=user.pk).exists(): reason = 'recipient_unavailable'
+    elif row.tenant_id and not delivery_tenant_available(row, actor, user): reason = 'delivery_tenant_unavailable'
     elif not MessageTemplate.objects.select_for_update().get(pk=row.version.template_id).enabled: reason = 'template_disabled'
     elif not enabled(row.channel): reason = 'channel_disabled'
     elif row.channel == 'email' and (not user.email_verified or email_binding(user) != row.email_binding or user.verified_email.strip().lower() != user.email.strip().lower()): reason = 'recipient_email_changed'
@@ -160,10 +161,31 @@ def prepare_delivery(payload):
         row.status, row.last_error = 'terminated', reason
         row.save(update_fields=['status', 'last_error', 'updated_at'])
         return
+    from .preferences import DeliveryDeferred, preference_for, quiet_until, subscribed
+    preference = preference_for(user.pk, row.tenant_id)
+    if not subscribed(preference, 'template.message', row.channel):
+        row.status, row.last_error = 'terminated', 'recipient_preference_disabled'
+        row.save(update_fields=['status', 'last_error', 'updated_at'])
+        return
+    if row.channel != 'inapp':
+        until = quiet_until(preference)
+        if until is not None:
+            raise DeliveryDeferred(min(until, row.expires_at))
     row.attempts += 1
     row.status = 'sending'
     row.save(update_fields=['status', 'attempts', 'updated_at'])
     return row, user
+
+
+def delivery_tenant_available(row, actor, recipient):
+    from apps.core.models import Tenant, TenantMembership
+    if not Tenant.objects.filter(pk=row.tenant_id, status=Tenant.STATUS_ACTIVE).exists():
+        return False
+    required = {recipient.pk}
+    if not (actor.is_staff or actor.is_superuser):
+        required.add(actor.pk)
+    return not required or required == set(TenantMembership.objects.filter(
+        tenant_id=row.tenant_id, user_id__in=required, is_active=True).values_list('user_id', flat=True))
 
 
 def deliver(payload):

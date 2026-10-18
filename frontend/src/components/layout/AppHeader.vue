@@ -234,6 +234,8 @@ const handleCommand = async (command: string) => {
 }
 
 .header-left {
+  position: relative;
+  z-index: 1;
   flex: 1;
   min-width: 0;
   display: flex;

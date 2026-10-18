@@ -60,6 +60,7 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None
         related_resource='maintenance:files',
     )
     purged = 0
+    protected = 0
     if _record is None:
         from .routing import record_scheduled_policy
         record_scheduled_policy(record, 'files', {'dry_run': dry_run, 'batch_size': batch_size}, self.request)
@@ -72,17 +73,21 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None
             raise ValueError('preview_policy_changed')
         cutoff = timezone.now() - timedelta(days=retention_days)
         expired = FileModel.objects.filter(is_deleted=True, deleted_at__lt=cutoff)
+        from apps.files.references import unreferenced_files
+        from apps.core.models import LifecycleConflict
+        eligible = unreferenced_files(expired)
+        protected = expired.count() - eligible.count()
         if dry_run:
             from django.db.models import Sum
-            result = {'purged_files': 0, 'eligible_files': expired.count(),
-                      'eligible_bytes': expired.aggregate(total=Sum('size'))['total'] or 0,
+            result = {'purged_files': 0, 'eligible_files': eligible.count(), 'protected_files': protected,
+                      'eligible_bytes': eligible.aggregate(total=Sum('size'))['total'] or 0,
                       'retention_days': retention_days, 'dry_run': True}
             record.mark_success(result=result)
             return result
         # 固定截止时间、按主键游标分批；不一次性加载所有过期文件。
         cursor = None
         while True:
-            query = expired.filter(pk__gt=cursor) if cursor is not None else expired
+            query = eligible.filter(pk__gt=cursor) if cursor is not None else eligible
             batch = list(query.order_by('pk')[:batch_size])
             if not batch:
                 break
@@ -100,14 +105,18 @@ def cleanup_soft_deleted_files(self, dry_run=False, batch_size=100, _record=None
                             }, 'after': None,
                         }, ensure_ascii=False),
                     )
-                purged += file_obj.hard_delete(deleted_before=cutoff, audit=audit)
+                try:
+                    purged += file_obj.hard_delete(deleted_before=cutoff, audit=audit)
+                except LifecycleConflict:
+                    # 预览后新增引用不能中断整批清理；文件行锁内仍进行最终复核。
+                    protected += 1
             cursor = batch[-1].pk
         from apps.files.resumable import cleanup_expired_sessions
         expired_uploads = cleanup_expired_sessions(limit=batch_size)
         record.mark_success(result={'purged_files': purged, 'expired_uploads': expired_uploads,
-                                    'retention_days': retention_days})
+                                    'retention_days': retention_days, 'protected_files': protected})
         logger.info('Cleanup purged %d expired files', purged)
-        return {'purged_files': purged, 'expired_uploads': expired_uploads}
+        return {'purged_files': purged, 'expired_uploads': expired_uploads, 'protected_files': protected}
     except Exception as exc:
         record.result = {'purged_files': purged}
         record.save(update_fields=['result'])

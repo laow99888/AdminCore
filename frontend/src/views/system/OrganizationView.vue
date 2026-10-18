@@ -18,6 +18,7 @@
       </BaseTable>
       <BaseButton v-if="referencesFailed" @click="loadReferences">{{ uiText('重新加载选项') }}</BaseButton>
     </BaseCard>
+    <OrganizationAppointments :departments="departments" :references-ready="!referencesFailed && !referencesLoading" />
     <BaseDialog v-model="visible" :before-close="formGuard.confirmDiscard" :title="uiText(form.id ? '编辑' : '新增')" :loading="saving || conflict.loading.value" :confirm-disabled="conflict.active.value || referencesFailed || referencesLoading" @confirm="save">
       <div v-if="formError" ref="errorSummary" role="alert" tabindex="-1"><el-alert :title="formError" type="error" :closable="false" class="notice" /></div>
       <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :version="form.version" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
@@ -26,6 +27,7 @@
           <el-form-item :label="uiText('部门名称')" required><el-input v-model="form.name" maxlength="100" /></el-form-item>
           <el-form-item :label="uiText('上级部门')"><el-select v-model="form.parent" clearable style="width: 100%"><el-option v-for="department in parentOptions" :key="department.id" :label="department.name" :value="department.id" /></el-select></el-form-item>
           <el-form-item :label="uiText('排序')"><el-input-number v-model="form.order" :min="0" /></el-form-item>
+          <el-form-item :label="uiText('部门负责人')"><PersonPicker v-model="leaderPerson" purpose="post" :disabled="saving" /></el-form-item>
           <el-form-item :label="uiText('启用')"><el-switch v-model="form.is_active" /></el-form-item>
         </template>
         <template v-else-if="section === 'memberships'">
@@ -45,6 +47,9 @@
 
 <script setup lang="ts">
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import OrganizationAppointments from '@/components/common/OrganizationAppointments.vue'
+import PersonPicker from '@/components/common/PersonPicker.vue'
+import type { Person } from '@/api/personnel'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useModuleStore } from '@/stores/modules'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -75,6 +80,8 @@ interface OrganizationRow {
   resource?: string
   scope?: string
   departments?: string[]
+  leader?: string | null
+  leader_name?: string | null
 }
 interface OrganizationForm {
   id: string
@@ -89,10 +96,13 @@ interface OrganizationForm {
   resource: string
   scope: string
   departments: string[]
+  leader: string | null
   [key: string]: unknown
 }
 
 const auth = useAuthStore()
+const leaderPerson = ref<Person | null>(null)
+watch(leaderPerson, value => { form.leader = value?.id || null })
 const section = ref<OrganizationSection>('departments')
 const rows = ref<OrganizationRow[]>([])
 const departments = ref<DepartmentRow[]>([])
@@ -111,11 +121,12 @@ const page = ref(1)
 const pageSize = ref(20)
 const total = ref(0)
 usePageState({ section, page, pageSize })
-const form = reactive<OrganizationForm>({ id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [] })
+const form = reactive<OrganizationForm>({ id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [], leader: null })
 const formGuard = useUnsavedChanges({ source: () => form, active: () => visible.value, busy: () => saving.value || conflict.loading.value, canEdit: () => !!(auth.user?.is_staff || auth.user?.is_superuser), clear: () => { visible.value = false; for (const key of Object.keys(form)) delete form[key] } })
 function applyOrganization(row: OrganizationRow) {
   for (const key of Object.keys(form)) delete form[key]
   Object.assign(form, JSON.parse(JSON.stringify(row)))
+  leaderPerson.value = row.leader ? { id: row.leader, username: row.leader_name || row.leader, display_name: row.leader_name || row.leader, department: null, department_name: null } : null
   if (section.value === 'memberships' && row.user && row.username) userOptions.value = [{ id: row.user, username: row.username }]
   formError.value = ''; formGuard.markClean()
 }
@@ -123,8 +134,8 @@ const conflict = useEditConflict<OrganizationForm>({ identifier: () => visible.v
 const conflictRows = computed(() => {
   const server = conflict.latest.value
   if (!server) return []
-  const keys = section.value === 'departments' ? ['name', 'parent', 'order', 'is_active'] : section.value === 'memberships' ? ['user', 'department'] : ['role', 'resource', 'scope', 'departments']
-  const labels: Record<string, string> = { name: '部门名称', parent: '上级部门', order: '排序', is_active: '启用', user: '用户', department: '部门', role: '角色', resource: '资源', scope: '数据范围', departments: '授权部门' }
+  const keys = section.value === 'departments' ? ['name', 'parent', 'order', 'is_active', 'leader'] : section.value === 'memberships' ? ['user', 'department'] : ['role', 'resource', 'scope', 'departments']
+  const labels: Record<string, string> = { name: '部门名称', parent: '上级部门', order: '排序', is_active: '启用', user: '用户', department: '部门', role: '角色', resource: '资源', scope: '数据范围', departments: '授权部门', leader: '部门负责人' }
   return keys.map(key => ({ label: uiText(labels[key]!), local: JSON.stringify(form[key] ?? null), server: JSON.stringify(server[key] ?? null) }))
 })
 const modules = useModuleStore()
@@ -149,7 +160,7 @@ const departmentTree = computed(() => {
   return roots
 })
 const columns = computed(() => section.value === 'departments' ? [
-  { prop: 'name', label: uiText('部门名称'), width: 200 }, { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '启用' : '停用') },
+  { prop: 'name', label: uiText('部门名称'), width: 200 }, { prop: 'leader_name', label: uiText('部门负责人'), width: 160 }, { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '启用' : '停用') },
 ] : section.value === 'memberships' ? [{ prop: 'username', label: uiText('用户'), width: 180 }, { prop: 'department_name', label: uiText('部门'), width: 180 }] : [
   { prop: 'role_name', label: uiText('角色'), width: 180 }, { prop: 'resource', label: uiText('资源'), width: 100, render: (value: string) => uiText(resources.value[value] || value) },
   { prop: 'scope', label: uiText('数据范围'), width: 180, render: (value: string) => uiText(scopes[value] || value) },
@@ -206,7 +217,8 @@ function changePage(value: number) { page.value = value; load() }
 function changeSize(value: number) { pageSize.value = value; page.value = 1; load() }
 function edit(row?: OrganizationRow) {
   conflict.reset()
-  Object.assign(form, { id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [] }, row ? JSON.parse(JSON.stringify(row)) : {})
+  Object.assign(form, { id: '', name: '', parent: null, order: 0, is_active: true, version: 0, user: '', department: '', role: '', resource: 'user', scope: 'self', departments: [], leader: null }, row ? JSON.parse(JSON.stringify(row)) : {})
+  leaderPerson.value = row?.leader ? { id: row.leader, username: row.leader_name || row.leader, display_name: row.leader_name || row.leader, department: null, department_name: null } : null
   formError.value = ''; visible.value = true
   if (section.value === 'memberships') {
     if (row?.user && row.username) userOptions.value = [{ id: row.user, username: row.username }]
@@ -219,7 +231,7 @@ async function save() {
   let data: object
   if (section.value === 'departments') {
     if (!form.name.trim()) { formError.value = uiText('请填写部门名称'); return }
-    data = { name: form.name, parent: form.parent || null, order: form.order, is_active: form.is_active, version: form.version }
+    data = { name: form.name, parent: form.parent || null, order: form.order, is_active: form.is_active, version: form.version, leader: form.leader }
   } else if (section.value === 'memberships') {
     if (!form.user || !form.department) { formError.value = uiText('请选择用户和部门'); return }
     data = { user: form.user, department: form.department, version: form.version }

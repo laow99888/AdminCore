@@ -10,12 +10,14 @@ interface ModuleDescriptor {
   dependencies: string[]
   paths: string[]
   page_permissions?: Record<string, string>
+  data_io_resources?: string[]
 }
 interface Capabilities {
   contract_version: number
   preset: string
   modules: ModuleDescriptor[]
   scope_resources?: Array<{ key: string; title: string }>
+  field_policy_resources?: Record<string, string[]>
 }
 
 export const useModuleStore = defineStore('modules', () => {
@@ -28,6 +30,7 @@ export const useModuleStore = defineStore('modules', () => {
       const value = response.data.data
       if (!value || value.contract_version !== 1 || !Array.isArray(value.modules) ||
           value.modules.some(module => !module || typeof module.key !== 'string' || typeof module.enabled !== 'boolean' ||
+            (module.data_io_resources !== undefined && (!Array.isArray(module.data_io_resources) || module.data_io_resources.some(resource => resource !== module.key))) ||
             !Array.isArray(module.paths) || module.paths.some(path => typeof path !== 'string' || !path.startsWith('/')) ||
             (module.page_permissions !== undefined && (!module.page_permissions || typeof module.page_permissions !== 'object' || Array.isArray(module.page_permissions) ||
               Object.entries(module.page_permissions).some(([path, code]) => !module.paths.includes(path) || typeof code !== 'string' || !/^[a-z][a-z0-9_]*:[a-z][a-z0-9_]*$/.test(code)))) ||

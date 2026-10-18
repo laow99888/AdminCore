@@ -3,15 +3,17 @@ import json
 import re
 from datetime import datetime
 from decimal import Decimal
+from uuid import UUID
 
 from rest_framework.exceptions import ValidationError
 
 from .validators import KEY_RE, FORBIDDEN_KEYS, validate_definition, validate_record
+from .computations import calculate, normalize_computation
 
-SCALARS = {'text', 'textarea', 'number', 'select', 'date', 'boolean', 'decimal', 'datetime', 'multiselect'}
+SCALARS = {'text', 'textarea', 'number', 'select', 'date', 'boolean', 'decimal', 'datetime', 'multiselect', 'file', 'relation'}
 BASE = {'key', 'label', 'type', 'required', 'default', 'options', 'min', 'max', 'max_length'}
 EXTRA = {'section', 'span', 'help', 'placeholder', 'visible_when', 'required_when', 'scale',
-         'fields', 'min_rows', 'max_rows', 'rules'}
+         'fields', 'min_rows', 'max_rows', 'rules', 'computation', 'resource'}
 OPS = {'eq', 'ne', 'in', 'empty', 'not_empty', 'lt', 'lte', 'gt', 'gte'}
 
 
@@ -44,6 +46,13 @@ def decimal_value(raw, scale):
 
 def scalar(field, raw):
     kind = field['type']
+    if kind in {'file', 'relation'}:
+        try:
+            if not isinstance(raw, str):
+                raise ValueError
+            return str(UUID(raw))
+        except (ValueError, AttributeError):
+            raise ValidationError('附件必须为有效文件标识' if kind == 'file' else '关联值必须为有效标识') from None
     if kind == 'decimal':
         value = decimal_value(raw, field['scale'])
         if ('min' in field and value < Decimal(field['min'])) or ('max' in field and value > Decimal(field['max'])):
@@ -78,6 +87,8 @@ def condition(value, previous):
         target = previous.get(rule.get('field'))
         op = rule.get('op')
         if target is None or target['type'] in {'detail', 'multiselect'} or not isinstance(op, str) or op not in OPS:
+            fail()
+        if target['type'] in {'file', 'relation'} and op not in {'empty', 'not_empty'}:
             fail()
         if op in {'lt', 'lte', 'gt', 'gte'} and target['type'] not in {'number', 'decimal', 'date', 'datetime'}:
             fail()
@@ -127,12 +138,17 @@ def fields(value, sections, child=False):
         if type(field.get('required', False)) is not bool:
             fail()
         row = {'key': key, 'label': text(field.get('label')), 'type': kind, 'required': field.get('required', False)}
-        if kind in {'decimal', 'datetime', 'multiselect', 'detail'}:
-            allowed = {'decimal': {'scale', 'min', 'max', 'default'}, 'datetime': {'default'},
-                       'multiselect': {'options', 'default'}, 'detail': {'fields', 'min_rows', 'max_rows', 'rules'}}[kind]
+        if kind in {'decimal', 'datetime', 'multiselect', 'detail', 'file', 'relation'}:
+            allowed = {'decimal': {'scale', 'min', 'max', 'default', 'computation'}, 'datetime': {'default'},
+                       'multiselect': {'options', 'default'}, 'detail': {'fields', 'min_rows', 'max_rows', 'rules'}, 'file': set(), 'relation': {'resource'}}[kind]
             if set(field) & (BASE | EXTRA) - {'key', 'label', 'type', 'required', 'section', 'span', 'help', 'placeholder', 'visible_when', 'required_when'} - allowed:
                 fail()
-            if kind == 'decimal':
+            if kind == 'relation':
+                resource = field.get('resource')
+                if not isinstance(resource, str) or '__' in resource or not re.fullmatch(r'[a-z][a-z0-9_]{0,63}', resource):
+                    fail()
+                row['resource'] = resource
+            elif kind == 'decimal':
                 scale = field.get('scale', 2)
                 if type(scale) is not int or not 0 <= scale <= 8:
                     fail()
@@ -155,8 +171,12 @@ def fields(value, sections, child=False):
             if set(field) & {'min', 'max', 'options', 'max_length'} - typed[kind]:
                 fail()
             row.update(validate_definition({'fields': [{k: v for k, v in field.items() if k in BASE}]})['fields'][0])
-            if set(field) & {'scale', 'fields', 'min_rows', 'max_rows', 'rules'}:
+            if set(field) & {'scale', 'fields', 'min_rows', 'max_rows', 'rules', 'computation', 'resource'}:
                 fail()
+        if 'computation' in field:
+            if kind != 'decimal' or 'default' in field:
+                fail()
+            row['computation'] = normalize_computation(field['computation'], previous)
         if not child:
             section = field.get('section', '')
             if not isinstance(section, str) or section and section not in sections:
@@ -254,7 +274,11 @@ def record_fields(definitions, comparisons, data):
         key = field['key']
         if 'visible_when' in field and not matches(field['visible_when'], result, definitions):
             continue  # 隐藏字段（包括旧值和默认值）不参与持久化及后续条件。
-        raw = data.get(key, field.get('default'))
+        try:
+            raw = calculate(field['computation'], result, field['scale']) if 'computation' in field else data.get(key, field.get('default'))
+        except ValidationError as exc:
+            errors[key] = exc.detail
+            continue
         required = field['required'] or 'required_when' in field and matches(field['required_when'], result, definitions)
         if empty(raw):
             if required or field['type'] == 'detail' and field['min_rows'] > 0:

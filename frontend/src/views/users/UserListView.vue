@@ -48,6 +48,7 @@
         </template>
 
         <BaseTable
+          preference-key="system.users"
           :data="tableData"
           :columns="tableColumns"
           :loading="loading"

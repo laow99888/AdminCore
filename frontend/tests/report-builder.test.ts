@@ -8,7 +8,7 @@ import { useAuthStore } from '../src/stores/auth'
 import { reportsApi, type ReportDefinition } from '../src/api'
 import ReportBuilderView from '../src/views/reports/ReportBuilderView.vue'
 
-vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value }))
+vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value, registerUiMessages: vi.fn() }))
 vi.mock('../src/api', () => ({ reportsApi: {
   catalog: vi.fn(), list: vi.fn(), publish: vi.fn(), run: vi.fn(), update: vi.fn(),
 } }))
@@ -26,7 +26,7 @@ const catalog = [{ key: 'tasks', label: '任务', dimensions: ['status'], metric
 async function mountReport() {
   const pinia = createPinia(), auth = useAuthStore(pinia)
   auth.token = 'isolated-report-test'
-  auth.user = { id: 'fixture', username: 'fixture', email: '', avatar: '', permissions: ['*'] }
+  auth.user = { id: 'fixture', username: 'fixture', email: '', avatar: '', is_staff: true, permissions: ['*'] }
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/report', component: { template: '<div />' } }] })
   await router.push('/report')
   return mount(ReportBuilderView, { global: { plugins: [pinia, router, ElementPlus] } })

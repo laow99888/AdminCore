@@ -5,10 +5,18 @@ from .serializer_fields import TenantPrimaryKeyRelatedField
 
 class DepartmentSerializer(serializers.ModelSerializer):
     version = serializers.IntegerField(min_value=0)
+    leader_name = serializers.CharField(source='leader.username', read_only=True, default=None)
 
     class Meta:
         model = Department
-        fields = ('id', 'name', 'parent', 'order', 'is_active', 'version')
+        fields = ('id', 'name', 'parent', 'order', 'is_active', 'version', 'leader', 'leader_name')
+
+    def validate_leader(self, value):
+        if value:
+            from .appointments import check_person
+            from .tenancy import current_tenant_id, enabled
+            check_person(value, current_tenant_id() if enabled() else None)
+        return value
 
 
 class MembershipSerializer(serializers.ModelSerializer):
@@ -19,6 +27,11 @@ class MembershipSerializer(serializers.ModelSerializer):
     class Meta:
         model = OrganizationMembership
         fields = ('id', 'user', 'username', 'department', 'department_name', 'version')
+
+    def validate_user(self, value):
+        if value.is_service_account:
+            raise serializers.ValidationError('机器身份不能作为组织人员')
+        return value
 
     def validate_department(self, value):
         if not value.is_active:

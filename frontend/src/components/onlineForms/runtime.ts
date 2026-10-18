@@ -3,6 +3,7 @@ import type {
   OnlineFormDefinition,
   OnlineFormField,
 } from "@/api";
+import { calculateDecimal } from "./computations";
 
 export type FormValues = Record<string, unknown>;
 export function isEmpty(value: unknown) {
@@ -87,7 +88,14 @@ export function activeValues(
   const result: FormValues = {};
   for (const field of fields) {
     if (!matches(field.visible_when, result, fields)) continue;
-    const raw = values[field.key] ?? field.default;
+    let raw = values[field.key] ?? field.default;
+    if (field.computation) {
+      try {
+        raw = calculateDecimal(field.computation, result, field.scale ?? 2);
+      } catch {
+        raw = undefined;
+      }
+    }
     if (!isEmpty(raw))
       result[field.key] =
         field.type === "detail" && Array.isArray(raw)
@@ -99,13 +107,27 @@ export function activeValues(
   return result;
 }
 export function visibleFields(fields: OnlineFormField[], values: FormValues) {
-  const active: FormValues = {};
-  return fields.filter((field) => {
-    if (!matches(field.visible_when, active, fields)) return false;
-    const raw = values[field.key] ?? field.default;
-    if (!isEmpty(raw)) active[field.key] = raw;
-    return true;
-  });
+  const active = activeValues(fields, values);
+  return fields.filter((field) => matches(field.visible_when, active, fields));
+}
+/** 客户端预览计算值不提交；服务端按定义独立复算。 */
+export function submissionValues(
+  fields: OnlineFormField[],
+  values: FormValues,
+): FormValues {
+  const active = activeValues(fields, values);
+  return Object.fromEntries(
+    fields
+      .filter((field) => !field.computation && field.key in active)
+      .map((field) => [
+        field.key,
+        field.type === "detail" && Array.isArray(active[field.key])
+          ? (active[field.key] as FormValues[]).map((row) =>
+              submissionValues(field.fields || [], row),
+            )
+          : active[field.key],
+      ]),
+  );
 }
 export function required(
   field: OnlineFormField,

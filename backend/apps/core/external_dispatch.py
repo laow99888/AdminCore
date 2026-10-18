@@ -8,6 +8,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .models import OutboxEvent
+from .tenancy import tenant_context
 from apps.logs.context import correlated_request
 
 TOPICS = ('notification.delivery', 'task.failed', 'auth.email', 'file.purge')
@@ -62,7 +63,8 @@ def dispatch_external(limit):
             event.status, event.available_at = 'processing', now + timedelta(seconds=LEASE_SECONDS)
             event.save(update_fields=['status', 'attempts', 'available_at', 'updated_at'])
         error = ''
-        with correlated_request(event.request_id):
+        deferred_until = None
+        with correlated_request(event.request_id), tenant_context(event.tenant_id):
             try:
                 if event.topic == 'notification.delivery':
                     from apps.notifications.message_services import deliver
@@ -78,13 +80,28 @@ def dispatch_external(limit):
                     from apps.files.deletion import purge_object
                     purge_object(event.payload)
             except Exception as exc:
+                if event.topic == 'notification.delivery':
+                    from apps.notifications.preferences import DeliveryDeferred
+                    if isinstance(exc, DeliveryDeferred):
+                        deferred_until = exc.until
+                    else:
+                        error = type(exc).__name__
+                else:
+                    error = type(exc).__name__
                 # 外部异常正文可含地址、签名和业务内容，禁止持久化。
-                error = type(exc).__name__
+        if deferred_until is not None:
+            # 免打扰尚未发送，不消耗失败重试；租约时间同时作为领取标识，
+            # 防止归还attempt之后迟到旧worker覆盖下一次同attempt的领取。
+            OutboxEvent.objects.filter(pk=event.pk, status='processing', attempts=event.attempts,
+                available_at=event.available_at).update(status='pending', available_at=deferred_until,
+                    attempts=event.attempts - 1, last_error='', updated_at=timezone.now())
+            continue
         values = {'status': 'failed' if error else 'succeeded', 'last_error': error,
                   'available_at': timezone.now() + timedelta(seconds=min(3600, 2 ** min(event.attempts, 12))),
                   'published_at': None if error else timezone.now(), 'updated_at': timezone.now()}
-        # attempts 是单调递增的领取代数；迟到的旧领取不能回写新状态。
-        updated = OutboxEvent.objects.filter(pk=event.pk, status='processing', attempts=event.attempts).update(**values)
+        # attempt与租约共同匹配，迟到的旧领取不能回写新状态。
+        updated = OutboxEvent.objects.filter(pk=event.pk, status='processing', attempts=event.attempts,
+                                            available_at=event.available_at).update(**values)
         if updated:
             with correlated_request(event.request_id):
                 logger.log(logging.WARNING if error else logging.INFO, 'Reliable external event processed',

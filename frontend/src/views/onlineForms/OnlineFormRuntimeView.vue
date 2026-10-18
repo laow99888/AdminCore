@@ -9,11 +9,12 @@
           v-model="values"
           :definition="form.definition"
           :errors="errors"
-          :disabled="saving"
+          :disabled="saving || !canCreateRecords"
+          :attachment-context="{ code: form.code, formId: form.id }"
         />
         <p v-if="error" role="alert" class="error">{{ error }}</p>
         <p v-if="success" role="status">{{ uiText("提交成功") }}</p>
-        <BaseButton variant="primary" :disabled="saving" @click="submit">{{
+        <BaseButton variant="primary" :disabled="saving || !canCreateRecords" @click="submit">{{
           saving ? uiText("提交中") : uiText("提交")
         }}</BaseButton> </BaseCard
       ><BaseCard v-else
@@ -25,12 +26,13 @@
           uiText("重试")
         }}</el-button></BaseCard
       >
+      <BaseCard v-if="canReadRecords"><OnlineFormRecords :code="String(route.params.code)" :refresh="recordRefresh" /></BaseCard>
     </div></AppLayout
   >
 </template>
 <script setup lang="ts">
 import "@/components/onlineForms/messages";
-import { ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import AppLayout from "@/components/layout/AppLayout.vue";
 import { BaseButton, BaseCard } from "@/components";
@@ -39,8 +41,11 @@ import { errorMessage } from "@/api/request";
 import { uiText } from "@/i18n/uiText";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import OnlineFormRenderer from "@/components/onlineForms/OnlineFormRenderer.vue";
+import OnlineFormRecords from '@/components/onlineForms/OnlineFormRecords.vue';
+import { useAuthStore } from '@/stores/auth';
+import { useTenantStore } from '@/stores/tenants';
 import {
-  activeValues,
+  submissionValues,
   fieldErrors,
   initialValues,
   type FormValues,
@@ -53,6 +58,10 @@ const route = useRoute(),
   success = ref(false),
   saving = ref(false),
   loading = ref(false);
+const auth = useAuthStore(), recordRefresh = ref(0);
+const tenants = useTenantStore();
+const canReadRecords = computed(() => auth.can('online_form:record_read'));
+const canCreateRecords = computed(() => auth.can('online_form:record_create'));
 let read = 0,
   pending: { body: string; key: string } | undefined;
 const guard = useUnsavedChanges({
@@ -95,27 +104,29 @@ async function load() {
   }
 }
 async function submit() {
-  if (!form.value || saving.value) return;
+  if (!form.value || saving.value || !canCreateRecords.value) return;
+  const row = form.value, current = read;
   saving.value = true;
   error.value = "";
   errors.value = {};
   success.value = false;
   const data =
-    form.value.definition.schema_version === 2
-      ? activeValues(form.value.definition.fields, values.value)
+    row.definition.schema_version === 2
+      ? submissionValues(row.definition.fields, values.value)
       : values.value;
   const body = JSON.stringify(data);
   if (!pending || pending.body !== body)
     pending = { body, key: `online-form-${crypto.randomUUID()}` };
   try {
-    await onlineFormsApi.createRecord(form.value.code, data, pending.key);
-    if (!guard.isSessionCurrent()) return;
-    values.value = initialValues(form.value.definition.fields);
+    await onlineFormsApi.createRecord(row.code, data, pending.key, row.id);
+    if (current !== read || !guard.isSessionCurrent()) return;
+    values.value = initialValues(row.definition.fields);
     pending = undefined;
     guard.markClean();
     success.value = true;
+    recordRefresh.value++;
   } catch (err) {
-    if (guard.isSessionCurrent()) {
+    if (current === read && guard.isSessionCurrent()) {
       errors.value = fieldErrors(err);
       error.value = errorMessage(err, uiText("提交失败，请检查字段"));
     }
@@ -123,7 +134,7 @@ async function submit() {
     saving.value = false;
   }
 }
-watch(() => route.params.code, load, { immediate: true });
+watch([() => route.params.code, () => tenants.currentId], load, { immediate: true, flush: 'sync' });
 </script>
 <style scoped>
 .runtime-page {

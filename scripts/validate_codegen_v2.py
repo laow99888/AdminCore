@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--postgres', action='store_true', help='使用本任务独占的PostgreSQL容器验证真实约束和并发')
     parser.add_argument('--browser', action='store_true', help='在独占端口和前端副本中运行真实浏览器验收')
     parser.add_argument('--integrations', action='store_true', help='验收第三阶段业务审批、条件流程和报表集成')
+    parser.add_argument('--business-io', action='store_true', help='验收单表业务导入导出闭环')
+    parser.add_argument('--coverage-all', action='store_true', help='采集所有应用覆盖率供后端回归合并，最终门禁在合并后执行')
     args = parser.parse_args()
     folder = ROOT / '.codex-validation' / ('codegen-v2-' + uuid.uuid4().hex[:10])
     folder.mkdir(parents=True)
@@ -33,6 +35,8 @@ def main():
     if args.integrations:
         env['ADMINCORE_INTEGRATION_EXAMPLES'] = str(ROOT / 'examples/business-integration')
         env['ADMINCORE_STAGE3'] = '1'
+    if args.business_io:
+        env['ADMINCORE_BUSINESS_IO'] = '1'
     report = {'passed': False, 'checks': []}
     container = None
     container_started = False
@@ -72,6 +76,14 @@ def main():
             source = ROOT / 'examples/codegen-v2' / filename
             if args.integrations and filename == 'purchase-orders.json':
                 source = ROOT / 'examples/business-integration' / filename
+            if filename == 'purchase-orders.json':
+                # 真实生成主/明细两种附件外键，验证隐藏反向关系与审批历史保护。
+                definition = json.loads(source.read_text(encoding='utf-8'))
+                definition['details'][0]['fields'].append({
+                    'name': 'evidence', 'label': '明细附件', 'kind': 'file', 'required': False,
+                })
+                source = folder / 'purchase-orders-reference-fixture.json'
+                source.write_text(json.dumps(definition, ensure_ascii=False), encoding='utf-8')
             plan = folder / (filename + '.plan.json')
             common = ['manage.py', 'generate_module', '--definition', str(source), '--output', str(work)]
             run([*common, '--plan', str(plan)], filename + '.preview.log')
@@ -86,24 +98,45 @@ from apps.cg_categories.manifest import MODULE as CATEGORIES
 from apps.cg_orders.manifest import MODULE as ORDERS
 modules.MODULES = (*modules.MODULES, SUPPLIERS, CATEGORIES, ORDERS)
 INSTALLED_APPS = [*INSTALLED_APPS, 'apps.cg_suppliers', 'apps.cg_categories', 'apps.cg_orders']
-ADMINCORE_MODULES = ('system', 'files', 'cg_suppliers', 'cg_categories', 'cg_orders')
+ADMINCORE_MODULES = ('system', 'files', 'api_credentials', 'cg_suppliers', 'cg_categories', 'cg_orders')
 MIGRATION_MODULES = {{'core': 'codegen_core_migrations'}}
 '''
         if args.integrations:
-            settings += "\nADMINCORE_MODULES = (*ADMINCORE_MODULES, 'approvals', 'notifications', 'reports')\n"
+            settings += "\nADMINCORE_MODULES = (*ADMINCORE_MODULES, 'organization', 'approvals', 'notifications', 'reports', 'online_forms')\n"
+        if args.business_io:
+            settings += "\nADMINCORE_MODULES = (*ADMINCORE_MODULES, 'tasks', 'data_io')\n"
         shutil.copytree(ROOT / 'backend/apps/core/migrations', folder / 'codegen_core_migrations', ignore=shutil.ignore_patterns('__pycache__'))
         (folder / 'codegen_v2_settings.py').write_text(settings + database_settings, encoding='utf-8')
         run(['manage.py', 'makemigrations', 'cg_suppliers', 'cg_categories', 'cg_orders', '--settings=codegen_v2_settings'], 'migrations.log')
         tests = folder / 'tests'; tests.mkdir()
         shutil.copyfile(ROOT / 'backend/tests/conftest.py', tests / 'conftest.py')
         shutil.copyfile(ROOT / 'scripts/codegen_v2_acceptance_tests.py', tests / 'test_generated.py')
+        shutil.copyfile(ROOT / 'scripts/list_workbench_acceptance_tests.py', tests / 'test_list_workbench.py')
+        shutil.copyfile(ROOT / 'scripts/business_search_acceptance_tests.py', tests / 'test_business_search.py')
+        shutil.copyfile(ROOT / 'scripts/business_gateway_acceptance_tests.py', tests / 'test_business_gateway.py')
+        shutil.copyfile(ROOT / 'backend/tests/test_file_library.py', tests / 'test_file_library.py')
+        shutil.copyfile(ROOT / 'backend/tests/test_file_references.py', tests / 'test_file_references.py')
+        shutil.copyfile(ROOT / 'backend/tests/test_file_documents.py', tests / 'test_file_documents.py')
         if args.integrations:
+            shutil.copyfile(ROOT / 'scripts/online_form_relations_acceptance_tests.py', tests / 'test_online_form_relations.py')
             shutil.copyfile(ROOT / 'scripts/business_integration_acceptance_tests.py', tests / 'test_business_integration.py')
+            shutil.copyfile(ROOT / 'backend/tests/test_report_detail_aggregation.py', tests / 'test_report_detail_aggregation.py')
+            shutil.copyfile(ROOT / 'backend/tests/test_report_comparison.py', tests / 'test_report_comparison.py')
+            shutil.copyfile(ROOT / 'backend/tests/test_organization_appointments.py', tests / 'test_organization_appointments.py')
+            shutil.copyfile(ROOT / 'backend/tests/test_approval_operations.py', tests / 'test_approval_operations.py')
+            shutil.copyfile(ROOT / 'backend/tests/test_approval_notification_write_authorization.py', tests / 'test_approval_notification_write_authorization.py')
+            shutil.copyfile(ROOT / 'backend/tests/test_permission_write_authorization.py', tests / 'test_permission_write_authorization.py')
+        if args.business_io:
+            shutil.copyfile(ROOT / 'scripts/service_identity_acceptance_tests.py', tests / 'test_service_identity.py')
+            shutil.copyfile(ROOT / 'scripts/business_io_acceptance_tests.py', tests / 'test_business_io.py')
+            shutil.copyfile(ROOT / 'scripts/business_documents_acceptance_tests.py', tests / 'test_business_documents.py')
+            shutil.copyfile(ROOT / 'scripts/business_exports_acceptance_tests.py', tests / 'test_business_exports.py')
         generated_tests = work / 'backend/tests'
         for path in generated_tests.glob('test_generated_*.py'):
             shutil.copyfile(path, tests / path.name)
         run(['-m', 'pytest', str(tests), '-c', str(ROOT / 'backend/pytest.ini'), '--ds=codegen_v2_settings', '--create-db', '--basetemp', str(folder / 'pytest-tmp'),
-             '--cov=apps.core.codegen.runtime', '--cov-fail-under=90', '--cov-report=term-missing', '--cov-report=json:' + str(folder / 'runtime-coverage.json'), '-q'], 'integration.log')
+             '--junitxml=' + str(folder / 'integration.xml'), '--cov=' + ('apps' if args.coverage_all else 'apps.core.codegen.runtime'),
+             '--cov-fail-under=' + ('0' if args.coverage_all else '90'), '--cov-report=term-missing', '--cov-report=json:' + str(folder / 'runtime-coverage.json'), '-q'], 'integration.log')
         run(['manage.py', 'spectacular', '--settings=codegen_v2_settings', '--validate', '--fail-on-warn', '--file', str(folder / 'schema.yml')], 'schema.log')
         if args.browser:
             from codegen_v2_browser_fixture import validate_browser

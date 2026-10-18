@@ -7,4 +7,8 @@ REQUESTS_PER_MINUTE = 60
 
 
 def available_scopes():
-    return {code: label for code, (module, label) in SCOPES.items() if module_enabled(module)}
+    from .business import registered_business_resources
+    scopes = {code: label for code, (module, label) in SCOPES.items() if module_enabled(module)}
+    scopes.update({key + ':read': '读取' + schema['title']
+                   for key, (schema, _, _) in registered_business_resources().items()})
+    return scopes

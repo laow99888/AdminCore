@@ -69,7 +69,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        queryset = User.objects.all()
+        queryset = User.objects.filter(is_service_account=False)
         if self.action != 'list':
             queryset = queryset.select_related('profile')
         if self.action not in ('list', 'retrieve', 'sensitive') and not (self.request.user.is_staff or self.request.user.is_superuser):
@@ -100,7 +100,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
         serializer = SensitiveContactRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         # 固定用户锁顺序，避免两个管理员互相查看造成死锁。
-        visible = scope_queryset(User.objects.all(), request.user, 'user', 'pk')
+        visible = scope_queryset(User.objects.filter(is_service_account=False), request.user, 'user', 'pk')
         target_id = get_object_or_404(visible, pk=pk).pk
         locked = list(User.objects.select_for_update().filter(
             pk__in=[request.user.pk, target_id]).order_by('pk'))
@@ -111,7 +111,7 @@ class UserViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
             raise PermissionDenied('没有查看用户联系方式原值的权限')
         require_recent_password(request, actor, 'user:sensitive-read')
         # 锁内重新计算有效角色与范围，不沿用旧请求对象的授权状态。
-        target = get_object_or_404(scope_queryset(User.objects.all(), actor, 'user', 'pk'), pk=target_id)
+        target = get_object_or_404(scope_queryset(User.objects.filter(is_service_account=False), actor, 'user', 'pk'), pk=target_id)
         OperationLog.objects.create(user=actor, action='read_sensitive', resource='user',
                                     resource_id=str(target.pk), description='查看用户邮箱与手机号原值',
                                     ip_address=request_ip(request) or '0.0.0.0')

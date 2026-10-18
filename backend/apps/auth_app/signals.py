@@ -13,4 +13,6 @@ def retire_deleted_user_avatar(sender, instance, **kwargs):
         from apps.files.models import FileModel
         avatar = FileModel.objects.filter(pk=avatar_id, purpose='avatar').first()
         if avatar:
+            # 与替换/移除相同：事务内先解除当前绑定，再退休文件。
+            User.objects.filter(pk=instance.pk).update(avatar_file=None)
             avatar.soft_delete()

@@ -83,7 +83,7 @@ def test_preview_does_not_delete_logs_or_source(admin_user):
     result = clean(dry_run=True)
     assert result['eligible']['operation'] == result['eligible']['imports'] == 1
     assert OperationLog.objects.filter(pk=log.pk).exists() and file.file.storage.exists(file.file.name)
-    assert result['deleted'] == {'operation': 0, 'login': 0, 'exception': 0, 'imports': 0}
+    assert result['deleted'] == {'operation': 0, 'login': 0, 'exception': 0, 'imports': 0, 'import_plans': 0}
 
 
 def test_execute_cleans_only_expired_registered_logs_and_sources(admin_user):
@@ -95,7 +95,7 @@ def test_execute_cleans_only_expired_registered_logs_and_sources(admin_user):
     avatar = source(admin_user, 'avatar')
     recent = source(admin_user, days=1)
     result = clean()
-    assert result['deleted'] == {'operation': 1, 'login': 1, 'exception': 1, 'imports': 1}
+    assert result['deleted'] == {'operation': 1, 'login': 1, 'exception': 1, 'imports': 1, 'import_plans': 0}
     from apps.core.tasks import dispatch_outbox
     assert dispatch_outbox()['processed'] == 1
     assert not OperationLog.objects.filter(pk=operation.pk).exists()

@@ -27,18 +27,26 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   height: 320,
 })
+const emit = defineEmits<{ select: [index: number] }>()
 
 const chartRef = ref<HTMLDivElement>()
 use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer])
 const themeStore = useThemeStore()
 let chart: ECharts | null = null
+let chartDark: boolean | undefined
+let observer: ResizeObserver | null = null
 
 const render = () => {
   if (!chartRef.value) return
+  if (chart && chartDark !== themeStore.isDark) { chart.dispose(); chart = null }
   if (!chart) {
-    chart = init(chartRef.value)
+    chartDark = themeStore.isDark
+    chart = init(chartRef.value, chartDark ? 'dark' : undefined)
+    chart.on('click', (event: unknown) => {
+      if (event && typeof event === 'object' && 'dataIndex' in event && typeof event.dataIndex === 'number') emit('select', event.dataIndex)
+    })
   }
-  chart.setOption(props.option, true)
+  chart.setOption({ backgroundColor: 'transparent', ...props.option }, true)
 }
 
 const handleResize = () => chart?.resize()
@@ -46,10 +54,12 @@ const handleResize = () => chart?.resize()
 onMounted(() => {
   render()
   window.addEventListener('resize', handleResize)
+  if (typeof ResizeObserver !== 'undefined' && chartRef.value) { observer = new ResizeObserver(handleResize); observer.observe(chartRef.value) }
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
+  observer?.disconnect()
   chart?.dispose()
   chart = null
 })

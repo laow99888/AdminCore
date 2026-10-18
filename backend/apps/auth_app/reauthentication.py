@@ -12,7 +12,7 @@ from .sessions import locked_request_session
 
 PASSWORD_CONFIRMATION_SCOPES = frozenset({'session:revoke', 'session:revoke-others', 'session:admin-revoke-all', 'email:verify',
                                          'totp:setup', 'totp:enable', 'totp:disable', 'totp:recovery-codes',
-                                         'user:sensitive-read', 'api_credential:create', 'api_credential:revoke',
+                                         'user:sensitive-read', 'api_credential:create', 'api_credential:revoke', 'api_credential:manage',
                                          'sso:bind', 'sso:unbind', 'ip_policy:update', 'backup:restore', 'password:change'})
 
 

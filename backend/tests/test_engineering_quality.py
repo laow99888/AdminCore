@@ -95,7 +95,9 @@ def test_menu_rejects_external_or_ambiguous_paths(admin_client, path):
 
 def test_maintenance_initialization_preserves_operator_changes():
     call_command('configure_maintenance', stdout=StringIO())
-    assert PeriodicTask.objects.count() == 7
+    assert PeriodicTask.objects.count() == 9
+    digest = PeriodicTask.objects.get(task='notifications.refresh_digests')
+    assert digest.enabled and digest.crontab.minute == '*' and digest.crontab.hour == '*'
     task = PeriodicTask.objects.get(task='tasks.cleanup_soft_deleted_files')
     assert task.enabled and task.crontab.hour == '3' and task.crontab.minute == '0'
     task.enabled = False
@@ -104,7 +106,7 @@ def test_maintenance_initialization_preserves_operator_changes():
     call_command('configure_maintenance', stdout=StringIO())
     task.refresh_from_db()
     assert not task.enabled and task.crontab.hour == '4'
-    assert PeriodicTask.objects.count() == 7
+    assert PeriodicTask.objects.count() == 9
 
 
 def test_bootstrap_preserves_menu_and_role_edits(admin_user, monkeypatch):

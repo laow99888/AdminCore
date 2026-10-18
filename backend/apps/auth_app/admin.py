@@ -15,6 +15,8 @@ from apps.logs.admin_audit import AuditedAdminMixin
 
 class MFAAdminAuthenticationForm(AdminAuthenticationForm):
     def confirm_login_allowed(self, user):
+        if user.is_service_account:
+            raise ValidationError('机器身份不能用于交互登录', code='service_account')
         super().confirm_login_allowed(user)
         from .models import TOTPDevice
         if TOTPDevice.objects.filter(user=user).exclude(active_secret='').exists():
@@ -41,6 +43,9 @@ class UserAdmin(AuditedAdminMixin, BaseUserAdmin):
     """用户管理后台"""
     audit_resource = 'user'
     change_password_form = RequiredPasswordChangeForm
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(is_service_account=False)
 
     @transaction.atomic
     def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
@@ -97,7 +102,7 @@ class UserAdmin(AuditedAdminMixin, BaseUserAdmin):
     @transaction.atomic
     def user_change_password(self, request, id, form_url=''):
         return super().user_change_password(request, id, form_url)
-    readonly_fields = ('must_change_password', 'avatar_file', 'profile_version',
+    readonly_fields = ('is_service_account', 'must_change_password', 'avatar_file', 'profile_version',
                        'masked_email', 'masked_phone', 'contact_verified')
     fieldsets = tuple((title, {**options, 'fields': tuple(field for field in options['fields'] if field != 'email')})
                       for title, options in BaseUserAdmin.fieldsets) + (

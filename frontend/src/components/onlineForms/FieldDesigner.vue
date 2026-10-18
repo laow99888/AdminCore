@@ -170,7 +170,10 @@
                 @update:model-value="set(index, 'max_rows', $event)"
             /></el-form-item>
           </template>
-          <div v-else class="wide default-row">
+          <el-form-item v-if="field.type === 'relation'" :label="uiText('关联资源')" class="wide">
+            <RelationResourcePicker :model-value="field.resource" @update:model-value="set(index, 'resource', $event)" />
+          </el-form-item>
+          <div v-else-if="!field.computation && !['file', 'detail', 'relation'].includes(field.type)" class="wide default-row">
             <el-checkbox
               :model-value="field.default !== undefined"
               @update:model-value="toggleDefault(index, $event === true)"
@@ -187,6 +190,12 @@
             />
           </div>
         </div>
+        <ComputationEditor
+          v-if="field.type === 'decimal'"
+          :model-value="field.computation"
+          :fields="modelValue.slice(0, index)"
+          @update:model-value="setComputation(index, $event)"
+        />
         <el-form-item :label="uiText('显示条件')"
           ><ConditionEditor
             :id="`visible-${index}`"
@@ -225,13 +234,16 @@
 </template>
 <script setup lang="ts">
 import "./messages";
+import './attachmentMessages';
 import { useId } from "vue";
-import type { OnlineFormField } from "@/api";
+import type { OnlineFormComputation, OnlineFormField } from "@/api";
 import { uiText } from "@/i18n/uiText";
 import ConditionEditor from "./ConditionEditor.vue";
 import { useFormDisabled } from "element-plus";
 import ComparisonEditor from "./ComparisonEditor.vue";
 import OnlineFieldInput from "./OnlineFieldInput.vue";
+import ComputationEditor from "./ComputationEditor.vue";
+import RelationResourcePicker from './RelationResourcePicker.vue';
 const props = withDefaults(
   defineProps<{
     modelValue: OnlineFormField[];
@@ -253,6 +265,8 @@ const types = [
   { value: "date", label: "日期" },
   { value: "datetime", label: "日期时间" },
   { value: "boolean", label: "开关" },
+  { value: "file", label: "附件" },
+  { value: "relation", label: "业务关联" },
   { value: "detail", label: "明细子表" },
 ];
 function set(index: number, key: keyof OnlineFormField, value: unknown) {
@@ -273,6 +287,21 @@ function add() {
       span: 1,
     },
   ]);
+}
+function setComputation(
+  index: number,
+  value: OnlineFormComputation | undefined,
+) {
+  const rows = props.modelValue.map((field, i) => {
+    if (i !== index) return field;
+    const row = { ...field };
+    if (value) {
+      row.computation = value;
+      delete row.default;
+    } else delete row.computation;
+    return row;
+  });
+  emit("update:modelValue", rows);
 }
 function move(index: number, offset: number) {
   const rows = [...props.modelValue];

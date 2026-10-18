@@ -6,6 +6,26 @@ from rest_framework.test import APIClient
 from apps.permissions.models import Permission, Role, RolePermission, UserRole
 from apps.permissions.field_permissions import allowed_fields
 
+
+def test_module_fields_are_explicit_validated_and_available_in_catalog(admin_client, monkeypatch):
+    from apps.core.contracts import Module, validate_registry
+    from apps.core import modules
+    from apps.permissions.field_permissions import validate_field_permissions
+    from django.core.exceptions import ImproperlyConfigured
+    from rest_framework.exceptions import ValidationError
+    from dataclasses import replace
+    declaration = Module('orders', '订单', 'orders', 'apps.orders.urls', ('/orders',),
+                         data_resources=(('orders', '订单'),), field_policies=(('orders', ('code', 'lines', 'lines.price')),))
+    validate_registry((declaration,))
+    monkeypatch.setattr(modules, 'MODULES', (*modules.MODULES, declaration))
+    assert validate_field_permissions({'orders': {'read': ['code'], 'write': ['lines.price']}})
+    assert admin_client.get('/api/v1/modules/').json()['data']['field_policy_resources']['orders'] == ['code', 'lines', 'lines.price']
+    for policies in [(('user', ('username',)),), (('orders', ('a__password', 'a__password')),), (('orders', ('items.price.value',)),)]:
+        with pytest.raises(ImproperlyConfigured):
+            validate_registry((replace(declaration, field_policies=policies),))
+    with pytest.raises(ValidationError):
+        validate_field_permissions({'orders': {'read': ['password'], 'write': []}})
+
 pytestmark = pytest.mark.django_db
 
 

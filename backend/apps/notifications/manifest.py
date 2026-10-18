@@ -2,6 +2,7 @@
 from apps.core.contracts import Module, MenuDeclaration, Parameter
 
 MODULE = Module('notifications', '通知中心', 'notifications', 'apps.notifications.urls', ('/notifications',),
+    tasks=('notifications.refresh_digests',),
     permissions=(
         ('announcement', 'read', '查看公告管理', 'announcement:read'),
         ('announcement', 'update', '维护公告草稿', 'announcement:update'),
@@ -11,6 +12,8 @@ MODULE = Module('notifications', '通知中心', 'notifications', 'apps.notifica
         ('template', 'send', '发送模板通知与重试', 'template:send'),
     ),
     audit_fields=(
+        ('notification_preference', ('subscriptions', 'channels', 'quiet_enabled', 'quiet_start', 'quiet_end', 'timezone', 'business_delivery_mode', 'digest_minutes')),
+        ('business_notice', ('resource', 'count', 'created', 'replayed', 'processed', 'pending', 'published', 'suppressed', 'summaries')),
         ('message_template', ('id', 'code', 'enabled', 'revision', 'variables', 'content_sha256')),
         ('message_delivery', ('id', 'template_id', 'revision', 'channels', 'count', 'status', 'attempts')),
         ('notification', ('id', 'recipient_id', 'notification_type', 'is_read', 'read_at', 'content_length', 'content_sha256')),

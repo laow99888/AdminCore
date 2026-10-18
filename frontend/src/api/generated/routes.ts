@@ -2,6 +2,14 @@
 import type { operations } from './schema'
 
 export const sdkRoutes = {
+  "api_credentials_business_records_list": [
+    "get",
+    "/api/v1/api-credentials/business/{resource}/records/"
+  ],
+  "api_credentials_business_records_retrieve": [
+    "get",
+    "/api/v1/api-credentials/business/{resource}/records/{id}/"
+  ],
   "api_credentials_credentials_list": [
     "get",
     "/api/v1/api-credentials/credentials/"
@@ -17,6 +25,50 @@ export const sdkRoutes = {
   "api_credentials_credentials_revoke_create": [
     "post",
     "/api/v1/api-credentials/credentials/{id}/revoke/"
+  ],
+  "api_credentials_credentials_rotate_create": [
+    "post",
+    "/api/v1/api-credentials/credentials/{id}/rotate/"
+  ],
+  "api_credentials_credentials_statistics_retrieve": [
+    "get",
+    "/api/v1/api-credentials/credentials/{id}/statistics/"
+  ],
+  "api_credentials_service_identities_list": [
+    "get",
+    "/api/v1/api-credentials/service-identities/"
+  ],
+  "api_credentials_service_identities_create": [
+    "post",
+    "/api/v1/api-credentials/service-identities/"
+  ],
+  "api_credentials_service_identities_roles_retrieve": [
+    "get",
+    "/api/v1/api-credentials/service-identities/roles/"
+  ],
+  "api_credentials_service_identities_retrieve": [
+    "get",
+    "/api/v1/api-credentials/service-identities/{id}/"
+  ],
+  "api_credentials_service_identities_partial_update": [
+    "patch",
+    "/api/v1/api-credentials/service-identities/{id}/"
+  ],
+  "api_credentials_service_identities_credentials_retrieve": [
+    "get",
+    "/api/v1/api-credentials/service-identities/{id}/credentials/"
+  ],
+  "api_credentials_service_identities_issue_create": [
+    "post",
+    "/api/v1/api-credentials/service-identities/{id}/issue/"
+  ],
+  "api_credentials_service_identities_revoke_create": [
+    "post",
+    "/api/v1/api-credentials/service-identities/{id}/revoke/"
+  ],
+  "api_credentials_service_identities_rotate_create": [
+    "post",
+    "/api/v1/api-credentials/service-identities/{id}/rotate/"
   ],
   "api_credentials_tasks_list": [
     "get",
@@ -70,9 +122,17 @@ export const sdkRoutes = {
     "post",
     "/api/v1/approvals/flows/{id}/archive/"
   ],
+  "approvals_flows_new_revision_create": [
+    "post",
+    "/api/v1/approvals/flows/{id}/new-revision/"
+  ],
   "approvals_flows_publish_create": [
     "post",
     "/api/v1/approvals/flows/{id}/publish/"
+  ],
+  "approvals_health_retrieve": [
+    "get",
+    "/api/v1/approvals/health/"
   ],
   "approvals_retrieve": [
     "get",
@@ -98,6 +158,14 @@ export const sdkRoutes = {
     "post",
     "/api/v1/approvals/{id}/delegate/"
   ],
+  "approvals_diagnostics_retrieve": [
+    "get",
+    "/api/v1/approvals/{id}/diagnostics/"
+  ],
+  "approvals_history_list": [
+    "get",
+    "/api/v1/approvals/{id}/history/"
+  ],
   "approvals_reject_create": [
     "post",
     "/api/v1/approvals/{id}/reject/"
@@ -105,6 +173,14 @@ export const sdkRoutes = {
   "approvals_repair_step_create": [
     "post",
     "/api/v1/approvals/{id}/repair-step/"
+  ],
+  "approvals_retry_timeout_create": [
+    "post",
+    "/api/v1/approvals/{id}/retry-timeout/"
+  ],
+  "approvals_return_node_create": [
+    "post",
+    "/api/v1/approvals/{id}/return-node/"
   ],
   "approvals_transfer_create": [
     "post",
@@ -246,9 +322,65 @@ export const sdkRoutes = {
     "get",
     "/api/v1/brand/"
   ],
+  "business_search_retrieve": [
+    "get",
+    "/api/v1/business-search/"
+  ],
   "dashboard_stats_retrieve": [
     "get",
     "/api/v1/dashboard/stats/"
+  ],
+  "data_io_business_catalog_retrieve": [
+    "get",
+    "/api/v1/data-io/business/catalog/"
+  ],
+  "data_io_business_export_retrieve": [
+    "get",
+    "/api/v1/data-io/business/export/"
+  ],
+  "data_io_business_exports_create": [
+    "post",
+    "/api/v1/data-io/business/exports/"
+  ],
+  "data_io_business_exports_retrieve": [
+    "get",
+    "/api/v1/data-io/business/exports/{task_id}/"
+  ],
+  "data_io_business_exports_download_retrieve": [
+    "get",
+    "/api/v1/data-io/business/exports/{task_id}/download/"
+  ],
+  "data_io_business_import_errors_retrieve": [
+    "get",
+    "/api/v1/data-io/business/import/{task_id}/errors/"
+  ],
+  "data_io_business_inspect_create": [
+    "post",
+    "/api/v1/data-io/business/inspect/"
+  ],
+  "data_io_business_mappings_retrieve": [
+    "get",
+    "/api/v1/data-io/business/mappings/"
+  ],
+  "data_io_business_mappings_create": [
+    "post",
+    "/api/v1/data-io/business/mappings/"
+  ],
+  "data_io_business_mappings_destroy": [
+    "delete",
+    "/api/v1/data-io/business/mappings/{mapping_id}/"
+  ],
+  "data_io_business_plans_errors_retrieve": [
+    "get",
+    "/api/v1/data-io/business/plans/{plan_id}/errors/"
+  ],
+  "data_io_business_plans_submit_create": [
+    "post",
+    "/api/v1/data-io/business/plans/{plan_id}/submit/"
+  ],
+  "data_io_business_preview_create": [
+    "post",
+    "/api/v1/data-io/business/preview/"
   ],
   "data_io_export_retrieve": [
     "get",
@@ -334,6 +466,30 @@ export const sdkRoutes = {
     "post",
     "/api/v1/files/"
   ],
+  "files_capacity_retrieve": [
+    "get",
+    "/api/v1/files/capacity/"
+  ],
+  "files_capacity_update": [
+    "put",
+    "/api/v1/files/capacity/"
+  ],
+  "files_library_retrieve": [
+    "get",
+    "/api/v1/files/library/"
+  ],
+  "files_library_folders_create": [
+    "post",
+    "/api/v1/files/library/folders/"
+  ],
+  "files_library_folders_destroy": [
+    "delete",
+    "/api/v1/files/library/folders/{folder_id}/"
+  ],
+  "files_library_folders_update": [
+    "put",
+    "/api/v1/files/library/folders/{folder_id}/"
+  ],
   "files_office_preview_config_retrieve": [
     "get",
     "/api/v1/files/office-preview/config/"
@@ -386,6 +542,18 @@ export const sdkRoutes = {
     "post",
     "/api/v1/files/{file_id}/office-preview/"
   ],
+  "files_organization_update": [
+    "put",
+    "/api/v1/files/{file_id}/organization/"
+  ],
+  "files_versions_retrieve": [
+    "get",
+    "/api/v1/files/{file_id}/versions/"
+  ],
+  "files_versions_create": [
+    "post",
+    "/api/v1/files/{file_id}/versions/"
+  ],
   "files_destroy": [
     "delete",
     "/api/v1/files/{id}/"
@@ -421,6 +589,10 @@ export const sdkRoutes = {
   "files_purge_destroy": [
     "delete",
     "/api/v1/files/{id}/purge/"
+  ],
+  "files_references_retrieve": [
+    "get",
+    "/api/v1/files/{id}/references/"
   ],
   "files_restore_create": [
     "post",
@@ -510,6 +682,10 @@ export const sdkRoutes = {
     "get",
     "/api/v1/notifications/announcements/{id}/"
   ],
+  "notifications_business_notices_create": [
+    "post",
+    "/api/v1/notifications/business-notices/"
+  ],
   "notifications_deliveries_list": [
     "get",
     "/api/v1/notifications/deliveries/"
@@ -534,9 +710,33 @@ export const sdkRoutes = {
     "post",
     "/api/v1/notifications/deliveries/{id}/retry/"
   ],
+  "notifications_digests_refresh_create": [
+    "post",
+    "/api/v1/notifications/digests/refresh/"
+  ],
+  "notifications_digests_status_retrieve": [
+    "get",
+    "/api/v1/notifications/digests/status/"
+  ],
+  "notifications_digests_retrieve": [
+    "get",
+    "/api/v1/notifications/digests/{notification_id}/"
+  ],
   "notifications_mark_all_read_create": [
     "post",
     "/api/v1/notifications/mark_all_read/"
+  ],
+  "notifications_operations_retrieve": [
+    "get",
+    "/api/v1/notifications/operations/"
+  ],
+  "notifications_preferences_retrieve": [
+    "get",
+    "/api/v1/notifications/preferences/"
+  ],
+  "notifications_preferences_update": [
+    "put",
+    "/api/v1/notifications/preferences/"
   ],
   "notifications_templates_list": [
     "get",
@@ -590,6 +790,10 @@ export const sdkRoutes = {
     "post",
     "/api/v1/notifications/{id}/mark_read/"
   ],
+  "online_forms_approval_flows_retrieve": [
+    "get",
+    "/api/v1/online-forms/approval-flows/"
+  ],
   "online_forms_forms_list": [
     "get",
     "/api/v1/online-forms/forms/"
@@ -614,6 +818,10 @@ export const sdkRoutes = {
     "post",
     "/api/v1/online-forms/forms/{id}/archive/"
   ],
+  "online_forms_forms_new_version_create": [
+    "post",
+    "/api/v1/online-forms/forms/{id}/new-version/"
+  ],
   "online_forms_forms_publish_create": [
     "post",
     "/api/v1/online-forms/forms/{id}/publish/"
@@ -622,9 +830,17 @@ export const sdkRoutes = {
     "get",
     "/api/v1/online-forms/published/{code}/"
   ],
+  "online_forms_relation_resources_retrieve": [
+    "get",
+    "/api/v1/online-forms/relation-resources/"
+  ],
   "online_forms_validate_create": [
     "post",
     "/api/v1/online-forms/validate/"
+  ],
+  "online_forms_attachments_retrieve": [
+    "get",
+    "/api/v1/online-forms/{code}/attachments/"
   ],
   "online_forms_records_list": [
     "get",
@@ -641,6 +857,38 @@ export const sdkRoutes = {
   "online_forms_records_partial_update": [
     "patch",
     "/api/v1/online-forms/{code}/records/{id}/"
+  ],
+  "online_forms_records_submit_approval_create": [
+    "post",
+    "/api/v1/online-forms/{code}/records/{id}/submit-approval/"
+  ],
+  "online_forms_records_withdraw_approval_create": [
+    "post",
+    "/api/v1/online-forms/{code}/records/{id}/withdraw-approval/"
+  ],
+  "online_forms_relations_retrieve": [
+    "get",
+    "/api/v1/online-forms/{code}/relations/"
+  ],
+  "organization_appointments_list": [
+    "get",
+    "/api/v1/organization/appointments/"
+  ],
+  "organization_appointments_create": [
+    "post",
+    "/api/v1/organization/appointments/"
+  ],
+  "organization_appointments_retrieve": [
+    "get",
+    "/api/v1/organization/appointments/{id}/"
+  ],
+  "organization_appointments_cancel_create": [
+    "post",
+    "/api/v1/organization/appointments/{id}/cancel/"
+  ],
+  "organization_appointments_end_create": [
+    "post",
+    "/api/v1/organization/appointments/{id}/end/"
   ],
   "organization_departments_list": [
     "get",
@@ -810,6 +1058,10 @@ export const sdkRoutes = {
     "get",
     "/api/v1/organization/user-posts/{id}/"
   ],
+  "permissions_field_diagnostics_create": [
+    "post",
+    "/api/v1/permissions/field-diagnostics/"
+  ],
   "permissions_menus_list": [
     "get",
     "/api/v1/permissions/menus/"
@@ -922,12 +1174,20 @@ export const sdkRoutes = {
     "post",
     "/api/v1/reports/definitions/{id}/archive/"
   ],
+  "reports_definitions_details_create": [
+    "post",
+    "/api/v1/reports/definitions/{id}/details/"
+  ],
   "reports_definitions_publish_create": [
     "post",
     "/api/v1/reports/definitions/{id}/publish/"
   ],
   "reports_definitions_run_retrieve": [
     "get",
+    "/api/v1/reports/definitions/{id}/run/"
+  ],
+  "reports_definitions_run_create": [
+    "post",
     "/api/v1/reports/definitions/{id}/run/"
   ],
   "schema_retrieve": [

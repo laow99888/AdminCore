@@ -1,107 +1,99 @@
 <template>
   <AppLayout>
-    <el-row :gutter="16">
-      <el-col :xs="24" :lg="8">
-        <el-card shadow="never">
-          <template #header><div class="builder-header"><span>{{ uiText('报表构建器') }}</span><el-button :disabled="busy" @click="newDraft">{{ uiText('新建草稿') }}</el-button></div></template>
-          <el-alert v-if="error" :title="error" type="error" :closable="false" />
-          <el-form label-position="top" :disabled="busy || selected?.status === 'published' || selected?.status === 'archived'">
-            <el-form-item :label="uiText('名称')"><el-input v-model="form.name" /></el-form-item>
-            <el-form-item :label="uiText('编码')"><el-input v-model="form.code" :disabled="Boolean(selected?.id)" /></el-form-item>
-            <el-form-item :label="uiText('类型')"><el-radio-group v-model="form.kind"><el-radio value="report">{{ uiText('报表') }}</el-radio><el-radio value="dashboard">{{ uiText('大屏') }}</el-radio></el-radio-group></el-form-item>
-            <el-form-item :label="uiText('数据源')"><el-select v-model="form.definition.data_source" @change="resetFields"><el-option v-for="item in catalog" :key="item.key" :label="item.label" :value="item.key" /></el-select></el-form-item>
-            <el-form-item :label="uiText('图表')"><el-select v-model="form.definition.chart_type"><el-option v-for="kind in ['table','bar','line','pie','area']" :key="kind" :label="kind" :value="kind" /></el-select></el-form-item>
-            <el-form-item :label="uiText('维度')"><el-select v-model="dimension" clearable @change="setDimension"><el-option v-for="field in currentSource?.dimensions || []" :key="field" :label="field" :value="field" /></el-select></el-form-item>
-            <el-form-item :label="uiText('指标')"><el-select v-model="form.definition.metric.field"><el-option v-for="field in currentSource?.metrics || []" :key="field" :label="field" :value="field" /></el-select></el-form-item>
-            <el-form-item :label="uiText('聚合')"><el-select v-model="form.definition.metric.aggregation"><el-option label="count" value="count" /><el-option label="sum" value="sum" /><el-option label="avg" value="avg" /></el-select></el-form-item>
-            <el-form-item><el-button type="primary" :loading="busy" @click="save">{{ uiText('保存草稿') }}</el-button><el-button :disabled="busy || !selected?.id || selected.status !== 'draft'" @click="publish">{{ uiText('发布') }}</el-button></el-form-item>
-          </el-form>
+    <div class="report-workbench">
+      <el-alert v-if="error" :title="error" type="error" :closable="false" />
+      <div class="report-workbench-layout">
+        <el-card shadow="never" class="report-design-card">
+          <template #header><div class="builder-header"><span>{{ uiText('报表构建器') }}</span><el-button :disabled="busy || !canCreate" @click="newDraft">{{ uiText('新建草稿') }}</el-button></div></template>
+          <form @submit.prevent="save">
+            <fieldset class="report-design-form" :disabled="busy || locked">
+              <div class="report-fields"><label class="report-field"><span>{{ uiText('名称') }}</span><input v-model="form.name" maxlength="120" /></label><label class="report-field"><span>{{ uiText('编码') }}</span><input v-model="form.code" :disabled="Boolean(selected?.id)" maxlength="64" /></label>
+                <label class="report-field"><span>{{ uiText('类型') }}</span><select :value="form.kind" :aria-label="uiText('类型')" @change="changeKind"><option value="report">{{ uiText('报表') }}</option><option value="dashboard">{{ uiText('大屏') }}</option></select></label></div>
+              <DashboardEditor v-if="board" :key="editorKey" v-model="board" :catalog="catalog" @valid="value => valid = value" />
+              <ReportQueryEditor v-else :key="editorKey + '-query'" v-model="query" :catalog="catalog" @valid="value => valid = value" />
+            </fieldset>
+            <div class="report-actions"><el-button type="primary" :loading="busy" :disabled="locked || !valid" @click="save">{{ uiText('保存草稿') }}</el-button><el-button :disabled="busy || !canPublish || !selected?.id || selected.status !== 'draft' || !valid" @click="publish">{{ uiText('发布') }}</el-button><el-button v-if="selected" :disabled="busy || !canCreate" @click="copyDraft">{{ uiText('复制为新草稿') }}</el-button></div>
+            <p v-if="locked">{{ uiText('无编辑权限或定义已发布/归档；有创建权限时可以复制为新草稿。') }}</p>
+          </form>
         </el-card>
-      </el-col>
-      <el-col :xs="24" :lg="16">
-        <el-card shadow="never">
-          <template #header>{{ uiText('已保存报表') }}</template>
-          <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" :disabled="busy" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
-          <el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev, pager, next, total" :disabled="busy" @current-change="load" />
-          <BaseChart v-if="result && result.definition.chart_type !== 'table'" :option="chartOption" :height="340" :caption="uiText('报表图表')" :table="{ headers: result.columns, rows: result.rows.map(row => result!.columns.map(column => toCellValue(row[column]))) }" />
-          <el-table v-if="result" :data="result.rows" class="result"><el-table-column v-for="column in result.columns" :key="column" :prop="column" :label="column" /></el-table>
-        </el-card>
-      </el-col>
-    </el-row>
+        <div class="report-run-column">
+          <el-card shadow="never">
+            <template #header>{{ uiText('已保存报表') }}</template>
+            <el-table :data="rows" stripe @row-click="selectRow"><el-table-column prop="name" :label="uiText('名称')" min-width="140" /><el-table-column prop="kind" :label="uiText('类型')" width="100" /><el-table-column prop="status" :label="uiText('状态')" width="110" /><el-table-column :label="uiText('操作')" width="100"><template #default="{ row }"><el-button link type="primary" :disabled="busy || !auth.can('report:execute')" @click.stop="run(row)">{{ uiText('运行') }}</el-button></template></el-table-column></el-table>
+            <el-pagination v-model:current-page="page" :page-size="20" :total="total" layout="prev, pager, next, total" :disabled="busy" @current-change="load" />
+            <p v-if="!rows.length && !busy">{{ uiText('暂无数据') }}</p>
+          </el-card>
+          <el-card v-if="result && running" shadow="never"><ReportViewer :key="running.id + '-' + runRevision" :report="running" :initial="result" :catalog="catalog" /></el-card>
+        </div>
+      </div>
+    </div>
   </AppLayout>
 </template>
-
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useLatestRead } from '@/composables/useLatestRead'
+import { useTenantStore } from '@/stores/tenants'
+import { useAuthStore } from '@/stores/auth'
+import { useModuleStore } from '@/stores/modules'
 import { errorMessage } from '@/api/request'
 import { ElMessage } from 'element-plus'
 import { AppLayout } from '@/components'
-import BaseChart from '@/components/common/BaseChart.vue'
-import type { EChartsOption } from 'echarts'
 import { reportsApi, type ReportCatalogItem, type ReportDefinition } from '@/api'
+import { asQuery, newReportQuery, type DashboardDesign, type ReportOutput, type ReportQuery } from '@/api/reportTypes'
+import DashboardEditor from '@/components/reports/DashboardEditor.vue'
+import ReportQueryEditor from '@/components/reports/ReportQueryEditor.vue'
+import ReportViewer from '@/components/reports/ReportViewer.vue'
 import { uiText } from '@/i18n/uiText'
-
-const catalog = ref<ReportCatalogItem[]>([])
-const rows = ref<ReportDefinition[]>([])
-const selected = ref<ReportDefinition | null>(null)
-const result = ref<{ columns: string[]; rows: Array<Record<string, unknown>>; definition: Record<string, unknown> } | null>(null)
-const busy = ref(false)
-const error = ref('')
-const dimension = ref('')
-type ReportChartType = 'table' | 'bar' | 'line' | 'pie' | 'area'
-type ReportAggregation = 'count' | 'sum' | 'avg'
-interface ReportBuilderDefinition extends Record<string, unknown> {
-  data_source: string
-  chart_type: ReportChartType
-  dimensions: Array<{ field: string }>
-  metric: { field: string; aggregation: ReportAggregation }
-  filters: Array<Record<string, unknown>>
-  limit: number
-}
-interface ReportForm {
-  name: string
-  code: string
-  kind: ReportDefinition['kind']
-  definition: ReportBuilderDefinition
-}
-const form = reactive<ReportForm>({ name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } })
+import '@/styles/report-workbench.css'
+const catalog = ref<ReportCatalogItem[]>([]), rows = ref<ReportDefinition[]>([]), selected = ref<ReportDefinition | null>(null)
+const result = ref<ReportOutput | null>(null), running = ref<ReportDefinition | null>(null), runRevision = ref(0)
+const busy = ref(false), error = ref(''), valid = ref(true), editorKey = ref(0)
+const form = reactive<{ name: string; code: string; kind: ReportDefinition['kind']; definition: ReportQuery | DashboardDesign }>({ name: '', code: '', kind: 'report', definition: newReportQuery() })
+const board = computed({ get: () => 'widgets' in form.definition ? form.definition as DashboardDesign : undefined, set: value => { if (value) form.definition = value } })
+const query = computed({ get: () => form.definition as ReportQuery, set: value => { form.definition = value } })
+const auth = useAuthStore()
+const administrator = computed(() => !!(auth.user?.is_staff || auth.user?.is_superuser))
+const canCreate = computed(() => administrator.value && auth.can('report:create'))
+const canEdit = computed(() => administrator.value && auth.can(selected.value ? 'report:update' : 'report:create'))
+const canPublish = computed(() => administrator.value && auth.can('report:publish'))
+const locked = computed(() => !canEdit.value || (!!selected.value && selected.value.status !== 'draft'))
 const page = ref(1), total = ref(0)
-const beginRead = useLatestRead(() => { rows.value = []; catalog.value = []; total.value = 0; result.value = null })
-const guard = useUnsavedChanges({ source: () => !selected.value || selected.value.status === 'draft' ? form : null, busy: () => busy.value, clear: () => { selected.value = null; form.name = ''; form.code = ''; result.value = null } })
-const currentSource = computed(() => catalog.value.find(item => item.key === form.definition.data_source))
-const chartOption = computed<EChartsOption>(() => {
-  const rows = result.value?.rows || []
-  const columns = result.value?.columns || []
-  const labels = rows.map(row => columns[0] === 'value' ? uiText('合计') : String(row[columns[0]] ?? ''))
-  const values = rows.map(row => Number(row.value || 0))
-  const type = result.value?.definition.chart_type
-  const chartType = type === 'area' ? 'line' : type
-  if (chartType === 'pie') return { tooltip: { trigger: 'item' }, series: [{ type: 'pie', radius: '60%', data: labels.map((name, index) => ({ name, value: values[index] })) }] }
-  return { tooltip: { trigger: 'axis' }, xAxis: { type: 'category', data: labels }, yAxis: { type: 'value' }, series: [{ type: chartType as 'bar' | 'line', data: values, ...(type === 'area' ? { areaStyle: {} } : {}) }] }
-})
-function resetFields() { form.definition.dimensions = []; dimension.value = ''; form.definition.metric.field = currentSource.value?.metrics[0] || 'id' }
-function setDimension(value: string) { form.definition.dimensions = value ? [{ field: value }] : [] }
-function toCellValue(value: unknown): string | number { return typeof value === 'string' || typeof value === 'number' ? value : value == null ? '' : String(value) }
-function loadEditor(row: ReportDefinition) { selected.value = row; const definition = JSON.parse(JSON.stringify(row.definition)) as ReportBuilderDefinition; Object.assign(form, { name: row.name, code: row.code, kind: row.kind, definition }); dimension.value = definition.dimensions?.[0]?.field || ''; guard.markClean() }
+const tenants = useTenantStore(), modules = useModuleStore()
+let contextGeneration = 0
+const clearResult = () => { result.value = null; running.value = null }
+const beginRead = useLatestRead(() => { rows.value = []; catalog.value = []; total.value = 0; clearResult() })
+const beginRun = useLatestRead(clearResult)
+const guard = useUnsavedChanges({ source: () => !locked.value ? form : null, busy: () => busy.value, clear: () => { selected.value = null; form.name = ''; form.code = ''; clearResult() } })
+watch(() => JSON.stringify([tenants.currentId,modules.config]), () => { contextGeneration++; beginRead(); beginRun(); rows.value = []; catalog.value = []; selected.value = null; clearResult(); Object.assign(form,{ name: '', code: '', kind: 'report', definition: newReportQuery() }); editorKey.value++; guard.markClean(); void load() }, { flush: 'sync' })
+function normalized(value: Record<string,unknown>) { if ('widgets' in value) { const design = JSON.parse(JSON.stringify(value)) as DashboardDesign; design.widgets.forEach(x => { x.definition = asQuery(x.definition) }); return design } return asQuery(value) }
+function loadEditor(row: ReportDefinition) { selected.value = row; Object.assign(form,{ name: row.name, code: row.code, kind: row.kind, definition: normalized(row.definition) }); editorKey.value++; valid.value = true; guard.markClean() }
 async function selectRow(row: ReportDefinition) { if (!busy.value && await guard.confirmDiscard()) loadEditor(row) }
-async function newDraft() { if (busy.value || !await guard.confirmDiscard()) return; selected.value = null; dimension.value = ''; error.value = ''; Object.assign(form, { name: '', code: '', kind: 'report', definition: { data_source: 'tasks', chart_type: 'table', dimensions: [], metric: { field: 'id', aggregation: 'count' }, filters: [], limit: 100 } }); guard.markClean() }
-function showError(err: unknown) { error.value = errorMessage(err, uiText('操作失败')) }
-async function load() { const current = beginRead(); try { const [sources, data] = await Promise.all([reportsApi.catalog(), reportsApi.list({ page: page.value, page_size: 20 })]); if (current()) { catalog.value = sources; rows.value = data.items; total.value = data.pagination.total } } catch (err) { if (current()) showError(err) } }
+async function newDraft() { if (busy.value || !canCreate.value || !await guard.confirmDiscard()) return; selected.value = null; error.value = ''; Object.assign(form,{ name: '', code: '', kind: 'report', definition: newReportQuery(catalog.value[0]?.key) }); editorKey.value++; valid.value = true; guard.markClean() }
+async function copyDraft() { if (busy.value || !canCreate.value || !selected.value || !await guard.confirmDiscard()) return; selected.value = null; form.code = ''; form.name += uiText('副本'); editorKey.value++; guard.markClean() }
+function changeKind(event: Event) {
+  const element = event.target as HTMLSelectElement
+  if (element.value === 'report' && board.value && (board.value.widgets.length > 1 || board.value.filters.length || board.value.links.length)) {
+    error.value = uiText('包含多个组件、统一筛选或联动的看板不能直接转换，请新建报表。'); element.value = form.kind; return
+  }
+  form.kind = element.value as ReportDefinition['kind']
+  if (form.kind === 'dashboard' && !board.value) form.definition = { schema_version: 2, widgets: [{ key: 'w1', title: form.name || uiText('新组件'), span: 12, definition: query.value }], filters: [], links: [] }
+  else if (form.kind === 'report' && board.value) form.definition = board.value.widgets[0]?.definition || newReportQuery()
+  editorKey.value++; valid.value = true
+}
+function showError(err: unknown) { error.value = errorMessage(err,uiText('操作失败')) }
+async function load() { const current = beginRead(); const owner = contextGeneration; try { const [sources,data] = await Promise.all([reportsApi.catalog(),reportsApi.list({ page: page.value, page_size: 20 })]); if (current() && owner === contextGeneration) { catalog.value = sources; rows.value = data.items; total.value = data.pagination.total } } catch (err) { if (current() && owner === contextGeneration) showError(err) } }
 async function save(): Promise<boolean> {
-  if (busy.value || (selected.value && selected.value.status !== 'draft')) return false
-  busy.value = true; error.value = ''
-  try { const response = selected.value?.id ? await reportsApi.update(selected.value.id, { name: form.name, kind: form.kind, definition: form.definition, version: selected.value.version }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); if (!guard.isSessionCurrent()) return false; loadEditor(response.data.data); ElMessage.success(uiText('已保存')); await load(); return true } catch (err) { showError(err); return false } finally { busy.value = false }
+  if (busy.value || locked.value || !valid.value) return false
+  busy.value = true; error.value = ''; const owner = contextGeneration
+  try { const response = selected.value?.id ? await reportsApi.update(selected.value.id,{ name: form.name, kind: form.kind, definition: form.definition, version: selected.value.version }) : await reportsApi.create({ name: form.name, code: form.code, kind: form.kind, definition: form.definition }); if (!guard.isSessionCurrent() || owner !== contextGeneration) return false; loadEditor(response.data.data); ElMessage.success(uiText('已保存')); await load(); return true } catch (err) { if (guard.isSessionCurrent() && owner === contextGeneration) showError(err); return false } finally { busy.value = false }
 }
 async function publish() {
-  if (busy.value || selected.value?.status !== 'draft') return
+  if (busy.value || !canPublish.value || selected.value?.status !== 'draft' || !valid.value) return
   if (guard.dirty.value && !await save()) return
-  busy.value = true; error.value = ''
-  try { const response = await reportsApi.publish(selected.value.id, selected.value.version); if (!guard.isSessionCurrent()) return; loadEditor(response.data.data); ElMessage.success(uiText('已发布')); await load() } catch (err) { showError(err) } finally { busy.value = false }
+  busy.value = true; error.value = ''; const owner = contextGeneration
+  try { const response = await reportsApi.publish(selected.value.id,selected.value.version); if (!guard.isSessionCurrent() || owner !== contextGeneration) return; loadEditor(response.data.data); ElMessage.success(uiText('已发布')); await load() } catch (err) { if (guard.isSessionCurrent() && owner === contextGeneration) showError(err) } finally { busy.value = false }
 }
-async function run(row: ReportDefinition) { if (busy.value) return; busy.value = true; error.value = ''; result.value = null; try { result.value = await reportsApi.run(row.id) } catch (err) { showError(err) } finally { busy.value = false } }
+async function run(row: ReportDefinition) { if (busy.value || !auth.can('report:execute')) return; const current = beginRun(); const owner = contextGeneration; busy.value = true; error.value = ''; clearResult(); try { const response = await reportsApi.run(row.id); if (current() && owner === contextGeneration) { result.value = response; running.value = row; runRevision.value++ } } catch (err) { if (current() && owner === contextGeneration) showError(err) } finally { busy.value = false } }
 onMounted(load)
 </script>
-
-<style scoped>.result { margin-top: 16px }.builder-header { display: flex; align-items: center; justify-content: space-between; gap: 8px }</style>

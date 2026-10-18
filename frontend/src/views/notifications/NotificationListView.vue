@@ -6,6 +6,9 @@
           <div class="card-header-row">
             <div class="card-header-title">{{ uiText("通知中心") }}</div>
             <div class="header-actions">
+              <BaseButton variant="ghost" @click="preferencesOpen = true">{{ uiText('通知偏好') }}</BaseButton>
+              <BaseButton variant="ghost" @click="digestId = undefined; digestOpen = true">{{ uiText('摘要与统计') }}</BaseButton>
+              <BaseButton v-if="canSend" variant="ghost" @click="sendOpen = true">{{ uiText('发送业务提醒') }}</BaseButton>
               <el-radio-group v-model="filterRead" @change="handleFilterChange">
                 <el-radio-button value="all">{{ uiText("全部") }}</el-radio-button>
                 <el-radio-button value="unread">{{ uiText("未读") }}</el-radio-button>
@@ -48,6 +51,9 @@
         </div>
       </BaseCard>
     </div>
+    <NotificationPreferencesDialog :open="preferencesOpen" @close="preferencesOpen = false" />
+    <NotificationDigestDialog :open="digestOpen" :notification-id="digestId" @close="digestOpen = false" @refreshed="loadList" />
+    <BusinessNoticeSendDialog :open="sendOpen" @close="sendOpen = false" @sent="loadList" />
   </AppLayout>
 </template>
 
@@ -55,18 +61,26 @@
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import AppLayout from '../../components/layout/AppLayout.vue'
 import { BaseCard, BaseButton } from '@/components'
 import { notificationsApi, type NotificationRow } from '@/api'
 import { useRealtimeUpdates } from '@/composables/useRealtimeUpdates'
+import NotificationPreferencesDialog from './NotificationPreferencesDialog.vue'
+import NotificationDigestDialog from './NotificationDigestDialog.vue'
+import BusinessNoticeSendDialog from './BusinessNoticeSendDialog.vue'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const preferencesOpen = ref(false)
+const digestOpen = ref(false), digestId = ref<string>(), sendOpen = ref(false), auth = useAuthStore()
+const canSend = computed(() => Boolean(auth.user?.is_staff || auth.user?.is_superuser) && auth.can('template:send'))
+type BusinessNotificationRow = NotificationRow & { data?: { business_digest?: boolean } }
 const loading = ref(false)
 const filterRead = ref<'all' | 'unread'>('all')
-const tableData = ref<NotificationRow[]>([])
+const tableData = ref<BusinessNotificationRow[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
@@ -102,7 +116,7 @@ const handleFilterChange = () => {
   loadList()
 }
 
-const handleRead = async (item: NotificationRow) => {
+const handleRead = async (item: BusinessNotificationRow) => {
   if (!item.is_read) {
     try {
       await notificationsApi.markRead(item.id)
@@ -111,7 +125,8 @@ const handleRead = async (item: NotificationRow) => {
       // 静默
     }
   }
-  if (item.link) router.push(item.link)
+  if (item.data?.business_digest) { digestId.value = item.id; digestOpen.value = true }
+  else if (item.link) router.push(item.link)
 }
 
 const handleMarkAll = async () => {
@@ -138,12 +153,15 @@ loadList()
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
 }
 
 .header-actions {
   display: flex;
   gap: var(--spacing-md);
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .card-header-title {

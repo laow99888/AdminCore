@@ -120,7 +120,8 @@ def render_v2(definition):
                 serializers += [f"@extend_schema_field({{'type': 'string', 'enum': {[item['value'] for item in field['choices']]!r}}}, component_name='{module}_{class_name}_{field['name']}Choices')",
                                 f'class {enum_name}(serializers.ChoiceField):', '    pass', '', '']
         serializers += [f"@extend_schema_serializer(component_name='{module}_{class_name}')", f'class {class_name}Serializer(GeneratedSerializerMixin, serializers.ModelSerializer):',
-                        f'    field_spec = {list(fields)!r}', f'    detail_spec = {list(definition.details) if detail is None else []!r}', f'    is_detail = {detail is not None!r}']
+                        f'    field_spec = {list(fields)!r}', f'    detail_spec = {list(definition.details) if detail is None else []!r}', f'    is_detail = {detail is not None!r}',
+                        f'    field_resource = {module!r}', f'    field_prefix = {(detail["name"] + "." if detail else "")!r}']
         serializers += [f"    {field['name']} = " + serializer_field(field).replace('serializers.ChoiceField(', class_name + field['name'].title().replace('_', '') + 'Choice(') for field in fields]
         serializers += ['    display_labels = serializers.SerializerMethodField()']
         names = ['id', *[field['name'] for field in fields], 'display_labels']
@@ -178,7 +179,25 @@ def before_delete(*, actor, instance):
     for name in ['apps.py', 'urls.py', 'manifest.py', 'views.py', 'module.md']:
         value = template(name, context)
         if name == 'manifest.py':
+            value += '\n# 开放凭证仍须逐资源签发 read scope；模块默认关闭。\nAPI_CAPABILITIES = ("read",)\n'
             value = value.replace('AdminCore.codegen.v1', 'AdminCore.codegen.v2')
+            search_fields = [field['name'] for field in definition.fields
+                             if field['kind'] == 'string' and field['query'] in {'eq', 'contains'}][:3]
+            if search_fields:
+                title_field = next((field['name'] for field in definition.fields
+                                    if field['name'] in search_fields and field['query'] == 'contains'), search_fields[0])
+                value += '\n# 全局业务搜索的显式白名单；可删除此声明以关闭该来源。\n'
+                value += f'BUSINESS_SEARCH = {{"fields": {search_fields!r}, "title_field": {title_field!r}}}\n'
+            policy_fields = [field['name'] for field in definition.fields]
+            for group in definition.details:
+                policy_fields.extend([group['name'], *(group['name'] + '.' + field['name'] for field in group['fields'])])
+            if definition.structure == 'tree':
+                policy_fields.append('parent')
+            value = value.replace('    default_enabled=False,',
+                f'    field_policies=(({module!r}, {tuple(policy_fields)!r}),),\n    default_enabled=False,')
+            if ((definition.structure == 'single' and not definition.details and not definition.approval)
+                    or (definition.structure == 'master_detail' and definition.details)):
+                value = value.replace('    default_enabled=False,', f'    data_io_resources=({module!r},),\n    default_enabled=False,')
             if definition.approval:
                 value = value.replace('    default_enabled=False,', "    dependencies=('approvals',),\n    default_enabled=False,")
                 value = value.replace("('read', 'create', 'update', 'delete')", "('read', 'create', 'update', 'delete', 'submit', 'withdraw')")

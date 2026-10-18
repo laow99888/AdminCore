@@ -71,6 +71,15 @@ class UserRoleAdmin(AuditedAdminMixin, admin.ModelAdmin):
     search_fields = ('user__username', 'role__name')
     list_filter = ('role',)
 
+    def get_queryset(self, request):
+        return super().get_queryset(request).exclude(user__is_service_account=True)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == 'user':
+            from django.contrib.auth import get_user_model
+            kwargs['queryset'] = get_user_model().objects.filter(is_service_account=False)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
 @admin.register(Menu)
 class MenuAdmin(VersionedAdminMixin, AuditedAdminMixin, admin.ModelAdmin):

@@ -11,6 +11,7 @@
       <p role="status">{{ notice }}</p>
     </el-dialog>
     <span class="sr-only" role="status">{{ notice }}</span>
+    <BusinessSearch />
   </div>
 </template>
 
@@ -23,6 +24,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
 import { canAccessPage } from '@/router/access'
 import { uiText } from '@/i18n/uiText'
+import BusinessSearch from './BusinessSearch.vue'
 
 const auth = useAuthStore(), modules = useModuleStore(), router = useRouter()
 const query = ref(''), notice = ref(''), opened = ref(false)
@@ -71,10 +73,10 @@ function select(item: Record<string, unknown>) {
 </script>
 
 <style scoped>
-.menu-search { width: 200px; }
-.desktop-search { width: 100%; }
+.menu-search { width: 244px; display: flex; align-items: center; gap: 4px; }
+.desktop-search { width: 196px; }
 .mobile-search { display: none; width: 44px; height: 44px; align-items: center; justify-content: center; border: 0; border-radius: var(--radius-lg); background: var(--color-bg-elevated); color: var(--color-text-primary); cursor: pointer; }
 .mobile-search:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-@media (max-width: 768px) { .menu-search { width: 44px; } .desktop-search { display: none; } .mobile-search { display: flex; } }
+@media (max-width: 768px) { .menu-search { width: 92px; } .desktop-search { display: none; } .mobile-search { display: flex; } }
 </style>

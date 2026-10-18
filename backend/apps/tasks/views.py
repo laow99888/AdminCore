@@ -44,7 +44,7 @@ class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         from apps.core.data_scope import scope_queryset
-        return scope_queryset(TaskRecord.objects.select_related('creator', 'import_execution__batch', 'maintenance_request').all(), self.request.user, 'task', 'creator_id')
+        return scope_queryset(TaskRecord.objects.select_related('creator', 'import_execution__batch', 'maintenance_request', 'business_export_request').all(), self.request.user, 'task', 'creator_id')
 
     @extend_schema(request=None, responses={202: envelope('TaskResumedResponse', TaskRecordSerializer())})
     @action(detail=True, methods=['post'])
@@ -75,7 +75,8 @@ class TaskRecordViewSet(QueryBudgetListMixin, viewsets.ReadOnlyModelViewSet):
                 raise NotFound()
             before = snapshot('task', record)
             maintenance = record.related_resource.startswith('maintenance:')
-            if (maintenance and record.status != 'pending') or (record.status == 'running' and not execution):
+            export = getattr(record, 'business_export_request', None)
+            if (maintenance and record.status != 'pending') or (record.status == 'running' and not execution and not export):
                 return Response({'code': 409, 'message': '已开始且不支持协作停止的任务不能取消', 'data': None}, status=409)
             if execution and record.status in ('pending', 'running'):
                 from apps.data_io.execution import sync_summary

@@ -84,6 +84,17 @@ def clean(*, dry_run=False, record=None, expected_policy=None, celery_task_id=''
         result['eligible']['imports'] = result['deleted']['imports'] = 0
         if result['policy']['imports_enabled']:
             cutoff = now - timedelta(days=result['policy']['import_days'])
+            # 过期预检的元数据也纳入已有保留策略；正式账本和接续不依赖此记录。
+            from apps.data_io.models import BusinessImportPlan
+            plans = BusinessImportPlan.objects.filter(expires_at__lt=cutoff)
+            result['eligible']['import_plans'] = plans.count()
+            result['deleted']['import_plans'] = 0
+            plan_ids = list(plans.order_by('expires_at', 'pk').values_list('pk', flat=True)[:MAX_ROWS])
+            result['more'] |= result['eligible']['import_plans'] > len(plan_ids)
+            if not dry_run and plan_ids:
+                with transaction.atomic():
+                    audit(record, 'import_plans', plan_ids)
+                    result['deleted']['import_plans'] = plans.filter(pk__in=plan_ids).delete()[0]
             query = FileModel.objects.filter(purpose='import', is_deleted=False, created_at__lt=cutoff)
             eligible = unprotected_imports(query, cutoff)
             result['eligible']['imports'] = eligible.count()

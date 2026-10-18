@@ -60,6 +60,9 @@ def run_data_import(self, task_record_id):
                                               resource=record.related_resource, active_record=record)
             execution = ImportExecution.objects.create(tenant=record.tenant, record=record, batch=batch, policy=policy('import'),
                                                        session_version=actor.session_version)
+    if execution.batch.options.get('version') == 2:
+        from .business_execution import run_business_import
+        return run_business_import(self.name, record, execution)
     with transaction.atomic():
         batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
         if batch.active_record_id != record.pk or not record.mark_started():
@@ -172,9 +175,15 @@ def run_data_import(self, task_record_id):
 
 
 def import_summary(batch, source_id, total):
+    if batch.options.get('version') == 2:
+        from .business import business_summary
+        return business_summary(batch, total)
     from apps.tasks.models import ImportRowReceipt
     receipts = ImportRowReceipt.objects.filter(batch=batch)
     errors = receipts.filter(created=False).order_by('row')
     return {'file_id': str(source_id), 'total': total, 'created': receipts.filter(created=True).count(),
             'failed': errors.count(), 'processed': receipts.count(),
             'errors': [{'row': row.row, 'message': row.error} for row in errors[:100]]}
+
+
+from .business_export import run_business_export  # noqa: E402,F401

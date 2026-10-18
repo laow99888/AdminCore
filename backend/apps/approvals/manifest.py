@@ -2,12 +2,14 @@
 from apps.core.contracts import Module, MenuDeclaration
 
 MODULE = Module('approvals', '审批工作流', 'approvals', 'apps.approvals.urls', ('/approvals',), ('notifications',),
+    tasks=('approvals.scan_overdue',),
     permissions=(
         ('approval', 'read', '查看审批', 'approval:read'),
         ('approval', 'decide', '审批处理', 'approval:decide'),
     ),
     audit_fields=(
         ('approval', ('id', 'status', 'request_type', 'applicant_id', 'assignee_id', 'decided_by_id', 'decided_at')),
+        ('approval_flow', ('id', 'code', 'revision', 'version', 'status', 'published_at')),
     ),
     menus=(
         MenuDeclaration('审批工作流', '/approvals', 'clipboard-check', None, 6),

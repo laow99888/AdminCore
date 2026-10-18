@@ -28,10 +28,16 @@ from apps.core.query_budget import QueryBudgetListMixin
 from apps.core.client_ip import request_ip
 
 from .models import FileModel, FileAccessGrant
+from .filters import FileFilter
 from .serializers import (FileSerializer, FileUploadSerializer, RestoreSerializer,
                           RecycleActionSerializer, RecycleResultSerializer, RecyclePolicySerializer,
                           ImageTransformSerializer, ImageProcessingConfigSerializer,
                           FileACLSerializer)
+
+
+class FileReferenceStatusSerializer(serializers.Serializer):
+    protected = serializers.BooleanField()
+    lifecycle_version = serializers.IntegerField()
 
 
 @extend_schema_view(
@@ -45,16 +51,16 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
     # 文件元数据全部只读；不提供可能保存旧实例的空 PUT/PATCH 写入口。
     # 保留 PUT/PATCH 供 ACL 替换动作使用；文件本体元数据通过 update hooks 明确拒绝。
     http_method_names = ['get', 'post', 'put', 'patch', 'delete', 'head', 'options']
-    filterset_fields = ['file_type', 'uploader']
+    filterset_class = FileFilter
     search_fields = ['original_name', 'description']
     ordering_fields = ['created_at', 'size', 'download_count']
     ordering = ['-created_at']
     permission_map = {'create': 'file:upload', 'download': 'file:download', 'preview': 'file:download', 'recycle': 'file:recycle', 'recycle_policy': 'file:recycle', 'restore': 'file:restore',
-                      'transform': 'file:process', 'processing_config': 'file:process', 'acl': 'file:upload'}
+                      'transform': 'file:process', 'processing_config': 'file:process', 'acl': 'file:upload', 'references': 'file:read'}
 
     def get_permissions(self):
         permissions = super().get_permissions()
-        if self.action in ('create', 'download', 'preview'):
+        if self.action in ('create', 'download', 'preview', 'references'):
             permissions.append(HasPermission())
         return permissions
 
@@ -65,11 +71,12 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         queryset = FileModel.objects.select_related('uploader').filter(purpose='general')
         if self.action == 'recycle':
             queryset = queryset.filter(is_deleted=True)
-        elif self.action not in {'restore', 'recycle_action', 'purge', 'acl'}:
+        elif self.action not in {'restore', 'recycle_action', 'purge', 'acl', 'references'}:
             queryset = queryset.filter(is_deleted=False)
         from .access import file_queryset_for_actor
         access = FileAccessGrant.MANAGE if self.action in {'recycle', 'restore', 'recycle_action', 'purge', 'acl'} else FileAccessGrant.READ
-        return file_queryset_for_actor(queryset, self.request.user, access=access)
+        from .library import with_organization
+        return with_organization(file_queryset_for_actor(queryset, self.request.user, access=access), self.request.user)
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -81,6 +88,20 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         return Response({'code': 405, 'message': '文件元数据为只读', 'data': None}, status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    @extend_schema(responses=envelope('FileReferenceStatusResponse', FileReferenceStatusSerializer()))
+    @action(detail=True, methods=['get'])
+    def references(self, request, pk=None):
+        from .references import is_referenced
+        from apps.core.query_budget import query_budget
+        instance = self.get_object()
+        with query_budget():
+            protected = is_referenced(instance)
+        response = Response({'code': 200, 'message': 'success', 'data': {
+            'protected': protected, 'lifecycle_version': instance.lifecycle_version,
+        }})
+        response['Cache-Control'] = 'private, no-store'
+        return response
 
     @extend_schema(responses={(200, 'image/png'): OpenApiTypes.BINARY,
                               (200, 'application/pdf'): OpenApiTypes.BINARY,
@@ -271,6 +292,8 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         from apps.auth_app.models import User
         from rest_framework.exceptions import PermissionDenied
         with transaction.atomic():
+            if request.method.lower() == 'put':
+                authorize_write(request, 'file:upload')
             instance = self._locked_file(pk)
             if request.method.lower() == 'get':
                 grants = instance.access_grants.filter(is_active=True).select_related('user', 'role')
@@ -282,7 +305,6 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                     for item in grants]}})
             if not (request.user.is_staff or request.user.is_superuser or instance.uploader_id == request.user.pk):
                 raise PermissionDenied('只有文件所有者或管理员可以管理授权')
-            authorize_write(request, 'file:upload')
             serializer = FileACLSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             grants = serializer.validated_data['grants']
@@ -342,7 +364,9 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                     if not instance.is_deleted:
                         raise LifecycleConflict('文件不在回收站，请刷新后重试')
                     if data['dry_run']:
-                        pass
+                        if operation == 'purge':
+                            from .references import assert_not_referenced
+                            assert_not_referenced(instance)
                     elif operation == 'restore':
                         before = self._snapshot(instance)
                         instance.restore(item['lifecycle_version'])

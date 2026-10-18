@@ -56,6 +56,11 @@ class PostSerializer(StrictWriteSerializer):
 
 
 class UserPostSerializer(StrictWriteSerializer):
+    def validate_user(self, value):
+        if value.is_service_account:
+            raise serializers.ValidationError('机器身份不能作为组织人员')
+        return value
+
     username = serializers.CharField(source='user.username', read_only=True)
     post_name = serializers.CharField(source='post.name', read_only=True)
     post_active = serializers.BooleanField(source='post.is_active', read_only=True)
@@ -151,7 +156,7 @@ class PostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.ModelView
     destroy=extend_schema(parameters=[OpenApiParameter('version', int, required=True)], responses=MessageResponse),
 )
 class UserPostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.ModelViewSet):
-    queryset = UserPost.objects.select_related('user', 'post').all()
+    queryset = UserPost.objects.select_related('user', 'post').exclude(user__is_service_account=True)
     serializer_class = UserPostSerializer
     search_fields = ['user__username', 'post__name', 'post__code']
     filterset_fields = ['user', 'post']
@@ -168,7 +173,7 @@ class UserPostViewSet(PostPermissionMixin, EnvelopeResponseMixin, viewsets.Model
         # 用户（含操作者）按主键 -> 岗位 -> 任职，与其他写入口保持一致。
         post = get_object_or_404(Post.objects.select_for_update(), pk=serializer.validated_data['post'].pk)
         user = get_object_or_404(get_user_model(), pk=serializer.validated_data['user'].pk)
-        if not post.is_active or not user.is_active:
+        if not post.is_active or not user.is_active or user.is_service_account:
             raise ValidationError({'post': '只能为启用账号分配启用岗位'})
         try:
             with transaction.atomic():

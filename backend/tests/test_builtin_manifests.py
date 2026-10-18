@@ -79,7 +79,12 @@ def test_declaration_move_preserves_2dac5c5_seed_and_audit_contracts():
     assert digest(projected) == 'cbaca682f802aaa9330b0d9f1414a8036543e0836946d9b3fda3b85bca923089'
     parameters = [asdict(row) for key, row in CONFIG_DEFINITIONS.items() if not key.startswith('example.')]
     assert digest(sorted(parameters, key=lambda row: row['key'])) == '9c5839150a66142744affffeb8b49bc555cd0bf82b12b38f935697105f124243'
-    assert digest(MAINTENANCE_TASKS) == 'edc6bcc36bfacea8a61d6ed8350e4dc430d41b54091367c277db8f1e31ceb612'
+    assert MAINTENANCE_TASKS['approvals.scan_overdue'] == ('approvals',)
+    assert MAINTENANCE_TASKS['notifications.refresh_digests'] == ('notifications',)
+    assert MAINTENANCE_TASKS['data_io.run_business_export'] == ('data_io',)
+    legacy_tasks = {name: modules for name, modules in MAINTENANCE_TASKS.items()
+                    if name not in ('approvals.scan_overdue', 'notifications.refresh_digests', 'data_io.run_business_export')}
+    assert digest(legacy_tasks) == 'edc6bcc36bfacea8a61d6ed8350e4dc430d41b54091367c277db8f1e31ceb612'
     assert capabilities()['scope_resources'][:4] == [
         {'key': 'user', 'title': '用户'}, {'key': 'file', 'title': '文件'},
         {'key': 'task', 'title': '任务'}, {'key': 'log', 'title': '日志'}]

@@ -183,11 +183,16 @@ def test_revoked_device_cannot_issue_or_revoke(session_client, owner):
 
 def test_request_limits_and_fail_closed_cache(session_client):
     _, client = issued(session_client)
-    with patch('apps.api_credentials.authentication.REQUESTS_PER_MINUTE', 2):
+    # 固定同一分钟；全量覆盖率运行可能恰好跨真实分钟边界。
+    now = timezone.now()
+    with patch('apps.api_credentials.authentication.REQUESTS_PER_MINUTE', 2), \
+            patch('apps.api_credentials.authentication.timezone.now', return_value=now):
         assert client.get(BASE + 'tasks/').status_code == 200
         assert client.get(BASE + 'tasks/').status_code == 200
         response = client.get(BASE + 'tasks/')
         assert response.status_code == 429 and 'Retry-After' in response
+        with patch('apps.api_credentials.authentication.timezone.now', return_value=now + timedelta(minutes=1)):
+            assert client.get(BASE + 'tasks/').status_code == 200
     with patch('apps.api_credentials.authentication.cache.add', side_effect=RuntimeError('cache unavailable')):
         assert client.get(BASE + 'tasks/').status_code == 503
 
@@ -279,3 +284,129 @@ def test_schema_dedicated_security_and_no_write_gateways():
     assert tasks['get']['security'] == [{'apiCredential': []}]
     assert {'200', '400', '503'} <= set(tasks['get']['responses'])
     assert schema['paths'][BASE + 'credentials/']['post']['security'] == [{'jwtAuth': []}]
+
+
+def test_rotation_replaces_secret_without_changing_capabilities_or_expiry(session_client, owner):
+    data, old = issued(session_client)
+    assert old.get(BASE + 'tasks/').status_code == 200
+    response = session_client.post(BASE + f'credentials/{data["id"]}/rotate/',
+        {'version': data['version'], 'current_password': PASSWORD}, format='json')
+    assert response.status_code == 200, response.data
+    replacement = response.json()['data']
+    assert replacement['version'] == 2 and replacement['rotated_at']
+    assert replacement['expires_at'] == data['expires_at'] and replacement['scopes'] == data['scopes']
+    assert replacement['accepted_requests'] == 1 and replacement['token'] != data['token']
+    assert old.get(BASE + 'tasks/').status_code == 401
+    assert token_client(replacement['token']).get(BASE + 'tasks/').status_code == 200
+    row = APICredential.objects.get(pk=data['id'])
+    assert row.secret_digest == digest(replacement['token'].split('.')[1])
+    assert replacement['token'] not in str(list(OperationLog.objects.filter(resource='api_credential').values()))
+    stale = session_client.post(BASE + f'credentials/{data["id"]}/rotate/',
+        {'version': 1, 'current_password': PASSWORD}, format='json')
+    assert stale.status_code == 409
+    assert token_client(replacement['token']).get(BASE + 'tasks/').status_code == 200
+
+
+@pytest.mark.parametrize('change,expected', [('password', 403), ('expired', 400), ('revoked', 400),
+    ('permission', 403), ('scope', 403), ('extra', 400), ('boolean', 400), ('wrong-version', 409)])
+def test_rotation_fails_closed_without_mutating_secret(session_client, change, expected):
+    data, _ = issued(session_client)
+    row = APICredential.objects.get(pk=data['id'])
+    original = row.secret_digest
+    payload = {'version': 1, 'current_password': PASSWORD}
+    if change == 'password': payload['current_password'] = 'wrong'
+    elif change == 'expired': APICredential.objects.filter(pk=row.pk).update(expires_at=timezone.now() - timedelta(seconds=1))
+    elif change == 'revoked': APICredential.objects.filter(pk=row.pk).update(revoked_at=timezone.now())
+    elif change == 'permission': RolePermission.objects.filter(permission__code='api_credential:revoke').delete()
+    elif change == 'scope': RolePermission.objects.filter(permission__code='task:read').delete()
+    elif change == 'extra': payload['scopes'] = ['example:read']
+    elif change == 'boolean': payload['version'] = True
+    else: payload['version'] = 2
+    assert session_client.post(BASE + f'credentials/{row.pk}/rotate/', payload, format='json').status_code == expected
+    row.refresh_from_db()
+    assert row.secret_digest == original and row.version == 1 and row.rotated_at is None
+
+
+def test_rotation_audit_failure_rolls_back_secret(session_client):
+    data, old = issued(session_client)
+    session_client.raise_request_exception = False
+    with patch('apps.api_credentials.views.write_audit', side_effect=RuntimeError('audit unavailable')):
+        assert session_client.post(BASE + f'credentials/{data["id"]}/rotate/',
+            {'version': 1, 'current_password': PASSWORD}, format='json').status_code == 500
+    assert old.get(BASE + 'tasks/').status_code == 200
+    assert APICredential.objects.get(pk=data['id']).version == 1
+
+
+def test_usage_counts_authenticated_requests_even_when_business_query_is_invalid(session_client):
+    data, client = issued(session_client)
+    path = BASE + f'credentials/{data["id"]}/statistics/'
+    empty = session_client.get(path).json()['data']
+    assert empty['daily'] == [] and empty['accepted_requests'] == 0 and empty['timezone'] == 'UTC'
+    assert client.get(BASE + 'tasks/').status_code == 200
+    assert client.get(BASE + 'tasks/?unexpected=x').status_code == 400
+    assert client.get(BASE + 'work-items/').status_code == 403
+    assert token_client(data['token'][:-1] + ('a' if data['token'][-1] != 'a' else 'b')).get(BASE + 'tasks/').status_code == 401
+    with patch('apps.api_credentials.authentication.REQUESTS_PER_MINUTE', 2):
+        assert client.get(BASE + 'tasks/').status_code == 429
+    response = session_client.get(path)
+    assert response.status_code == 200 and response['Cache-Control'] == 'private, no-store'
+    stats = response.json()['data']
+    assert stats['accepted_requests'] == stats['recent_requests'] == 2
+    assert stats['daily'] == [{'day': timezone.now().date().isoformat(), 'requests': 2}]
+    assert 'token' not in str(stats) and 'secret_digest' not in str(stats)
+
+
+@pytest.mark.parametrize('query', ['days=0', 'days=91', 'days=-1', 'days=1.5', 'days=1&days=2',
+    'days=一', 'days=' + '9' * 5000, 'owner=anything'])
+def test_usage_query_is_strict_and_bounded(session_client, query):
+    data, _ = issued(session_client)
+    assert session_client.get(BASE + f'credentials/{data["id"]}/statistics/?{query}').status_code == 400
+
+
+def test_usage_and_rotation_cannot_access_another_owners_credentials(session_client):
+    data, _ = issued(session_client)
+    APICredential.objects.filter(pk=data['id']).update(owner=get_user_model().objects.create_user('another-owner'))
+    assert session_client.get(BASE + f'credentials/{data["id"]}/statistics/').status_code == 404
+    assert session_client.post(BASE + f'credentials/{data["id"]}/rotate/',
+        {'version': 1, 'current_password': PASSWORD}, format='json').status_code == 404
+
+
+def test_usage_rolling_retention_does_not_reset_total(session_client):
+    from apps.api_credentials.models import CredentialUsageDay
+    data, client = issued(session_client)
+    day = timezone.now().date()
+    CredentialUsageDay.objects.create(credential_id=data['id'], day=day - timedelta(days=90), requests=10)
+    CredentialUsageDay.objects.create(credential_id=data['id'], day=day - timedelta(days=89), requests=3)
+    APICredential.objects.filter(pk=data['id']).update(accepted_requests=13)
+    assert client.get(BASE + 'tasks/').status_code == 200
+    assert not CredentialUsageDay.objects.filter(day=day - timedelta(days=90)).exists()
+    stats = session_client.get(BASE + f'credentials/{data["id"]}/statistics/?days=90').json()['data']
+    assert stats['accepted_requests'] == 14 and stats['recent_requests'] == 4
+
+
+def test_gateway_activates_current_tenant_and_rechecks_membership(session_client, owner, settings):
+    from apps.core.models import Tenant, TenantMembership
+    from apps.core.tenancy import tenant_context
+    data, client = issued(session_client)
+    settings.ADMINCORE_MULTI_TENANT_ENABLED = True
+    first = Tenant.objects.create(name='凭证甲', slug='credential-a')
+    second = Tenant.objects.create(name='凭证乙', slug='credential-b')
+    membership = TenantMembership.objects.create(user=owner, tenant=first)
+    with tenant_context(first.pk):
+        own = TaskRecord.objects.create(name='tenant-a-task', creator=owner)
+    with tenant_context(second.pk):
+        other = TaskRecord.objects.create(name='tenant-b-task', creator=owner)
+    response = client.get(BASE + 'tasks/')
+    assert response.status_code == 200, response.content
+    assert [row['id'] for row in response.json()['data']['items']] == [str(own.pk)]
+    assert client.get(BASE + 'tasks/', HTTP_X_ADMINCORE_TENANT=str(second.pk)).status_code == 403
+    assert client.get(BASE + f'tasks/{other.pk}/', HTTP_X_ADMINCORE_TENANT=str(first.pk)).status_code == 404
+    TenantMembership.objects.create(user=owner, tenant=second)
+    assert client.get(BASE + 'tasks/').status_code == 400
+    assert client.get(BASE + 'tasks/', HTTP_X_ADMINCORE_TENANT=str(second.pk)).json()['data']['items'][0]['id'] == str(other.pk)
+    membership.is_active = False
+    membership.save(update_fields=['is_active'])
+    assert client.get(BASE + 'tasks/', HTTP_X_ADMINCORE_TENANT=str(first.pk)).status_code == 403
+    first.status = Tenant.STATUS_SUSPENDED
+    first.save(update_fields=['status'])
+    assert client.get(BASE + 'tasks/', HTTP_X_ADMINCORE_TENANT=str(first.pk)).status_code == 403

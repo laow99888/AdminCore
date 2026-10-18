@@ -152,6 +152,11 @@ class MenuSerializer(serializers.ModelSerializer):
 
 
 class UserRoleSerializer(serializers.ModelSerializer):
+    def validate_user(self, value):
+        if value.is_service_account:
+            raise serializers.ValidationError('机器身份只能在独立管理入口维护')
+        return value
+
     """用户角色序列化器"""
     role_detail = RoleSerializer(source='role', read_only=True)
 

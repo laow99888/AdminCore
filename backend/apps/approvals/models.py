@@ -93,7 +93,8 @@ def validate_flow_definition(definition):
 class ApprovalFlow(BaseModel):
     STATUS_CHOICES = [('draft', '草稿'), ('published', '已发布'), ('archived', '已归档')]
     name = models.CharField(max_length=120)
-    code = models.CharField(max_length=80, unique=True)
+    code = models.CharField(max_length=80)
+    revision = models.PositiveIntegerField(default=1)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='draft')
     version = models.PositiveIntegerField(default=1)
     definition = models.JSONField(default=dict)
@@ -103,6 +104,11 @@ class ApprovalFlow(BaseModel):
 
     class Meta:
         indexes = [models.Index(fields=['status', 'code'])]
+        constraints = [
+            models.UniqueConstraint(fields=['code', 'revision'], name='unique_flow_code_revision'),
+            models.UniqueConstraint(fields=['code'], condition=models.Q(status='published'), name='one_published_flow_code'),
+            models.UniqueConstraint(fields=['code'], condition=models.Q(status='draft'), name='one_draft_flow_code'),
+        ]
 
     def clean(self):
         validate_flow_definition(self.definition)
@@ -121,6 +127,14 @@ class ApprovalStep(BaseModel):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='pending')
     assignee = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='approval_steps')
     candidates = models.JSONField(default=list)
+    assignment_context = models.JSONField(default=dict)
+    due_at = models.DateTimeField(null=True, blank=True)
+    escalate_at = models.DateTimeField(null=True, blank=True)
+    escalation_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True,
+                                       related_name='escalated_approval_steps')
+    reminded_at = models.DateTimeField(null=True, blank=True)
+    escalated_at = models.DateTimeField(null=True, blank=True)
+    timeout_error = models.CharField(max_length=80, blank=True)
     delegated_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='delegated_approval_steps')
     comment = models.TextField(blank=True)
     acted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='acted_approval_steps')
@@ -128,8 +142,18 @@ class ApprovalStep(BaseModel):
     version = models.PositiveIntegerField(default=1)
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['request', 'node_key', 'assignee'], name='unique_approval_step_assignee')]
-        indexes = [models.Index(fields=['request', 'status', 'sequence']), models.Index(fields=['assignee', 'status'])]
+        constraints = [models.UniqueConstraint(fields=['request', 'node_key', 'sequence', 'assignee'], name='unique_approval_visit_assignee')]
+        indexes = [models.Index(fields=['request', 'status', 'sequence']), models.Index(fields=['assignee', 'status']),
+                   models.Index(fields=['status', 'due_at'])]
+
+
+class ApprovalFileReference(BaseModel):
+    """审批冻结时的附件钉住具体文件；换附件、撤回或关闭模块均不解除历史保护。"""
+    request = models.ForeignKey('ApprovalRequest', on_delete=models.CASCADE, related_name='file_references')
+    file = models.ForeignKey('files.FileModel', on_delete=models.PROTECT, related_name='approval_references')
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['request', 'file'], name='unique_approval_file_reference')]
 
 
 class ApprovalCC(BaseModel):
@@ -142,10 +166,11 @@ class ApprovalCC(BaseModel):
 
 
 class ApprovalAction(BaseModel):
-    ACTION_CHOICES = [('approve', '通过'), ('reject', '驳回'), ('add_sign', '加签'), ('transfer', '转办'), ('delegate', '委托'), ('cc', '抄送'), ('cancel', '撤回')]
+    ACTION_CHOICES = [('approve', '通过'), ('reject', '驳回'), ('add_sign', '加签'), ('transfer', '转办'), ('delegate', '委托'), ('cc', '抄送'), ('cancel', '撤回'),
+                      ('return', '退回节点'), ('remind', '超时提醒'), ('escalate', '超时升级'), ('retry_timeout', '重试超时通知')]
     request = models.ForeignKey('ApprovalRequest', on_delete=models.CASCADE, related_name='actions')
     step = models.ForeignKey(ApprovalStep, on_delete=models.SET_NULL, null=True, blank=True, related_name='actions')
-    actor = models.ForeignKey(User, on_delete=models.PROTECT, related_name='approval_actions')
+    actor = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name='approval_actions')
     action = models.CharField(max_length=16, choices=ACTION_CHOICES)
     target_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='targeted_approval_actions')
     comment = models.TextField(blank=True)
@@ -185,6 +210,7 @@ class ApprovalRequest(BaseModel):
     flow_version = models.PositiveIntegerField(null=True, blank=True)
     current_node = models.CharField(max_length=64, blank=True)
     workflow_version = models.PositiveIntegerField(default=1)
+    return_count = models.PositiveIntegerField(default=0)
     business_module = models.CharField(max_length=20, blank=True)
     business_record_id = models.UUIDField(null=True, blank=True)
     business_snapshot = models.JSONField(default=dict, blank=True)

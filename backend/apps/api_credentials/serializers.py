@@ -8,13 +8,14 @@ from .policy import available_scopes
 class CredentialSerializer(serializers.ModelSerializer):
     class Meta:
         model = APICredential
-        fields = ('id', 'name', 'scopes', 'created_at', 'expires_at', 'revoked_at', 'last_used_at')
+        fields = ('id', 'name', 'scopes', 'created_at', 'expires_at', 'revoked_at', 'last_used_at',
+                  'version', 'rotated_at', 'accepted_requests', 'statistics_started_at')
         read_only_fields = fields
 
 
 class CredentialCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=80, allow_blank=False)
-    scopes = serializers.ListField(child=serializers.CharField(max_length=40), min_length=1, max_length=2)
+    scopes = serializers.ListField(child=serializers.CharField(max_length=40), min_length=1, max_length=16)
     expires_at = serializers.DateTimeField()
     current_password = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
 
@@ -39,3 +40,27 @@ class CredentialIssuedSerializer(CredentialSerializer):
 class AvailableScopeSerializer(serializers.Serializer):
     code = serializers.CharField()
     label = serializers.CharField()
+
+
+class CredentialRotateSerializer(serializers.Serializer):
+    version = serializers.IntegerField(min_value=1)
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False, max_length=4096)
+
+    def validate(self, values):
+        if set(self.initial_data) != set(self.fields) or type(self.initial_data.get('version')) is not int:
+            raise serializers.ValidationError('轮换需提交当前凭证版本和确认密码')
+        return values
+
+
+class CredentialUsageDaySerializer(serializers.Serializer):
+    day = serializers.DateField()
+    requests = serializers.IntegerField()
+
+
+class CredentialUsageSerializer(serializers.Serializer):
+    days = serializers.IntegerField()
+    timezone = serializers.CharField()
+    statistics_started_at = serializers.DateTimeField()
+    accepted_requests = serializers.IntegerField()
+    recent_requests = serializers.IntegerField()
+    daily = CredentialUsageDaySerializer(many=True)

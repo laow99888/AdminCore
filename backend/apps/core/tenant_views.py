@@ -64,7 +64,7 @@ class TenantViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         serializer.save()
 
 class TenantMembershipViewSet(EnvelopeResponseMixin, viewsets.ModelViewSet):
-    queryset = TenantMembership.objects.select_related('tenant', 'user').all()
+    queryset = TenantMembership.objects.select_related('tenant', 'user').exclude(user__is_service_account=True)
     serializer_class = TenantMembershipSerializer
     permission_classes = [IsAdmin]
     ordering_fields = ['created_at', 'updated_at', 'role', 'is_active', 'tenant__name', 'user__username']

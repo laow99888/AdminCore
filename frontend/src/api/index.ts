@@ -4,6 +4,7 @@
  */
 
 import request, { type ApiResponse, type PagedData } from './request'
+import type { ReportOutput, ReportRunOptions, ReportDetails, ReportFieldType } from './reportTypes'
 
 /** 为一次用户写操作生成稳定的幂等键；Axios 的 401 重放会复用同一份配置。 */
 export function newIdempotencyKey(prefix = 'ui') {
@@ -88,6 +89,7 @@ export const usersApi = {
 
 // ===== 文件管理 =====
 export interface FileRow {
+  organization?: import('./fileLibrary').FileOrganization
   id: string
   original_name: string
   file: string
@@ -170,14 +172,17 @@ export interface ReportDefinition {
   created_at: string
   updated_at: string
 }
-export interface ReportCatalogItem { key: string; label: string; dimensions: string[]; metrics: string[]; filters: string[] }
+export interface ReportCatalogItem { key: string; label: string; dimensions: string[]; metrics: string[]; filters: string[]; field_types?: Record<string, ReportFieldType> }
 export const reportsApi = {
   catalog: async (): Promise<ReportCatalogItem[]> => (await request.get<ApiResponse<ReportCatalogItem[]>>('/reports/catalog/')).data.data,
   list: (params?: ListParams) => getPaged<ReportDefinition>('/reports/definitions/', params),
   create: (data: Pick<ReportDefinition, 'name' | 'code' | 'kind' | 'definition'>) => request.post<ApiResponse<ReportDefinition>>('/reports/definitions/', data),
   update: (id: string, data: Partial<Pick<ReportDefinition, 'name' | 'kind' | 'definition'>> & { version: number }) => request.patch<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/`, data),
   publish: (id: string, version?: number) => request.post<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/publish/`, { version }),
-  run: async (id: string) => (await request.get<ApiResponse<{ columns: string[]; rows: Array<Record<string, unknown>>; definition: Record<string, unknown>; generated_at: string }>>(`/reports/definitions/${id}/run/`)).data.data,
+  run: async (id: string, options?: ReportRunOptions, signal?: AbortSignal): Promise<ReportOutput> => options
+    ? (await request.post<ApiResponse<ReportOutput>>(`/reports/definitions/${id}/run/`, options, { signal })).data.data
+    : (await request.get<ApiResponse<ReportOutput>>(`/reports/definitions/${id}/run/`, { signal })).data.data,
+  details: async (id: string, data: { widget?: string; options?: ReportRunOptions; group: Record<string, unknown>; page: number; page_size: number }, signal?: AbortSignal): Promise<ReportDetails> => (await request.post<ApiResponse<ReportDetails>>(`/reports/definitions/${id}/details/`, data, { signal })).data.data,
 }
 
 // ===== 通知中心 =====
@@ -247,11 +252,15 @@ export interface ApprovalRow {
   extra_data?: Record<string, unknown> | null
   current_node?: string
   workflow_version?: number
+  flow_revision?: number | null
+  return_count?: number
+  returnable_nodes?: string[]
   steps?: ApprovalStepRow[]
   cc_recipients?: Array<{ id: string; user: string; user_name: string }>
 }
 
 export interface ApprovalStepRow {
+  assignment_context?: { source?: string; levels?: number; department_name?: string; source_department_name?: string; resolved_on?: string; assignee_name?: string }
   id: string
   node_key: string
   kind: 'user' | 'parallel' | 'or'
@@ -263,6 +272,12 @@ export interface ApprovalStepRow {
   delegated_to?: string | null
   delegated_to_name?: string | null
   version: number
+  due_at?: string | null
+  escalate_at?: string | null
+  escalation_user?: string | null
+  reminded_at?: string | null
+  escalated_at?: string | null
+  timeout_error?: string
 }
 
 export interface ApprovalFlowRow {
@@ -271,6 +286,7 @@ export interface ApprovalFlowRow {
   code: string
   status: 'draft' | 'published' | 'archived'
   version: number
+  revision?: number
   definition: { schema_version?: 2; inputs?: Array<{ key: string; type: string }>; nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> }
 }
 
@@ -281,13 +297,16 @@ export const approvalsApi = {
     getPaged<ApprovalRow>('/approvals/', { ...(box ? { box } : {}), ...params }),
   create: (data: { title: string; request_type: string; content: string; flow_id?: string; extra_data?: Record<string, unknown> } & ({ assignee_id: string; assignee_username?: never } | { assignee_username: string; assignee_id?: never } | { assignee_id?: never; assignee_username?: never }), key = newIdempotencyKey('approval-create')) =>
     request.post('/approvals/', data, { headers: { 'Idempotency-Key': key } }),
-  approve: (id: string, comment = '') => request.post(`/approvals/${id}/approve/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
-  reject: (id: string, comment = '') => request.post(`/approvals/${id}/reject/`, { comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),
+  approve: (id: string, comment = '', expected_workflow_version?: number, step_id?: string) => request.post(`/approvals/${id}/approve/`, { comment, expected_workflow_version, step_id }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-approve-${id}`) } }),
+  reject: (id: string, comment = '', expected_workflow_version?: number, step_id?: string) => request.post(`/approvals/${id}/reject/`, { comment, expected_workflow_version, step_id }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-reject-${id}`) } }),
+  history: (id: string, params?: ListParams) => getPaged<ApprovalHistoryRow>(`/approvals/${id}/history/`, params),
+  returnNode: (id: string, target_node: string, expected_workflow_version: number, comment: string, key = newIdempotencyKey('approval-return')) => request.post(`/approvals/${id}/return-node/`, { target_node, expected_workflow_version, comment }, { headers: { 'Idempotency-Key': key } }),
+  retryTimeout: (id: string, step_id: string, expected_version: number, comment: string, target_user_id?: string) => request.post(`/approvals/${id}/retry-timeout/`, { step_id, expected_version, comment, target_user_id }, { headers: { 'Idempotency-Key': newIdempotencyKey('approval-timeout') } }),
   cancel: (id: string) => request.post(`/approvals/${id}/cancel/`),
   repairStep: (id: string, target_user_id: string, step_id: string, expected_version: number, comment = '') => request.post(`/approvals/${id}/repair-step/`, { target_user_id, step_id, expected_version, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-repair-${id}`) } }),
-  addSign: (id: string, target_user_id: string, comment = '', expected_version?: number) => request.post(`/approvals/${id}/add-sign/`, { target_user_id, comment, expected_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-add-sign-${id}`) } }),
-  transfer: (id: string, target_user_id: string, comment = '', expected_version?: number) => request.post(`/approvals/${id}/transfer/`, { target_user_id, comment, expected_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-transfer-${id}`) } }),
-  delegate: (id: string, target_user_id: string, comment = '', expected_version?: number) => request.post(`/approvals/${id}/delegate/`, { target_user_id, comment, expected_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-delegate-${id}`) } }),
+  addSign: (id: string, target_user_id: string, comment = '', expected_version?: number, expected_workflow_version?: number) => request.post(`/approvals/${id}/add-sign/`, { target_user_id, comment, expected_version, expected_workflow_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-add-sign-${id}`) } }),
+  transfer: (id: string, target_user_id: string, comment = '', expected_version?: number, expected_workflow_version?: number) => request.post(`/approvals/${id}/transfer/`, { target_user_id, comment, expected_version, expected_workflow_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-transfer-${id}`) } }),
+  delegate: (id: string, target_user_id: string, comment = '', expected_version?: number, expected_workflow_version?: number) => request.post(`/approvals/${id}/delegate/`, { target_user_id, comment, expected_version, expected_workflow_version }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-delegate-${id}`) } }),
   cc: (id: string, user_ids: string[], comment = '') => request.post(`/approvals/${id}/cc/`, { user_ids, comment }, { headers: { 'Idempotency-Key': newIdempotencyKey(`approval-cc-${id}`) } }),
 }
 
@@ -297,11 +316,24 @@ export const approvalFlowsApi = {
   update: (id: string, data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition' | 'version'>) => request.put(`/approvals/flows/${id}/`, data),
   publish: (id: string, version?: number) => request.post(`/approvals/flows/${id}/publish/`, { version }),
   archive: (id: string) => request.post(`/approvals/flows/${id}/archive/`),
+  newRevision: (id: string, key = newIdempotencyKey('approval-revision')) => request.post(`/approvals/flows/${id}/new-revision/`, {}, { headers: { 'Idempotency-Key': key } }),
+}
+
+export interface ApprovalHistoryRow {
+  id: string
+  action: string
+  actor_name: string | null
+  target_user_name: string | null
+  comment: string
+  metadata: Record<string, unknown>
+  created_at: string
 }
 
 export interface OnlineFormCondition { field: string; op: 'eq' | 'ne' | 'in' | 'empty' | 'not_empty' | 'lt' | 'lte' | 'gt' | 'gte'; value?: unknown }
 export interface OnlineFormRule { left: string; op: 'lt' | 'lte' | 'gt' | 'gte' | 'eq'; right: string; message: string }
-export interface OnlineFormField { key: string; label: string; type: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'boolean' | 'decimal' | 'datetime' | 'multiselect' | 'detail'; required: boolean; default?: unknown; options?: string[]; max_length?: number; min?: number | string; max?: number | string; scale?: number; section?: string; span?: 1 | 2; help?: string; placeholder?: string; visible_when?: OnlineFormCondition[]; required_when?: OnlineFormCondition[]; fields?: OnlineFormField[]; min_rows?: number; max_rows?: number; rules?: OnlineFormRule[] }
+export type OnlineFormOperand = { field: string } | { literal: string }
+export type OnlineFormComputation = { op: 'add' | 'subtract' | 'multiply' | 'divide'; operands: [OnlineFormOperand, OnlineFormOperand] } | { op: 'sum'; detail: string; field: string }
+export interface OnlineFormField { key: string; label: string; type: 'text' | 'textarea' | 'number' | 'select' | 'date' | 'boolean' | 'decimal' | 'datetime' | 'multiselect' | 'detail' | 'file' | 'relation'; resource?: string; required: boolean; default?: unknown; options?: string[]; max_length?: number; min?: number | string; max?: number | string; scale?: number; section?: string; span?: 1 | 2; help?: string; placeholder?: string; visible_when?: OnlineFormCondition[]; required_when?: OnlineFormCondition[]; fields?: OnlineFormField[]; min_rows?: number; max_rows?: number; rules?: OnlineFormRule[]; computation?: OnlineFormComputation }
 export interface OnlineFormDefinition { schema_version?: 2; fields: OnlineFormField[]; sections?: { key: string; title: string }[]; rules?: OnlineFormRule[] }
 export interface OnlineFormRow { id: string; name: string; code: string; status: 'draft' | 'published' | 'archived'; version: number; definition: OnlineFormDefinition }
 export interface OnlineFormRecordRow { id: string; form: string; form_version: number; owner: string; owner_name?: string; data: Record<string, unknown>; version: number; created_at: string; updated_at: string }
@@ -314,7 +346,7 @@ export const onlineFormsApi = {
   validate: (definition: OnlineFormDefinition, data?: Record<string, unknown>) => request.post<ApiResponse<{ definition: OnlineFormDefinition; data?: Record<string, unknown> }>>('/online-forms/validate/', { definition, ...(data === undefined ? {} : { data }) }),
   published: (code: string) => request.get<ApiResponse<OnlineFormRow>>(`/online-forms/published/${encodeURIComponent(code)}/`),
   records: (code: string, params?: ListParams) => getPaged<OnlineFormRecordRow>(`/online-forms/${encodeURIComponent(code)}/records/`, params),
-  createRecord: (code: string, data: Record<string, unknown>, key = newIdempotencyKey('online-form-record')) => request.post(`/online-forms/${encodeURIComponent(code)}/records/`, { data }, { headers: { 'Idempotency-Key': key } }),
+  createRecord: (code: string, data: Record<string, unknown>, key = newIdempotencyKey('online-form-record'), formId?: string) => request.post(`/online-forms/${encodeURIComponent(code)}/records/`, { data, ...(formId ? { form_id: formId } : {}) }, { headers: { 'Idempotency-Key': key } }),
   updateRecord: (code: string, id: string, data: Record<string, unknown>, version: number) => request.patch(`/online-forms/${encodeURIComponent(code)}/records/${id}/`, { data, version }),
 }
 
@@ -335,6 +367,7 @@ export const dataIoApi = {
 
 // ===== 角色与菜单 =====
 export interface RoleRow {
+  field_permissions?: Record<string, { read: string[]; write: string[] }>
   version: number
   id: string
   name: string

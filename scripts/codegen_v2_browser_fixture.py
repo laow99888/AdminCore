@@ -50,9 +50,16 @@ def validate_browser(folder, work, env, *, build=True):
     settings = (folder / 'codegen_v2_settings.py').read_text(encoding='utf-8').split('\nDATABASES =')[0]
     settings += f"\nDATABASES = {{'default': {{'ENGINE': 'django.db.backends.sqlite3', 'NAME': {str(folder / 'browser.sqlite3')!r}}}}}\n"
     settings += "AUTH_LOGIN_CAPTCHA_ENABLED = False\nALLOWED_HOSTS = ['127.0.0.1', 'localhost']\n"
+    # 一次整合覆盖几十个模块并轮询任务，会超过单用户正常每小时预算。
+    # 仅提高此独占夹具的通用请求预算；专用登录/验证/凭证限流保留原值。
+    settings += "REST_FRAMEWORK = {**REST_FRAMEWORK, 'DEFAULT_THROTTLE_RATES': {'anon': '1000/hour', 'user': '100000/hour'}}\n"
+    # 独占夹具无 worker；脚本在提交后调用真实任务，覆盖等待、变更失败与取消。
+    settings += "CELERY_TASK_ALWAYS_EAGER = False\nCELERY_BROKER_URL = 'memory://'\n"
     settings += f"MEDIA_ROOT = {str(folder / 'browser-media')!r}\n"
+    settings += "ADMINCORE_MODULES = (*ADMINCORE_MODULES, 'online_forms', 'api_credentials')\n"
     (folder / 'codegen_browser_settings.py').write_text(settings, encoding='utf-8')
-    env = {**env, 'DJANGO_SETTINGS_MODULE': 'codegen_browser_settings', 'VITE_AUTH_SESSION_TRANSPORT': 'bearer'}
+    env = {**env, 'DJANGO_SETTINGS_MODULE': 'codegen_browser_settings', 'VITE_AUTH_SESSION_TRANSPORT': 'bearer',
+           'ADMINCORE_VALIDATION_PYTHON': sys.executable, 'ADMINCORE_VALIDATION_BACKEND': str(ROOT / 'backend')}
     node_bin = ROOT / '.codex-validation/toolchains/node-v24.21.0-win-x64'
     bundled = os.name == 'nt' and (node_bin / 'node.exe').exists()
     node = str(node_bin / 'node.exe') if bundled else shutil.which('node')
@@ -62,7 +69,7 @@ def validate_browser(folder, work, env, *, build=True):
     env.update(TEMP=str(temp), TMP=str(temp))
     processes = []
     handles = []
-    report = {'passed': False, 'ports': [18471, 18472], 'stopped_pids': []}
+    report = {'passed': False, 'production_build': build, 'ports': [18471, 18472], 'stopped_pids': []}
 
     def run(command, log, cwd=ROOT / 'backend', input=None):
         result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True,

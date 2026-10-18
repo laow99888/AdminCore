@@ -9,7 +9,7 @@
     "
     :inputmode="field.kind === 'decimal' ? 'decimal' : undefined"
     :maxlength="field.max_length"
-    :aria-label="label"
+    :aria-label="label" :disabled="disabled"
     @update:model-value="emit('update:modelValue', $event)"
   />
   <el-input-number
@@ -18,7 +18,7 @@
     :min="Number(field.minimum ?? -2147483648)"
     :max="Number(field.maximum ?? 2147483647)"
     :precision="0"
-    :aria-label="label"
+    :aria-label="label" :disabled="disabled"
     @update:model-value="
       emit('update:modelValue', $event === '' || $event == null ? null : $event)
     "
@@ -26,13 +26,13 @@
   <el-switch
     v-else-if="field.kind === 'boolean' && field.component !== 'select'"
     :model-value="modelValue === true"
-    :aria-label="label"
+    :aria-label="label" :disabled="disabled"
     @update:model-value="emit('update:modelValue', Boolean($event))"
   />
   <el-select
     v-else-if="field.kind === 'boolean'"
     :model-value="modelValue"
-    :aria-label="label"
+    :aria-label="label" :disabled="disabled"
     @update:model-value="emit('update:modelValue', $event)"
     ><el-option :label="uiText('是')" :value="true" /><el-option
       :label="uiText('否')"
@@ -45,13 +45,13 @@
     :value-format="
       field.kind === 'date' ? 'YYYY-MM-DD' : 'YYYY-MM-DDTHH:mm:ssZ'
     "
-    :aria-label="label"
+    :aria-label="label" :disabled="disabled"
     @update:model-value="emit('update:modelValue', $event || null)"
   />
   <el-radio-group
     v-else-if="field.kind === 'enum' && field.component === 'radio'"
     :model-value="modelValue ?? ''"
-    :aria-label="label"
+    :aria-label="label" :disabled="disabled"
     @update:model-value="emit('update:modelValue', String($event))"
     ><el-radio
       v-for="item in field.choices"
@@ -63,7 +63,7 @@
   <div v-else class="remote-field">
     <el-select
       :model-value="modelValue"
-      :aria-label="label"
+      :aria-label="label" :disabled="disabled"
       :loading="loading"
       filterable
       :remote="remote"
@@ -116,6 +116,7 @@ const props = defineProps<{
   fieldKey: string;
   label: string;
   selectedLabel?: string;
+  disabled?: boolean;
 }>();
 const emit = defineEmits<{ "update:modelValue": [value: FieldValue] }>();
 const auth = useAuthStore(),
@@ -144,6 +145,7 @@ let generation = 0,
   query = "",
   controller: AbortController | undefined;
 async function load(append = false) {
+  if (props.disabled) return;
   const current = ++generation;
   controller?.abort();
   controller = new AbortController();

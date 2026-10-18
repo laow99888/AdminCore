@@ -1,6 +1,25 @@
 from rest_framework import serializers
 from .models import ReportDefinition
-from .validators import validate_definition
+from .dashboards import validate_design
+
+
+class ReportSelectionSerializer(serializers.Serializer):
+    widget = serializers.CharField()
+    field = serializers.CharField()
+    value = serializers.JSONField()
+
+
+class ReportRunRequestSerializer(serializers.Serializer):
+    filters = serializers.DictField(child=serializers.JSONField(), required=False)
+    selection = ReportSelectionSerializer(required=False)
+
+
+class ReportDetailsRequestSerializer(serializers.Serializer):
+    widget = serializers.CharField(required=False, default='single')
+    options = ReportRunRequestSerializer(required=False)
+    group = serializers.DictField(child=serializers.JSONField(), required=False)
+    page = serializers.IntegerField(min_value=1, max_value=100, required=False, default=1)
+    page_size = serializers.IntegerField(min_value=1, max_value=100, required=False, default=20)
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -21,7 +40,14 @@ class ReportDesignSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'status']
 
     def validate_definition(self, value):
-        return validate_definition(value)
+        return validate_design(value)
+
+    def validate(self, attrs):
+        definition = attrs.get('definition', self.instance.definition if self.instance else {})
+        kind = attrs.get('kind', self.instance.kind if self.instance else 'report')
+        if 'widgets' in definition and kind != 'dashboard':
+            raise serializers.ValidationError('多组件定义必须使用大屏类型')
+        return attrs
 
     def validate_code(self, value):
         import re

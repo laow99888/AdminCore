@@ -25,6 +25,27 @@ def order(supplier_record, **changes):
                                                        {'product': '显示器', 'quantity': 3, 'price': '0.20'}], 'notes': [], **changes}
 
 
+def test_main_and_detail_attachments_protect_recycle_and_release_on_replacement(admin_client, admin_user, supplier):
+    from apps.files.models import FileModel
+    from apps.files.references import is_referenced, unreferenced_files
+    files = [FileModel.objects.create(original_name='业务附件', file=f'test/ref-{index}.txt', uploader=admin_user) for index in range(2)]
+    response = admin_client.post(ORDERS, order(supplier, attachment=str(files[0].pk),
+        lines=[{'product': '验收', 'quantity': 1, 'price': '1.00', 'evidence': str(files[1].pk)}]), format='json')
+    assert response.status_code == 201, response.content
+    row = response.json()['data']; url = ORDERS + row['id'] + '/'
+    assert all(is_referenced(file) for file in files)
+    assert not unreferenced_files(FileModel.objects.filter(pk__in=[file.pk for file in files])).exists()
+    for file in files:
+        assert admin_client.delete(f'/api/v1/files/{file.pk}/').status_code == 409
+        assert admin_client.delete(f'/api/v1/files/{file.pk}/purge/').status_code == 409
+    changed = admin_client.patch(url, {'version': row['version'], 'attachment': None,
+        'lines': [{'product': '已移除附件', 'quantity': 1, 'price': '1.00'}]}, format='json')
+    assert changed.status_code == 200, changed.content
+    for file in files:
+        assert not is_referenced(file)
+        assert admin_client.delete(f'/api/v1/files/{file.pk}/').status_code == 204
+
+
 @pytest.fixture(autouse=True)
 def dictionary():
     DataDictionary.objects.create(code='purchase_category', name='采购类别', items=[{'value': 'office', 'label': '办公', 'is_active': True}])
@@ -92,6 +113,93 @@ def grant(user, resource, *actions):
     for action in actions:
         permission = Permission.objects.create(name=resource + ':' + action, resource=resource, action=action, code=resource + ':' + action)
         RolePermission.objects.create(role=role, permission=permission)
+
+
+def test_registered_field_permissions_cover_lists_labels_filters_and_nested_writes(admin_client, member_client, member_user, supplier):
+    row = admin_client.post(ORDERS, order(supplier), format='json').json()['data']
+    PurchaseOrder.objects.filter(pk=row['id']).update(creator=member_user)
+    grant(member_user, 'cg_orders', 'read', 'update')
+    grant(member_user, 'cg_suppliers', 'read')
+    Supplier.objects.filter(pk=supplier.pk).update(creator=member_user)
+    role = Role.objects.get(name='generated-cg_orders')
+    role.field_permissions = {'cg_orders': {'read': ['code', 'lines', 'lines.product'], 'write': ['remarks', 'lines', 'lines.product']}}
+    role.save()
+    response = member_client.get(ORDERS)
+    assert response.status_code == 200, response.content
+    data = response.json()['data']; record = data['items'][0]
+    assert 'amount' not in record and 'supplier' not in record and not record['display_labels']
+    assert data['field_permissions']['read'] == ['code', 'lines', 'lines.product']
+    detail = member_client.get(ORDERS + row['id'] + '/').json()['data']
+    assert 'price' not in detail['lines'][0] and detail['lines'][0]['product'] == '电脑'
+    assert member_client.patch(ORDERS + row['id'] + '/', {'version': 1, 'remarks': 'allowed'}, format='json').status_code == 200
+    assert member_client.patch(ORDERS + row['id'] + '/', {'version': 2, 'code': 'blocked'}, format='json').status_code == 403
+    assert member_client.patch(ORDERS + row['id'] + '/', {'version': 2, 'lines': [{'product': 'replacement'}]}, format='json').status_code == 403
+    assert PurchaseLine.objects.count() == 2 and PurchaseOrder.objects.get().version == 2
+    for query in [{'amount_min': '0'}, {'ordering': 'amount'}, {'field': 'supplier'}]:
+        url = ORDERS + 'choices/' if 'field' in query else ORDERS
+        assert member_client.get(url, query).status_code == 403
+    assert member_client.get(ORDERS, {'ordering': 'code', 'code': 'PO'}).status_code == 200
+
+
+def test_reference_labels_cannot_bypass_target_field_policy(member_client, member_user):
+    grant(member_user, 'cg_orders', 'read')
+    grant(member_user, 'cg_suppliers', 'read')
+    mine = Supplier.objects.create(code='mine', name='secret name', creator=member_user)
+    PurchaseOrder.objects.create(code='local', supplier=mine, creator=member_user)
+    role = Role.objects.get(name='generated-cg_suppliers')
+    role.field_permissions = {'cg_suppliers': {'read': ['code'], 'write': []}}; role.save()
+    assert member_client.get(ORDERS + 'choices/', {'field': 'supplier'}).status_code == 403
+    listed = member_client.get(ORDERS).json()['data']['items'][0]
+    assert listed['display_labels']['supplier'] == ''
+    assert 'secret name' not in str(listed)
+
+
+def test_idempotency_replay_rechecks_read_policy_and_roles_take_effect_immediately(member_client, member_user):
+    from apps.permissions.field_permissions import field_policy_registry
+    grant(member_user, 'cg_orders', 'read', 'create')
+    grant(member_user, 'cg_suppliers', 'read')
+    supplier = Supplier.objects.create(code='mine', name='supplier', creator=member_user)
+    values = order(supplier)
+    response = member_client.post(ORDERS, values, format='json', HTTP_IDEMPOTENCY_KEY='field-replay')
+    assert response.status_code == 201 and 'amount' in response.json()['data']
+    role = Role.objects.get(name='generated-cg_orders')
+    role.field_permissions = {'cg_orders': {'read': ['code'], 'write': sorted(field_policy_registry()['cg_orders'])}}; role.save()
+    replay = member_client.post(ORDERS, values, format='json', HTTP_IDEMPOTENCY_KEY='field-replay')
+    assert replay.status_code == 201, replay.content
+    assert 'amount' not in replay.json()['data'] and 'supplier' not in replay.json()['data']
+    extra = Role.objects.create(name='field-union', field_permissions={'cg_orders': {'read': ['amount'], 'write': []}})
+    UserRole.objects.create(user=member_user, role=extra)
+    assert 'amount' in member_client.get(ORDERS + response.json()['data']['id'] + '/').json()['data']
+    extra.is_active = False; extra.save()
+    assert 'amount' not in member_client.get(ORDERS + response.json()['data']['id'] + '/').json()['data']
+
+
+def test_hidden_default_order_and_tree_options_fail_closed(member_client, member_user):
+    grant(member_user, 'cg_categories', 'read')
+    role = Role.objects.get(name='generated-cg_categories')
+    role.field_permissions = {'cg_categories': {'read': ['rank', 'parent'], 'write': []}}; role.save()
+    assert member_client.get(CATEGORIES).status_code == 200
+    assert member_client.get(CATEGORIES + 'choices/', {'field': 'parent'}).status_code == 403
+    assert member_client.get(CATEGORIES, {'search': 'secret'}).status_code == 403
+
+
+def test_replay_rechecks_target_field_policy_and_reference_row_scope(member_client, member_user, admin_user):
+    grant(member_user, 'cg_orders', 'read', 'create')
+    grant(member_user, 'cg_suppliers', 'read')
+    supplier = Supplier.objects.create(code='replay-target', name='撤权后隐藏的供应商', creator=member_user)
+    values = order(supplier)
+    first = member_client.post(ORDERS, values, format='json', HTTP_IDEMPOTENCY_KEY='reference-replay')
+    assert first.status_code == 201 and first.json()['data']['display_labels']['supplier'] == supplier.name
+    role = Role.objects.get(name='generated-cg_suppliers')
+    role.field_permissions = {'cg_suppliers': {'read': ['code'], 'write': []}}; role.save()
+    replay = member_client.post(ORDERS, values, format='json', HTTP_IDEMPOTENCY_KEY='reference-replay')
+    assert replay.status_code == 201 and replay['Idempotency-Replayed'] == 'true'
+    assert replay.json()['data']['display_labels']['supplier'] == ''
+    role.field_permissions = {}; role.save()
+    supplier.creator = admin_user; supplier.save()
+    replay = member_client.post(ORDERS, values, format='json', HTTP_IDEMPOTENCY_KEY='reference-replay')
+    assert replay.status_code == 201 and supplier.name not in str(replay.json())
+    assert PurchaseOrder.objects.filter(code=values['code']).count() == 1
 
 
 def test_reference_choices_and_writes_require_target_permission_and_scope(member_client, member_user, admin_user, supplier):

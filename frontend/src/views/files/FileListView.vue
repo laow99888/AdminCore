@@ -16,6 +16,8 @@
           </div>
         </template>
 
+        <FileCapacityPanel :refresh-key="capacityRefresh" />
+        <FileLibraryToolbar :file="organizingFile" @close="organizingFile = null" @filter="filterFiles" @updated="loadFiles" />
         <BaseTable
           :data="tableData"
           :columns="tableColumns"
@@ -23,12 +25,15 @@
           :total="total"
           :current-page="currentPage"
           :page-size="pageSize"
-          :action-width="processingEnabled ? 260 : 190"
+          :action-width="processingEnabled ? 410 : 340"
           @update:currentPage="handlePageChange"
           @update:pageSize="handlePageSizeChange"
         >
           <template #actions="{ row }">
             <div class="file-row-actions">
+            <el-button link type="primary" size="small" @click="organizingFile = row">{{ uiText('整理文件') }}</el-button>
+            <el-button v-if="auth.can('file:read')" link type="primary" size="small" @click="referenceFile = row">{{ uiText('引用保护') }}</el-button>
+            <el-button v-if="auth.can('file:read')" link type="primary" size="small" @click="versionFile = row">{{ uiText('文档版本') }}</el-button>
             <el-button link type="primary" size="small" :disabled="!(canPreview(row.file_type) || (officeAvailable && isOfficeFormat(row.file_type))) || row.size > 10 * 1024 * 1024"
               :title="uiText('支持 10 MiB 内的图片、PDF 和已启用的 Office 转换预览')" @click="previewFile = row">{{ uiText('预览') }}</el-button>
             <el-button link type="primary" size="small" @click="handleDownload(row)">{{ uiText("下载") }}</el-button>
@@ -40,6 +45,8 @@
         </BaseTable>
       </BaseCard>
       <FilePreviewDialog :file="previewFile" @close="previewFile = null" />
+      <FileReferencesDialog :file="referenceFile" @close="referenceFile = null" />
+      <FileVersionsDialog :file="versionFile" @close="versionFile = null" @updated="filesUpdated" />
       <ImageProcessingDialog :file="processingFile" :enabled="processingEnabled" @close="processingFile = null" />
     </div>
   </AppLayout>
@@ -59,6 +66,9 @@ import { BaseCard, BaseButton, BaseTable } from '@/components'
 import { filesApi, downloadFile, type FileRow } from '@/api'
 import { notifyError, responseStatus } from '@/api/request'
 import FilePreviewDialog from '@/components/files/FilePreviewDialog.vue'
+import FileReferencesDialog from '@/components/files/FileReferencesDialog.vue'
+import FileVersionsDialog from '@/components/files/FileVersionsDialog.vue'
+import FileCapacityPanel from '@/components/files/FileCapacityPanel.vue'
 import { canPreview } from '@/api/filePreview'
 import { isOfficeFormat, officePreviewConfig } from '@/api/officePreview'
 import ImageProcessingDialog from '@/components/files/ImageProcessingDialog.vue'
@@ -68,9 +78,15 @@ import PrintTableButton from '@/components/common/PrintTableButton.vue'
 import LocalExportButton from '@/components/common/LocalExportButton.vue'
 import type { PrintColumn } from '@/utils/printDocument'
 import { useModuleStore } from '@/stores/modules'
+import FileLibraryToolbar from '@/components/files/FileLibraryToolbar.vue'
+import type { FileLibraryFilter } from '@/api/fileLibrary'
 
 const loading = ref(false)
+const organizingFile = ref<FileRow | null>(null)
+const libraryFilter = ref<FileLibraryFilter>({ folder: '', tag: '', search: '' })
 const previewFile = ref<FileRow | null>(null)
+const referenceFile = ref<FileRow | null>(null)
+const versionFile = ref<FileRow | null>(null), capacityRefresh = ref(0)
 const router = useRouter()
 const auth = useAuthStore()
 const modules = useModuleStore()
@@ -133,7 +149,9 @@ const loadFiles = async () => {
   exportReady.value = false
   loading.value = true
   try {
-    const data = await filesApi.list({ page: currentPage.value, page_size: pageSize.value })
+    const data = await filesApi.list({ page: currentPage.value, page_size: pageSize.value,
+      folder: libraryFilter.value.folder || undefined, tag: libraryFilter.value.tag || undefined,
+      search: libraryFilter.value.search || undefined })
     if (!current()) return
     const last = Math.max(1, Math.ceil(data.pagination.total / pageSize.value))
     if (currentPage.value > last) { currentPage.value = last; await loadFiles(); return }
@@ -148,6 +166,10 @@ const loadFiles = async () => {
 }
 
 const triggerUpload = () => uploadInput.value?.click()
+function filesUpdated() { capacityRefresh.value++; void loadFiles() }
+function filterFiles(filter: FileLibraryFilter) {
+  libraryFilter.value = filter; currentPage.value = 1; void loadFiles()
+}
 
 const handleUpload = async (event: Event) => {
   const input = event.target as HTMLInputElement
@@ -159,6 +181,7 @@ const handleUpload = async (event: Event) => {
   try {
     await filesApi.upload(file)
     ElMessage.success(uiText("上传成功"))
+    capacityRefresh.value++
     currentPage.value = 1
     loadFiles()
   } catch {
@@ -182,6 +205,7 @@ const handleDelete = (row: FileRow) => {
       await filesApi.remove(row.id)
       if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText('已移入回收站'))
+      capacityRefresh.value++
       loadFiles()
     })
     .catch(() => {})

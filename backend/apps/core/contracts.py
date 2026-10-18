@@ -40,6 +40,8 @@ class Module:
     contract_version: int = 1
     conflicts: tuple[str, ...] = ()
     task_requires: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    field_policies: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    data_io_resources: tuple[str, ...] = ()
 
 
 def validate_registry(modules):
@@ -49,7 +51,8 @@ def validate_registry(modules):
     from .version import MODULE_CONTRACT_VERSION
     if not 1 <= len(modules) <= 128:
         raise ImproperlyConfigured('模块登记数量必须为1至128')
-    seen = {key: set() for key in ('key', 'api', 'path', 'permission', 'parameter', 'resource', 'audit', 'task')}
+    seen = {key: set() for key in ('key', 'api', 'path', 'permission', 'parameter', 'resource', 'audit', 'task', 'field_policy')}
+    seen['field_policy'].update(('user', 'users', 'role', 'roles', 'post', 'posts', 'files', 'logs', 'tasks'))
     from .permission_declarations import PERMISSIONS
     seen['permission'].update(row[3] for row in PERMISSIONS)
     from .task_declarations import CORE_TASKS
@@ -72,7 +75,8 @@ def validate_registry(modules):
                         'permission': [row[3] for row in module.permissions],
                         'parameter': [row.key for row in module.parameters],
                         'resource': [row[0] for row in module.data_resources],
-                        'audit': [row[0] for row in module.audit_fields], 'task': module.tasks}
+                        'audit': [row[0] for row in module.audit_fields], 'task': module.tasks,
+                        'field_policy': [row[0] for row in module.field_policies]}
         for kind, values in declarations.items():
             if len(set(values)) != len(values) or set(values) & seen[kind]:
                 raise ImproperlyConfigured('模块声明重复：' + kind)
@@ -110,6 +114,15 @@ def validate_registry(modules):
             raise ImproperlyConfigured('模块参数只能声明自身命名空间的有界业务值')
         if any(not re.fullmatch(r'[a-z][a-z0-9_]{0,19}', resource) for resource, _ in module.data_resources):
             raise ImproperlyConfigured('模块数据范围资源无效')
+        if any(resource not in {key for key, _ in module.data_resources}
+               or not isinstance(fields, tuple) or not 1 <= len(fields) <= 512
+               or len(set(fields)) != len(fields)
+               or any(not isinstance(field, str) or '__' in field or not re.fullmatch(r'[a-z][a-z0-9_]{0,49}(\.[a-z][a-z0-9_]{0,49})?', field)
+                      for field in fields) for resource, fields in module.field_policies):
+            raise ImproperlyConfigured('模块字段权限必须声明自身数据资源的有界字段白名单')
+        if module.data_io_resources not in ((), (module.key,)) or (module.data_io_resources
+                and module.key not in {key for key, _ in module.field_policies}):
+            raise ImproperlyConfigured('业务导入导出只能显式登记模块自身的字段策略资源')
     # 防止闭环依赖；关闭再开启也不得依赖装载顺序。
     graph = {module.key: module.dependencies for module in modules}
     complete = {}

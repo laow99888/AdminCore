@@ -39,7 +39,7 @@ def idle_cutoff():
 def active_sessions():
     from apps.sso.sessions import filter_active_linked_sessions
     current = AuthSession.objects.filter(revoked_at__isnull=True, expires_at__gt=timezone.now(),
-        last_seen_at__gt=idle_cutoff(), user__is_active=True,
+        last_seen_at__gt=idle_cutoff(), user__is_active=True, user__is_service_account=False,
         session_version=F('user__session_version'), password_hash=Upper(MD5('user__password')))
     return filter_active_linked_sessions(current)
 
@@ -54,7 +54,7 @@ def session_id(token):
 def validate_session(session, user, token):
     now = timezone.now()
     password_hash = get_md5_hash_password(user.password)
-    if (session is None or not user.is_active or session.user_id != user.pk
+    if (session is None or not user.is_active or user.is_service_account or session.user_id != user.pk
             or session.revoked_at is not None or session.expires_at <= now
             or session.last_seen_at <= idle_cutoff()
             or token.get('session_version') != user.session_version
@@ -90,7 +90,7 @@ def audit_session(request, actor, operation, identifier):
 @transaction.atomic
 def issue_session(user, request=None):
     actor = User.objects.select_for_update().filter(pk=user.pk).first()
-    if actor is None or not actor.is_active or actor.password != user.password or actor.session_version != user.session_version:
+    if actor is None or not actor.is_active or actor.is_service_account or actor.password != user.password or actor.session_version != user.session_version:
         raise AuthenticationFailed('登录凭据已撤销，请重新登录')
     token = SessionRefreshToken.for_user(actor)
     now = timezone.now()

@@ -161,6 +161,20 @@ class SystemConfig(BaseModel):
     updated_by = models.ForeignKey('auth_app.User', on_delete=models.SET_NULL, null=True)
 
 
+class SavedListView(BaseModel):
+    """查询方案不保存业务行或权限；每次读取、应用均按当前字段策略复核。"""
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='saved_list_views')
+    module = models.CharField(max_length=64)
+    name = models.CharField(max_length=80)
+    shared = models.BooleanField(default=False)
+    definition = models.JSONField()
+    schema_digest = models.CharField(max_length=64)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        indexes = [models.Index(fields=['tenant', 'module', 'owner'], name='saved_view_owner_scope')]
+
+
 class DataDictionary(BaseModel):
     code = models.CharField(max_length=64, unique=True)
     name = models.CharField(max_length=100)
@@ -176,6 +190,8 @@ class Department(BaseModel):
     order = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
     version = models.PositiveIntegerField(default=1)
+    leader = models.ForeignKey('auth_app.User', on_delete=models.PROTECT, null=True, blank=True,
+                               related_name='led_departments')
 
     class Meta:
         ordering = ['order', 'name', 'id']
@@ -185,6 +201,24 @@ class OrganizationMembership(BaseModel):
     user = models.OneToOneField('auth_app.User', on_delete=models.CASCADE, related_name='organization_membership')
     department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name='members')
     version = models.PositiveIntegerField(default=1)
+
+
+class OrganizationAppointment(BaseModel):
+    """有界任期；与用于旧数据授权的 OrganizationMembership 分开维护。"""
+    user = models.ForeignKey('auth_app.User', on_delete=models.PROTECT, related_name='organization_appointments')
+    department = models.ForeignKey(Department, on_delete=models.PROTECT, related_name='appointments')
+    kind = models.CharField(max_length=12, choices=[('primary', '主职'), ('secondary', '兼职')])
+    starts_on = models.DateField()
+    ends_on = models.DateField(null=True, blank=True)  # 左闭右开，允许同日无缝交接。
+    cancelled = models.BooleanField(default=False)
+    reason = models.CharField(max_length=500)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['-starts_on', 'id']
+        constraints = [models.CheckConstraint(condition=models.Q(ends_on__isnull=True) | models.Q(ends_on__gt=models.F('starts_on')),
+                                              name='appointment_valid_period')]
+        indexes = [models.Index(fields=['tenant', 'user', 'kind', 'starts_on'], name='appointment_user_period')]
 
 
 class Post(BaseModel):

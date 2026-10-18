@@ -17,6 +17,8 @@ class Command(BaseCommand):
             ('AdminCore 每日软删除文件清理', 'tasks.cleanup_soft_deleted_files', '0'),
             ('AdminCore 每日已读通知清理', 'tasks.cleanup_expired_notifications', '15'),
             ('AdminCore 可靠事件派发', 'core.dispatch_outbox', '*'),
+            ('AdminCore 审批超时扫描', 'approvals.scan_overdue', '*'),
+            ('AdminCore 业务通知摘要刷新', 'notifications.refresh_digests', '*'),
             ('AdminCore 幂等记录清理', 'core.cleanup_expired_idempotency', '30'),
             ('AdminCore 失效设备会话清理', 'core.cleanup_expired_sessions', '45'),
         ]:

@@ -1,5 +1,39 @@
 // 自动生成，请运行 npm run sdk:generate，勿手工修改。
 export interface paths {
+    "/api/v1/api-credentials/business/{resource}/records/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 读取显式登记业务资源；字段、筛选、排序和数据范围复用该业务协议。 */
+        get: operations["api_credentials_business_records_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/business/{resource}/records/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 按当前权限读取业务整单；附件引用不授予下载权限。 */
+        get: operations["api_credentials_business_records_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/api-credentials/credentials/": {
         parameters: {
             query?: never;
@@ -32,6 +66,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/api-credentials/credentials/{id}/rotate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["api_credentials_credentials_rotate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/credentials/{id}/statistics/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_credentials_credentials_statistics_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/api-credentials/credentials/scopes/": {
         parameters: {
             query?: never;
@@ -40,6 +106,118 @@ export interface paths {
             cookie?: never;
         };
         get: operations["api_credentials_credentials_scopes_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_credentials_service_identities_list"];
+        put?: never;
+        post: operations["api_credentials_service_identities_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_credentials_service_identities_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["api_credentials_service_identities_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/{id}/credentials/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_credentials_service_identities_credentials_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/{id}/issue/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["api_credentials_service_identities_issue_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/{id}/revoke/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["api_credentials_service_identities_revoke_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/{id}/rotate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["api_credentials_service_identities_rotate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/api-credentials/service-identities/roles/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["api_credentials_service_identities_roles_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -232,6 +410,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/{id}/diagnostics/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        get: operations["approvals_diagnostics_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/history/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        get: operations["approvals_history_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals/{id}/reject/": {
         parameters: {
             query?: never;
@@ -260,6 +472,40 @@ export interface paths {
         put?: never;
         /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
         post: operations["approvals_repair_step_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/retry-timeout/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_retry_timeout_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/{id}/return-node/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        post: operations["approvals_return_node_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -365,6 +611,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/approvals/flows/{id}/new-revision/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["approvals_flows_new_revision_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals/flows/{id}/publish/": {
         parameters: {
             query?: never;
@@ -375,6 +637,23 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["approvals_flows_publish_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/approvals/health/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 审批中心：发起申请 / 待办 / 已办 / 我的申请 / 审批决策 */
+        get: operations["approvals_health_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -809,6 +1088,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/business-search/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["business_search_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/stats/": {
         parameters: {
             query?: never;
@@ -820,6 +1115,211 @@ export interface paths {
         get: operations["dashboard_stats_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/catalog/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_catalog_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/export/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_export_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/exports/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        post: operations["data_io_business_exports_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/exports/{task_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_exports_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/exports/{task_id}/download/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_exports_download_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/import/{task_id}/errors/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_import_errors_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/inspect/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        post: operations["data_io_business_inspect_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/mappings/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_mappings_retrieve"];
+        put?: never;
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        post: operations["data_io_business_mappings_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/mappings/{mapping_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        delete: operations["data_io_business_mappings_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/plans/{plan_id}/errors/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        get: operations["data_io_business_plans_errors_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/plans/{plan_id}/submit/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        post: operations["data_io_business_plans_submit_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/data-io/business/preview/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description 已加载的 URL 在模块运行时关闭后也不能保留数据入口。 */
+        post: operations["data_io_business_preview_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1042,6 +1542,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{file_id}/organization/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["files_organization_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/{file_id}/versions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["files_versions_retrieve"];
+        put?: never;
+        post: operations["files_versions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files/{id}/": {
         parameters: {
             query?: never;
@@ -1131,6 +1663,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/files/{id}/references/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description 文件管理：上传 / 列表 / 下载 / 软删除 */
+        get: operations["files_references_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/files/{id}/restore/": {
         parameters: {
             query?: never;
@@ -1160,6 +1709,70 @@ export interface paths {
         /** @description 文件管理：上传 / 列表 / 下载 / 软删除 */
         post: operations["files_transform_create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/capacity/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["files_capacity_retrieve"];
+        put: operations["files_capacity_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/library/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["files_library_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/library/folders/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["files_library_folders_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/files/library/folders/{folder_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["files_library_folders_update"];
+        post?: never;
+        delete: operations["files_library_folders_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1691,6 +2304,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/business-notices/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_business_notices_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/deliveries/": {
         parameters: {
             query?: never;
@@ -1775,6 +2404,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/digests/{notification_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_digests_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/digests/refresh/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["notifications_digests_refresh_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/digests/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_digests_status_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/mark_all_read/": {
         parameters: {
             query?: never;
@@ -1786,6 +2463,38 @@ export interface paths {
         put?: never;
         /** @description 标记全部通知为已读 */
         post: operations["notifications_mark_all_read_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/operations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_operations_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/notifications/preferences/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["notifications_preferences_retrieve"];
+        put: operations["notifications_preferences_update"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1997,6 +2706,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/online-forms/{code}/attachments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_forms_attachments_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/online-forms/{code}/records/": {
         parameters: {
             query?: never;
@@ -2051,6 +2776,82 @@ export interface paths {
          *     自定义 action 自行构造 Response 的不受影响。
          */
         patch: operations["online_forms_records_partial_update"];
+        trace?: never;
+    };
+    "/api/v1/online-forms/{code}/records/{id}/submit-approval/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_records_submit_approval_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/{code}/records/{id}/withdraw-approval/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_records_withdraw_approval_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/{code}/relations/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_forms_relations_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/online-forms/approval-flows/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_forms_approval_flows_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/online-forms/forms/": {
@@ -2137,6 +2938,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/online-forms/forms/{id}/new-version/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["online_forms_forms_new_version_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/online-forms/forms/{id}/publish/": {
         parameters: {
             query?: never;
@@ -2175,6 +2998,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/online-forms/relation-resources/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["online_forms_relation_resources_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/online-forms/validate/": {
         parameters: {
             query?: never;
@@ -2185,6 +3024,100 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["online_forms_validate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/appointments/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["organization_appointments_list"];
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["organization_appointments_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/appointments/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        get: operations["organization_appointments_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/appointments/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["organization_appointments_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/appointments/{id}/end/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["organization_appointments_end_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2683,6 +3616,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/permissions/field-diagnostics/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["permissions_field_diagnostics_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/permissions/menus/": {
         parameters: {
             query?: never;
@@ -2994,6 +3943,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/definitions/{id}/details/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["reports_definitions_details_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reports/definitions/{id}/publish/": {
         parameters: {
             query?: never;
@@ -3031,7 +4002,13 @@ export interface paths {
          */
         get: operations["reports_definitions_run_retrieve"];
         put?: never;
-        post?: never;
+        /**
+         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
+         *
+         *     list 已由 StandardPagination.get_paginated_response 统一包装；
+         *     自定义 action 自行构造 Response 的不受影响。
+         */
+        post: operations["reports_definitions_run_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3781,6 +4758,105 @@ export interface components {
             title: string;
             version: number;
         };
+        Appointment: {
+            readonly cancelled: boolean;
+            /** Format: uuid */
+            department: string;
+            readonly department_name: string;
+            /** Format: date */
+            ends_on?: string | null;
+            /** Format: uuid */
+            readonly id: string;
+            kind: components["schemas"]["AppointmentKindEnum"];
+            reason: string;
+            /** Format: date */
+            starts_on: string;
+            readonly status: string;
+            /** Format: uuid */
+            user: string;
+            readonly username: string;
+            version: number;
+        };
+        AppointmentCancelResponse: {
+            code: number;
+            data: components["schemas"]["Appointment"];
+            message: string;
+        };
+        AppointmentCreatedResponse: {
+            code: number;
+            data: components["schemas"]["Appointment"];
+            message: string;
+        };
+        AppointmentDetailResponse: {
+            code: number;
+            data: components["schemas"]["Appointment"];
+            message: string;
+        };
+        AppointmentEndRequest: {
+            /** Format: date */
+            ends_on?: string;
+            reason: string;
+            version: number;
+        };
+        AppointmentEndResponse: {
+            code: number;
+            data: components["schemas"]["Appointment"];
+            message: string;
+        };
+        /**
+         * @description * `primary` - 主职
+         *     * `secondary` - 兼职
+         * @enum {string}
+         */
+        AppointmentKindEnum: "primary" | "secondary";
+        AppointmentRequest: {
+            /** Format: uuid */
+            department: string;
+            /** Format: date */
+            ends_on?: string | null;
+            kind: components["schemas"]["AppointmentKindEnum"];
+            reason: string;
+            /** Format: date */
+            starts_on: string;
+            /** Format: uuid */
+            user: string;
+            version: number;
+        };
+        ApprovalAction: {
+            readonly action: components["schemas"]["ApprovalActionActionEnum"];
+            /** Format: uuid */
+            readonly actor: string | null;
+            readonly actor_name: string;
+            readonly comment: string;
+            /**
+             * 创建时间
+             * Format: date-time
+             */
+            readonly created_at: string;
+            /** Format: uuid */
+            readonly id: string;
+            readonly metadata: unknown;
+            /** Format: uuid */
+            readonly step: string | null;
+            /** Format: uuid */
+            readonly target_user: string | null;
+            readonly target_user_name: string;
+        };
+        /**
+         * @description * `approve` - 通过
+         *     * `reject` - 驳回
+         *     * `add_sign` - 加签
+         *     * `transfer` - 转办
+         *     * `delegate` - 委托
+         *     * `cc` - 抄送
+         *     * `cancel` - 撤回
+         *     * `return` - 退回节点
+         *     * `remind` - 超时提醒
+         *     * `escalate` - 超时升级
+         *     * `retry_timeout` - 重试超时通知
+         * @enum {string}
+         */
+        ApprovalActionActionEnum: "approve" | "reject" | "add_sign" | "transfer" | "delegate" | "cc" | "cancel" | "return" | "remind" | "escalate" | "retry_timeout";
         ApprovalAddSignResponse: {
             code: number;
             data: components["schemas"]["ApprovalRequest"];
@@ -3828,12 +4904,36 @@ export interface components {
         ApprovalDecisionRequest: {
             /** @default  */
             comment: string;
+            expected_workflow_version?: number;
+            /** Format: uuid */
+            step_id?: string;
         };
         ApprovalDelegateResponse: {
             code: number;
             data: components["schemas"]["ApprovalRequest"];
             message: string;
         };
+        ApprovalDiagnostic: {
+            blocked: boolean;
+            /** Format: date-time */
+            checked_at: string;
+            issues: components["schemas"]["DiagnosticIssue"][];
+            /** Format: uuid */
+            request_id: string;
+            scope: components["schemas"]["ApprovalDiagnosticScopeEnum"];
+            workflow_version: number;
+        };
+        ApprovalDiagnosticResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalDiagnostic"];
+            message: string;
+        };
+        /**
+         * @description * `current_and_future` - current_and_future
+         *     * `current` - current
+         * @enum {string}
+         */
+        ApprovalDiagnosticScopeEnum: "current_and_future" | "current";
         ApprovalFlow: {
             code: string;
             /**
@@ -3853,6 +4953,9 @@ export interface components {
             /** Format: uuid */
             readonly published_by: string | null;
             readonly published_by_name: string;
+            /** @default 1 */
+            readonly revision: number;
+            /** @default draft */
             readonly status: components["schemas"]["OnlineFormStatusEnum"];
             /**
              * 更新时间
@@ -3877,6 +4980,24 @@ export interface components {
             code: string;
             definition?: unknown;
             name: string;
+        };
+        ApprovalHealth: {
+            /** Format: date-time */
+            checked_at: string;
+            items: components["schemas"]["ApprovalDiagnostic"][];
+            /** Format: uuid */
+            next_cursor: string | null;
+            scanned: number;
+        };
+        ApprovalHealthResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalHealth"];
+            message: string;
+        };
+        ApprovalNewRevisionResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalFlow"];
+            message: string;
         };
         ApprovalPickerDepartmentsResponse: {
             code: number;
@@ -3940,11 +5061,14 @@ export interface components {
             /** Format: uuid */
             readonly flow: string | null;
             readonly flow_name: string;
+            readonly flow_revision: number;
             readonly flow_version: number | null;
             /** Format: uuid */
             readonly id: string;
             /** 申请类型 */
             readonly request_type: components["schemas"]["RequestTypeEnum"];
+            readonly return_count: number;
+            readonly returnable_nodes: string[];
             /** 状态 */
             readonly status: components["schemas"]["ApprovalStatusEnum"];
             readonly steps: {
@@ -3953,6 +5077,21 @@ export interface components {
             /** 标题 */
             readonly title: string;
             readonly workflow_version: number;
+        };
+        ApprovalRetryTimeoutResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
+        };
+        ApprovalReturnRequest: {
+            comment: string;
+            expected_workflow_version: number;
+            target_node: string;
+        };
+        ApprovalReturnResponse: {
+            code: number;
+            data: components["schemas"]["ApprovalRequest"];
+            message: string;
         };
         /**
          * @description * `pending` - 待审批
@@ -3971,11 +5110,29 @@ export interface components {
             /** @default  */
             comment: string;
             expected_version?: number;
+            expected_workflow_version?: number;
             /** Format: uuid */
             step_id?: string;
             /** Format: uuid */
             target_user_id?: string;
             user_ids?: string[];
+        };
+        AttachmentChoices: {
+            has_more: boolean;
+            items: components["schemas"]["AttachmentItem"][];
+            selected: components["schemas"]["AttachmentItem"] | null;
+        };
+        AttachmentItem: {
+            file_type: string;
+            /** Format: uuid */
+            id: string;
+            original_name: string;
+            size: number;
+        };
+        AttachmentResponse: {
+            code: number;
+            data: components["schemas"]["AttachmentChoices"];
+            message: string;
         };
         Authorization: {
             /** Format: uri */
@@ -4151,6 +5308,131 @@ export interface components {
             id: string;
             status: number;
         };
+        BusinessCatalog: {
+            exportable: boolean;
+            fields: components["schemas"]["BusinessField"][];
+            max_bytes: number;
+            max_rows: number;
+            modes: string[];
+            structure: string;
+        };
+        BusinessCatalogResponse: {
+            code: number;
+            data: components["schemas"]["BusinessCatalog"];
+            message: string;
+        };
+        /**
+         * @description * `immediate` - immediate
+         *     * `digest` - digest
+         * @enum {string}
+         */
+        BusinessDeliveryModeEnum: "immediate" | "digest";
+        BusinessExportCreated: {
+            code: number;
+            data: components["schemas"]["TaskRecord"];
+            message: string;
+        };
+        BusinessExportStatus: {
+            code: number;
+            data: components["schemas"]["TaskRecord"];
+            message: string;
+        };
+        BusinessField: {
+            key: boolean;
+            kind: string;
+            label: string;
+            name: string;
+            required: boolean;
+        };
+        BusinessInspect: {
+            headers: string[];
+            rows: number;
+        };
+        BusinessInspectResponse: {
+            code: number;
+            data: components["schemas"]["BusinessInspect"];
+            message: string;
+        };
+        BusinessMappingCreatedResponse: {
+            code: number;
+            data: components["schemas"]["BusinessMappingResult"];
+            message: string;
+        };
+        BusinessMappingListResponse: {
+            code: number;
+            data: components["schemas"]["BusinessMappingResult"][];
+            message: string;
+        };
+        BusinessMappingRequest: {
+            name: string;
+            options: unknown;
+            resource: string;
+        };
+        BusinessMappingResult: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            options: unknown;
+        };
+        BusinessNoticeResult: {
+            created: number;
+            pending: number;
+            published: number;
+            replayed: number;
+            suppressed: number;
+        };
+        BusinessNoticeWriteRequest: {
+            /** Format: uuid */
+            event_id: string;
+            /** Format: uuid */
+            object_id: string;
+            recipient_ids: string[];
+            resource: string;
+        };
+        BusinessPreviewRequest: {
+            /** Format: binary */
+            file: Blob;
+            options: unknown;
+            resource: string;
+        };
+        BusinessPreviewResponse: {
+            code: number;
+            data: components["schemas"]["BusinessPreviewResult"];
+            message: string;
+        };
+        BusinessPreviewResult: {
+            errors: components["schemas"]["BusinessRowError"][];
+            /** Format: date-time */
+            expires_at: string;
+            /** Format: uuid */
+            id: string;
+            summary: {
+                [key: string]: number;
+            };
+        };
+        BusinessRowError: {
+            message: string;
+            row: number;
+        };
+        BusinessSearchResponse: {
+            code: number;
+            data: components["schemas"]["BusinessSearchResult"];
+            message: string;
+        };
+        BusinessSearchResult: {
+            groups: components["schemas"]["SearchSource"][];
+            sources_limited: boolean;
+        };
+        BusinessSubmitResponse: {
+            code: number;
+            data: components["schemas"]["TaskRecord"];
+            message: string;
+        };
+        BusinessUploadRequest: {
+            /** Format: binary */
+            file: Blob;
+            resource: string;
+        };
         CacheCatalogResponse: {
             code: number;
             data: components["schemas"]["Catalog"];
@@ -4165,6 +5447,19 @@ export interface components {
             code: number;
             data: components["schemas"]["PreviewResult"];
             message: string;
+        };
+        Capacity: {
+            limit_bytes: number;
+            remaining_bytes: number | null;
+            used_bytes: number;
+            version: number;
+        };
+        CapacityWriteRequest: {
+            /** Format: int64 */
+            limit_bytes: number;
+            /** Format: uuid */
+            owner_id: string;
+            version: number;
         };
         Catalog: {
             backend: components["schemas"]["BackendEnum"];
@@ -4254,6 +5549,7 @@ export interface components {
             sample_seconds: number | null;
         };
         Credential: {
+            readonly accepted_requests: number;
             /** Format: date-time */
             readonly created_at: string;
             /** Format: date-time */
@@ -4265,7 +5561,12 @@ export interface components {
             readonly name: string;
             /** Format: date-time */
             readonly revoked_at: string | null;
+            /** Format: date-time */
+            readonly rotated_at: string | null;
             readonly scopes: unknown;
+            /** Format: date-time */
+            readonly statistics_started_at: string;
+            readonly version: number;
         };
         CredentialCreateRequest: {
             current_password: string;
@@ -4275,6 +5576,7 @@ export interface components {
             scopes: string[];
         };
         CredentialIssued: {
+            readonly accepted_requests: number;
             /** Format: date-time */
             readonly created_at: string;
             /** Format: date-time */
@@ -4286,17 +5588,50 @@ export interface components {
             readonly name: string;
             /** Format: date-time */
             readonly revoked_at: string | null;
+            /** Format: date-time */
+            readonly rotated_at: string | null;
             readonly scopes: unknown;
+            /** Format: date-time */
+            readonly statistics_started_at: string;
             readonly token: string;
+            readonly version: number;
         };
         CredentialIssuedResponse: {
             code: number;
             data: components["schemas"]["CredentialIssued"];
             message: string;
         };
+        CredentialRotatedResponse: {
+            code: number;
+            data: components["schemas"]["CredentialIssued"];
+            message: string;
+        };
+        CredentialRotateRequest: {
+            current_password: string;
+            version: number;
+        };
         CredentialScopes: {
             code: number;
             data: components["schemas"]["AvailableScope"][];
+            message: string;
+        };
+        CredentialUsage: {
+            accepted_requests: number;
+            daily: components["schemas"]["CredentialUsageDay"][];
+            days: number;
+            recent_requests: number;
+            /** Format: date-time */
+            statistics_started_at: string;
+            timezone: string;
+        };
+        CredentialUsageDay: {
+            /** Format: date */
+            day: string;
+            requests: number;
+        };
+        CredentialUsageResponse: {
+            code: number;
+            data: components["schemas"]["CredentialUsage"];
             message: string;
         };
         CurrentUserResponse: {
@@ -4338,6 +5673,7 @@ export interface components {
          */
         DataImportResourceEnum: "users" | "roles" | "posts";
         DataResource: {
+            business?: boolean;
             exportable: boolean;
             importable: boolean;
             label: string;
@@ -4353,10 +5689,24 @@ export interface components {
             data: components["schemas"]["DataResourceDirectory"];
             message: string;
         };
+        DataScopeSource: {
+            active: boolean;
+            /** Format: uuid */
+            role_id: string;
+            scope: string;
+        };
+        DeliveryStateCount: {
+            channel: string;
+            count: number;
+            status: string;
+        };
         Department: {
             /** Format: uuid */
             readonly id: string;
             is_active?: boolean;
+            /** Format: uuid */
+            leader?: string | null;
+            readonly leader_name: string;
             name: string;
             /** Format: int64 */
             order?: number;
@@ -4381,6 +5731,8 @@ export interface components {
         };
         DepartmentRequest: {
             is_active?: boolean;
+            /** Format: uuid */
+            leader?: string | null;
             name: string;
             /** Format: int64 */
             order?: number;
@@ -4396,6 +5748,14 @@ export interface components {
         Dependency: {
             name: string;
             version: string | null;
+        };
+        DiagnosticIssue: {
+            code: string;
+            node: string;
+            severity: components["schemas"]["SeverityEnum"];
+            /** Format: uuid */
+            step_id: string | null;
+            step_version: number | null;
         };
         Dictionary: {
             code: string;
@@ -4455,6 +5815,23 @@ export interface components {
             data: components["schemas"]["Dictionary"];
             message: string;
         };
+        /**
+         * @description * `60` - 60
+         *     * `1440` - 1440
+         * @enum {integer}
+         */
+        DigestMinutesEnum: 60 | 1440;
+        DigestReference: {
+            /** Format: date-time */
+            authorization_checked_at: string;
+            items: components["schemas"]["Reference"][];
+        };
+        DigestStatus: {
+            due: number;
+            /** Format: date-time */
+            next_due_at: string | null;
+            pending: number;
+        };
         Disk: {
             free_bytes: number | null;
             name: string;
@@ -4490,6 +5867,11 @@ export interface components {
         };
         EvaluationRequestRequest: {
             keys: string[];
+        };
+        EventPreference: {
+            code: string;
+            label: string;
+            required: boolean;
         };
         ExampleCreatedResponse: {
             code: number;
@@ -4531,6 +5913,19 @@ export interface components {
             /** 请求路径 */
             request_path?: string;
             readonly username: string | null;
+        };
+        /**
+         * @description * `csv` - csv
+         *     * `xlsx` - xlsx
+         * @enum {string}
+         */
+        ExportRequestFormatEnum: "csv" | "xlsx";
+        ExportRequestRequest: {
+            filters?: {
+                [key: string]: string;
+            };
+            format: components["schemas"]["ExportRequestFormatEnum"];
+            resource: string;
         };
         FeatureFlag: {
             /**
@@ -4591,6 +5986,46 @@ export interface components {
             data: components["schemas"]["FeatureFlag"];
             message: string;
         };
+        FieldDiagnosticRequestRequest: {
+            field: string;
+            operation: components["schemas"]["OperationEnum"];
+            resource: string;
+            /** Format: uuid */
+            user_id: string;
+        };
+        FieldDiagnosticResponse: {
+            code: number;
+            data: components["schemas"]["FieldDiagnosticResult"];
+            message: string;
+        };
+        FieldDiagnosticResult: {
+            data_scope: components["schemas"]["DataScopeSource"][];
+            field: string;
+            field_action: string;
+            field_allowed: boolean;
+            field_reason: components["schemas"]["FieldReasonEnum"];
+            module_enabled: boolean;
+            must_change_password: boolean;
+            operation: string;
+            operation_allowed: boolean;
+            permission_code: string | null;
+            requires_admin: boolean;
+            resource: string;
+            roles: components["schemas"]["RoleFieldSource"][];
+            row_access: components["schemas"]["RowAccessEnum"];
+            /** Format: uuid */
+            tenant_id: string | null;
+            user_active: boolean;
+            /** Format: uuid */
+            user_id: string;
+        };
+        /**
+         * @description * `administrator` - administrator
+         *     * `legacy_unrestricted` - legacy_unrestricted
+         *     * `explicit_union` - explicit_union
+         * @enum {string}
+         */
+        FieldReasonEnum: "administrator" | "legacy_unrestricted" | "explicit_union";
         /** @description 文件信息序列化（读取） */
         File: {
             /** MIME 类型 */
@@ -4625,6 +6060,7 @@ export interface components {
             readonly lifecycle_version: number;
             /** MD5 摘要 */
             readonly md5: string;
+            readonly organization: components["schemas"]["Organization"];
             /** 原始文件名 */
             readonly original_name: string;
             /** 文件大小（字节） */
@@ -4667,6 +6103,46 @@ export interface components {
             data: components["schemas"]["FileACL"];
             message: string;
         };
+        FileCapacityResponse: {
+            code: number;
+            data: components["schemas"]["Capacity"];
+            message: string;
+        };
+        FileCapacityUpdatedResponse: {
+            code: number;
+            data: components["schemas"]["Capacity"];
+            message: string;
+        };
+        FileFolderCreatedResponse: {
+            code: number;
+            data: components["schemas"]["Folder"];
+            message: string;
+        };
+        FileFolderUpdatedResponse: {
+            code: number;
+            data: components["schemas"]["Folder"];
+            message: string;
+        };
+        FileHistoryResponse: {
+            code: number;
+            data: components["schemas"]["History"];
+            message: string;
+        };
+        FileLibrary: {
+            folders: components["schemas"]["Folder"][];
+            tags: string[];
+            tags_truncated: boolean;
+        };
+        FileLibraryResponse: {
+            code: number;
+            data: components["schemas"]["FileLibrary"];
+            message: string;
+        };
+        FileOrganizationResponse: {
+            code: number;
+            data: components["schemas"]["Organization"];
+            message: string;
+        };
         FileRecycleActionResponse: {
             code: number;
             data: components["schemas"]["RecycleResult"];
@@ -4677,9 +6153,23 @@ export interface components {
             data: components["schemas"]["RecyclePolicy"];
             message: string;
         };
+        FileReferenceStatus: {
+            lifecycle_version: number;
+            protected: boolean;
+        };
+        FileReferenceStatusResponse: {
+            code: number;
+            data: components["schemas"]["FileReferenceStatus"];
+            message: string;
+        };
         FileRestoreResponse: {
             code: number;
             data: components["schemas"]["File"];
+            message: string;
+        };
+        FileRevisionCreatedResponse: {
+            code: number;
+            data: components["schemas"]["History"];
             message: string;
         };
         FileUploadedResponse: {
@@ -4694,23 +6184,57 @@ export interface components {
             /** Format: binary */
             file: Blob;
         };
-        /**
-         * @description * `png` - png
-         *     * `jpeg` - jpeg
-         *     * `webp` - webp
-         * @enum {string}
-         */
-        FormatEnum: "png" | "jpeg" | "webp";
+        Folder: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uuid */
+            parent: string | null;
+            version: number;
+        };
+        FolderUpdateRequest: {
+            name: string;
+            /** Format: uuid */
+            parent: string | null;
+            version: number;
+        };
+        FolderWriteRequest: {
+            name: string;
+            /** Format: uuid */
+            parent: string | null;
+        };
+        FormApprovalChoice: {
+            code: string;
+            name: string;
+            revision: number;
+        };
+        FormApprovalChoicesResponse: {
+            code: number;
+            data: components["schemas"]["FormApprovalChoice"][];
+            message: string;
+        };
+        FormOptionalVersionRequestRequest: {
+            version?: number;
+        };
         FormRecordCreateRequestRequest: {
             data: unknown;
+            /** Format: uuid */
+            form_id?: string;
         };
         FormValidationRequest: {
             data?: unknown;
             definition: unknown;
+            /** Format: uuid */
+            form_id?: string;
         };
         FormValidationRequestRequest: {
             data?: unknown;
             definition: unknown;
+            /** Format: uuid */
+            form_id?: string;
+        };
+        FormVersionRequestRequest: {
+            version: number;
         };
         GatewayTaskDetail: {
             code: number;
@@ -4731,6 +6255,13 @@ export interface components {
         GenerationRequestRequest: {
             definition: unknown;
         };
+        History: {
+            /** Format: uuid */
+            current_file: string;
+            has_more: boolean;
+            items: components["schemas"]["Revision"][];
+            version: number;
+        };
         Identity: {
             /** Format: date-time */
             readonly created_at: string;
@@ -4743,6 +6274,31 @@ export interface components {
             /** Format: uuid */
             readonly user_id: string;
             readonly username: string;
+        };
+        IdentityCreateRequest: {
+            current_password: string;
+            /** @default  */
+            description: string;
+            name: string;
+            role_ids: string[];
+        };
+        IdentityCredentialActionRequest: {
+            /** Format: uuid */
+            credential_id: string;
+            current_password: string;
+            version: number;
+        };
+        IdentityCredentialCreateRequest: {
+            current_password: string;
+            /** Format: date-time */
+            expires_at: string;
+            name: string;
+            scopes: string[];
+        };
+        IdentityRole: {
+            /** Format: uuid */
+            id: string;
+            name: string;
         };
         ImageProcessingConfig: {
             enabled: boolean;
@@ -4757,9 +6313,16 @@ export interface components {
             data: components["schemas"]["ImageProcessingConfig"];
             message: string;
         };
+        /**
+         * @description * `png` - png
+         *     * `jpeg` - jpeg
+         *     * `webp` - webp
+         * @enum {string}
+         */
+        ImageTransformFormatEnum: "png" | "jpeg" | "webp";
         ImageTransformRequest: {
             /** @default webp */
-            format: components["schemas"]["FormatEnum"];
+            format: components["schemas"]["ImageTransformFormatEnum"];
             /** @default 1280 */
             height: number;
             lifecycle_version: number;
@@ -5194,6 +6757,9 @@ export interface components {
         };
         ModuleCapabilities: {
             contract_version: number;
+            readonly field_policy_resources: {
+                [key: string]: string[];
+            };
             modules: components["schemas"]["ModuleDescriptor"][];
             preset: string;
             scope_resources?: components["schemas"]["ScopeResource"][];
@@ -5204,6 +6770,7 @@ export interface components {
             message: string;
         };
         ModuleDescriptor: {
+            data_io_resources?: string[];
             dependencies: string[];
             enabled: boolean;
             key: string;
@@ -5254,6 +6821,10 @@ export interface components {
          * @enum {string}
          */
         NamespaceEnum: "configuration" | "dictionaries";
+        NoticeStateCount: {
+            count: number;
+            state: string;
+        };
         /** @description 通知序列化 */
         Notification: {
             /** 内容 */
@@ -5309,6 +6880,16 @@ export interface components {
             data: components["schemas"]["Notification"];
             message: string;
         };
+        NotificationDigestReferences: {
+            code: number;
+            data: components["schemas"]["DigestReference"];
+            message: string;
+        };
+        NotificationDigestStatus: {
+            code: number;
+            data: components["schemas"]["DigestStatus"];
+            message: string;
+        };
         NotificationMetric: {
             counts: {
                 [key: string]: number;
@@ -5318,6 +6899,38 @@ export interface components {
             /** Format: double */
             oldest_pending_seconds: number | null;
             status: components["schemas"]["QueueMetricStatusEnum"];
+        };
+        NotificationOperations: {
+            business_notices: components["schemas"]["NoticeStateCount"][];
+            deliveries: components["schemas"]["DeliveryStateCount"][];
+            due_notices: number;
+            final_delivery_receipts_supported: boolean;
+            inbox_created: number;
+            inbox_read: number;
+            outbox: components["schemas"]["StateCount"][];
+            /** Format: date-time */
+            since: string;
+            /** Format: date-time */
+            until: string;
+            window_days: number;
+        };
+        NotificationOperationsResponse: {
+            code: number;
+            data: components["schemas"]["NotificationOperations"];
+            message: string;
+        };
+        /**
+         * @description * `inapp` - inapp
+         *     * `email` - email
+         *     * `webhook` - webhook
+         *     * `sms` - sms
+         * @enum {string}
+         */
+        NotificationPreferenceChannelEnum: "inapp" | "email" | "webhook" | "sms";
+        NotificationPreferences: {
+            code: number;
+            data: components["schemas"]["PreferenceRead"];
+            message: string;
         };
         NotificationReadResponse: {
             code: number;
@@ -5369,7 +6982,11 @@ export interface components {
             lifecycle_version: number;
         };
         OnlineForm: {
-            code: string;
+            /** Format: uuid */
+            readonly approval_flow: string | null;
+            readonly approval_flow_code: string;
+            readonly approval_flow_version: number | null;
+            readonly code: string;
             /**
              * 创建时间
              * Format: date-time
@@ -5378,15 +6995,18 @@ export interface components {
             /** Format: uuid */
             readonly created_by: string;
             readonly created_by_name: string;
-            definition?: unknown;
+            readonly definition: unknown;
             /** Format: uuid */
             readonly id: string;
-            name: string;
+            readonly name: string;
             /** Format: date-time */
             readonly published_at: string | null;
             /** Format: uuid */
             readonly published_by: string | null;
             readonly published_by_name: string;
+            /** @default 1 */
+            readonly release_number: number;
+            /** @default draft */
             readonly status: components["schemas"]["OnlineFormStatusEnum"];
             /**
              * 更新时间
@@ -5396,35 +7016,45 @@ export interface components {
             readonly version: number;
         };
         OnlineFormDesign: {
+            approval_flow_code?: string;
             code: string;
             definition?: unknown;
             /** Format: uuid */
             readonly id: string;
             name: string;
+            readonly release_number: number;
             readonly status: components["schemas"]["OnlineFormStatusEnum"];
             version?: number;
         };
         OnlineFormDesignRequest: {
+            approval_flow_code?: string;
             code: string;
             definition?: unknown;
             name: string;
             version?: number;
         };
         OnlineFormRecord: {
+            readonly approval_enabled: boolean;
+            /** Format: uuid */
+            readonly approval_request: string | null;
+            readonly approval_status: components["schemas"]["ApprovalStatusEnum"];
             /**
              * 创建时间
              * Format: date-time
              */
             readonly created_at: string;
-            data?: unknown;
+            readonly data: unknown;
             /** Format: uuid */
             readonly form: string;
+            readonly form_name: string;
+            readonly form_status: string;
             readonly form_version: number;
             /** Format: uuid */
             readonly id: string;
             /** Format: uuid */
             readonly owner: string;
             readonly owner_name: string;
+            readonly release_number: number;
             /**
              * 更新时间
              * Format: date-time
@@ -5432,10 +7062,35 @@ export interface components {
             readonly updated_at: string;
             readonly version: number;
         };
-        OnlineFormRequest: {
-            code: string;
-            definition?: unknown;
-            name: string;
+        OnlineFormRecordDetail: {
+            readonly approval_enabled: boolean;
+            /** Format: uuid */
+            readonly approval_request: string | null;
+            readonly approval_status: components["schemas"]["ApprovalStatusEnum"];
+            /**
+             * 创建时间
+             * Format: date-time
+             */
+            readonly created_at: string;
+            readonly data: unknown;
+            readonly definition_snapshot: unknown;
+            /** Format: uuid */
+            readonly form: string;
+            readonly form_name: string;
+            readonly form_status: string;
+            readonly form_version: number;
+            /** Format: uuid */
+            readonly id: string;
+            /** Format: uuid */
+            readonly owner: string;
+            readonly owner_name: string;
+            readonly release_number: number;
+            /**
+             * 更新时间
+             * Format: date-time
+             */
+            readonly updated_at: string;
+            readonly version: number;
         };
         /**
          * @description * `draft` - 草稿
@@ -5481,6 +7136,13 @@ export interface components {
          * @enum {string}
          */
         OperationActionEnum: "create" | "read" | "update" | "delete" | "export" | "import" | "download" | "upload" | "login" | "logout" | "other";
+        /**
+         * @description * `read` - read
+         *     * `create` - create
+         *     * `update` - update
+         * @enum {string}
+         */
+        OperationEnum: "read" | "create" | "update";
         /** @description 操作日志序列化器 */
         OperationLog: {
             /** 操作类型 */
@@ -5542,6 +7204,18 @@ export interface components {
             readonly task_record_id: string | null;
             readonly username: string;
         };
+        Organization: {
+            /** Format: uuid */
+            folder: string | null;
+            tags: string[];
+            version: number;
+        };
+        OrganizationRequest: {
+            /** Format: uuid */
+            folder: string | null;
+            tags: string[];
+            version: number;
+        };
         OutboxDetailResponse: {
             code: number;
             data: components["schemas"]["OutboxEvent"];
@@ -5587,6 +7261,32 @@ export interface components {
             code: number;
             data: {
                 items: components["schemas"]["Announcement"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
+        PaginatedAppointmentList: {
+            code: number;
+            data: {
+                items: components["schemas"]["Appointment"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
+        PaginatedApprovalActionList: {
+            code: number;
+            data: {
+                items: components["schemas"]["ApprovalAction"][];
                 pagination: {
                     page?: number;
                     page_size?: number;
@@ -5934,6 +7634,19 @@ export interface components {
             };
             message: string;
         };
+        PaginatedServiceIdentityList: {
+            code: number;
+            data: {
+                items: components["schemas"]["ServiceIdentity"][];
+                pagination: {
+                    page?: number;
+                    page_size?: number;
+                    total?: number;
+                    total_pages?: number;
+                };
+            };
+            message: string;
+        };
         PaginatedTaskRecordList: {
             code: number;
             data: {
@@ -6059,6 +7772,8 @@ export interface components {
         };
         PatchedDepartmentRequest: {
             is_active?: boolean;
+            /** Format: uuid */
+            leader?: string | null;
             name?: string;
             /** Format: int64 */
             order?: number;
@@ -6087,6 +7802,16 @@ export interface components {
         };
         PatchedFormRecordUpdateRequestRequest: {
             data?: unknown;
+            /** Format: uuid */
+            form_id?: string;
+            version?: number;
+        };
+        PatchedIdentityUpdateRequest: {
+            current_password?: string;
+            description?: string;
+            is_active?: boolean;
+            name?: string;
+            role_ids?: string[];
             version?: number;
         };
         PatchedMembershipRequest: {
@@ -6125,6 +7850,7 @@ export interface components {
             version?: number;
         };
         PatchedOnlineFormDesignRequest: {
+            approval_flow_code?: string;
             code?: string;
             definition?: unknown;
             name?: string;
@@ -6383,6 +8109,34 @@ export interface components {
             data: components["schemas"]["Post"];
             message: string;
         };
+        PreferenceRead: {
+            available_channels: string[];
+            business_delivery_mode?: components["schemas"]["BusinessDeliveryModeEnum"];
+            channels: components["schemas"]["NotificationPreferenceChannelEnum"][];
+            digest_minutes?: components["schemas"]["DigestMinutesEnum"];
+            events: components["schemas"]["EventPreference"][];
+            quiet_enabled: boolean;
+            /** Format: time */
+            quiet_end: string;
+            /** Format: time */
+            quiet_start: string;
+            revision: number;
+            subscriptions: components["schemas"]["SubscriptionsEnum"][];
+            timezone: string;
+        };
+        PreferenceWriteRequest: {
+            business_delivery_mode?: components["schemas"]["BusinessDeliveryModeEnum"];
+            channels: components["schemas"]["NotificationPreferenceChannelEnum"][];
+            digest_minutes?: components["schemas"]["DigestMinutesEnum"];
+            quiet_enabled: boolean;
+            /** Format: time */
+            quiet_end: string;
+            /** Format: time */
+            quiet_start: string;
+            revision: number;
+            subscriptions: components["schemas"]["SubscriptionsEnum"][];
+            timezone: string;
+        };
         PreviewRequestRequest: {
             namespace: components["schemas"]["NamespaceEnum"];
         };
@@ -6540,6 +8294,18 @@ export interface components {
             size?: number;
             status: number;
         };
+        Reference: {
+            label: string;
+            /** Format: uuid */
+            object_id: string;
+            path: string;
+            resource: string;
+        };
+        RefreshedNotificationDigests: {
+            code: number;
+            data: components["schemas"]["RefreshResult"];
+            message: string;
+        };
         RefreshRequestRequest: {
             refresh: string;
         };
@@ -6547,6 +8313,12 @@ export interface components {
             code: number;
             data: components["schemas"]["TokenPair"];
             message: string;
+        };
+        RefreshResult: {
+            processed: number;
+            published: number;
+            summaries: number;
+            suppressed: number;
         };
         RegisteredSession: {
             access: string;
@@ -6559,6 +8331,30 @@ export interface components {
         RegisterResponse: {
             code: number;
             data: components["schemas"]["RegisteredSession"];
+            message: string;
+        };
+        RelationChoices: {
+            has_more: boolean;
+            items: components["schemas"]["RelationItem"][];
+            selected: components["schemas"]["RelationItem"] | null;
+        };
+        RelationItem: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+        };
+        RelationResource: {
+            code: string;
+            title: string;
+        };
+        RelationResourcesResponse: {
+            code: number;
+            data: components["schemas"]["RelationResource"][];
+            message: string;
+        };
+        RelationResponse: {
+            code: number;
+            data: components["schemas"]["RelationChoices"];
             message: string;
         };
         Report: {
@@ -6606,6 +8402,18 @@ export interface components {
             name: string;
             version?: number;
         };
+        ReportDetailsRequestRequest: {
+            group?: {
+                [key: string]: unknown;
+            };
+            options?: components["schemas"]["ReportRunRequestRequest"];
+            /** @default 1 */
+            page: number;
+            /** @default 20 */
+            page_size: number;
+            /** @default single */
+            widget: string;
+        };
         /**
          * @description * `report` - 报表
          *     * `dashboard` - 大屏
@@ -6617,6 +8425,17 @@ export interface components {
             definition?: unknown;
             kind?: components["schemas"]["ReportKindEnum"];
             name: string;
+        };
+        ReportRunRequestRequest: {
+            filters?: {
+                [key: string]: unknown;
+            };
+            selection?: components["schemas"]["ReportSelectionRequest"];
+        };
+        ReportSelectionRequest: {
+            field: string;
+            value: unknown;
+            widget: string;
         };
         /**
          * @description * `leave` - 请假
@@ -6638,6 +8457,22 @@ export interface components {
             code: number;
             data: components["schemas"]["File"];
             message: string;
+        };
+        Revision: {
+            /** Format: date-time */
+            created_at: string;
+            /** Format: uuid */
+            file_id: string;
+            number: number;
+            original_name: string;
+            restored_from: number | null;
+            size: number;
+        };
+        RevisionWriteRequest: {
+            /** Format: uuid */
+            file_id?: string;
+            restore_number?: number;
+            version: number;
         };
         /** @description 角色序列化器 */
         Role: {
@@ -6676,6 +8511,16 @@ export interface components {
          * @enum {string}
          */
         RoleEnum: "owner" | "admin" | "member";
+        RoleFieldSource: {
+            active: boolean;
+            declared: boolean;
+            field_granted: boolean;
+            /** Format: uuid */
+            id: string;
+            name: string;
+            operation_granted: boolean;
+            version: number;
+        };
         RolePatchedResponse: {
             code: number;
             data: components["schemas"]["Role"];
@@ -6699,6 +8544,11 @@ export interface components {
             data: components["schemas"]["Role"];
             message: string;
         };
+        /**
+         * @description * `not_evaluated` - not_evaluated
+         * @enum {string}
+         */
+        RowAccessEnum: "not_evaluated";
         ScheduleRow: {
             confirmation: string;
             cron: unknown;
@@ -6788,6 +8638,23 @@ export interface components {
             data: components["schemas"]["ScopeGrant"];
             message: string;
         };
+        SearchRecord: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            values: components["schemas"]["SearchValue"][];
+        };
+        SearchSource: {
+            has_more: boolean;
+            items: components["schemas"]["SearchRecord"][];
+            path: string;
+            source: string;
+            title: string;
+        };
+        SearchValue: {
+            label: string;
+            value: string;
+        };
         SensitiveContact: {
             readonly email: string;
             readonly phone: string;
@@ -6814,6 +8681,54 @@ export interface components {
             status: components["schemas"]["ServiceStatusEnum"];
             version: string | null;
         };
+        ServiceCredentialRevoked: {
+            code: number;
+            data: components["schemas"]["Credential"];
+            message: string;
+        };
+        ServiceCredentialRotated: {
+            code: number;
+            data: components["schemas"]["CredentialIssued"];
+            message: string;
+        };
+        ServiceIdentity: {
+            /** Format: date-time */
+            readonly created_at: string;
+            readonly description: string;
+            /** Format: uuid */
+            readonly id: string;
+            readonly is_active: boolean;
+            readonly name: string;
+            readonly role_ids: string[];
+            /** Format: uuid */
+            readonly tenant_id: string | null;
+            readonly version: number;
+        };
+        ServiceIdentityCreated: {
+            code: number;
+            data: components["schemas"]["ServiceIdentity"];
+            message: string;
+        };
+        ServiceIdentityCredentialIssued: {
+            code: number;
+            data: components["schemas"]["CredentialIssued"];
+            message: string;
+        };
+        ServiceIdentityCredentials: {
+            code: number;
+            data: components["schemas"]["Credential"][];
+            message: string;
+        };
+        ServiceIdentityRoles: {
+            code: number;
+            data: components["schemas"]["IdentityRole"][];
+            message: string;
+        };
+        ServiceIdentityUpdated: {
+            code: number;
+            data: components["schemas"]["ServiceIdentity"];
+            message: string;
+        };
         /**
          * @description * `ok` - ok
          *     * `unavailable` - unavailable
@@ -6830,6 +8745,12 @@ export interface components {
          * @enum {string}
          */
         SessionTransportEnum: "cookie";
+        /**
+         * @description * `warning` - warning
+         *     * `blocked` - blocked
+         * @enum {string}
+         */
+        SeverityEnum: "warning" | "blocked";
         SSOAuthorizationResponse: {
             code: number;
             data: components["schemas"]["Authorization"];
@@ -6868,11 +8789,27 @@ export interface components {
             /** Format: uuid */
             captcha_id?: string;
         };
+        StateCount: {
+            count: number;
+            status: string;
+        };
         Status: {
             captcha: unknown;
             mfa_required: boolean;
             ready: boolean;
         };
+        SubmittedBusinessNotices: {
+            code: number;
+            data: components["schemas"]["BusinessNoticeResult"];
+            message: string;
+        };
+        /**
+         * @description * `announcement.update` - announcement.update
+         *     * `template.message` - template.message
+         *     * `business.update` - business.update
+         * @enum {string}
+         */
+        SubscriptionsEnum: "announcement.update" | "template.message" | "business.update";
         SystemConfigDetailResponse: {
             code: number;
             data: components["schemas"]["ConfigRow"][];
@@ -7189,6 +9126,11 @@ export interface components {
         };
         UpdatedCount: {
             updated: number;
+        };
+        UpdatedNotificationPreferences: {
+            code: number;
+            data: components["schemas"]["PreferenceRead"];
+            message: string;
         };
         /** @description 用户序列化器 */
         User: {
@@ -7527,6 +9469,63 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    api_credentials_business_records_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                resource: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    api_credentials_business_records_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                resource: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     api_credentials_credentials_list: {
         parameters: {
             query?: {
@@ -7644,6 +9643,67 @@ export interface operations {
             };
         };
     };
+    api_credentials_credentials_rotate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CredentialRotateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CredentialRotateRequest"];
+                "multipart/form-data": components["schemas"]["CredentialRotateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialRotatedResponse"];
+                };
+            };
+        };
+    };
+    api_credentials_credentials_statistics_retrieve: {
+        parameters: {
+            query?: {
+                /** @description 统计最近1至90个UTC自然日，默认7天 */
+                days?: number;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CredentialUsageResponse"];
+                };
+            };
+        };
+    };
     api_credentials_credentials_scopes_retrieve: {
         parameters: {
             query?: never;
@@ -7664,6 +9724,269 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CredentialScopes"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_list: {
+        parameters: {
+            query?: {
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedServiceIdentityList"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdentityCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["IdentityCreateRequest"];
+                "multipart/form-data": components["schemas"]["IdentityCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceIdentityCreated"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceIdentity"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["PatchedIdentityUpdateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PatchedIdentityUpdateRequest"];
+                "multipart/form-data": components["schemas"]["PatchedIdentityUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceIdentityUpdated"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_credentials_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceIdentityCredentials"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_issue_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdentityCredentialCreateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["IdentityCredentialCreateRequest"];
+                "multipart/form-data": components["schemas"]["IdentityCredentialCreateRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceIdentityCredentialIssued"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_revoke_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdentityCredentialActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["IdentityCredentialActionRequest"];
+                "multipart/form-data": components["schemas"]["IdentityCredentialActionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCredentialRevoked"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_rotate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IdentityCredentialActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["IdentityCredentialActionRequest"];
+                "multipart/form-data": components["schemas"]["IdentityCredentialActionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceCredentialRotated"];
+                };
+            };
+        };
+    };
+    api_credentials_service_identities_roles_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceIdentityRoles"];
                 };
             };
         };
@@ -8156,6 +10479,83 @@ export interface operations {
             };
         };
     };
+    approvals_diagnostics_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalDiagnosticResponse"];
+                };
+            };
+        };
+    };
+    approvals_history_list: {
+        parameters: {
+            query?: {
+                /** @description 用于排序结果的字段。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /**
+                 * @description * `leave` - 请假
+                 *     * `purchase` - 采购
+                 *     * `permission` - 权限申请
+                 *     * `other` - 其他
+                 */
+                request_type?: "leave" | "other" | "permission" | "purchase";
+                /** @description 搜索关键词。 */
+                search?: string;
+                /**
+                 * @description * `pending` - 待审批
+                 *     * `approved` - 已通过
+                 *     * `rejected` - 已驳回
+                 *     * `cancelled` - 已撤回
+                 */
+                status?: "approved" | "cancelled" | "pending" | "rejected";
+            };
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedApprovalActionList"];
+                };
+            };
+        };
+    };
     approvals_reject_create: {
         parameters: {
             query?: never;
@@ -8218,6 +10618,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApprovalRepairStepResponse"];
+                };
+            };
+        };
+    };
+    approvals_retry_timeout_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalWorkflowActionRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalWorkflowActionRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalRetryTimeoutResponse"];
+                };
+            };
+        };
+    };
+    approvals_return_node_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 审批申请 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApprovalReturnRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ApprovalReturnRequest"];
+                "multipart/form-data": components["schemas"]["ApprovalReturnRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalReturnResponse"];
                 };
             };
         };
@@ -8311,7 +10777,8 @@ export interface operations {
     approvals_flows_list: {
         parameters: {
             query?: {
-                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, code, name, status, version。同值记录追加主键排序。 */
+                code?: string;
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, code, name, status, version, revision。同值记录追加主键排序。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
                 page?: number;
@@ -8494,6 +10961,33 @@ export interface operations {
             };
         };
     };
+    approvals_flows_new_revision_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 approval flow 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalNewRevisionResponse"];
+                };
+            };
+        };
+    };
     approvals_flows_publish_create: {
         parameters: {
             query?: never;
@@ -8523,6 +11017,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApprovalFlow"];
+                };
+            };
+        };
+    };
+    approvals_health_retrieve: {
+        parameters: {
+            query?: {
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApprovalHealthResponse"];
                 };
             };
         };
@@ -9704,6 +12225,74 @@ export interface operations {
             };
         };
     };
+    business_search_retrieve: {
+        parameters: {
+            query: {
+                /** @description 2至80字符；只匹配显式登记且当前可读的文本字段 */
+                q: string;
+                /** @description 可选：限定已授权的来源编码 */
+                source?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSearchResponse"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            404: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
     dashboard_stats_retrieve: {
         parameters: {
             query?: never;
@@ -9724,6 +12313,361 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardResponse"];
+                };
+            };
+        };
+    };
+    data_io_business_catalog_retrieve: {
+        parameters: {
+            query?: {
+                resource?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessCatalogResponse"];
+                };
+            };
+        };
+    };
+    data_io_business_export_retrieve: {
+        parameters: {
+            query?: {
+                export_format?: string;
+                resource?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": Blob;
+                    "text/csv": Blob;
+                };
+            };
+        };
+    };
+    data_io_business_exports_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ExportRequestRequest"];
+                "multipart/form-data": components["schemas"]["ExportRequestRequest"];
+            };
+        };
+        responses: {
+            202: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessExportCreated"];
+                };
+            };
+        };
+    };
+    data_io_business_exports_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessExportStatus"];
+                };
+            };
+        };
+    };
+    data_io_business_exports_download_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": Blob;
+                };
+            };
+        };
+    };
+    data_io_business_import_errors_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": Blob;
+                };
+            };
+        };
+    };
+    data_io_business_inspect_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BusinessUploadRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BusinessUploadRequest"];
+                "multipart/form-data": components["schemas"]["BusinessUploadRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessInspectResponse"];
+                };
+            };
+        };
+    };
+    data_io_business_mappings_retrieve: {
+        parameters: {
+            query?: {
+                resource?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessMappingListResponse"];
+                };
+            };
+        };
+    };
+    data_io_business_mappings_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BusinessMappingRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BusinessMappingRequest"];
+                "multipart/form-data": components["schemas"]["BusinessMappingRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessMappingCreatedResponse"];
+                };
+            };
+        };
+    };
+    data_io_business_mappings_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mapping_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    data_io_business_plans_errors_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": Blob;
+                };
+            };
+        };
+    };
+    data_io_business_plans_submit_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessSubmitResponse"];
+                };
+            };
+        };
+    };
+    data_io_business_preview_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BusinessPreviewRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BusinessPreviewRequest"];
+                "multipart/form-data": components["schemas"]["BusinessPreviewRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessPreviewResponse"];
                 };
             };
         };
@@ -10363,6 +13307,8 @@ export interface operations {
         parameters: {
             query?: {
                 file_type?: string;
+                /** @description 个人目录UUID，或unfiled表示未分类；只匹配当前目录 */
+                folder?: string;
                 /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：created_at, size, download_count。同值记录追加主键排序。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
@@ -10371,6 +13317,8 @@ export interface operations {
                 page_size?: number;
                 /** @description 搜索关键词。 */
                 search?: string;
+                /** @description 个人标签，精确匹配 */
+                tag?: string;
                 uploader?: string;
             };
             header?: never;
@@ -10491,6 +13439,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    files_organization_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["OrganizationRequest"];
+                "multipart/form-data": components["schemas"]["OrganizationRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileOrganizationResponse"];
+                };
+            };
+        };
+    };
+    files_versions_retrieve: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileHistoryResponse"];
+                };
+            };
+        };
+    };
+    files_versions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevisionWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["RevisionWriteRequest"];
+                "multipart/form-data": components["schemas"]["RevisionWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileRevisionCreatedResponse"];
                 };
             };
         };
@@ -10783,6 +13823,33 @@ export interface operations {
             };
         };
     };
+    files_references_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 文件 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileReferenceStatusResponse"];
+                };
+            };
+        };
+    };
     files_restore_create: {
         parameters: {
             query?: never;
@@ -10900,6 +13967,173 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["MessageResponse"];
                 };
+            };
+        };
+    };
+    files_capacity_retrieve: {
+        parameters: {
+            query?: {
+                owner_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileCapacityResponse"];
+                };
+            };
+        };
+    };
+    files_capacity_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CapacityWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["CapacityWriteRequest"];
+                "multipart/form-data": components["schemas"]["CapacityWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileCapacityUpdatedResponse"];
+                };
+            };
+        };
+    };
+    files_library_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileLibraryResponse"];
+                };
+            };
+        };
+    };
+    files_library_folders_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FolderWriteRequest"];
+                "multipart/form-data": components["schemas"]["FolderWriteRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFolderCreatedResponse"];
+                };
+            };
+        };
+    };
+    files_library_folders_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderUpdateRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FolderUpdateRequest"];
+                "multipart/form-data": components["schemas"]["FolderUpdateRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileFolderUpdatedResponse"];
+                };
+            };
+        };
+    };
+    files_library_folders_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                folder_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -11112,6 +14346,8 @@ export interface operations {
         parameters: {
             query?: {
                 file_type?: string;
+                /** @description 个人目录UUID，或unfiled表示未分类；只匹配当前目录 */
+                folder?: string;
                 /** @description 用于排序结果的字段。 */
                 ordering?: string;
                 /** @description 分页结果集中的页码。 */
@@ -11120,6 +14356,8 @@ export interface operations {
                 page_size?: number;
                 /** @description 搜索关键词。 */
                 search?: string;
+                /** @description 个人标签，精确匹配 */
+                tag?: string;
                 uploader?: string;
             };
             header?: never;
@@ -12209,6 +15447,36 @@ export interface operations {
             };
         };
     };
+    notifications_business_notices_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BusinessNoticeWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["BusinessNoticeWriteRequest"];
+                "multipart/form-data": components["schemas"]["BusinessNoticeWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubmittedBusinessNotices"];
+                };
+            };
+        };
+    };
     notifications_deliveries_list: {
         parameters: {
             query?: {
@@ -12414,6 +15682,80 @@ export interface operations {
             };
         };
     };
+    notifications_digests_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notification_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDigestReferences"];
+                };
+            };
+        };
+    };
+    notifications_digests_refresh_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RefreshedNotificationDigests"];
+                };
+            };
+        };
+    };
+    notifications_digests_status_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationDigestStatus"];
+                };
+            };
+        };
+    };
     notifications_mark_all_read_create: {
         parameters: {
             query?: never;
@@ -12434,6 +15776,87 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NotificationsReadResponse"];
+                };
+            };
+        };
+    };
+    notifications_operations_retrieve: {
+        parameters: {
+            query?: {
+                /** @description 默认7天；1至90天，按创建时间统计当前租户 */
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationOperationsResponse"];
+                };
+            };
+        };
+    };
+    notifications_preferences_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPreferences"];
+                };
+            };
+        };
+    };
+    notifications_preferences_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferenceWriteRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["PreferenceWriteRequest"];
+                "multipart/form-data": components["schemas"]["PreferenceWriteRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatedNotificationPreferences"];
                 };
             };
         };
@@ -12782,6 +16205,40 @@ export interface operations {
             };
         };
     };
+    online_forms_attachments_retrieve: {
+        parameters: {
+            query: {
+                field: string;
+                form_id?: string;
+                page?: number;
+                q?: string;
+                record_id?: string;
+                resolve?: boolean;
+                selected?: string;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentResponse"];
+                };
+            };
+        };
+    };
     online_forms_records_list: {
         parameters: {
             query?: {
@@ -12866,7 +16323,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OnlineFormRecord"];
+                    "application/json": components["schemas"]["OnlineFormRecordDetail"];
                 };
             };
         };
@@ -12893,7 +16350,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OnlineFormRecord"];
+                    "application/json": components["schemas"]["OnlineFormRecordDetail"];
                 };
             };
         };
@@ -12926,7 +16383,133 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["OnlineFormRecord"];
+                    "application/json": components["schemas"]["OnlineFormRecordDetail"];
+                };
+            };
+        };
+    };
+    online_forms_records_submit_approval_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormVersionRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormVersionRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormVersionRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormRecordDetail"];
+                };
+            };
+        };
+    };
+    online_forms_records_withdraw_approval_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormVersionRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormVersionRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormVersionRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineFormRecordDetail"];
+                };
+            };
+        };
+    };
+    online_forms_relations_retrieve: {
+        parameters: {
+            query: {
+                field: string;
+                form_id?: string;
+                page?: number;
+                q?: string;
+                record_id?: string;
+                resolve?: boolean;
+                selected?: string;
+            };
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationResponse"];
+                };
+            };
+        };
+    };
+    online_forms_approval_flows_retrieve: {
+        parameters: {
+            query?: {
+                form_id?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FormApprovalChoicesResponse"];
                 };
             };
         };
@@ -13123,15 +16706,48 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["OnlineFormRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormRequest"];
-                "multipart/form-data": components["schemas"]["OnlineFormRequest"];
+                "application/json": components["schemas"]["FormOptionalVersionRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormOptionalVersionRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormOptionalVersionRequestRequest"];
             };
         };
         responses: {
             200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OnlineForm"];
+                };
+            };
+        };
+    };
+    online_forms_forms_new_version_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 online form 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FormVersionRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormVersionRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormVersionRequestRequest"];
+            };
+        };
+        responses: {
+            201: {
                 headers: {
                     /**
                      * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
@@ -13156,11 +16772,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["OnlineFormRequest"];
-                "application/x-www-form-urlencoded": components["schemas"]["OnlineFormRequest"];
-                "multipart/form-data": components["schemas"]["OnlineFormRequest"];
+                "application/json": components["schemas"]["FormOptionalVersionRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FormOptionalVersionRequestRequest"];
+                "multipart/form-data": components["schemas"]["FormOptionalVersionRequestRequest"];
             };
         };
         responses: {
@@ -13205,6 +16821,30 @@ export interface operations {
             };
         };
     };
+    online_forms_relation_resources_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelationResourcesResponse"];
+                };
+            };
+        };
+    };
     online_forms_validate_create: {
         parameters: {
             query?: never;
@@ -13231,6 +16871,197 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FormValidationRequest"];
+                };
+            };
+        };
+    };
+    organization_appointments_list: {
+        parameters: {
+            query?: {
+                as_of?: string;
+                cancelled?: boolean;
+                department?: string;
+                /**
+                 * @description * `primary` - 主职
+                 *     * `secondary` - 兼职
+                 */
+                kind?: "primary" | "secondary";
+                /** @description 逗号分隔，最多5项，前缀-表示降序；不支持或重复字段返回400。允许：starts_on, ends_on, created_at。同值记录追加主键排序。 */
+                ordering?: string;
+                /** @description 分页结果集中的页码。 */
+                page?: number;
+                /** @description 每页条数 */
+                page_size?: number;
+                /** @description 搜索关键词。 */
+                search?: string;
+                user?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAppointmentList"];
+                };
+            };
+            400: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            503: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+        };
+    };
+    organization_appointments_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointmentRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AppointmentRequest"];
+                "multipart/form-data": components["schemas"]["AppointmentRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentCreatedResponse"];
+                };
+            };
+        };
+    };
+    organization_appointments_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 organization appointment 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentDetailResponse"];
+                };
+            };
+        };
+    };
+    organization_appointments_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 organization appointment 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointmentEndRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AppointmentEndRequest"];
+                "multipart/form-data": components["schemas"]["AppointmentEndRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentCancelResponse"];
+                };
+            };
+        };
+    };
+    organization_appointments_end_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 organization appointment 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppointmentEndRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["AppointmentEndRequest"];
+                "multipart/form-data": components["schemas"]["AppointmentEndRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppointmentEndResponse"];
                 };
             };
         };
@@ -14689,6 +18520,36 @@ export interface operations {
             };
         };
     };
+    permissions_field_diagnostics_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FieldDiagnosticRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FieldDiagnosticRequestRequest"];
+                "multipart/form-data": components["schemas"]["FieldDiagnosticRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FieldDiagnosticResponse"];
+                };
+            };
+        };
+    };
     permissions_menus_list: {
         parameters: {
             query?: {
@@ -15759,6 +19620,41 @@ export interface operations {
             };
         };
     };
+    reports_definitions_details_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReportDetailsRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReportDetailsRequestRequest"];
+                "multipart/form-data": components["schemas"]["ReportDetailsRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     reports_definitions_publish_create: {
         parameters: {
             query?: never;
@@ -15814,7 +19710,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Report"];
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    reports_definitions_run_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description 标识此 report definition 的 UUID 字符串。 */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ReportRunRequestRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["ReportRunRequestRequest"];
+                "multipart/form-data": components["schemas"]["ReportRunRequestRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    /**
+                     * @description API lifecycle; see /api/versions/. Does not change authentication, caching or response body.
+                     * @example v1
+                     */
+                    "X-API-Version"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };

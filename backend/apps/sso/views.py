@@ -170,7 +170,7 @@ class IdentityViewSet(EnabledMixin, QueryBudgetListMixin, mixins.ListModelMixin,
                     pk__in=[request.user.pk, values['user_id']]).order_by('pk')}
                 actor = self.locked_actor(request, 'bind')
                 target = actors.get(values['user_id'])
-                if target is None or not target.is_active or target.must_change_password or not target.has_usable_password():
+                if target is None or target.is_service_account or not target.is_active or target.must_change_password or not target.has_usable_password():
                     raise ValidationError('只能绑定已启用且已完成初始改密的本地账号')
                 if not module_enabled('sso') or provider().fingerprint != config.fingerprint:
                     raise SSOUnavailable()

@@ -24,7 +24,8 @@ class TaskRecordSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_request_id(self, obj) -> str:
-        row = getattr(obj, 'import_execution', None) or getattr(obj, 'maintenance_request', None)
+        row = (getattr(obj, 'import_execution', None) or getattr(obj, 'maintenance_request', None)
+               or getattr(obj, 'business_export_request', None))
         return row.request_id if row else ''
 
     def get_duration(self, obj) -> float | None:
@@ -36,6 +37,10 @@ class TaskRecordSerializer(serializers.ModelSerializer):
     def get_execution(self, obj) -> dict | None:
         row = getattr(obj, 'import_execution', None)
         if row is None:
+            export = getattr(obj, 'business_export_request', None)
+            if export:
+                return {'attempt': 1, 'policy': export.policy, 'can_resume': False,
+                        'semantics': 'new_export_required'}
             maintenance = getattr(obj, 'maintenance_request', None)
             return {'attempt': 1, 'policy': maintenance.policy, 'can_resume': False,
                     'semantics': 'new_preview_required'} if maintenance else None

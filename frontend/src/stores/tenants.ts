@@ -4,9 +4,13 @@ import request from '@/api/request'
 
 export interface TenantOption { id: string; slug: string; name: string; role: string }
 
+function storedTenantId() {
+  try { return localStorage.getItem('admincore.tenant') || '' } catch { return '' }
+}
+
 export const useTenantStore = defineStore('tenants', () => {
   const options = ref<TenantOption[]>([])
-  const currentId = ref(localStorage.getItem('admincore.tenant') || '')
+  const currentId = ref(storedTenantId())
   const loaded = ref(false)
   const current = computed(() => options.value.find(item => item.id === currentId.value))
   let generation = 0

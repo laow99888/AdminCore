@@ -9,7 +9,7 @@ import { filesApi, rolesApi, permissionsApi } from '../src/api'
 import Files from '../src/views/files/FileListView.vue'
 import Roles from '../src/views/system/RoleListView.vue'
 
-vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value }))
+vi.mock('../src/i18n/uiText', async (importOriginal) => ({ ...await importOriginal<object>(), uiText: (value: string) => value }))
 vi.mock('../src/api', () => ({ filesApi: { list: vi.fn(), remove: vi.fn() }, rolesApi: { list: vi.fn(), remove: vi.fn() }, permissionsApi: { list: vi.fn() } }))
 vi.mock('../src/api/officePreview', () => ({ isOfficeFormat: () => false, officePreviewConfig: async () => false }))
 vi.mock('../src/api/imageProcessing', () => ({ canProcessImage: () => false, imageProcessingConfig: async () => ({ enabled: false }) }))
@@ -28,7 +28,7 @@ for (const [name, component, api] of [['文件', Files, filesApi], ['角色', Ro
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/list', component: Layout }] }); await router.push('/list')
     const wrapper = mount(component, { global: { plugins: [pinia, router, ElementPlus], stubs: {
       AppLayout: Layout, BaseCard: Layout, BaseTable: Table, BaseDialog: true, FilePreviewDialog: true, ImageProcessingDialog: true,
-      DataImportButton: true, DataExportButton: true, LocalExportButton: true, PrintTableButton: true,
+      DataImportButton: true, DataExportButton: true, LocalExportButton: true, PrintTableButton: true, FileLibraryToolbar: true,
     } } })
     return { wrapper, auth, table: wrapper.getComponent(Table) }
   }

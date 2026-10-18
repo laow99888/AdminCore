@@ -26,7 +26,7 @@ class NotificationSerializer(serializers.ModelSerializer):
 class NotificationCreateSerializer(serializers.Serializer):
     """发送通知（管理员）"""
     recipient_ids = serializers.PrimaryKeyRelatedField(
-        many=True, queryset=User.objects.filter(is_active=True), write_only=True,
+        many=True, queryset=User.objects.filter(is_active=True, is_service_account=False), write_only=True,
     )
     title = serializers.CharField(max_length=200)
     content = serializers.CharField(max_length=20000, required=False, allow_blank=True, default='')

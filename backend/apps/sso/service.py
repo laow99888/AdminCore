@@ -99,7 +99,7 @@ def callback(request, config):
     flow, code, verifier = consume_state(request, config)
     subject = verified_subject(config, code, verifier, flow.nonce_digest)
     identity = ExternalIdentity.objects.select_related('user').filter(issuer=config.issuer, subject=subject, revoked_at__isnull=True).first()
-    if identity is None or not identity.user.is_active or identity.user.must_change_password or not identity.user.has_usable_password():
+    if identity is None or identity.user.is_service_account or not identity.user.is_active or identity.user.must_change_password or not identity.user.has_usable_password():
         audit_failure(request, 'unbound_or_inactive')
         raise AuthenticationFailed('企业身份未绑定或账号不可用，请联系管理员或使用本地登录')
     completion = secrets.token_urlsafe(32)
@@ -108,7 +108,7 @@ def callback(request, config):
         user = get_user_model().objects.select_for_update().get(pk=identity.user_id)
         identity = ExternalIdentity.objects.select_for_update().get(pk=identity.pk)
         flow = LoginFlow.objects.select_for_update().get(pk=flow.pk)
-        if (not user.is_active or user.must_change_password or not user.has_usable_password() or identity.revoked_at
+        if (not user.is_active or user.is_service_account or user.must_change_password or not user.has_usable_password() or identity.revoked_at
                 or flow.expires_at <= timezone.now() or flow.completion_digest or not module_enabled('sso')
                 or provider().fingerprint != config.fingerprint):
             raise AuthenticationFailed(INVALID_FLOW)
@@ -138,7 +138,7 @@ def pending(request, config):
 
 
 def current_identity(flow, user, identity):
-    if (not user.is_active or user.must_change_password or not user.has_usable_password()
+    if (not user.is_active or user.is_service_account or user.must_change_password or not user.has_usable_password()
             or user.session_version != flow.session_version or password_digest(user) != flow.password_digest
             or identity.revoked_at or identity.binding_version != flow.binding_version):
         raise AuthenticationFailed(INVALID_FLOW)

@@ -66,10 +66,11 @@ def test_disabled_schedule_preserved_and_filtered():
         call_command('configure_maintenance', stdout=StringIO())
         scheduler = ModuleScheduler(app=app, lazy=True)
         assert scheduler.enabled_models_qs().count() == 3
-        assert PeriodicTask.objects.filter(enabled=True).count() == 5
+        assert PeriodicTask.objects.filter(enabled=True).count() == 7
+        assert not scheduler.enabled_models_qs().filter(task='notifications.refresh_digests').exists()
         assert not task_enabled('tasks.cleanup_expired_notifications')
         assert not task_enabled('arbitrary.function')
-    assert ModuleScheduler(app=app, lazy=True).enabled_models_qs().count() == 5
+    assert ModuleScheduler(app=app, lazy=True).enabled_models_qs().count() == 7
 
 
 def test_minimal_dashboard_no_disabled_table_reads(admin_client, django_assert_num_queries):

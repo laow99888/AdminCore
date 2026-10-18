@@ -9,6 +9,7 @@ import { useAuthStore } from "../src/stores/auth";
 import CodegenView from "../src/views/system/CodegenView.vue";
 import GeneratedCrudPage from "../src/components/codegen/GeneratedCrudPage.vue";
 import GeneratedFieldInput from "../src/components/codegen/GeneratedFieldInput.vue";
+import GeneratedQueryWorkbench from '../src/components/codegen/GeneratedQueryWorkbench.vue';
 import type { GeneratedSchema } from "../src/components/codegen/types";
 
 vi.mock("../src/i18n/uiText", () => ({
@@ -54,10 +55,10 @@ const Table = defineComponent({
   template: '<div><slot v-for="row in data" name="actions" :row="row" /></div>',
 });
 const Field = defineComponent({
-  props: ["modelValue", "field"],
+  props: ["modelValue", "field", "disabled"],
   emits: ["update:modelValue"],
   template:
-    '<input :aria-label="field.label" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+    '<input :aria-label="field.label" :value="modelValue" :disabled="disabled" @input="$emit(\'update:modelValue\', $event.target.value)" />',
 });
 const schema: GeneratedSchema = {
   schema_version: 2,
@@ -94,6 +95,17 @@ beforeEach(() => {
   });
 });
 afterEach(() => localStorage.clear());
+it('生成页面根据服务端字段策略隐藏金额，保留只读字段并在保存时省略无权替换的明细', async () => {
+  vi.mocked(request.get).mockResolvedValue({ data: { data: { items: [], pagination: { total: 0 },
+    field_permissions: { read: ['code', 'lines', 'lines.price'], write: ['code'] } } } });
+  vi.mocked(request.post).mockResolvedValue({ data: { data: { id: 'created' } } });
+  const { wrapper } = await setup(GeneratedCrudPage, { schema });
+  await flushPromises(); await button(wrapper, '新增').trigger('click'); await flushPromises();
+  await wrapper.find('input[aria-label="编号"]').setValue('PO-FIELDS');
+  await button(wrapper, '提交测试').trigger('click'); await flushPromises();
+  expect(request.post).toHaveBeenCalledWith('/purchase-orders/records/', { version: 0, code: 'PO-FIELDS' }, expect.anything());
+  expect(wrapper.text()).not.toContain('总金额');
+});
 async function setup(
   component: typeof CodegenView | typeof GeneratedCrudPage,
   props = {},
@@ -127,8 +139,76 @@ async function setup(
       },
     },
   });
-  return { wrapper, auth };
+  return { wrapper, auth, router };
 }
+
+it('业务搜索定位记录复用详情接口，同页跳转取消时保留未保存草稿', async () => {
+  const id = '01234567-1234-1234-1234-012345678901';
+  vi.mocked(request.get).mockImplementation(async (url) => ({ data: { data: String(url).includes(id)
+    ? { id, version: 1, code: 'SEARCH-DETAIL', lines: [] }
+    : { items: [], pagination: { total: 0 } } } }));
+  const { wrapper, router } = await setup(GeneratedCrudPage, { schema }); await flushPromises();
+  await button(wrapper, '新增').trigger('click'); await flushPromises();
+  await wrapper.get('input[aria-label="编号"]').setValue('KEEP-DRAFT');
+  const confirmation = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel');
+  await router.push({ path: '/', query: { record: id } }); await flushPromises();
+  expect(confirmation).toHaveBeenCalledOnce();
+  expect(request.get).not.toHaveBeenCalledWith('/purchase-orders/records/' + id + '/');
+  expect(wrapper.get('input[aria-label="编号"]').element).toHaveProperty('value', 'KEEP-DRAFT');
+  expect(router.currentRoute.value.query.record).toBeUndefined();
+  confirmation.mockResolvedValueOnce('confirm' as never);
+  await router.push({ path: '/', query: { record: id } }); await flushPromises();
+  expect(request.get).toHaveBeenCalledWith('/purchase-orders/records/' + id + '/');
+  expect(wrapper.get('input[aria-label="编号"]').element).toHaveProperty('value', 'SEARCH-DETAIL');
+  expect(wrapper.get('input[aria-label="编号"]').attributes('disabled')).toBeDefined();
+  expect(router.currentRoute.value.query.record).toBeUndefined();
+  wrapper.unmount(); confirmation.mockRestore();
+});
+
+it('同一身份的后台用户资料刷新保留正在编辑的业务草稿', async () => {
+  const { wrapper, auth } = await setup(GeneratedCrudPage, { schema }); await flushPromises();
+  await button(wrapper, '新增').trigger('click'); await flushPromises();
+  await wrapper.get('input[aria-label="编号"]').setValue('KEEP-DRAFT');
+  auth.user = { ...auth.user!, username: '刷新后的显示名' };
+  await flushPromises();
+  expect(wrapper.get('input[aria-label="编号"]').element).toHaveProperty('value', 'KEEP-DRAFT');
+  wrapper.unmount();
+});
+
+it('高级筛选撤权后清空旧值并重取安全列表，不陷入403重试循环', async () => {
+  vi.mocked(request.get).mockImplementation(async (url, config) => {
+    if (String(url).endsWith('query-views/')) return { data: { data: { items: [], unavailable: 0 } } };
+    if ((config?.params as Record<string, unknown> | undefined)?.advanced) throw { response: { status: 403 } };
+    return { data: { data: { items: [], pagination: { total: 0 }, field_permissions: { read: ['code'], write: [] } } } };
+  });
+  const { wrapper } = await setup(GeneratedCrudPage, { schema }); await flushPromises();
+  wrapper.getComponent(GeneratedQueryWorkbench).vm.$emit('apply', { filters: {}, ordering: '', advanced: { match: 'all', conditions: [{ field: 'amount', op: 'eq', value: 'secret-filter' }] } });
+  await flushPromises();
+  expect(wrapper.text()).toContain('查询权限已变化，已清空条件，请重新筛选');
+  const lists = vi.mocked(request.get).mock.calls.filter(([url]) => String(url).endsWith('/records/'));
+  expect(lists).toHaveLength(3);
+  expect((lists.at(-1)?.[1]?.params as Record<string, unknown> | undefined)?.advanced).toBeUndefined();
+  wrapper.unmount();
+});
+
+it('跨页只保存明确选择及初始版本，换页保留，应用查询后清空', async () => {
+  const records = [{ id: 'first', version: 1, code: 'A' }, { id: 'second', version: 2, code: 'B' }];
+  vi.mocked(request.get).mockImplementation(async (url, config) => {
+    if (String(url).endsWith('query-views/')) return { data: { data: { items: [], unavailable: 0 } } };
+    const index = Number((config?.params as Record<string, unknown> | undefined)?.page ?? 1) - 1;
+    return { data: { data: { items: [records[index]!], pagination: { total: 2 } } } };
+  });
+  const { wrapper } = await setup(GeneratedCrudPage, { schema }); await flushPromises();
+  wrapper.getComponent(Table).vm.$emit('selection-change', [records[0]]); await flushPromises();
+  expect(wrapper.text()).toContain('跨页已选 1 / 100');
+  wrapper.getComponent(Table).vm.$emit('update:currentPage', 2); await flushPromises();
+  wrapper.getComponent(Table).vm.$emit('selection-change', [records[1]]); await flushPromises();
+  expect(wrapper.text()).toContain('跨页已选 2 / 100');
+  const selected = wrapper.findComponent({ name: 'GeneratedBulkDelete' }).props('selection');
+  expect(selected).toEqual([{ id: 'first', version: 1 }, { id: 'second', version: 2 }]);
+  wrapper.getComponent(GeneratedQueryWorkbench).vm.$emit('apply', { filters: {}, advanced: { match: 'all', conditions: [] }, ordering: '' });
+  await flushPromises(); expect(wrapper.text()).toContain('跨页已选 0 / 100'); wrapper.unmount();
+});
 function button(wrapper: ReturnType<typeof mount>, text: string) {
   return wrapper.findAll("button").find((value) => value.text() === text)!;
 }

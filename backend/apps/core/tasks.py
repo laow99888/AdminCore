@@ -7,6 +7,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import IdempotencyRecord, OutboxEvent
+from .tenancy import tenant_context
 from apps.logs.context import correlated_request
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,8 @@ def dispatch_outbox(limit=100):
         recover_lost_maintenance()
         from apps.tasks.reliability import recover_lost_imports
         recover_lost_imports()
+        from apps.data_io.business_export import recover_lost_exports
+        recover_lost_exports()
     from .external_dispatch import dispatch_external, TOPICS
     external = dispatch_external(limit)
     processed, failed = external['processed'], external['failed']
@@ -39,12 +42,14 @@ def dispatch_outbox(limit=100):
             ).first()
             if event is None:
                 continue
-            if event.topic in ('maintenance.requested', 'import.requested'):
+            if event.topic in ('maintenance.requested', 'import.requested', 'export.requested'):
                 from apps.tasks.models import TaskRecord, MaintenanceRequest, ImportExecution
+                from apps.data_io.models import BusinessExportRequest
                 from apps.tasks.reliability import policy
-                model = ImportExecution if event.topic == 'import.requested' else MaintenanceRequest
+                model = {'import.requested': ImportExecution, 'export.requested': BusinessExportRequest,
+                         'maintenance.requested': MaintenanceRequest}[event.topic]
                 execution = model.objects.select_related('record').filter(pk=event.payload.get('record_id')).first()
-                current = (execution.policy if execution else None) or policy('import' if model == ImportExecution else 'maintenance')
+                current = (execution.policy if execution else None) or policy('maintenance' if model == MaintenanceRequest else 'import')
                 if execution and execution.record.status == 'pending' and event.attempts >= current['dispatch_attempts']:
                     execution.record.mark_failed('dispatch_attempts_exhausted')
                     event.status, event.last_error = 'failed', 'dispatch_exhausted'
@@ -54,7 +59,7 @@ def dispatch_outbox(limit=100):
             event.attempts += 1
             delivery_failed = False
             try:
-                with transaction.atomic():
+                with transaction.atomic(), tenant_context(event.tenant_id):
                     if event.topic == 'task.failed':
                         from apps.tasks.reliability import deliver_failure
                         deliver_failure(event.payload)
@@ -68,6 +73,18 @@ def dispatch_outbox(limit=100):
                             raise ValueError('import_request_missing')
                         if request.record.status == 'pending':
                             run_data_import.apply_async(args=[str(request.pk)], task_id=str(request.pk),
+                                headers={'request_id': event.request_id},
+                                soft_time_limit=request.policy['soft_timeout'], time_limit=request.policy['hard_timeout'])
+                    elif event.topic == 'export.requested':
+                        from apps.data_io.models import BusinessExportRequest
+                        from apps.data_io.business_export import run_business_export
+                        if not module_enabled('data_io'):
+                            raise ValueError('data_io_disabled')
+                        request = BusinessExportRequest.objects.select_related('record').filter(pk=event.payload.get('record_id')).first()
+                        if request is None:
+                            raise ValueError('export_request_missing')
+                        if request.record.status == 'pending':
+                            run_business_export.apply_async(args=[str(request.pk)], task_id=str(request.pk),
                                 headers={'request_id': event.request_id},
                                 soft_time_limit=request.policy['soft_timeout'], time_limit=request.policy['hard_timeout'])
                     elif event.topic == 'maintenance.requested':

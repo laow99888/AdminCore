@@ -53,7 +53,7 @@ def validate_graph(definition):
         raise ValidationError('V2流程节点或连线数量无效')
     kinds, ids = {}, set()
     for node in nodes:
-        if not isinstance(node, dict) or set(node) - {'id', 'type', 'name', 'assignee_ids', 'assignee', 'mode'}:
+        if not isinstance(node, dict) or set(node) - {'id', 'type', 'name', 'assignee_ids', 'assignee', 'mode', 'timeout'}:
             raise ValidationError('流程节点包含未知字段')
         key, kind = node.get('id'), node.get('type')
         if not isinstance(key, str) or not 1 <= len(key) <= 64 or key in ids:
@@ -62,6 +62,22 @@ def validate_graph(definition):
             raise ValidationError('流程节点类型不受支持')
         ids.add(key); kinds[key] = kind
         if kind in {'user', 'parallel', 'or'}:
+            if 'timeout' in node:
+                timeout = node['timeout']
+                if (not isinstance(timeout, dict) or set(timeout) - {'minutes', 'escalate_after_minutes', 'escalate_to', 'calendar'}
+                        or type(timeout.get('minutes')) is not int or not 1 <= timeout['minutes'] <= 525600
+                        or ('escalate_after_minutes' in timeout) != ('escalate_to' in timeout)):
+                    raise ValidationError('超时配置必须为1至525600分钟，升级时限和人员必须同时配置')
+                if 'calendar' in timeout:
+                    from .calendar import validate_calendar
+                    validate_calendar(timeout['calendar'])
+                if 'escalate_after_minutes' in timeout:
+                    if type(timeout['escalate_after_minutes']) is not int or not timeout['minutes'] < timeout['escalate_after_minutes'] <= 525600:
+                        raise ValidationError('升级时限必须晚于提醒时限且不超过525600分钟')
+                    try:
+                        UUID(timeout['escalate_to'])
+                    except (ValueError, TypeError, AttributeError):
+                        raise ValidationError('超时升级人员标识无效') from None
             mode = node.get('mode', 'any' if kind == 'or' else 'all')
             if not isinstance(mode, str) or mode not in {'all', 'any'}:
                 raise ValidationError('审批节点模式只能是 all 或 any')
@@ -69,9 +85,12 @@ def validate_graph(definition):
                 raise ValidationError('审批节点必须选择一种人员来源')
             if 'assignee' in node:
                 source = node['assignee']
-                if not isinstance(source, dict) or source not in ({'source': 'applicant'},):
+                if isinstance(source, dict) and source.get('source') == 'department_leader':
+                    if set(source) != {'source', 'levels'} or type(source['levels']) is not int or not 1 <= source['levels'] <= 10:
+                        raise ValidationError('部门主管层级必须为1至10的整数')
+                elif not isinstance(source, dict) or source != {'source': 'applicant'}:
                     if not isinstance(source, dict) or set(source) != {'source', 'role_id'} or source['source'] != 'role':
-                        raise ValidationError('动态审批人只支持申请人或角色')
+                        raise ValidationError('动态审批人只支持申请人、角色或部门主管')
                     try:
                         UUID(source['role_id'])
                     except (ValueError, TypeError, AttributeError):
@@ -85,7 +104,7 @@ def validate_graph(definition):
                         raise ValueError
                 except (ValueError, TypeError, AttributeError):
                     raise ValidationError('审批人标识无效或重复') from None
-        elif set(node) & {'mode', 'assignee', 'assignee_ids'}:
+        elif set(node) & {'mode', 'assignee', 'assignee_ids', 'timeout'}:
             raise ValidationError('非审批节点不能配置审批人')
     if list(kinds.values()).count('start') != 1 or list(kinds.values()).count('end') != 1:
         raise ValidationError('流程必须且只能包含一个开始节点和一个结束节点')
@@ -179,17 +198,22 @@ def next_node(definition, current, data):
     return fallback
 
 
-def resolve_assignees(application, node):
+def resolve_assignment(application, node):
     from django.contrib.auth import get_user_model
     from apps.core.tenancy import enabled
     from apps.core.models import TenantMembership
     from rest_framework.exceptions import ValidationError as APIValidationError
-    users = get_user_model().objects.filter(is_active=True)
+    users = get_user_model().objects.filter(is_active=True, is_service_account=False)
     if enabled() and application.tenant_id:
         users = users.filter(pk__in=TenantMembership.objects.filter(
             tenant_id=application.tenant_id, is_active=True, tenant__status='active').values('user_id'))
     source = node.get('assignee')
+    context = {}
     if source:
+        if source['source'] == 'department_leader':
+            from apps.core.appointments import department_leader
+            leader, context = department_leader(application, source['levels'])
+            users = users.filter(pk=leader.pk)
         if source['source'] == 'role':
             from apps.permissions.models import Role
             role = Role.objects.filter(pk=source['role_id'], is_active=True)
@@ -197,8 +221,9 @@ def resolve_assignees(application, node):
                 role = role.filter(tenant_id=application.tenant_id)
             if not role.exists():
                 raise APIValidationError('动态审批角色不存在、已停用或不属于当前租户')
-        users = (users.filter(pk=application.applicant_id) if source['source'] == 'applicant'
-                 else users.filter(roles__role_id=source['role_id'], roles__role__is_active=True))
+            users = users.filter(roles__role_id=source['role_id'], roles__role__is_active=True)
+        elif source['source'] == 'applicant':
+            users = users.filter(pk=application.applicant_id)
         found = list(users.distinct().order_by('pk')[:101])
     else:
         identifiers = node['assignee_ids']
@@ -208,4 +233,8 @@ def resolve_assignees(application, node):
             found = []
     if not 1 <= len(found) <= 100:
         raise APIValidationError('当前节点没有有效审批人或人数超过100，请管理员检查角色和租户成员')
-    return found
+    return found, context
+
+
+def resolve_assignees(application, node):
+    return resolve_assignment(application, node)[0]

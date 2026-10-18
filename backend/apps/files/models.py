@@ -51,6 +51,23 @@ class FileModel(SoftDeleteModel):
     def __str__(self):
         return self.original_name
 
+    def save(self, *args, **kwargs):
+        if self._state.adding and self.uploader_id:
+            from .capacity import checked_file_creation
+            with checked_file_creation(self):
+                return super().save(*args, **kwargs)
+        return super().save(*args, **kwargs)
+
+    def soft_delete(self, actor=None, expected_version=None):
+        from .references import assert_not_referenced
+        with transaction.atomic():
+            row = type(self)._base_manager.select_for_update().get(pk=self.pk)
+            row.check_lifecycle_version(self.lifecycle_version if expected_version is None else expected_version)
+            assert_not_referenced(row)
+            row = super(FileModel, row).soft_delete(actor=actor, expected_version=row.lifecycle_version)
+            self.__dict__.update(row.__dict__)
+        return self
+
     def validate_restore(self):
         if self.purpose == 'avatar':
             raise LifecycleConflict('历史头像不能从文件回收站恢复，请重新上传')
@@ -75,6 +92,8 @@ class FileModel(SoftDeleteModel):
                 not row.is_deleted or not row.deleted_at or row.deleted_at >= deleted_before
             ):
                 return False
+            from .references import assert_not_referenced
+            assert_not_referenced(row)
             if audit:
                 audit(row)
             if row.file:
@@ -140,6 +159,64 @@ class ResumableUpload(BaseModel):
             models.Index(fields=['owner', 'status']),
             models.Index(fields=['status', 'expires_at']),
         ]
+
+
+class FileFolder(BaseModel):
+    """个人目录仅整理文件，不参与文件 ACL 或数据范围计算。"""
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='file_folders')
+    parent = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True,
+                               related_name='children')
+    name = models.CharField(max_length=80)
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        indexes = [models.Index(fields=['owner', 'tenant'])]
+
+
+class FileOrganization(BaseModel):
+    file = models.ForeignKey(FileModel, on_delete=models.CASCADE, related_name='organizations')
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='file_organizations')
+    folder = models.ForeignKey(FileFolder, on_delete=models.SET_NULL, null=True, blank=True,
+                               related_name='organizations')
+    version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['file', 'owner'], name='unique_file_organization_owner')]
+        indexes = [models.Index(fields=['owner', 'tenant', 'folder'])]
+
+
+class FileOrganizationTag(BaseModel):
+    organization = models.ForeignKey(FileOrganization, on_delete=models.CASCADE, related_name='tags')
+    name = models.CharField(max_length=32)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['organization', 'name'], name='unique_file_organization_tag')]
+        indexes = [models.Index(fields=['name', 'organization'])]
+
+
+class FileDocument(BaseModel):
+    """逻辑文档不授予文件权限；每个修订保留自己的不可变附件。"""
+    current_file = models.ForeignKey(FileModel, on_delete=models.PROTECT, related_name='current_documents')
+    version = models.PositiveIntegerField(default=1)
+
+
+class FileRevision(BaseModel):
+    document = models.ForeignKey(FileDocument, on_delete=models.CASCADE, related_name='revisions')
+    file = models.ForeignKey(FileModel, on_delete=models.PROTECT, related_name='document_revisions')
+    number = models.PositiveIntegerField()
+    restored_from = models.PositiveIntegerField(null=True, blank=True)
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['document', 'number'], name='unique_file_document_revision')]
+
+
+class FileCapacity(BaseModel):
+    # 固定scope键也隔离NULL全局租户；避免依赖数据库对NULL唯一值的不同处理。
+    scope_key = models.CharField(max_length=80, unique=True)
+    owner = models.ForeignKey(User, on_delete=models.CASCADE, related_name='file_capacities')
+    limit_bytes = models.PositiveBigIntegerField(default=0)
+    version = models.PositiveIntegerField(default=0)
 
 
 from .office_models import OfficePreview  # noqa: E402,F401

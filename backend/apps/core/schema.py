@@ -58,6 +58,10 @@ class QueryBudgetSchema(AutoSchema):
             parameters.append({'name': name, 'in': 'query', 'required': False,
                 'schema': {'type': 'string', 'enum': list(choices)},
                 'description': '资源查询视角；无此参数时使用默认范围。'})
+        if 'advanced' in getattr(self.view, 'generated_query_parameters', ()):
+            parameters.append({'name': 'advanced', 'in': 'query', 'required': False,
+                'schema': {'type': 'string', 'maxLength': 4096},
+                'description': '受控JSON条件：match为all/any，conditions最多10项，每项field/op/value；仅允许登记且可读字段，不支持嵌套或关系路径。'})
         return parameters
 
 
@@ -120,6 +124,7 @@ class DashboardSerializer(serializers.Serializer):
 
 
 class ModuleDescriptorSerializer(serializers.Serializer):
+    data_io_resources = serializers.ListField(child=serializers.CharField(), required=False)
     key = serializers.CharField()
     title = serializers.CharField()
     enabled = serializers.BooleanField()
@@ -134,6 +139,7 @@ class ScopeResourceSerializer(serializers.Serializer):
 
 
 class ModuleCapabilitiesSerializer(serializers.Serializer):
+    field_policy_resources = serializers.DictField(child=serializers.ListField(child=serializers.CharField()), read_only=True)
     contract_version = serializers.IntegerField()
     preset = serializers.CharField()
     modules = ModuleDescriptorSerializer(many=True)

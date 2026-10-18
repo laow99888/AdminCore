@@ -19,9 +19,12 @@ def enabled(channel):
 
 
 def inapp(delivery, recipient):
-    if Notification.push(recipient_ids=[recipient.pk], title=delivery.subject, content=delivery.body,
-                         notification_type='system', sender=delivery.creator, dedupe_key='message:' + str(delivery.pk)) not in (0, 1):
-        raise RuntimeError('inapp_delivery_failed')
+    from apps.core.tenancy import tenant_context
+    with tenant_context(delivery.tenant_id):
+        if Notification.push(recipient_ids=[recipient.pk], title=delivery.subject, content=delivery.body,
+                             notification_type='system', sender=delivery.creator, dedupe_key='message:' + str(delivery.pk),
+                             event_code='template.message') not in (0, 1):
+            raise RuntimeError('inapp_delivery_failed')
 
 
 def email(delivery, recipient):

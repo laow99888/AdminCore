@@ -9,10 +9,13 @@ def authorize_write(request, code=None, *, admin=False, related_users=()):
     from apps.permissions.permissions import has_permission_code
     if not connection.in_atomic_block:
         raise RuntimeError('Write authorization requires an atomic transaction')
-    rows = list(get_user_model().objects.select_for_update().filter(
+    # PostgreSQL 的 NO KEY UPDATE 仍串行化用户授权变更，允许其他事务做用户外键检查。
+    # FOR UPDATE 会与并发审批新增步骤的 KEY SHARE 相互等待，形成用户→申请→用户死锁。
+    lock_options = {'no_key': True} if connection.features.has_select_for_no_key_update else {}
+    rows = list(get_user_model().objects.select_for_update(**lock_options).filter(
         pk__in={request.user.pk, *related_users}).order_by('pk'))
     actor = next((row for row in rows if row.pk == request.user.pk), None)
-    if actor is None or not actor.is_active:
+    if actor is None or actor.is_service_account or not actor.is_active:
         raise AuthenticationFailed('登录凭据已撤销，请重新登录')
     if request.auth is not None:
         from .sessions import locked_request_session

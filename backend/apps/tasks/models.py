@@ -115,6 +115,7 @@ class ImportBatch(BaseModel):
     source_sha256 = models.CharField(max_length=64)
     resource = models.CharField(max_length=100)
     active_record = models.ForeignKey(TaskRecord, on_delete=models.SET_NULL, null=True, related_name='+')
+    options = models.JSONField(default=dict)
 
 
 class ImportExecution(models.Model):
@@ -137,6 +138,7 @@ class ImportRowReceipt(models.Model):
     row = models.PositiveIntegerField()
     created = models.BooleanField()
     error = models.CharField(max_length=300, blank=True)
+    outcome = models.CharField(max_length=12, blank=True)
     objects = TenantManager()
 
     class Meta:

@@ -1,6 +1,20 @@
 <template>
+  <OnlineFileInput
+    v-if="field.type === 'file'"
+    :id="id"
+    :label="field.label"
+    :context="attachmentContext"
+    :model-value="modelValue"
+    :disabled="disabled"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
+  <OnlineRelationInput
+    v-else-if="field.type === 'relation'"
+    :id="id" :label="field.label" :context="attachmentContext" :model-value="modelValue" :disabled="disabled"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
   <el-input
-    v-if="['text', 'textarea', 'decimal'].includes(field.type)"
+    v-else-if="['text', 'textarea', 'decimal'].includes(field.type)"
     :id="id"
     :aria-label="field.label"
     :model-value="String(modelValue ?? '')"
@@ -8,6 +22,7 @@
     :inputmode="field.type === 'decimal' ? 'decimal' : undefined"
     :maxlength="field.max_length"
     :placeholder="field.placeholder"
+    :disabled="disabled"
     @update:model-value="emit('update:modelValue', $event)"
   />
   <el-input-number
@@ -57,7 +72,16 @@
 </template>
 <script setup lang="ts">
 import type { OnlineFormField } from "@/api";
-defineProps<{ field: OnlineFormField; modelValue?: unknown; id: string }>();
+import type { OnlineAttachmentContext } from '@/api/onlineFormAttachments';
+import OnlineFileInput from './OnlineFileInput.vue';
+import OnlineRelationInput from './OnlineRelationInput.vue';
+defineProps<{
+  field: OnlineFormField;
+  modelValue?: unknown;
+  id: string;
+  disabled?: boolean;
+  attachmentContext?: OnlineAttachmentContext;
+}>();
 const emit = defineEmits<{ "update:modelValue": [value: unknown] }>();
 </script>
 <style scoped>

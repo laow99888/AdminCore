@@ -65,6 +65,8 @@ class UserListSerializer(MaskedContactSerializerMixin, serializers.ModelSerializ
 class UserRoleAssignmentMixin:
     """仅管理员可以赋予角色，避免用户管理权限变成提权入口。"""
     def validate(self, attrs):
+        if 'is_service_account' in self.initial_data or (self.instance and self.instance.is_service_account):
+            raise serializers.ValidationError('机器身份请使用独立管理入口')
         attrs = super().validate(attrs)
         roles = attrs.get('assigned_roles')
         if roles is not None:

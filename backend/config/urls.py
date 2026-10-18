@@ -13,6 +13,7 @@ from apps.core.views import ModuleCapabilitiesView
 from apps.core.modules import MODULES, module_enabled
 from apps.core.system_views import BrandView
 from apps.core.api_lifecycle import api_versions
+from apps.core.business_search import BusinessSearchView
 
 urlpatterns = [
     # 管理后台
@@ -27,6 +28,7 @@ urlpatterns = [
     path('api/v1/reliability/', include('apps.core.event_urls')),
     path('api/v1/modules/', ModuleCapabilitiesView.as_view(), name='module-capabilities'),
     path('api/v1/brand/', BrandView.as_view(), name='brand'),
+    path('api/v1/business-search/', BusinessSearchView.as_view(), name='business-search'),
 
     # API 文档
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),

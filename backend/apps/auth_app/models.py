@@ -17,6 +17,7 @@ class User(AbstractUser):
     avatar = models.URLField(blank=True, verbose_name='头像')
     phone = EncryptedPhoneField(max_length=20, blank=True, verbose_name='电话')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
+    is_service_account = models.BooleanField(default=False, editable=False, verbose_name='机器集成身份')
     last_login_ip = models.GenericIPAddressField(null=True, blank=True, verbose_name='最后登录 IP')
     login_count = models.IntegerField(default=0, verbose_name='登录次数')
     session_version = models.PositiveIntegerField(default=0, verbose_name='登录凭据版本')
@@ -41,13 +42,25 @@ class User(AbstractUser):
     def email_verified(self):
         return bool(self.verified_email and self.verified_email == self.email.strip().casefold())
 
+    def set_password(self, raw_password):
+        if self.is_service_account and raw_password is not None:
+            from django.core.exceptions import ValidationError
+            raise ValidationError('机器身份不能设置登录密码')
+        return super().set_password(raw_password)
+
     @transaction.atomic
     def save(self, *args, **kwargs):
         # 所有 Model.save 写入口（本人资料、后台用户编辑及 Django admin）统一撤销旧归属。
         fields = kwargs.get('update_fields')
         email_changed = False
         previous = type(self).objects.select_for_update().filter(pk=self.pk).values(
-            'email', 'verified_email', 'is_active', 'session_version').first()
+            'email', 'verified_email', 'is_active', 'session_version', 'is_service_account').first()
+        from django.core.exceptions import ValidationError
+        if previous and previous['is_service_account'] != self.is_service_account:
+            raise ValidationError('普通用户和机器身份不能互相转换')
+        if self.is_service_account and (self.has_usable_password() or self.is_staff or self.is_superuser
+                                        or self.email or self.verified_email or self.phone):
+            raise ValidationError('机器身份禁止交互密码、管理身份和个人联系方式')
         deactivated = bool(previous and previous['is_active'] and not self.is_active
                            and (fields is None or 'is_active' in fields))
         if previous and (fields is None or 'session_version' in fields or deactivated):

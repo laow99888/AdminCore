@@ -4,6 +4,7 @@
       <template #header
         ><div class="head">
           <h2>{{ uiText(schema.title) }}</h2>
+          <BusinessDataIO v-if="businessIO" :resource="resource" :structure="schema.structure" :filters="{ ...applied, ...(ordering ? { ordering } : {}), ...(advanced.conditions.length ? { advanced: JSON.stringify(advanced) } : {}) }" :loading="busy || loading" @completed="load" />
           <BaseButton
             v-if="can('create')"
             variant="primary"
@@ -79,6 +80,17 @@
           uiText("重置")
         }}</el-button>
       </el-form>
+      <GeneratedQueryWorkbench
+        v-if="can('read') && guard.isSessionCurrent()" :key="'query-' + scopeRevision"
+        :endpoint="endpoint" :fields="queryFields" :current="queryDefinition"
+        :owner="queryOwner" :administrator="!!(auth.user?.is_staff || auth.user?.is_superuser)"
+        :disabled="loading || busy || bulkBusy" @apply="applyQuery"
+      />
+      <GeneratedBulkDelete
+        v-if="can('read') && can('delete') && guard.isSessionCurrent()" :key="'bulk-' + scopeRevision"
+        :endpoint="endpoint" :selection="selection" :disabled="loading || busy"
+        @clear="selection = []" @completed="bulkCompleted" @busy="bulkBusy = $event"
+      />
       <el-alert
         v-if="listError"
         :title="uiText('列表加载失败，请刷新重试')"
@@ -87,9 +99,12 @@
       />
       <el-alert v-if="operationError" :title="operationError" type="error" :closable="false" role="alert" />
       <BaseTable
+        :preference-key="'generated.' + schema.module"
         :data="rows"
         :columns="columns"
         :loading="loading"
+        :selectable="can('delete') && !bulkBusy"
+        :selection-ids="selection.map(item => item.id)"
         :total="total"
         :current-page="page"
         :page-size="pageSize"
@@ -97,6 +112,7 @@
         @update:current-page="changePage"
         @update:page-size="changeSize"
         @sort-change="sort"
+        @selection-change="selectRows"
       >
         <template #actions="{ row }"
           ><el-button
@@ -167,10 +183,11 @@
               :label="uiText(field.label)"
               :endpoint="endpoint"
               :field-key="field.name"
+              :disabled="saving || readOnly || !fieldAllowed(field.name, 'write')"
               :selected-label="form.display_labels?.[field.name]"
           /></el-form-item>
           <el-form-item
-            v-if="schema.structure === 'tree'"
+            v-if="schema.structure === 'tree' && fieldAllowed('parent', 'read')"
             :label="uiText('父节点')"
             ><GeneratedFieldInput
               v-model="form.parent"
@@ -178,17 +195,18 @@
               :label="uiText('父节点')"
               :endpoint="endpoint"
               field-key="parent"
+              :disabled="saving || readOnly || !fieldAllowed('parent', 'write')"
           /></el-form-item>
         </div>
         <section
-          v-for="detail in schema.details"
+          v-for="detail in visibleDetails"
           :key="detail.name"
           class="detail-group"
         >
           <div class="head">
             <h3>{{ uiText(detail.label) }}</h3>
             <el-button
-              :disabled="form[detail.name].length >= (detail.max_rows ?? 100)"
+              :disabled="saving || readOnly || !detailWritable(detail) || form[detail.name].length >= (detail.max_rows ?? 100)"
               @click="addLine(detail)"
               >{{ uiText("添加明细") }}</el-button
             >
@@ -203,7 +221,7 @@
               <span>{{ uiText("明细") }} {{ Number(index) + 1 }}</span
               ><el-button
                 :aria-label="uiText('删除明细') + ' ' + (Number(index) + 1)"
-                :disabled="form[detail.name].length <= (detail.min_rows ?? 0)"
+                :disabled="saving || readOnly || !detailWritable(detail) || form[detail.name].length <= (detail.min_rows ?? 0)"
                 @click="form[detail.name].splice(index, 1)"
                 >{{ uiText("删除") }}</el-button
               >
@@ -211,7 +229,7 @@
             <div class="field-grid">
               <el-form-item
                 v-for="field in detail.fields.filter(
-                  (item) => item.form !== false,
+                  (item) => item.form !== false && fieldAllowed(detail.name + '.' + item.name, 'read'),
                 )"
                 :key="field.name"
                 :label="uiText(field.label)"
@@ -228,6 +246,7 @@
                   "
                   :endpoint="endpoint"
                   :field-key="detail.name + '.' + field.name"
+                  :disabled="saving || readOnly || !detailWritable(detail)"
                   :selected-label="line.display_labels?.[field.name]"
               /></el-form-item>
             </div>
@@ -236,7 +255,7 @@
       </el-form>
       <dl v-if="readOnly">
         <template
-          v-for="field in schema.fields.filter((item) => item.form === false)"
+          v-for="field in schema.fields.filter((item) => item.form === false && fieldAllowed(item.name, 'read'))"
           :key="field.name"
           ><dt>{{ uiText(field.label) }}</dt>
           <dd>{{ display(field, form[field.name]) }}</dd></template
@@ -247,7 +266,7 @@
 </template>
 <script setup lang="ts">
 import "./messages";
-import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
 import { BaseButton, BaseCard, BaseDialog, BaseTable } from "@/components";
 import AppLayout from "@/components/layout/AppLayout.vue";
@@ -263,8 +282,13 @@ import { useModuleStore } from "@/stores/modules";
 import { useUnsavedChanges } from "@/composables/useUnsavedChanges";
 import { useEditConflict } from "@/composables/useEditConflict";
 import { uiText } from "@/i18n/uiText";
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import GeneratedFieldInput from "./GeneratedFieldInput.vue";
+import GeneratedQueryWorkbench from './GeneratedQueryWorkbench.vue';
+import GeneratedBulkDelete from './GeneratedBulkDelete.vue';
+import { emptyAdvanced, type AdvancedQuery, type QueryDefinition, type SelectedRecord } from './queryTypes';
+import { useTenantStore } from '@/stores/tenants';
+import { sessionIdentity } from '@/auth/sessionIdentity';
 import {
   defaultValues,
   type GeneratedDetail,
@@ -273,6 +297,7 @@ import {
 } from "./types";
 const props = defineProps<{ schema: GeneratedSchema }>();
 const router = useRouter();
+const route = useRoute();
 const editable = (row: Row) => !props.schema.approval || ['draft', 'rejected', 'cancelled'].includes(row.approval_status);
 const approvalLabel = (value: unknown) => uiText(({ draft: '草稿', pending: '审批中', approved: '已通过', rejected: '已驳回', cancelled: '已撤回' } as Record<string, string>)[String(value)] || String(value ?? ''));
 // 业务字段由服务端生成的固定 schema 约束；表单需要同时保存标量和多组明细。
@@ -280,9 +305,22 @@ type Row = { id: string; version: number; [key: string]: any };
 const auth = useAuthStore(),
   modules = useModuleStore(),
   resource = props.schema.module;
+const tenants = useTenantStore();
+const scopeRevision = ref(0), bulkBusy = ref(false);
+const selection = ref<SelectedRecord[]>([]);
+const advanced = ref<AdvancedQuery>(emptyAdvanced());
+const queryOwner = computed(() => JSON.stringify([auth.user?.id || '', tenants.currentId, resource]));
+const queryDefinition = computed<QueryDefinition>(() => ({ filters: { ...applied.value }, advanced: advanced.value, ordering: ordering.value }));
 const endpoint = "/" + resource.replace(/_/g, "-") + "/records/";
+const BusinessDataIO = defineAsyncComponent(() => import('./BusinessDataIO.vue'));
+const businessIO = computed(() => modules.enabled('data_io') && modules.config?.modules?.some(module => module.key === resource && module.enabled && module.data_io_resources?.includes(resource)));
 const can = (action: string) =>
   modules.enabled(resource) && auth.can(resource + ":" + action);
+type FieldPolicy = { read: string[]; write: string[] };
+const fieldPolicy = ref<FieldPolicy | null>(null);
+const fieldAllowed = (name: string, action: 'read' | 'write') => !fieldPolicy.value || fieldPolicy.value[action].includes(name);
+const detailWritable = (detail: GeneratedDetail) => fieldAllowed(detail.name, 'write') && detail.fields.every(field => fieldAllowed(detail.name + '.' + field.name, 'write'));
+const visibleDetails = computed(() => props.schema.details.filter(detail => fieldAllowed(detail.name, 'read')));
 const rows = ref<Row[]>([]),
   total = ref(0),
   page = ref(1),
@@ -291,7 +329,7 @@ const rows = ref<Row[]>([]),
   listError = ref(false);
 const filters = reactive<Record<string, string>>({}),
   applied = ref<Record<string, string>>({}),
-  ordering = ref((props.schema.ordering ?? []).join(","));
+  ordering = ref(""); // 默认排序交给服务端，服务端会剔除无读取权限的业务排序字段。
 const parents = ref<{ id: string; label: string }[]>([]),
   opened = ref(false),
   saving = ref(false),
@@ -306,14 +344,15 @@ const form = reactive<Row>({ id: "", version: 0 }),
       saving.value ||
       removing.value ||
       fetching.value ||
+      bulkBusy.value ||
       conflict.loading.value,
   );
 const formFields = computed(() =>
-    props.schema.fields.filter((field) => field.form !== false),
+    props.schema.fields.filter((field) => field.form !== false && fieldAllowed(field.name, 'read')),
   ),
   queryFields = computed(() =>
     props.schema.fields.filter(
-      (field) => field.query && field.query !== "none",
+      (field) => field.query && field.query !== "none" && fieldAllowed(field.name, 'read'),
     ),
   );
 const parentField: GeneratedField = {
@@ -392,7 +431,7 @@ function display(
 }
 const columns = computed(() =>
   props.schema.fields
-    .filter((field) => field.list !== false)
+    .filter((field) => field.list !== false && fieldAllowed(field.name, 'read'))
     .map((field) => ({
       prop: field.name,
       label: uiText(field.label),
@@ -437,12 +476,13 @@ async function load() {
   }
   loading.value = true;
   try {
-    const response = await request.get<ApiResponse<PagedData<Row>>>(endpoint, {
+    const response = await request.get<ApiResponse<PagedData<Row> & { field_permissions?: FieldPolicy }>>(endpoint, {
       params: {
         ...applied.value,
         page: page.value,
         page_size: pageSize.value,
         ...(ordering.value ? { ordering: ordering.value } : {}),
+        ...(advanced.value.conditions.length ? { advanced: JSON.stringify(advanced.value) } : {}),
         ...(props.schema.structure === "tree"
           ? { parent: parents.value[parents.value.length - 1]?.id ?? "root" }
           : {}),
@@ -452,15 +492,24 @@ async function load() {
     if (current === generation && guard.isSessionCurrent() && can("read")) {
       rows.value = response.data.data.items;
       total.value = response.data.data.pagination.total;
+      fieldPolicy.value = response.data.data.field_permissions ?? null;
     }
-  } catch {
-    if (current === generation && guard.isSessionCurrent())
+  } catch (failure) {
+    if (current === generation && guard.isSessionCurrent() && responseStatus(failure) === 403 &&
+      (Object.keys(applied.value).length || advanced.value.conditions.length || ordering.value)) {
+      selection.value = []; advanced.value = emptyAdvanced(); applied.value = {}; ordering.value = '';
+      for (const name of Object.keys(filters)) delete filters[name];
+      scopeRevision.value++; page.value = 1;
+      operationError.value = uiText('查询权限已变化，已清空条件，请重新筛选');
+      await load();
+    } else if (current === generation && guard.isSessionCurrent())
       listError.value = true;
   } finally {
     if (current === generation) loading.value = false;
   }
 }
 function search() {
+  selection.value = [];
   applied.value = Object.fromEntries(
     Object.entries(filters).filter(([, value]) => value !== ""),
   );
@@ -468,6 +517,7 @@ function search() {
   void load();
 }
 function resetFilters() {
+  advanced.value = emptyAdvanced();
   for (const name of Object.keys(filters)) delete filters[name];
   search();
 }
@@ -481,6 +531,7 @@ function changeSize(value: number) {
   void load();
 }
 function sort(value: { prop: string; order: string | null }) {
+  selection.value = [];
   ordering.value = value.order
     ? (value.order === "descending" ? "-" : "") + value.prop
     : (props.schema.ordering ?? []).join(",");
@@ -488,6 +539,7 @@ function sort(value: { prop: string; order: string | null }) {
   void load();
 }
 function down(row: Row) {
+  selection.value = [];
   parents.value.push({
     id: row.id,
     label: String(
@@ -501,6 +553,7 @@ function down(row: Row) {
   void load();
 }
 function up() {
+  selection.value = [];
   parents.value.pop();
   page.value = 1;
   void load();
@@ -519,7 +572,7 @@ function edit(row?: Row) {
 function inspect(row: Row) {
   if (!busy.value && can("read")) void openRow(row, true);
 }
-async function openRow(row: Row, readonly: boolean) {
+async function openRow(row: Pick<Row, 'id'>, readonly: boolean) {
   const current = ++detailGeneration;
   fetching.value = true;
   try {
@@ -548,9 +601,9 @@ function addLine(detail: GeneratedDetail) {
 }
 function payload() {
   const value: Record<string, unknown> = { version: form.version };
-  for (const field of formFields.value) value[field.name] = form[field.name];
-  if (props.schema.structure === "tree") value.parent = form.parent;
-  for (const detail of props.schema.details)
+  for (const field of formFields.value.filter(field => fieldAllowed(field.name, 'write'))) value[field.name] = form[field.name];
+  if (props.schema.structure === "tree" && fieldAllowed('parent', 'write')) value.parent = form.parent;
+  for (const detail of props.schema.details.filter(detailWritable))
     value[detail.name] = form[detail.name].map(
       (line: Record<string, unknown>) =>
         Object.fromEntries(
@@ -632,14 +685,41 @@ async function approvalAction(row: Row, operation: 'submit' | 'withdraw') {
     if (failure !== 'cancel' && failure !== 'close' && guard.isSessionCurrent()) operationError.value = uiText('审批操作失败，请刷新记录后重试');
   } finally { removing.value = false; }
 }
+function applyQuery(value: QueryDefinition) {
+  if (busy.value || bulkBusy.value || !guard.isSessionCurrent()) return;
+  for (const name of Object.keys(filters)) delete filters[name];
+  Object.assign(filters, value.filters);
+  applied.value = { ...value.filters };
+  advanced.value = JSON.parse(JSON.stringify(value.advanced));
+  ordering.value = value.ordering;
+  selection.value = []; page.value = 1;
+  void load();
+}
+function selectRows(value: Row[]) {
+  if (loading.value || busy.value || bulkBusy.value) return;
+  const pageIds = new Set(rows.value.map(row => row.id));
+  const selected = new Map(selection.value.filter(row => !pageIds.has(row.id)).map(row => [row.id, row]));
+  const existing = new Map(selection.value.map(row => [row.id, row]));
+  for (const row of value) if (existing.has(row.id)) selected.set(row.id, existing.get(row.id)!);
+  for (const row of value) if (selected.size < 100) selected.set(row.id, existing.get(row.id) || { id: row.id, version: row.version });
+  selection.value = [...selected.values()];
+  if (value.length + selection.value.filter(row => !pageIds.has(row.id)).length > 100) operationError.value = uiText('跨页最多选择100条记录');
+}
+function bulkCompleted() { selection.value = []; void load(); }
 watch(
-  () => [
+  () => JSON.stringify([
     auth.user?.id,
-    auth.token,
-    JSON.stringify(auth.user?.permissions),
-    JSON.stringify(modules.config),
-  ],
+    sessionIdentity(auth.token),
+    auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password,
+    modules.config,
+    tenants.currentId,
+  ]),
   () => {
+    guard.discard();
+    scopeRevision.value++;
+    selection.value = []; advanced.value = emptyAdvanced(); applied.value = {}; ordering.value = '';
+    for (const name of Object.keys(filters)) delete filters[name];
+    parents.value = []; page.value = 1; bulkBusy.value = false;
     detailGeneration++;
     fetching.value = false;
     if (!can("read") || !guard.isSessionCurrent()) {
@@ -647,8 +727,17 @@ watch(
       parents.value = [];
     }
     void load();
-  },
+  }, { flush: 'sync' },
 );
+watch(() => auth.user, () => { if (!busy.value && can('read') && guard.isSessionCurrent()) void load(); });
+watch(() => route.query.record, async (identifier) => {
+  if (typeof identifier !== 'string' || !/^[0-9a-f-]{36}$/i.test(identifier) || !can('read') || !guard.isSessionCurrent()) return;
+  const accepted = !busy.value && await guard.confirmDiscard();
+  if (route.query.record !== identifier || !guard.isSessionCurrent()) return;
+  if (accepted && !busy.value && can('read')) void openRow({ id: identifier }, true);
+  const query = { ...route.query }; delete query.record;
+  void router.replace({ path: route.path, query });
+}, { immediate: true });
 onBeforeUnmount(() => {
   generation++;
   detailGeneration++;

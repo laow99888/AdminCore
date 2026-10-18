@@ -12,6 +12,10 @@ MODULE = Module('files', '文件管理', 'files', 'apps.files.urls', ('/files',)
         ('file', 'purge', '彻底删除文件', 'file:purge'),
     ),
     audit_fields=(
+        ('file_document', ('id', 'version', 'current_file_id', 'restored_from')),
+        ('file_capacity', ('owner_id', 'limit_bytes', 'version')),
+        ('file_folder', ('id', 'owner_id', 'version', 'operation', 'content_sha256')),
+        ('file_organization', ('id', 'owner_id', 'version', 'operation', 'content_sha256')),
         ('file_scan', ('outcome', 'stage', 'sha256', 'bytes', 'engine', 'signature_sha256')),
         ('file', ('id', 'purpose', 'size', 'file_type', 'is_deleted', 'deleted_at', 'deleted_by', 'lifecycle_version')),
         ('file_transform', ('id', 'lifecycle_version', 'source_sha256', 'width', 'height', 'format', 'quality', 'watermark_sha256', 'opacity', 'position', 'output_sha256', 'size')),

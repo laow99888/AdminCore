@@ -18,9 +18,21 @@ def generated_sources():
         registered = schema.get('reports')
         if not registered:
             continue
+        details = {}
+        for detail in schema.get('details', []):
+            relation = model._meta.get_field(detail['name'])
+            # The generated contract owns this relation; clients never supply model paths.
+            child = relation.related_model
+            for field in detail['fields']:
+                if field['kind'] in {'integer', 'decimal'}:
+                    details[f"{detail['name']}.{field['name']}"] = {
+                        'group': detail['name'], 'field': field['name'], 'model': child,
+                    }
         result[declaration.key] = {'label': schema['title'], 'resource': declaration.key,
             'dimensions': set(registered['dimensions']), 'metrics': {'id', *registered['metrics']},
-            'filters': set(registered['filters']), 'model_class': model, 'service': service}
+            'filters': set(registered['filters']), 'model_class': model, 'service': service,
+            'detail_metrics': details}
+        result[declaration.key]['metrics'].update(details)
     return result
 
 
@@ -29,11 +41,41 @@ def source_specs():
     return {**generated_sources(), **DATA_SOURCES}
 
 
+def source_model(key, spec):
+    if 'model_class' in spec:
+        return spec['model_class']
+    from django.contrib.auth import get_user_model
+    from apps.tasks.models import TaskRecord
+    from apps.files.models import FileModel
+    return {'users': get_user_model(), 'tasks': TaskRecord, 'files': FileModel}[key]
+
+
+def field_types(key, spec):
+    model = source_model(key, spec)
+    types = {'DateField': 'date', 'DateTimeField': 'datetime', 'BooleanField': 'boolean',
+             'DecimalField': 'decimal', 'IntegerField': 'integer', 'PositiveIntegerField': 'integer',
+             'BigIntegerField': 'integer', 'PositiveBigIntegerField': 'integer'}
+    result = {}
+    for name in spec['dimensions'] | spec['metrics'] | spec['filters']:
+        detail = spec.get('detail_metrics', {}).get(name)
+        field = detail['model']._meta.get_field(detail['field']) if detail else model._meta.get_field(name)
+        result[name] = types.get(field.get_internal_type(), 'text')
+    return result
+
+
 def permitted_fields(user, key, spec):
     if 'service' in spec:
         if not has_permission_code(user, key + ':read'):
             return set()
-        return spec['dimensions'] | spec['metrics'] | spec['filters']
+        from apps.permissions.field_permissions import business_allowed_fields
+        declared = spec['dimensions'] | spec['metrics'] | spec['filters']
+        permitted = business_allowed_fields(user, key, 'read')
+        if permitted is None:
+            return declared
+        allowed = declared & (permitted | {'id', 'created_at', 'updated_at', 'approval_status'})
+        # Child fields need both the detail section and the individual scalar grant.
+        return {name for name in allowed if name not in spec.get('detail_metrics', {})
+                or spec['detail_metrics'][name]['group'] in permitted}
     from apps.permissions.field_permissions import allowed_fields
     return allowed_fields(user, spec['resource'], 'read')
 
