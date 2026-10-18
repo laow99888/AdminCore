@@ -41,6 +41,11 @@ export async function validateApprovalOperations({ page, name, evidence, expect,
   await page.screenshot({ path: resolve(evidence, `approval-${name}-return-dialog.png`), fullPage: true, animations: 'disabled' });
   await dialog.getByRole('button', { name: '确认', exact: true }).click();
   await expect(dialog).not.toBeVisible();
+  await expect(detail).not.toBeVisible();
+  row = page.getByRole('row').filter({ hasText: title });
+  await expect(row).toBeVisible();
+  await row.getByRole('button', { name: '详情', exact: true }).click();
+  detail = page.getByRole('dialog', { name: '申请详情', exact: true });
   await expect(detail).toContainText('浏览器退回重审');
   const returned = await get(`approvals/${app.id}/`);
   expect(returned.current_node).toBe('first'); expect(returned.return_count).toBe(1);
