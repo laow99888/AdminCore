@@ -98,7 +98,7 @@ from apps.cg_categories.manifest import MODULE as CATEGORIES
 from apps.cg_orders.manifest import MODULE as ORDERS
 modules.MODULES = (*modules.MODULES, SUPPLIERS, CATEGORIES, ORDERS)
 INSTALLED_APPS = [*INSTALLED_APPS, 'apps.cg_suppliers', 'apps.cg_categories', 'apps.cg_orders']
-ADMINCORE_MODULES = ('system', 'files', 'api_credentials', 'cg_suppliers', 'cg_categories', 'cg_orders')
+ADMINCORE_MODULES = ('system', 'files', 'tasks', 'data_io', 'api_credentials', 'cg_suppliers', 'cg_categories', 'cg_orders')
 MIGRATION_MODULES = {{'core': 'codegen_core_migrations'}}
 '''
         if args.integrations:

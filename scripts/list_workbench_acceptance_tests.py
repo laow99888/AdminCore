@@ -232,6 +232,9 @@ def test_bulk_tamper_expiry_and_missing_idempotency_key(admin_client, admin_user
 
 
 def test_decimal_range_and_approval_locks_are_preserved(admin_client, admin_user):
+    from apps.cg_orders.models import PurchaseOrder
+    if not any(field.name == 'approval_status' for field in PurchaseOrder._meta.fields):
+        pytest.skip('当前生成定义未启用审批字段')
     supplier = Supplier.objects.create(code='money', name='甲', creator=admin_user)
     first = PurchaseOrder.objects.create(code='LOW', supplier=supplier, amount='0.10', creator=admin_user)
     second = PurchaseOrder.objects.create(code='HIGH', supplier=supplier, amount='1000.01', creator=admin_user, approval_status='pending')

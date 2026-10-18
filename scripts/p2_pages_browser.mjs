@@ -105,7 +105,7 @@ async function report(page, name) {
   const ran = response(page, `reports/definitions/${row.data.id}/run/`, 'GET')
   await runButton.click()
   const data = (await (await ran).json()).data
-  expect(data.rows).toEqual([{ status: 'pending', value: 2 }, { status: 'success', value: 1 }])
+  expect(data.rows).toEqual([{ status: 'pending', m_count: 2 }, { status: 'success', m_count: 1 }])
   stage = 'report-chart-and-data'
   await expect(page.locator('.result')).toContainText('pending')
   await expect(page.locator('.base-chart canvas')).toBeVisible()
