@@ -53,6 +53,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { useLatestRead } from '@/composables/useLatestRead'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
@@ -118,7 +119,7 @@ watch(() => JSON.stringify([auth.user?.id, processingAllowed.value]), async () =
   } catch { /* 能力配置读取失败时撤下入口；原文件操作仍可用。 */ }
 }, { immediate: true })
 onBeforeUnmount(() => { processingGeneration++; processingController?.abort() })
-const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, modules.config]))
+const printOwner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, modules.config]))
 const printColumns = computed<PrintColumn<FileRow>[]>(() => [
   { label: uiText('文件名'), value: row => row.original_name },
   { label: uiText('类型'), value: row => row.file_type },

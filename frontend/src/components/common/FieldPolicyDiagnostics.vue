@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { registerUiMessages, uiText } from '@/i18n/uiText'
 import { diagnoseField, type FieldDiagnosticInput, type FieldDiagnosticResult } from '@/api/fieldDiagnostics'
@@ -69,7 +70,7 @@ const emit = defineEmits<{ close: [] }>()
 const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStore()
 const allowed = computed(() => !!(auth.user?.is_staff || auth.user?.is_superuser) && auth.can('role:read') && auth.can('user:read') && !auth.user?.must_change_password)
 const resources = computed(() => modules.config?.field_policy_resources || {})
-const owner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password, tenants.currentId, modules.config]))
+const owner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password, tenants.currentId, modules.config]))
 const form = reactive<FieldDiagnosticInput>({ user_id: '', resource: '', field: '', operation: 'read' })
 const validInput = computed(() => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(form.user_id) && (resources.value[form.resource] || []).includes(form.field))
 const operations = [{ value: 'read', label: '读取' }, { value: 'create', label: '新增' }, { value: 'update', label: '修改' }]

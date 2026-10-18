@@ -8,6 +8,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './relationMessages'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { onlineFormRelationsApi } from '@/api/onlineFormRelations'
@@ -27,7 +28,7 @@ async function load() {
   catch (err) { if (current === generation) failure.value = errorMessage(err, uiText('关联资源加载失败，请重试')) }
   finally { if (current === generation) loading.value = false }
 }
-watch(() => [auth.user?.id, auth.token, JSON.stringify(auth.user?.permissions), tenants.currentId], () => { void load() }, { immediate: true, flush: 'sync' })
+watch(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), JSON.stringify(auth.user?.permissions), tenants.currentId]), () => { void load() }, { immediate: true, flush: 'sync' })
 onBeforeUnmount(() => { generation++; controller?.abort() })
 </script>
 <style scoped>

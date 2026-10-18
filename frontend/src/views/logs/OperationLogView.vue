@@ -92,6 +92,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { uiText } from "@/i18n/uiText"
 
 import { computed, defineAsyncComponent, ref, watch, onMounted, onActivated, onDeactivated, onBeforeUnmount } from 'vue'
@@ -135,7 +136,7 @@ async function openAudit(id: string) {
   finally { if (current === auditGeneration) auditLoading.value = false }
 }
 const exportFilters = ref<{ search?: string }>({})
-const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
+const printOwner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions]))
 watch(printOwner, () => {
   virtual.value = false
   closeAudit(); generation++; loading.value = false; loadError.value = false; exportReady.value = false

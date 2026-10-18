@@ -24,6 +24,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { computed, onScopeDispose, reactive, ref, watch } from 'vue'
 import { reportsApi, type ReportCatalogItem, type ReportDefinition } from '@/api'
 import { displayValue, type DashboardDesign, type ReportOutput, type ReportResult, type ReportRunOptions, type ReportDetails } from '@/api/reportTypes'
@@ -48,7 +49,7 @@ let generation = 0, active = true, controller: AbortController | undefined
 const detailsOpen = ref(false), detailBusy = ref(false), detailError = ref(''), detailPage = ref(1), detailResult = ref<ReportDetails | null>(null)
 let detailGeneration = 0, detailController: AbortController | undefined, detailRequest: { widget: string; group: Record<string,unknown>; options?: ReportRunOptions } | undefined
 function cancel() { generation++; detailGeneration++; controller?.abort(); detailController?.abort(); output.value = null; detailResult.value = null; detailsOpen.value = false; busy.value = false; detailBusy.value = false }
-watch(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, modules.config]), cancel, { flush: 'sync' })
+watch(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, modules.config]), cancel, { flush: 'sync' })
 onScopeDispose(() => { active = false; cancel() })
 function defaults() { Object.keys(filters).forEach(key => delete filters[key]); design.value?.filters.forEach(item => { filters[item.key] = JSON.parse(JSON.stringify(item.value)) }); Object.keys(validity).forEach(key => delete validity[key]); selection.value = undefined }
 watch(() => props.initial, value => { cancel(); output.value = value; defaults(); appliedOptions.value = options() }, { immediate: true })

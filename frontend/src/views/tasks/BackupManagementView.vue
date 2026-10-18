@@ -41,6 +41,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AppLayout, BaseCard, BaseButton } from '@/components'
 import { useAuthStore } from '@/stores/auth'
@@ -94,7 +95,7 @@ async function submitRestore() {
   } finally { if (!signal.aborted) busy.value = false }
 }
 watch(dialog, value => { if (!value) { password.value = ''; confirmation.value = ''; preflight.value = null } })
-watch(() => [auth.user?.id, auth.token, canRead.value, canRestore.value], () => {
+watch(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), canRead.value, canRestore.value]), () => {
   controller.abort(); controller = new AbortController(); data.value = null; password.value = ''; dialog.value = false; preflight.value = null; loading.value = false; busy.value = false
   if (canRead.value && alive) void load()
 }, { flush: 'sync' })

@@ -26,6 +26,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './attachmentMessages'
 import { computed, defineAsyncComponent, onBeforeUnmount, ref, watch } from 'vue'
 import { useFormDisabled } from 'element-plus'
@@ -94,8 +95,8 @@ async function download() {
   if (!selected.value || !auth.can('file:download')) return
   await downloadFile(filesApi.downloadUrl(selected.value.id), selected.value.original_name).catch(() => {})
 }
-watch(() => [JSON.stringify(props.context), props.id, props.modelValue, auth.user?.id, auth.token,
-  JSON.stringify(auth.user?.permissions), tenants.currentId], () => { reset(); if (props.modelValue) void load(true) }, { immediate: true, flush: 'sync' })
+watch(() => JSON.stringify([JSON.stringify(props.context), props.id, props.modelValue, auth.user?.id, sessionIdentity(auth.token),
+  JSON.stringify(auth.user?.permissions), tenants.currentId]), () => { reset(); if (props.modelValue) void load(true) }, { immediate: true, flush: 'sync' })
 watch(formDisabled, () => { reset(); if (props.modelValue) void load(true) }, { flush: 'sync' })
 onBeforeUnmount(reset)
 </script>

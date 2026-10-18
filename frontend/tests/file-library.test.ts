@@ -18,9 +18,10 @@ const file = { id: 'file', original_name: '合同.txt', organization: { version:
 const wrappers: ReturnType<typeof mount>[] = []
 beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); setActivePinia(createPinia()); vi.mocked(fileLibraryApi.load).mockResolvedValue(structuredClone(library)) })
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); vi.restoreAllMocks() })
-async function setup() {
+function token(sid = 'session', session_version = 1, jti = 'initial') { return `header.${btoa(JSON.stringify({ sid, user_id: 'owner', session_version, jti }))}.signature` }
+async function setup(access = 'session') {
   const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStore()
-  auth.token = 'session'; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', is_staff: false, permissions: [] }
+  auth.token = access; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', is_staff: false, permissions: [] }
   modules.config = { contract_version: 1, preset: 'standard', modules: [{ key: 'files', title: '文件', enabled: true, dependencies: [], paths: ['/files'] }] }
   const wrapper = mount(FileLibraryToolbar, { props: { file: null }, global: { plugins: [ElementPlus], stubs: { ElDialog: Dialog } } })
   wrappers.push(wrapper); await flushPromises()
@@ -55,6 +56,22 @@ it('新建、版本化编辑且排除自身及后代作为父目录', async () =
   expect(options.textContent).toContain('根目录'); expect(options.textContent).not.toContain('合同')
   await editor.get('input').setValue('归档'); await editor.get('form').trigger('submit'); await flushPromises()
   expect(fileLibraryApi.saveFolder).toHaveBeenCalledWith(expect.objectContaining({ ...folder, name: '归档' }), '归档', null)
+})
+it('正常令牌轮换保留目录草稿和筛选，进行中的保存继续成功', async () => {
+  let resolve!: (value: typeof folder) => void
+  vi.mocked(fileLibraryApi.createFolder).mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  const { wrapper, auth } = await setup(token()); await newFolder(wrapper)
+  await wrapper.get('input[aria-label="文件关键词"]').setValue('待办合同')
+  await wrapper.get('[role="dialog"] form').trigger('submit')
+  const closeCount = wrapper.emitted('close')?.length ?? 0
+  auth.token = token('session', 1, 'rotated'); await flushPromises()
+  expect(wrapper.get('input[aria-label="目录名称"]').element).toHaveProperty('value', '新合同')
+  expect(wrapper.get('input[aria-label="文件关键词"]').element).toHaveProperty('value', '待办合同')
+  expect(wrapper.emitted('close')?.length ?? 0).toBe(closeCount)
+  expect(fileLibraryApi.load).toHaveBeenCalledTimes(1)
+  resolve(folder); await flushPromises()
+  expect(wrapper.emitted('updated')).toHaveLength(1)
+  expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
 })
 
 it('整理提交带独立版本和标签；失败保留输入并可重试', async () => {

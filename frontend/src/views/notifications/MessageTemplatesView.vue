@@ -54,6 +54,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, reactive, ref, watch } from 'vue'
@@ -200,7 +201,7 @@ async function loadHistory() {
 }
 watch(historyOpen, open => { if (!open) clearHistory() }, { flush: 'sync' })
 function clearSensitive() { generation++; listController?.abort(); templates.value = []; deliveries.value = []; loading.value = false; total.value = 0; clearDraft(); historyOpen.value = false; clearHistory() }
-watch(() => JSON.stringify([auth.token, auth.user?.id, auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password, modules.enabled('notifications')]), () => { clearSensitive(); if (canRead.value) void load() }, { flush: 'sync' })
+watch(() => JSON.stringify([sessionIdentity(auth.token), auth.user?.id, auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password, modules.enabled('notifications')]), () => { clearSensitive(); if (canRead.value) void load() }, { flush: 'sync' })
 onMounted(load)
 onActivated(() => { if (!active.value) { active.value = true; void load() } })
 onDeactivated(() => { active.value = false; clearSensitive() })

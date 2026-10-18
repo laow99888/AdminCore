@@ -2,6 +2,7 @@ import { onMounted, onActivated, onDeactivated, onUnmounted, watch } from 'vue'
 import { REALTIME_EVENT, type RealtimeTopics } from '@/utils/realtime'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
+import { sessionIdentity } from '@/auth/sessionIdentity'
 
 /** 列表只重新取数，不覆盖编辑草稿；轮询作为流断线/未启用时的回退。 */
 export function useRealtimeUpdates(topic: keyof RealtimeTopics, refresh: () => Promise<void>, clear: () => void) {
@@ -39,7 +40,7 @@ export function useRealtimeUpdates(topic: keyof RealtimeTopics, refresh: () => P
     window.clearInterval(timer); window.clearTimeout(debounce)
     window.removeEventListener(REALTIME_EVENT, receive)
   }
-  watch([() => auth.user?.id, () => auth.token, () => auth.user?.must_change_password, () => JSON.stringify(auth.user?.permissions), () => modules.enabled(topic)], () => {
+  watch([() => auth.user?.id, () => sessionIdentity(auth.token), () => auth.user?.must_change_password, () => JSON.stringify(auth.user?.permissions), () => modules.enabled(topic)], () => {
     generation++; signature = ''; clear()
     if (allowed()) void load().catch(() => undefined)
   })

@@ -21,6 +21,7 @@ import { validateReportDeepening } from './report_deepening_browser.mjs';
 import { validateNotificationDigests } from './notification_digests_browser.mjs';
 import { validateCredentialRotation } from './credential_rotation_browser.mjs';
 import { validateServiceIdentities } from './service_identities_browser.mjs';
+import { browserSessionAPI } from './browser_session_api.mjs';
 const [workspace, evidence] = process.argv.slice(2);
 const require = createRequire(resolve(workspace, 'package.json'));
 const { chromium, devices, expect: baseExpect } = require('@playwright/test');
@@ -31,7 +32,7 @@ const checks = [], browser = await chromium.launch({ headless: true });
 let passed = false;
 try {
   for (const [name, device] of [['desktop', devices['Desktop Chrome']], ['mobile', devices['iPhone SE']]]) {
-    const context = await browser.newContext({ ...device, baseURL });
+    let context = await browser.newContext({ ...device, baseURL });
     await context.tracing.start({ screenshots: true, snapshots: true });
     const page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(String(error)));
@@ -41,8 +42,9 @@ try {
       await page.getByPlaceholder('密码', { exact: true }).fill(password);
       await page.getByRole('button', { name: '登录', exact: true }).click();
       await expect(page).toHaveURL(baseURL + '/');
-      const token = await page.evaluate(() => localStorage.getItem('token'));
-      const headers = { Authorization: 'Bearer ' + token };
+      const session = await browserSessionAPI(page, context);
+      context = session.context;
+      const { headers } = session;
       async function get(path) {
         const response = await context.request.get('/api/v1/' + path, { headers });
         expect(response.status()).toBe(200); const body = await response.json(); return body.data ?? body;
@@ -179,7 +181,7 @@ try {
   }
   // 附件历史用例保留撤回的订单；在两端报表基线验收结束后再创建，避免污染汇总夹具。
   for (const [name, device] of [['desktop', devices['Desktop Chrome']], ['mobile', devices['iPhone SE']]]) {
-    const context = await browser.newContext({ ...device, baseURL });
+    let context = await browser.newContext({ ...device, baseURL });
     await context.tracing.start({ screenshots: true, snapshots: true });
     const page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(String(error)));
@@ -189,8 +191,9 @@ try {
       await page.getByPlaceholder('密码', { exact: true }).fill(password);
       await page.getByRole('button', { name: '登录', exact: true }).click();
       await expect(page).toHaveURL(baseURL + '/');
-      const token = await page.evaluate(() => localStorage.getItem('token'));
-      const headers = { Authorization: 'Bearer ' + token };
+      const session = await browserSessionAPI(page, context);
+      context = session.context;
+      const { headers } = session;
       await validateFileReferences({ page, context, headers, name, evidence, expect, checks });
       await validateFileDocuments({ page, context, headers, name, evidence, expect, checks });
       await validateNotificationPreferences({ page, context, headers, name, evidence, expect, checks });
@@ -221,7 +224,7 @@ try {
   }
   // 一次性密钥不进入 trace/HAR 或失败截图，使用单独浏览器上下文。
   for (const [name, device] of [['desktop', devices['Desktop Chrome']], ['mobile', devices['iPhone SE']]]) {
-    const context = await browser.newContext({ ...device, baseURL });
+    let context = await browser.newContext({ ...device, baseURL });
     const page = await context.newPage(), errors = [];
     page.on('pageerror', error => errors.push(error.name));
     try {
@@ -230,9 +233,11 @@ try {
       await page.getByPlaceholder('密码', { exact: true }).fill(password);
       await page.getByRole('button', { name: '登录', exact: true }).click();
       await expect(page).toHaveURL(baseURL + '/');
-      const token = await page.evaluate(() => localStorage.getItem('token'));
-      await validateCredentialRotation({ page, context, headers: { Authorization: 'Bearer ' + token }, password, name, evidence, expect, checks });
-      await validateServiceIdentities({ page, context, headers: { Authorization: 'Bearer ' + token }, password, name, evidence, expect, checks });
+      const session = await browserSessionAPI(page, context);
+      context = session.context;
+      const { headers } = session;
+      await validateCredentialRotation({ page, context, headers, password, name, evidence, expect, checks });
+      await validateServiceIdentities({ page, context, headers, password, name, evidence, expect, checks });
       expect(errors).toEqual([]);
     } finally { await context.close(); }
   }

@@ -31,6 +31,7 @@
   </section>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './documentMessages'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -46,7 +47,7 @@ const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStor
 const allowed = computed(() => auth.can('file:read') && !auth.user?.must_change_password && modules.enabled('files'))
 const admin = computed(() => allowed.value && auth.can('file:upload') && Boolean(auth.user?.is_staff || auth.user?.is_superuser))
 const canSearch = computed(() => admin.value && auth.can('user:read') && modules.enabled('users'))
-const identity = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password, tenants.currentId, allowed.value, canSearch.value]))
+const identity = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, auth.user?.is_staff, auth.user?.is_superuser, auth.user?.must_change_password, tenants.currentId, allowed.value, canSearch.value]))
 const capacity = ref<FileCapacity | null>(null), loading = ref(false), failed = ref(false), managing = ref(false)
 const target = ref(''), targetCapacity = ref<FileCapacity | null>(null), targetLoading = ref(false), targetFailed = ref(false)
 const draft = ref<number | undefined>(0), busy = ref(false), saveError = ref(''), users = ref<UserRow[]>([]), searching = ref(false), searchFailed = ref(false)

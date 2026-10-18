@@ -39,13 +39,15 @@ export async function validateApprovalOperations({ page, name, evidence, expect,
   await dialog.getByLabel('操作原因', { exact: true }).fill('浏览器退回重审');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: resolve(evidence, `approval-${name}-return-dialog.png`), fullPage: true, animations: 'disabled' });
+  // 强制一次真实刷新，验证正常令牌轮换不会清空申请详情或吞掉操作记录。
+  await page.route(`**/api/v1/approvals/${app.id}/history/**`, route => route.fulfill({
+    status: 401, contentType: 'application/json', body: JSON.stringify({ detail: '验收模拟 access 到期' }),
+  }), { times: 1 });
+  const refreshed = page.waitForResponse(response => response.url().endsWith('/api/v1/auth/refresh/') && response.status() === 200);
   await dialog.getByRole('button', { name: '确认', exact: true }).click();
+  await refreshed;
   await expect(dialog).not.toBeVisible();
-  await expect(detail).not.toBeVisible();
-  row = page.getByRole('row').filter({ hasText: title });
-  await expect(row).toBeVisible();
-  await row.getByRole('button', { name: '详情', exact: true }).click();
-  detail = page.getByRole('dialog', { name: '申请详情', exact: true });
+  await expect(detail).toBeVisible();
   await expect(detail).toContainText('浏览器退回重审');
   const returned = await get(`approvals/${app.id}/`);
   expect(returned.current_node).toBe('first'); expect(returned.return_count).toBe(1);

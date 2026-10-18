@@ -72,6 +72,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './libraryMessages'
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -93,7 +94,7 @@ const filter = reactive<FileLibraryFilter>({ folder: '', tag: '', search: '' })
 const folderDraft = ref<(Omit<FileFolder, 'parent'> & { parent: string }) | null>(null)
 const draft = reactive({ version: 0, folder: '', tags: [] as string[] })
 let generation = 0, scopeGeneration = 0, active = true, controller: AbortController | null = null
-const identity = () => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, modules.config])
+const identity = () => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, modules.config])
 const current = () => { const owner = identity(), epoch = scopeGeneration; return () => active && epoch === scopeGeneration && identity() === owner }
 const folderOptions = computed(() => library.value.folders.map(folder => {
   const names = [folder.name], seen = new Set([folder.id]); let parent = folder.parent

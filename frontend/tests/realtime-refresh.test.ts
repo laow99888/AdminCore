@@ -5,6 +5,8 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import AppHeader from '../src/components/layout/AppHeader.vue'
 import { useRealtimeUpdates } from '../src/composables/useRealtimeUpdates'
+import { useLatestRead } from '../src/composables/useLatestRead'
+import { useEditConflict } from '../src/composables/useEditConflict'
 import { startRealtimeClient } from '../src/utils/realtime'
 import { useAuthStore } from '../src/stores/auth'
 import { useModuleStore } from '../src/stores/modules'
@@ -13,6 +15,8 @@ import { i18n } from '../src/i18n'
 
 vi.mock('../src/api', () => ({ notificationsApi: { unreadCount: vi.fn().mockResolvedValue(1) } }))
 vi.mock('../src/utils/realtime', async original => ({ ...await original<typeof import('../src/utils/realtime')>(), startRealtimeClient: vi.fn(() => vi.fn()) }))
+
+const jwt = (sid: string, generation: number, version = 1) => `fixture.${btoa(JSON.stringify({ sid, user_id: 'member', session_version: version, generation }))}.fixture`
 
 function setup() {
   const pinia = createPinia(); setActivePinia(pinia)
@@ -91,6 +95,39 @@ describe('权限刷新保留实时退避与已加载列表', () => {
     expect(clear).not.toHaveBeenCalled(); expect(refresh).not.toHaveBeenCalled(); expect(current()).toBe(true)
     auth.user!.permissions = []; await nextTick()
     expect(clear).toHaveBeenCalledOnce(); expect(refresh).not.toHaveBeenCalled(); expect(current()).toBe(false)
+    wrapper.unmount(); expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it.each(['session', 'version', 'permission'])('正常access刷新保留列表、历史读取和冲突草稿，%s 变化仍清理并失效', async change => {
+    const { pinia, auth } = setup()
+    auth.token = jwt('device', 1)
+    const refresh = vi.fn().mockResolvedValue(undefined), clearList = vi.fn(), clearRead = vi.fn()
+    let list!: ReturnType<typeof useRealtimeUpdates>, read!: ReturnType<typeof useLatestRead>
+    let conflict!: ReturnType<typeof useEditConflict<{ version: number }>>
+    let finish!: (value: { version: number }) => void
+    const fetch = vi.fn<(_: string, signal: AbortSignal) => Promise<{ version: number }>>().mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    const wrapper = mount(defineComponent({ setup() {
+      list = useRealtimeUpdates('tasks', refresh, clearList)
+      read = useLatestRead(clearRead)
+      conflict = useEditConflict({ identifier: () => 'row', current: () => true, fetch, apply: vi.fn() })
+      return () => h('div')
+    } }), { global: { plugins: [pinia] } })
+    const currentList = list(), currentRead = read()
+    conflict.mark(); const pending = conflict.inspect()
+    const signal = fetch.mock.calls[0]![1]
+    auth.token = jwt('device', 2); await nextTick()
+    expect(clearList).not.toHaveBeenCalled(); expect(clearRead).not.toHaveBeenCalled()
+    expect(currentList()).toBe(true); expect(currentRead()).toBe(true)
+    expect(conflict.active.value).toBe(true); expect(signal.aborted).toBe(false)
+    finish({ version: 2 }); await pending
+    expect(conflict.latest.value).toEqual({ version: 2 })
+    if (change === 'session') auth.token = jwt('replacement', 1)
+    if (change === 'version') auth.token = jwt('device', 3, 2)
+    if (change === 'permission') auth.user!.permissions = []
+    await nextTick()
+    expect(clearList).toHaveBeenCalledOnce(); expect(clearRead).toHaveBeenCalledOnce()
+    expect(currentList()).toBe(false); expect(currentRead()).toBe(false)
+    expect(conflict.active.value).toBe(false); expect(conflict.latest.value).toBeUndefined()
     wrapper.unmount(); expect(vi.getTimerCount()).toBe(0)
   })
 })

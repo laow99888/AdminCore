@@ -18,6 +18,19 @@ pytestmark = pytest.mark.django_db
 URL = '/api/v1/cg-orders/records/'
 
 
+def decimal_rows(rows, *metrics):
+    # SQLite SUM 返回额外尾零，PostgreSQL numeric 保留字段位数；均须是精确十进制字符串。
+    result = []
+    for row in rows:
+        row = dict(row)
+        for metric in metrics:
+            if row[metric] is not None:
+                assert isinstance(row[metric], str)
+                row[metric] = Decimal(row[metric])
+        result.append(row)
+    return result
+
+
 @pytest.fixture
 def business(admin_client, admin_user, member_user, monkeypatch):
     folder = Path(os.environ['ADMINCORE_INTEGRATION_EXAMPLES'])
@@ -134,7 +147,7 @@ def test_low_order_snapshot_approval_and_report(admin_client, admin_user, busine
     assert any(source['key'] == 'cg_orders' for source in catalog_for(admin_user))
     design = {'data_source': 'cg_orders', 'dimensions': [{'field': 'approval_status'}], 'metric': {'field': 'amount', 'aggregation': 'sum'}}
     report = execute_definition(admin_user, design)
-    assert report['rows'] == [{'approval_status': 'approved', 'value': '0.10'}]
+    assert decimal_rows(report['rows'], 'value') == [{'approval_status': 'approved', 'value': Decimal('0.10')}]
 
 
 def test_business_snapshot_and_report_respect_current_viewer_field_policy(admin_client, member_user, business):
@@ -220,7 +233,7 @@ def test_report_respects_business_permission_and_self_scope(admin_client, member
     RolePermission.objects.create(role=role, permission=permission)
     assert execute_definition(member_user, design)['rows'] == [{'value': None}]
     PurchaseOrder.objects.filter(pk=row['id']).update(creator=member_user)
-    assert execute_definition(member_user, design)['rows'] == [{'value': '0.10'}]
+    assert decimal_rows(execute_definition(member_user, design)['rows'], 'value') == [{'value': Decimal('0.10')}]
     with pytest.raises(ValidationError):
         validate_definition({**design, 'filters': [{'field': 'amount', 'operator': 'gte', 'value': 0.1}]})
     with pytest.raises(ValidationError):
@@ -265,9 +278,9 @@ def test_tenant_selection_and_report_exclude_other_tenant(admin_user, business, 
     design = {'data_source': 'cg_orders', 'dimensions': [], 'metric': {'field': 'amount', 'aggregation': 'sum'}}
     settings.ADMINCORE_MULTI_TENANT_ENABLED = True
     with tenant_context(a.pk):
-        assert execute_definition(admin_user, design)['rows'] == [{'value': '0.10'}]
+        assert decimal_rows(execute_definition(admin_user, design)['rows'], 'value') == [{'value': Decimal('0.10')}]
     with tenant_context(b.pk):
-        assert execute_definition(admin_user, design)['rows'] == [{'value': '0.20'}]
+        assert decimal_rows(execute_definition(admin_user, design)['rows'], 'value') == [{'value': Decimal('0.20')}]
 
 
 def purchase_board():
@@ -294,7 +307,7 @@ def test_purchase_board_exact_metrics_scope_tenant_and_revoke(admin_user, member
     one = business('0.10','B1'); two = business('0.20','B2')
     PurchaseOrder.objects.filter(pk=one['id']).update(creator=member_user)
     board = purchase_board()
-    assert run_design(member_user, board)['widgets'][1]['result']['rows'] == [{'m_amount': '0.10', 'm_count': 1}]
+    assert decimal_rows(run_design(member_user, board)['widgets'][1]['result']['rows'], 'm_amount') == [{'m_amount': Decimal('0.10'), 'm_count': 1}]
     details = design_details(member_user, board, {'widget': 'total'})
     assert details['columns'] == ['id','amount'] and len(details['rows']) == 1
     assert str(details['rows'][0]['id']) == one['id'] and details['rows'][0]['amount'] == '0.10'
@@ -302,8 +315,8 @@ def test_purchase_board_exact_metrics_scope_tenant_and_revoke(admin_user, member
     PurchaseOrder.objects.filter(pk=one['id']).update(tenant=a)
     PurchaseOrder.objects.filter(pk=two['id']).update(tenant=b)
     settings.ADMINCORE_MULTI_TENANT_ENABLED = True
-    with tenant_context(a.pk): assert run_design(admin_user, board)['widgets'][1]['result']['rows'] == [{'m_amount': '0.10', 'm_count': 1}]
-    with tenant_context(b.pk): assert run_design(admin_user, board)['widgets'][1]['result']['rows'] == [{'m_amount': '0.20', 'm_count': 1}]
+    with tenant_context(a.pk): assert decimal_rows(run_design(admin_user, board)['widgets'][1]['result']['rows'], 'm_amount') == [{'m_amount': Decimal('0.10'), 'm_count': 1}]
+    with tenant_context(b.pk): assert decimal_rows(run_design(admin_user, board)['widgets'][1]['result']['rows'], 'm_amount') == [{'m_amount': Decimal('0.20'), 'm_count': 1}]
     settings.ADMINCORE_MULTI_TENANT_ENABLED = False
     role.field_permissions = {'cg_orders': {'read': ['category'], 'write': []}}; role.save()
     with pytest.raises(PermissionError): run_design(member_user, board)
@@ -323,7 +336,7 @@ def test_purchase_date_bucket_timezone_and_details(admin_user, business, grain, 
     with override('Asia/Shanghai'):
         result = execute_definition(admin_user,query)
         assert result['rows'][0]['created_at'].isoformat() == expected
-        assert result['rows'][0]['m_amount'] == '0.10'
+        assert decimal_rows(result['rows'], 'm_amount')[0]['m_amount'] == Decimal('0.10')
         assert len(drill_down(admin_user,query,{'created_at': expected})['rows']) == 1
 
 

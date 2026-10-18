@@ -18,6 +18,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './relationMessages'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useFormDisabled } from 'element-plus'
@@ -56,8 +57,8 @@ async function load(resolve = false, append = false) {
 }
 function search(value: string) { query = value; page = 1; void load() }
 function loadMore() { if (!loading.value) { page++; void load(false, true) } }
-watch(() => [JSON.stringify(props.context), props.id, props.modelValue, auth.user?.id, auth.token,
-  JSON.stringify(auth.user?.permissions), tenants.currentId], () => { reset(); if (props.modelValue) void load(true) }, { immediate: true, flush: 'sync' })
+watch(() => JSON.stringify([JSON.stringify(props.context), props.id, props.modelValue, auth.user?.id, sessionIdentity(auth.token),
+  JSON.stringify(auth.user?.permissions), tenants.currentId]), () => { reset(); if (props.modelValue) void load(true) }, { immediate: true, flush: 'sync' })
 watch(formDisabled, () => { reset(); if (props.modelValue) void load(true) }, { flush: 'sync' })
 onBeforeUnmount(reset)
 </script>

@@ -10,6 +10,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { computed, onDeactivated, onScopeDispose, ref, watch } from 'vue'
 import { Download } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
@@ -36,7 +37,7 @@ function cancel() {
   busyFormat.value = null
   errorMessage.value = ''
 }
-watch([allowed, () => auth.user?.id, () => auth.token, () => JSON.stringify(auth.user?.permissions), () => JSON.stringify(modules.config),
+watch([allowed, () => auth.user?.id, () => sessionIdentity(auth.token), () => JSON.stringify(auth.user?.permissions), () => JSON.stringify(modules.config),
   () => props.resource, () => props.loading, () => JSON.stringify(props.filters)], cancel, { flush: 'sync' })
 onDeactivated(cancel)
 onScopeDispose(cancel)

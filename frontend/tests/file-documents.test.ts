@@ -27,9 +27,10 @@ beforeEach(() => {
   vi.mocked(filesApi.upload).mockResolvedValue({ data: { data: { id: 'uploaded' } } } as Awaited<ReturnType<typeof filesApi.upload>>)
 })
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()) })
-async function setup(kind: 'versions' | 'capacity' = 'versions', permissions = ['file:read', 'file:upload', 'file:download'], staff = false) {
+function token(sid = 'session', session_version = 1, jti = 'initial') { return `header.${btoa(JSON.stringify({ sid, user_id: 'owner', session_version, jti }))}.signature` }
+async function setup(kind: 'versions' | 'capacity' = 'versions', permissions = ['file:read', 'file:upload', 'file:download'], staff = false, access = 'session') {
   const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStore()
-  auth.token = 'session'; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', is_staff: staff, permissions }
+  auth.token = access; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', is_staff: staff, permissions }
   modules.config = { contract_version: 1, preset: 'standard', modules: ['files', 'users'].map(key => ({ key, title: key, enabled: true, dependencies: [], paths: [`/${key}`] })) }
   const wrapper = kind === 'versions'
     ? mount(FileVersionsDialog, { props: { file }, global: { plugins: [ElementPlus], stubs: { ElDialog: Dialog } } })
@@ -63,6 +64,29 @@ it('上传成功而登记失败保留候选，重试不重复上传', async () =
   expect(filesApi.upload).toHaveBeenCalledTimes(1)
   expect(fileDocumentsApi.append).toHaveBeenLastCalledWith('anchor', { version: 2, file_id: 'uploaded' })
   expect(wrapper.text()).not.toContain('尚未加入版本历史')
+})
+it('同一会话刷新令牌保留已上传候选和版本弹窗，重试不重复上传', async () => {
+  vi.mocked(fileDocumentsApi.append).mockRejectedValueOnce(new Error('offline'))
+  const { wrapper, auth } = await setup('versions', undefined, false, token()); await choose(wrapper)
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  auth.token = token('session', 1, 'rotated'); await flushPromises()
+  expect(wrapper.emitted('close')).toBeUndefined()
+  expect(wrapper.text()).toContain('尚未加入版本历史')
+  expect(fileDocumentsApi.history).toHaveBeenCalledTimes(1)
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(filesApi.upload).toHaveBeenCalledTimes(1)
+  expect(fileDocumentsApi.append).toHaveBeenLastCalledWith('anchor', { version: 2, file_id: 'uploaded' })
+})
+it.each(['sid', 'version'] as const)('%s变更仍关闭版本弹窗并丢弃旧会话上传结果', async change => {
+  let resolve!: (value: Awaited<ReturnType<typeof filesApi.upload>>) => void
+  vi.mocked(filesApi.upload).mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  const { wrapper, auth } = await setup('versions', undefined, false, token()); await choose(wrapper)
+  await wrapper.get('form').trigger('submit')
+  auth.token = change === 'sid' ? token('other') : token('session', 2)
+  await flushPromises(); resolve({ data: { data: { id: 'late' } } } as Awaited<ReturnType<typeof filesApi.upload>>); await flushPromises()
+  expect(wrapper.emitted('close')).toHaveLength(1)
+  expect(fileDocumentsApi.append).not.toHaveBeenCalled()
+  expect(wrapper.text()).not.toContain('新合同.txt')
 })
 it('409重新读取后用新版本重试，不自动覆盖并发修改', async () => {
   const { wrapper } = await setup(); await choose(wrapper)

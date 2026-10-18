@@ -65,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './preferenceMessages'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -77,7 +78,7 @@ import { useTenantStore } from '@/stores/tenants'
 const props = defineProps<{ open: boolean }>(), emit = defineEmits<{ close: [] }>()
 const auth = useAuthStore(), modules = useModuleStore(), tenants = useTenantStore()
 const allowed = computed(() => Boolean(auth.user?.id) && !auth.user?.must_change_password && modules.enabled('notifications'))
-const owner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.must_change_password, tenants.currentId, allowed.value]))
+const owner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.must_change_password, tenants.currentId, allowed.value]))
 const value = ref<NotificationPreferences | null>(null), draft = ref<NotificationPreferenceWrite | null>(null)
 const loading = ref(false), saving = ref(false), failed = ref(false), saveFailed = ref(false)
 const valid = computed(() => Boolean(draft.value?.timezone.trim()) && draft.value?.quiet_start !== draft.value?.quiet_end)

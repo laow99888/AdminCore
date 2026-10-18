@@ -11,6 +11,7 @@
 </template>
 
 <script setup lang="ts" generic="T">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { computed, onDeactivated, onScopeDispose, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { FileSpreadsheet } from 'lucide-vue-next'
@@ -80,7 +81,7 @@ function download() {
     worker.postMessage(snapshot)
   } catch (error) { fail(error instanceof LocalWorkbookError ? 'invalid' : 'failed') }
 }
-watch([allowed, () => auth.token, () => auth.user?.id, () => JSON.stringify(auth.user?.permissions), () => JSON.stringify(modules.config),
+watch([allowed, () => sessionIdentity(auth.token), () => auth.user?.id, () => JSON.stringify(auth.user?.permissions), () => JSON.stringify(modules.config),
   () => props.ownerKey, () => props.resource, () => props.title, () => props.rows, () => props.columns, () => props.loading, () => props.currentPage, locale], cancel, { deep: true, flush: 'sync' })
 onDeactivated(cancel)
 onScopeDispose(cancel)

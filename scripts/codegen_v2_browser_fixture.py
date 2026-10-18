@@ -71,9 +71,9 @@ def validate_browser(folder, work, env, *, build=True):
     handles = []
     report = {'passed': False, 'production_build': build, 'ports': [18471, 18472], 'stopped_pids': []}
 
-    def run(command, log, cwd=ROOT / 'backend', input=None):
+    def run(command, log, cwd=ROOT / 'backend', input=None, timeout=600):
         result = subprocess.run(command, cwd=cwd, env=env, capture_output=True, text=True,
-                                encoding='utf-8', errors='replace', timeout=600, input=input)
+                                encoding='utf-8', errors='replace', timeout=timeout, input=input)
         (folder / log).write_text(result.stdout + result.stderr, encoding='utf-8')
         if result.returncode:
             raise RuntimeError('浏览器验收失败，见 ' + str(folder / log))
@@ -155,7 +155,10 @@ def before_delete(*, actor, instance):
         frontend = start([node, 'node_modules/vite/bin/vite.js', *(['preview'] if build else []), '--host', '127.0.0.1', '--port', '18471', '--strictPort'], 'browser-frontend.log', front)
         ready('http://127.0.0.1:18471', frontend)
         script = 'business_integration_browser.mjs' if env.get('ADMINCORE_STAGE3') == '1' else 'codegen_v2_browser.mjs'
-        run([node, str(ROOT / 'scripts' / script), str(front), str(folder)], 'browser-run.log', front)
+        # 整合套件有三组桌面/手机共六轮；单桌面真实操作已接近 5 分钟。
+        # 仅给整套浏览器 30 分钟总预算，单断言仍是 20 秒，构建/迁移仍是 10 分钟。
+        run([node, str(ROOT / 'scripts' / script), str(front), str(folder)], 'browser-run.log', front,
+            timeout=1800 if env.get('ADMINCORE_STAGE3') == '1' else 600)
         report['passed'] = True
     finally:
         for process in reversed(processes):

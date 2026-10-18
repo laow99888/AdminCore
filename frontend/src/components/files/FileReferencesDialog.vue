@@ -15,6 +15,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './referenceMessages'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { uiText } from '@/i18n/uiText'
@@ -28,7 +29,7 @@ const props = defineProps<{ file: FileRow | null }>()
 const emit = defineEmits<{ close: [] }>()
 const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStore()
 const allowed = computed(() => auth.can('file:read') && !auth.user?.must_change_password && modules.enabled('files'))
-const owner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, allowed.value]))
+const owner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, allowed.value]))
 const status = ref<FileReferenceStatus | null>(null), loading = ref(false), failed = ref(false)
 let controller: AbortController | null = null, generation = 0
 async function load() {

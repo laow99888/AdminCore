@@ -59,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './businessMessages'
 import { computed, onDeactivated, onScopeDispose, reactive, ref, watch } from 'vue'
 import { BaseDialog } from '@/components'
@@ -99,7 +100,7 @@ function reset() {
   for (const name of Object.keys(mapping)) delete mapping[name]
 }
 function resetContext() { reset(); exportTask.value = null }
-watch([canImport, canExport, () => auth.user?.id, () => auth.token, () => JSON.stringify(auth.user?.permissions), () => JSON.stringify(modules.config), () => tenants.currentId, () => props.resource], resetContext, { flush: 'sync' })
+watch([canImport, canExport, () => auth.user?.id, () => sessionIdentity(auth.token), () => JSON.stringify(auth.user?.permissions), () => JSON.stringify(modules.config), () => tenants.currentId, () => props.resource], resetContext, { flush: 'sync' })
 onDeactivated(resetContext); onScopeDispose(resetContext)
 async function run(work: (signal: AbortSignal, current: () => boolean) => Promise<void>) {
   if (busy.value) return

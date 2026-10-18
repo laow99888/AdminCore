@@ -147,6 +147,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
@@ -209,7 +210,7 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const exportFilters = ref<{ search?: string; is_active?: boolean }>({})
-const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, modules.config]))
+const printOwner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, modules.config]))
 const printColumns = computed<PrintColumn<UserRow>[]>(() => [
   { label: uiText('用户名'), value: row => row.username },
   { label: uiText('邮箱'), value: row => row.email },

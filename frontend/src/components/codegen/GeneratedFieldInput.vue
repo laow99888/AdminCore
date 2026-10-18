@@ -103,6 +103,7 @@
   </div>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from "@/auth/sessionIdentity";
 import "./messages";
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import request, { type ApiResponse } from "@/api/request";
@@ -197,13 +198,13 @@ function reset() {
   query = "";
 }
 watch(
-  () => [
+  () => JSON.stringify([
     props.endpoint,
     props.fieldKey,
     auth.user?.id,
-    auth.token,
+    sessionIdentity(auth.token),
     JSON.stringify(auth.user?.permissions),
-  ],
+  ]),
   reset,
 );
 onBeforeUnmount(reset);

@@ -1,6 +1,7 @@
 import { onDeactivated, onScopeDispose, ref, shallowRef, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useModuleStore } from '@/stores/modules'
+import { sessionIdentity } from '@/auth/sessionIdentity'
 
 /** 409 不更改草稿或版本；最新快照只在显式应用时载入。 */
 export function useEditConflict<T>(options: {
@@ -33,7 +34,7 @@ export function useEditConflict<T>(options: {
     const value = latest.value
     reset(); options.apply(value)
   }
-  watch([() => auth.user?.id, () => auth.token, () => JSON.stringify(auth.user?.permissions),
+  watch([() => auth.user?.id, () => sessionIdentity(auth.token), () => JSON.stringify(auth.user?.permissions),
     () => JSON.stringify(modules.config), options.identifier], reset, { flush: 'sync' })
   onDeactivated(reset); onScopeDispose(reset)
   return { active, loading, failed, latest, reset, mark, inspect, applyLatest }

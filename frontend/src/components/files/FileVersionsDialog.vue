@@ -38,6 +38,7 @@
   </el-dialog>
 </template>
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import './documentMessages'
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -53,7 +54,7 @@ const emit = defineEmits<{ close: []; updated: [] }>()
 const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStore(), inputId = useId()
 const allowed = computed(() => auth.can('file:read') && !auth.user?.must_change_password && modules.enabled('files'))
 const canWrite = computed(() => allowed.value && auth.can('file:upload'))
-const identity = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, allowed.value]))
+const identity = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions, auth.user?.must_change_password, tenants.currentId, allowed.value]))
 const history = ref<FileHistory | null>(null), page = ref(1), loading = ref(false), failed = ref(false), busy = ref(false)
 const selected = ref<File | null>(null), candidate = ref<string | null>(null), writeError = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)

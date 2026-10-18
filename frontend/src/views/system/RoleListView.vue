@@ -87,6 +87,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import FieldPolicyEditor from '@/components/common/FieldPolicyEditor.vue'
 import FieldPolicyDiagnostics from '@/components/common/FieldPolicyDiagnostics.vue'
@@ -112,7 +113,7 @@ import type { PrintColumn } from '@/utils/printDocument'
 
 const auth = useAuthStore()
 const modules = useModuleStore()
-const printOwner = computed(() => JSON.stringify([auth.user?.id, auth.token, auth.user?.permissions]))
+const printOwner = computed(() => JSON.stringify([auth.user?.id, sessionIdentity(auth.token), auth.user?.permissions]))
 const printColumns = computed<PrintColumn<RoleRow>[]>(() => [
   { label: uiText('角色名'), value: row => row.name },
   { label: uiText('描述'), value: row => row.description },

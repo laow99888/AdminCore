@@ -8,6 +8,7 @@
 </template>
 
 <script setup lang="ts">
+import { sessionIdentity } from '@/auth/sessionIdentity'
 import { computed, onDeactivated, onScopeDispose, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
@@ -32,7 +33,7 @@ function cancel() {
   error.value = ''
   if (input.value) input.value.value = ''
 }
-watch([allowed, () => auth.user?.id, () => auth.token, () => JSON.stringify(auth.user?.permissions),
+watch([allowed, () => auth.user?.id, () => sessionIdentity(auth.token), () => JSON.stringify(auth.user?.permissions),
   () => JSON.stringify(modules.config), () => props.resource], cancel, { flush: 'sync' })
 onDeactivated(cancel)
 onScopeDispose(cancel)

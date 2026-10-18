@@ -21,9 +21,10 @@ const context = { code: 'expenses', recordId: 'record-1' }
 const result = (selected: typeof attachment | null = attachment) => ({ selected, items: [], has_more: false })
 beforeEach(() => { vi.resetAllMocks(); localStorage.clear(); vi.mocked(onlineFormAttachmentsApi.choices).mockResolvedValue(result()) })
 afterEach(() => { wrappers.splice(0).forEach(wrapper => wrapper.unmount()); document.body.innerHTML = ''; localStorage.clear() })
-async function harness(props: Record<string, unknown> = {}) {
+function token(sid = 'session', session_version = 1, jti = 'initial') { return `header.${btoa(JSON.stringify({ sid, user_id: 'owner', session_version, jti }))}.signature` }
+async function harness(props: Record<string, unknown> = {}, access = 'test') {
   const pinia = createPinia(), auth = useAuthStore(pinia), tenants = useTenantStore(pinia)
-  auth.token = 'test'; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', permissions: ['file:read', 'file:download', 'file:upload'] }
+  auth.token = access; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', permissions: ['file:read', 'file:download', 'file:upload'] }
   const wrapper = mount(FileInput, { props: { id: 'proof', label: '合同附件', context, ...props }, attachTo: document.body, global: { plugins: [pinia, ElementPlus] } })
   wrappers.push(wrapper); await flushPromises(); return { wrapper, auth, tenants }
 }
@@ -91,6 +92,36 @@ it('上传先复核目标表单附件 ACL，再更新字段；租户切换使迟
   await input.trigger('change'); tenants.currentId = 'tenant-b'; await flushPromises()
   resolve({ data: { data: attachment } } as never); await flushPromises()
   expect(wrapper.emitted('update:modelValue')).toHaveLength(1)
+})
+it('同会话令牌轮换保留附件名称与待完成上传，不重新解析或丢弃成功结果', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof filesApi.upload>>) => void
+  vi.mocked(filesApi.upload).mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  const { wrapper, auth } = await harness({ modelValue: attachment.id }, token())
+  const input = wrapper.get('input[type="file"]')
+  Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['test'], 'contract.pdf')] })
+  await input.trigger('change')
+  const signal = vi.mocked(onlineFormAttachmentsApi.choices).mock.calls[0]![3]!
+  auth.token = token('session', 1, 'rotated'); await flushPromises()
+  expect(signal.aborted).toBe(false)
+  expect(onlineFormAttachmentsApi.choices).toHaveBeenCalledTimes(1)
+  expect(wrapper.get('.el-select__placeholder').text()).toBe(attachment.original_name)
+  resolve({ data: { data: attachment } } as Awaited<ReturnType<typeof filesApi.upload>>); await flushPromises()
+  expect(wrapper.emitted('update:modelValue')).toEqual([[attachment.id]])
+})
+it.each(['sid', 'version'] as const)('%s变化撤销附件解析并拒绝迟到上传', async change => {
+  let resolve!: (value: Awaited<ReturnType<typeof filesApi.upload>>) => void
+  vi.mocked(filesApi.upload).mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  const { wrapper, auth } = await harness({ modelValue: attachment.id }, token())
+  const input = wrapper.get('input[type="file"]')
+  Object.defineProperty(input.element, 'files', { configurable: true, value: [new File(['test'], 'contract.pdf')] })
+  await input.trigger('change')
+  const signal = vi.mocked(onlineFormAttachmentsApi.choices).mock.calls[0]![3]!
+  vi.mocked(onlineFormAttachmentsApi.choices).mockResolvedValue(result(null))
+  auth.token = change === 'sid' ? token('other') : token('session', 2)
+  await flushPromises(); resolve({ data: { data: attachment } } as Awaited<ReturnType<typeof filesApi.upload>>); await flushPromises()
+  expect(signal.aborted).toBe(true)
+  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  expect(wrapper.get('.el-select__placeholder').text()).toBe('附件不可用或无权访问')
 })
 it('父表单禁用状态传到主表及明细附件，不被默认 disabled=false 覆盖', async () => {
   const pinia = createPinia(), auth = useAuthStore(pinia)
