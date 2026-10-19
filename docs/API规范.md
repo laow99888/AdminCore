@@ -6,7 +6,7 @@
 
 支持既有 JWT Bearer；同源 HTTPS 浏览器可选择 Cookie 会话构建，配置见 [会话迁移](令牌存储与会话迁移方案.md)。所有请求复用前端统一请求层，Cookie 模式的 CSRF 与刷新协议不可省略。注册默认关闭，管理员初始化密码只用于首次新账号。
 
-普通业务成功/错误响应使用 `{code, message, data}`，列表为 `data.items` 与 `data.pagination`。登录/刷新、流式下载、SSE、健康探针等有各自契约；不能为追求统一而包装其原始格式。Bearer 登录返回顶层 access/refresh，用户资料再请求 auth/me；挑战与首次改密以实际响应处理。
+普通业务成功/错误响应使用 `{code, message, data}`，列表为 `data.items` 与 `data.pagination`。登录/刷新、流式下载、SSE、健康探针等有各自契约；不能为追求统一而包装其原始格式。Bearer 密码登录成功返回顶层 `access`、`refresh` 和简要 `user`；完整账户资料与权限从 `/api/v1/auth/me/` 读取。Cookie 传输将 `refresh` 移入 HttpOnly Cookie，保留响应中的 `access`，并增加 `session_transport` / `csrf_token`；前端 access 仅存内存。二次验证挑战、首次改密、刷新入口的包装与错误按目标接口契约处理。
 
 常见状态：400 输入校验、401 会话失效、403 授权拒绝、404 不存在或不可见、409 版本/状态冲突、429 限流、503 查询/服务预算。限流频率由 settings/环境与特定端点策略决定，不能引用旧文档中的固定全站数字。
 

@@ -6,7 +6,7 @@
 
 - 最近产品 `cdb7b6045505ca511453cd1c475a1cdb3fe116a3` 的 [完整 CI](https://github.com/laow99888/AdminCore/actions/runs/39199978216) 为 23/23 作业成功；其后仅验收文档提交 `2a100055e682852797b4c5f2a86fa43604521474` 的 [CI](https://github.com/laow99888/AdminCore/actions/runs/39203236238) 也全部成功。
 - PostgreSQL/队列、生成业务、Cookie 会话、文件/表单/审批/报表的桌面与移动浏览器、隔离恢复，以及实际服务器 SHA 与边界，统一见 [全系统修复发布验收](docs/全系统修复发布验收-2026-10-19.md)。可选真实外部集成保持关闭。
-- 本轮 v1.0.0 版本与 AI 文档提交须重新完成准确 SHA 的 CI，正式发布证据从 [Release](https://github.com/laow99888/AdminCore/releases/tag/v1.0.0) 查阅；不能沿用上面的 SHA 宣称新提交已通过。
+- v1.0.0 已正式发布，对应 `767b125f8454bd1930b04f39503585b2875f876e` 的 [完整 CI（23/23）](https://github.com/laow99888/AdminCore/actions/runs/39210396781) 和 [HTTP 性能回归](https://github.com/laow99888/AdminCore/actions/runs/39210396705) 均成功；[Release](https://github.com/laow99888/AdminCore/releases/tag/v1.0.0) 与标签指向该提交。后续 main 修改须单独验证，服务器状态与源码标签分别记录。
 
 ## 历史记录：2026-10-13
 
