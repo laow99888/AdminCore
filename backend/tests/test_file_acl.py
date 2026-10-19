@@ -78,6 +78,16 @@ def test_acl_rejects_unknown_or_duplicate_principal(admin_client, admin_user, me
 
 
 @pytest.mark.django_db
+def test_data_scope_read_alone_cannot_enumerate_acl(admin_user, member_user, member_client, monkeypatch):
+    row = file_for(admin_user)
+    grant_files(member_user, 'file:download')
+    # 模拟部门范围可见文件；该可见性不能等同于管理授权。
+    monkeypatch.setattr('apps.files.access.scope_queryset', lambda queryset, *args, **kwargs: queryset)
+    assert member_client.get(f'/api/v1/files/{row.pk}/').status_code == 200
+    assert member_client.get(f'/api/v1/files/{row.pk}/acl/').status_code == 403
+
+
+@pytest.mark.django_db
 def test_acl_can_disable_derived_access_without_revoking_direct_read(admin_client, admin_user, member_user, member_client):
     row = file_for(admin_user, 'no-derived.txt')
     grant_files(member_user, 'file:download', 'file:process')

@@ -33,6 +33,7 @@ def invoke(client, operation, row):
     return client.post('/api/v1/files/recycle_action/', {'action': 'restore', 'items': [{'id': str(row.pk), 'lifecycle_version': row.lifecycle_version}]}, format='json')
 
 
+@pytest.mark.django_db(transaction=True)
 def test_declared_upload_download_permissions_enforced(member_client, member_user, admin_user):
     row = file_for(member_user)
     for operation in ('upload', 'download', 'preview'):

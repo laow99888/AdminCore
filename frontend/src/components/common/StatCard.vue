@@ -92,7 +92,7 @@ withDefaults(defineProps<Props>(), {
 .stat-value {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
   margin-bottom: var(--spacing-sm);
 }
 

@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 @shared_task(bind=True, name='data_io.run_data_import', soft_time_limit=300, time_limit=330,
              acks_late=True, reject_on_worker_lost=True, base=RegisteredPolicyTask)
 def run_data_import(self, task_record_id):
+    from apps.core.tenancy import tenant_context
+    from apps.tasks.models import TaskRecord
+    record = TaskRecord.all_objects.filter(pk=task_record_id).first()
+    if record is None:
+        return {'skipped': True}
+    # worker 不继承 HTTP 的 ContextVar，旧内置导入也必须恢复任务租户。
+    with tenant_context(record.tenant_id):
+        return _run_data_import(self, task_record_id)
+
+
+def _run_data_import(self, task_record_id):
     """重复投递只领取一次；SQL 行提交与账本同事务，人工接续不重复创建。"""
     from apps.core.modules import require_task, task_enabled
     require_task(self.name)
@@ -63,6 +74,11 @@ def run_data_import(self, task_record_id):
     if execution.batch.options.get('version') == 2:
         from .business_execution import run_business_import
         return run_business_import(self.name, record, execution)
+    from apps.core.tenancy import enabled
+    if enabled() and (record.tenant_id != execution.tenant_id or record.tenant_id != execution.batch.tenant_id
+                      or record.tenant_id != execution.batch.source.tenant_id):
+        record.mark_failed('import_tenant_mismatch')
+        return
     with transaction.atomic():
         batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
         if batch.active_record_id != record.pk or not record.mark_started():
@@ -119,6 +135,9 @@ def run_data_import(self, task_record_id):
                 if execution.session_id:
                     from apps.auth_app.models import AuthSession
                     AuthSession.objects.select_for_update().filter(pk=execution.session_id).first()
+                if execution.tenant_id:
+                    from apps.core.models import Tenant
+                    Tenant.objects.select_for_update().filter(pk=execution.tenant_id).first()
                 batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
                 locked = TaskRecord.objects.select_for_update().get(pk=record.pk)
                 if locked.status != 'running' or batch.active_record_id != record.pk:

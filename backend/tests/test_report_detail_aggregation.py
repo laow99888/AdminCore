@@ -69,6 +69,63 @@ def test_detail_only_reports_date_buckets_and_empty_parent_groups(admin_user):
     assert execute_definition(admin_user, date_query)['rows'][0]['m_quantity'] == 5
 
 
+@pytest.mark.parametrize('fields,key', [(['value'], 'm_value'), (['value', 'm_value'], 'm_value_2')])
+def test_legacy_metric_output_preserves_colliding_business_dimensions(admin_user, fields, key):
+    first = order(admin_user, 'alias-one', '10', (2,), ('3',))
+    second = order(admin_user, 'alias-two', '20', (4,), ('5',))
+    PurchaseOrder.objects.filter(pk__in=[first.pk, second.pk]).update(value='business value', m_value='second dimension')
+    value = definition(dimensions=[{'field': field} for field in fields])
+    del value['metrics']
+    value['metric'] = {'field': 'id', 'aggregation': 'count'}
+    result = execute_definition(admin_user, value)
+    assert result['columns'] == [*fields, key]
+    assert result['chart_columns'] == [key]
+    assert result['rows'] == [{**{field: 'business value' if field == 'value' else 'second dimension'
+                                for field in fields}, key: 2}]
+    group = {field: result['rows'][0][field] for field in fields}
+    assert len(drill_down(admin_user, value, group)['rows']) == 2
+    value['comparison'] = {'field': 'created_at', 'mode': 'previous_period', 'start': '2026-03-01', 'end': '2026-03-03'}
+    PurchaseOrder.objects.filter(pk=first.pk).update(created_at=datetime(2026, 3, 1, 12, tzinfo=timezone.utc))
+    PurchaseOrder.objects.filter(pk=second.pk).update(created_at=datetime(2026, 2, 27, 12, tzinfo=timezone.utc))
+    compared = execute_definition(admin_user, value)
+    assert compared['rows'][0][key] == compared['rows'][0][key + '_previous'] == 1
+    assert compared['rows'][0]['value'] == 'business value'
+
+
+def test_legacy_without_comparison_keeps_value_key_for_suffix_dimension(admin_user):
+    row = order(admin_user, 'legacy-rate', '10')
+    PurchaseOrder.objects.filter(pk=row.pk).update(value_rate='business rate')
+    value = definition(dimensions=[{'field': 'value_rate'}])
+    del value['metrics']
+    value['metric'] = {'field': 'id', 'aggregation': 'count'}
+    result = execute_definition(admin_user, value)
+    assert result['columns'] == ['value_rate', 'value']
+    assert result['chart_columns'] == ['value']
+    assert result['rows'] == [{'value_rate': 'business rate', 'value': 1}]
+    value['comparison'] = {'field': 'created_at', 'mode': 'previous_period', 'start': '2026-03-01', 'end': '2026-03-03'}
+    PurchaseOrder.objects.filter(pk=row.pk).update(created_at=datetime(2026, 3, 1, 12, tzinfo=timezone.utc))
+    compared = execute_definition(admin_user, value)
+    assert compared['rows'][0]['value_rate'] == 'business rate'
+    assert compared['rows'][0]['m_value'] == 1
+
+
+def test_date_and_child_aliases_skip_unselected_real_generated_fields(admin_user):
+    first = order(admin_user, 'date-alias-one', '10', (2, 3), ('3', '4'))
+    second = order(admin_user, 'date-alias-two', '20', (4,), ('5',))
+    PurchaseOrder.objects.filter(pk__in=[first.pk, second.pk]).update(created_at=datetime(2026, 1, 5, 12, tzinfo=timezone.utc))
+    value = definition(dimensions=[{'field': 'created_at', 'grain': 'month'}], metrics=[
+        {'key': 'm_count', 'label': '单数', 'field': 'id', 'aggregation': 'count'},
+        {'key': 'm_orders', 'label': '明细数', 'field': 'lines.quantity', 'aggregation': 'sum'},
+    ])
+    result = execute_definition(admin_user, value)
+    assert result['rows'][0]['created_at'].isoformat() == '2026-01-01'
+    assert result['rows'][0]['m_count'] == 2 and result['rows'][0]['m_orders'] == 9
+    assert len(drill_down(admin_user, value, {'created_at': '2026-01-01'})['rows']) == 2
+    # Non-date child grouping must also avoid the child model's own valid field.
+    value['dimensions'] = [{'field': 'category'}]
+    assert execute_definition(admin_user, value)['rows'] == [{'category': 'goods', 'm_count': 2, 'm_orders': 9}]
+
+
 def test_parent_scope_section_and_child_field_revocation(member_user, admin_user):
     role = Role.objects.create(name='report reader', field_permissions={'cg_orders': {'read': ['category', 'amount', 'lines', 'lines.quantity', 'lines.price']}})
     UserRole.objects.create(user=member_user, role=role)
@@ -125,3 +182,18 @@ def test_relation_traversals_and_non_numeric_details_are_not_registered(field):
     value['metrics'][2]['field'] = field
     with pytest.raises(ValidationError):
         validate_definition(value)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('dimensions,key', [([], 'value'), (['value'], 'm_value')])
+def test_legacy_child_aggregate_drilldown_avoids_model_alias_conflict(admin_user, dimensions, key):
+    row = order(admin_user, 'audit-legacy-child-' + key, '10', (2, 3), ('1', '2'))
+    PurchaseOrder.objects.filter(pk=row.pk).update(value='dimension')
+    definition = {'data_source': 'cg_orders', 'chart_type': 'table',
+                  'dimensions': [{'field': field} for field in dimensions],
+                  'metric': {'field': 'lines.quantity', 'aggregation': 'sum'}, 'filters': [], 'limit': 100}
+    aggregate = execute_definition(admin_user, definition)
+    assert aggregate['rows'][0][key] == 5
+    details = drill_down(admin_user, definition, {field: 'dimension' for field in dimensions})
+    assert details['rows'][0][key] == 5
+    assert details['rows'][0]['id'] == row.pk

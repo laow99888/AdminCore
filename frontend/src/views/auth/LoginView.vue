@@ -189,6 +189,7 @@ const handleLogin = async () => {
 .login-container {
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   overflow-x: hidden;
   background: linear-gradient(135deg, #f9fafb 0%, rgba(240, 253, 250, 0.3) 50%, #f3f4f6 100%);
@@ -203,6 +204,7 @@ const handleLogin = async () => {
   position: absolute;
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   padding: var(--spacing-lg);
   box-sizing: border-box;
   pointer-events: none;
@@ -243,7 +245,10 @@ const handleLogin = async () => {
   position: relative;
   z-index: 1;
   width: 100%;
-  height: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--spacing-lg);
+  box-sizing: border-box;
 }
 
 .login-card {
@@ -266,10 +271,7 @@ const handleLogin = async () => {
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
   margin: 0 0 var(--spacing-sm);
-  background: linear-gradient(135deg, var(--color-primary-500) 0%, #64748b 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-primary-text);
 }
 
 .subtitle {
@@ -298,7 +300,7 @@ const handleLogin = async () => {
   height: 40px;
   font-size: var(--font-size-base);
   font-weight: var(--font-weight-semibold);
-  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
+  background: var(--el-color-primary);
   border: none;
   transition: all var(--transition-fast);
 }

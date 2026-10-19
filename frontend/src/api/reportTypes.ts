@@ -37,7 +37,8 @@ export function displayValue(value: unknown): string | number {
 /** Trim redundant aggregate decimal zeroes without converting precise values to Number. */
 export function displayReportCell(result: ReportResult, column: string, value: unknown): string | number {
   const metrics = result.definition.metrics as ReportMetric[] | undefined
-  const metric = metrics ? metrics.some(item => item.key === column) : column === 'value'
+  const metric = result.chart_columns ? result.chart_columns.includes(column)
+    : metrics ? metrics.some(item => item.key === column) : column === 'value'
   if (metric && typeof value === 'string' && /^-?\d+\.\d+$/.test(value)) {
     const [whole,fraction] = value.split('.')
     return `${whole}.${fraction.replace(/0+$/,'').padEnd(2,'0')}`

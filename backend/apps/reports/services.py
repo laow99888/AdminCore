@@ -14,8 +14,8 @@ from apps.files.access import file_queryset_for_actor
 from apps.files.models import FileModel
 from apps.tasks.models import TaskRecord
 from .sources import source_specs, permitted_fields, field_types
-from .validators import validate_definition
-from .aggregation import aggregate_period, annotate_detail_rows
+from .validators import validate_definition, legacy_metric_key
+from .aggregation import aggregate_period, annotate_detail_rows, query_alias
 from .comparison import compare_rows, period_queryset
 
 
@@ -32,7 +32,8 @@ def catalog_for(user):
 
 
 def metrics_for(definition):
-    return definition.get('metrics', [{'key': 'value', 'label': 'value', **definition.get('metric', {})}])
+    return definition.get('metrics', [{'key': legacy_metric_key(definition['dimensions'], 'comparison' in definition),
+                                       'label': 'value', **definition.get('metric', {})}])
 
 
 def authorize_definition(user, definition):
@@ -47,8 +48,8 @@ def authorize_definition(user, definition):
     return spec, allowed
 
 
-def filtered_queryset(user, definition):
-    spec, _ = authorize_definition(user, definition)
+def filtered_queryset(user, definition, *, authorization=None):
+    spec, _ = authorization if authorization is not None else authorize_definition(user, definition)
     if 'service' in spec:
         queryset = spec['service'].visible(user)
     elif definition['data_source'] == 'users':
@@ -71,7 +72,7 @@ def grouped_queryset(queryset, dimensions, *, prefix='', parent_model=None):
         field = prefix + item['field']
         kind = (parent_model or queryset.model)._meta.get_field(item['field']).get_internal_type()
         if kind in {'DateField', 'DateTimeField'}:
-            alias = f'report_group_date_{len(values)}'
+            alias = query_alias(queryset, f'report_group_date_{len(values)}')
             grain = item.get('grain', 'day')
             # A DateField output applies the timezone once; nesting TruncDate over
             # TruncMonth would shift PostgreSQL midnight buckets a second time.
@@ -83,7 +84,7 @@ def grouped_queryset(queryset, dimensions, *, prefix='', parent_model=None):
             values.append(alias)
         else:
             if prefix:
-                alias = f'report_parent_dimension_{len(values)}'
+                alias = query_alias(queryset, f'report_parent_dimension_{len(values)}')
                 queryset = queryset.annotate(**{alias: F(field)})
                 values.append(alias)
             else:
@@ -101,8 +102,9 @@ def execute_definition(user, definition):
 
 
 def execute_prepared(user, definition):
-    queryset = filtered_queryset(user, definition)
-    spec, _ = authorize_definition(user, definition)
+    authorization = authorize_definition(user, definition)
+    spec, _ = authorization
+    queryset = filtered_queryset(user, definition, authorization=authorization)
     dimensions = [item['field'] for item in definition['dimensions']]
     metrics = metrics_for(definition)
     with query_budget():
@@ -136,7 +138,9 @@ def drill_down(user, definition, group, page=1, page_size=20, *, prepared=False)
     fields = [item['field'] for item in definition['dimensions']]
     if not isinstance(group, dict) or set(group) != set(fields):
         raise ValidationError('明细必须提供完整的已登记维度')
-    queryset = filtered_queryset(user, definition)
+    authorization = authorize_definition(user, definition)
+    spec, allowed = authorization
+    queryset = filtered_queryset(user, definition, authorization=authorization)
     if 'comparison' in definition:
         queryset = period_queryset(queryset, definition['comparison'])
     queryset, aliases = grouped_queryset(queryset, definition['dimensions'])
@@ -150,16 +154,17 @@ def drill_down(user, definition, group, page=1, page_size=20, *, prepared=False)
             raise ValidationError('明细维度值无效') from None
         queryset = queryset.filter(**{alias: value})
     # Only projected aggregate fields, never arbitrary serializer/model fields.
-    spec, allowed = authorize_definition(user, definition)
     metrics = metrics_for(definition)
     columns = list(dict.fromkeys(['id', *fields, *(item['field'] for item in metrics
                                                 if item['field'] not in spec.get('detail_metrics', {}))]))
     columns = [field for field in columns if field in allowed]
     detail_metrics = [item for item in metrics if item['field'] in spec.get('detail_metrics', {})]
-    queryset = annotate_detail_rows(queryset, detail_metrics, spec)
+    queryset, metric_aliases = annotate_detail_rows(queryset, detail_metrics, spec)
     columns += [item['key'] for item in detail_metrics]
     with query_budget():
-        rows = list(queryset.order_by('pk').values(*columns)[(page - 1) * page_size:page * page_size + 1])
+        selected = [metric_aliases.get(field, field) for field in columns]
+        rows = list(queryset.order_by('pk').values(*selected)[(page - 1) * page_size:page * page_size + 1])
+        rows = [{field: row[alias] for field, alias in zip(columns, selected)} for row in rows]
     return {'columns': columns, 'rows': serialize_rows(rows[:page_size]), 'page': page,
             'page_size': page_size, 'has_more': len(rows) > page_size,
             'column_labels': {item['key']: item['label'] + '·本单明细汇总' for item in detail_metrics}}

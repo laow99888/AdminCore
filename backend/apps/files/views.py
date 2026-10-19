@@ -11,7 +11,7 @@ from django.db import transaction
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError as DjangoValidationError
-from django.db.models import F
+from django.db.models import F, Q
 from django.http import FileResponse, HttpResponse
 from rest_framework import serializers, status, viewsets
 from rest_framework.exceptions import APIException
@@ -295,6 +295,12 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
             if request.method.lower() == 'put':
                 authorize_write(request, 'file:upload')
             instance = self._locked_file(pk)
+            owner = request.user.is_staff or request.user.is_superuser or instance.uploader_id == request.user.pk
+            delegated_read = request.method.lower() == 'get' and instance.access_grants.filter(
+                is_active=True, access_level=FileAccessGrant.MANAGE).filter(
+                    Q(user=request.user) | Q(role__userrole__user=request.user, role__is_active=True)).exists()
+            if not (owner or delegated_read):
+                raise PermissionDenied('只有文件所有者或管理员可以管理授权')
             if request.method.lower() == 'get':
                 grants = instance.access_grants.filter(is_active=True).select_related('user', 'role')
                 return Response({'code': 200, 'message': 'success', 'data': {'grants': [
@@ -303,8 +309,6 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
                      'access_level': item.access_level,
                      'inherit_to_derivatives': item.inherit_to_derivatives}
                     for item in grants]}})
-            if not (request.user.is_staff or request.user.is_superuser or instance.uploader_id == request.user.pk):
-                raise PermissionDenied('只有文件所有者或管理员可以管理授权')
             serializer = FileACLSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             grants = serializer.validated_data['grants']
@@ -412,6 +416,8 @@ class FileViewSet(QueryBudgetListMixin, viewsets.ModelViewSet):
         self._log('download', file_obj, f'Downloaded file {file_obj.original_name}')
 
         response = FileResponse(file_obj.file.open('rb'), as_attachment=True, filename=file_obj.original_name)
+        response['Cache-Control'] = 'private, no-store'
+        response['X-Content-Type-Options'] = 'nosniff'
         return response
 
     @action(detail=True, methods=['delete'], permission_classes=[IsAuthenticated, IsAdmin])

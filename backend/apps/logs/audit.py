@@ -10,7 +10,7 @@ from apps.core.client_ip import request_ip
 
 FIELDS = {
     'user': ('id', 'username', 'is_active', 'is_staff', 'is_superuser', 'must_change_password', 'session_version', 'profile_version', 'role_ids', 'group_ids', 'django_permission_ids'),
-    'role': ('id', 'name', 'is_active', 'permission_ids'),
+    'role': ('id', 'name', 'is_active', 'permission_ids', 'field_permissions'),
     'menu': ('id', 'name', 'path', 'icon', 'order', 'parent_id', 'permission_id', 'is_visible'),
     'permission': ('id', 'name', 'code', 'resource', 'action'),
     'user_role': ('id', 'user_id', 'role_id'),

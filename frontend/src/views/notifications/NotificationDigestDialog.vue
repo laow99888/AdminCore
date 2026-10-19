@@ -15,7 +15,7 @@
         <p>{{ uiText('等待摘要') }}：{{ status.pending }} · {{ uiText('已经到期') }}：{{ status.due }}</p>
         <p v-if="status.next_due_at">{{ uiText('最早到期时间') }}：{{ status.next_due_at }}</p>
       </div>
-      <el-button :loading="loading" @click="load">{{ uiText('刷新状态') }}</el-button>
+      <el-button :loading="loading" :disabled="refreshing" @click="load">{{ uiText('刷新状态') }}</el-button>
       <el-button :loading="refreshing" :disabled="loading || refreshing || !status?.due" @click="refresh">{{ uiText('合并我的到期提醒') }}</el-button>
       <p v-if="result" role="status">{{ uiText('本次入箱条目') }}：{{ result.published }} · {{ uiText('本次抑制条目') }}：{{ result.suppressed }}</p>
       <p>{{ uiText('刷新只处理已经到期的提醒，不会提前发送；已退订、撤权、失效或过期的提醒会被抑制。') }}</p>
@@ -63,6 +63,7 @@ const status = ref<DigestStatus>(), references = ref<DigestReference[]>([]), res
 let generation = 0, controller: AbortController | undefined, statsController: AbortController | undefined, statsGeneration = 0
 function reset() { generation++; statsGeneration++; controller?.abort(); statsController?.abort(); status.value = undefined; references.value = []; result.value = undefined; stats.value = undefined; loading.value = false; refreshing.value = false; failed.value = false; statsLoading.value = false; statsFailed.value = false }
 async function load() {
+  if (refreshing.value) return
   const tick = ++generation, identity = owner.value
   controller?.abort(); controller = new AbortController(); references.value = []; failed.value = false; loading.value = true
   const current = () => tick === generation && identity === owner.value && props.open && allowed.value

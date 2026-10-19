@@ -23,6 +23,7 @@ import NavigationTabs from './NavigationTabs.vue'
   display: flex;
   width: 100%;
   height: 100vh;
+  height: 100dvh;
   background-color: var(--color-bg-page);
   transition: background-color var(--transition-normal);
 }

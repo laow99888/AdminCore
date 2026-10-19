@@ -94,6 +94,7 @@ import FieldPolicyDiagnostics from '@/components/common/FieldPolicyDiagnostics.v
 import { useModuleStore } from '@/stores/modules'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useActionGuard } from '@/composables/useActionGuard'
 import { useLatestRead } from '@/composables/useLatestRead'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
@@ -243,10 +244,14 @@ const handleSave = async () => {
   }
 }
 
+const beginAction = useActionGuard()
 const handleDelete = (row: RoleRow) => {
+  const isCurrent = beginAction()
   ElMessageBox.confirm(uiText("确定删除角色 {p0} 吗？", { p0: row.name }), uiText("提示"), { type: 'warning' })
     .then(async () => {
+      if (!isCurrent()) return
       await rolesApi.remove(row.id)
+      if (!isCurrent()) return
       if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText("删除成功"))
       loadRoles()

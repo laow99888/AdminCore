@@ -82,6 +82,16 @@ def main():
                 definition['details'][0]['fields'].append({
                     'name': 'evidence', 'label': '明细附件', 'kind': 'file', 'required': False,
                 })
+                if args.integrations:
+                    # Legal business fields must not collide with report implementation aliases.
+                    for name in ('value', 'm_value', 'value_rate', 'report_group_date_0', 'report_group_date_0_1'):
+                        definition['fields'].append({'name': name, 'label': name, 'kind': 'string',
+                                                     'required': False, 'list': False, 'form': False})
+                    definition['reports']['dimensions'].extend(['value', 'm_value', 'value_rate'])
+                    for name in ('report_parent_dimension_0', 'report_group_date_0', 'm_orders'):
+                        definition['details'][0]['fields'].append({
+                            'name': name, 'label': name, 'kind': 'string',
+                            'required': False, 'list': False, 'form': False})
                 source = folder / 'purchase-orders-reference-fixture.json'
                 source.write_text(json.dumps(definition, ensure_ascii=False), encoding='utf-8')
             plan = folder / (filename + '.plan.json')

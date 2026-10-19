@@ -120,6 +120,7 @@
 <script setup lang="ts">
 import '@/components/codegen/messages'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useActionGuard } from '@/composables/useActionGuard'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -316,10 +317,14 @@ const decide = async (row: ApprovalRow, action: 'approve' | 'reject') => {
 const handleApprove = (row: ApprovalRow) => decide(row, 'approve')
 const handleReject = (row: ApprovalRow) => decide(row, 'reject')
 
+const beginAction = useActionGuard()
 const handleCancel = (row: ApprovalRow) => {
+  const isCurrent = beginAction()
   ElMessageBox.confirm(uiText("确定撤回申请「{p0}」吗？", { p0: row.title }), uiText("提示"), { type: 'warning' })
     .then(async () => {
+      if (!isCurrent()) return
       await approvalsApi.cancel(row.id)
+      if (!isCurrent()) return
       ElMessage.success(uiText("已撤回"))
       loadList()
     })

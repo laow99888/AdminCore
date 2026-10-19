@@ -71,6 +71,10 @@ def _run_business_import(task_name, record, execution):
                 if execution.session_id:
                     from apps.auth_app.models import AuthSession
                     AuthSession.objects.select_for_update().filter(pk=execution.session_id).first()
+                if execution.tenant_id:
+                    # 与后台导出同序：租户关闭必须排在本单提交之前或之后。
+                    from apps.core.models import Tenant
+                    Tenant.objects.select_for_update().filter(pk=execution.tenant_id).first()
                 batch = ImportBatch.objects.select_for_update().get(pk=execution.batch_id)
                 locked = TaskRecord.objects.select_for_update().get(pk=record.pk)
                 if locked.status != 'running' or batch.active_record_id != record.pk:

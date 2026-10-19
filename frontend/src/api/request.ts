@@ -18,12 +18,14 @@ import { API_BASE_URL } from './baseUrl'
 import { getAccessToken } from '../auth/tokenStorage'
 import { cookieSessionEnabled } from '../auth/sessionTransport'
 import { refreshBrowserSession } from '../auth/browserSession'
+import { getTenantId } from '../auth/tenantContext'
 
 declare module 'axios' {
   interface AxiosRequestConfig {
     _retried?: boolean
     _sessionToken?: string | null
     _skipAuthRefresh?: boolean
+    _tenantId?: string
   }
 }
 
@@ -83,6 +85,11 @@ const request = axios.create({
 request.interceptors.request.use((config) => {
   config.headers['Accept-Language'] = apiLanguage()
   const token = getAccessToken()
+  const tenant = getTenantId()
+  if (config._retried && config._tenantId !== tenant) {
+    throw Object.assign(new Error('Tenant changed before retry'), { __CANCEL__: true })
+  }
+  if (!config._retried) config._tenantId = tenant
   if (config._retried && !tokensBelongToSameSession(config._sessionToken ?? null, token)) {
     // Re-login between refresh completion and dispatch must not replay prior work as the new actor.
     throw Object.assign(new Error('Session changed before retry'), { __CANCEL__: true })
@@ -91,7 +98,7 @@ request.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`
     if (!config._retried) config._sessionToken = token
   }
-  const tenant = localStorage.getItem('admincore.tenant')
+  delete config.headers['X-AdminCore-Tenant']
   if (tenant && !/\/organization\/my-tenants\//.test(config.url || '')) config.headers['X-AdminCore-Tenant'] = tenant
   return config
 })
@@ -155,7 +162,10 @@ async function handle401(error: AxiosError): Promise<unknown> {
 // 响应拦截器：统一错误处理；401 自动刷新并重放原请求
 request.interceptors.response.use(
   (response) => {
-    if (cookieSessionEnabled() && response.config._sessionToken && !/\/auth\/login\//.test(response.config.url || '') &&
+    if (response.config._tenantId !== undefined && response.config._tenantId !== getTenantId()) {
+      throw Object.assign(new Error('Tenant changed before response'), { __CANCEL__: true })
+    }
+    if (response.config._sessionToken && !/\/auth\/login\//.test(response.config.url || '') &&
         !tokensBelongToSameSession(response.config._sessionToken, getAccessToken())) {
       throw Object.assign(new Error('Session changed before response'), { __CANCEL__: true })
     }
@@ -163,7 +173,10 @@ request.interceptors.response.use(
   },
   async (error) => {
     if (axios.isCancel(error)) return Promise.reject(error)
-    if (cookieSessionEnabled() && error.config?._sessionToken &&
+    if (error.config?._tenantId !== undefined && error.config._tenantId !== getTenantId()) {
+      return Promise.reject(Object.assign(new Error('Tenant changed before error response'), { __CANCEL__: true }))
+    }
+    if (error.config?._sessionToken &&
         !tokensBelongToSameSession(error.config._sessionToken, getAccessToken())) {
       return Promise.reject(Object.assign(new Error('Session changed before error response'), { __CANCEL__: true }))
     }

@@ -46,6 +46,26 @@ it('本人到期摘要刷新后更新状态；运营统计说明不保证供应�
   expect(wrapper.text()).toContain('当前不提供供应商最终送达回执')
   expect(wrapper.text()).toContain('渠道执行完成')
 })
+it('合并进行中禁止刷新状态，完成后自动重读并恢复合并按钮', async () => {
+  let resolve!: (value: Awaited<ReturnType<typeof notificationDigestsApi.refresh>>) => void
+  vi.mocked(notificationDigestsApi.refresh).mockImplementationOnce(() => new Promise(done => { resolve = done }))
+  const { wrapper } = await setup()
+  await click(wrapper, '合并我的到期提醒')
+  const signal = vi.mocked(notificationDigestsApi.refresh).mock.calls[0]![0]!
+  const statusButton = wrapper.findAll('button').find(row => row.text() === '刷新状态')!
+  expect(statusButton.attributes('disabled')).toBeDefined()
+  await statusButton.trigger('click'); await flushPromises()
+  expect(signal.aborted).toBe(false)
+  expect(notificationDigestsApi.status).toHaveBeenCalledTimes(1)
+  resolve({ processed: 1, published: 1, suppressed: 0, summaries: 1 }); await flushPromises()
+  expect(notificationDigestsApi.status).toHaveBeenCalledTimes(2)
+  expect(wrapper.emitted('refreshed')).toHaveLength(1)
+  const mergeButton = wrapper.findAll('button').find(row => row.text() === '合并我的到期提醒')!
+  expect(mergeButton.attributes('disabled')).toBeUndefined()
+  expect(mergeButton.classes()).not.toContain('is-loading')
+  await click(wrapper, '合并我的到期提醒')
+  expect(notificationDigestsApi.refresh).toHaveBeenCalledTimes(2)
+})
 it('普通人员没有运营入口；状态失败可重试', async () => {
   vi.mocked(notificationDigestsApi.status).mockRejectedValueOnce(new Error('offline'))
   const { wrapper } = await setup('status', false)

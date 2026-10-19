@@ -82,8 +82,12 @@ class UserRoleAssignmentMixin:
 
     def save_roles(self, user, roles):
         if roles is not None:
-            UserRole.objects.filter(user=user).delete()
-            UserRole.objects.bulk_create([UserRole(user=user, role=role) for role in roles])
+            from apps.core.tenancy import enabled, current_tenant_id
+            links = UserRole.all_objects.filter(user=user)
+            if enabled():
+                links = links.filter(role__tenant_id=current_tenant_id())
+            links.delete()
+            UserRole.objects.bulk_create([UserRole(user=user, role=role, tenant_id=role.tenant_id) for role in roles])
 
 
 class UserCreateSerializer(MaskedContactSerializerMixin, UserRoleAssignmentMixin, serializers.ModelSerializer):

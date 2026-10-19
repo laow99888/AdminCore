@@ -169,6 +169,8 @@ def replace_avatar(request, data):
             if previous_avatar:
                 previous_avatar.soft_delete(actor=user)
             audit(request, user, 'replace_avatar')
+            from apps.files.scan_middleware import persist_scan_results
+            persist_scan_results(request)
         return user
     except Exception as exc:
         try:

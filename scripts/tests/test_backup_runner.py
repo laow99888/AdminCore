@@ -100,6 +100,19 @@ def test_success_publishes_verified_portable_set_after_resume(tmp_path):
     assert start < transfer and not list(tmp_path.glob('*.partial'))
 
 
+def test_minimal_backup_does_not_require_optional_redis(tmp_path):
+    class MinimalRunner(FakeRunner):
+        def command(self, args, **kwargs):
+            if args[0] == 'ps':
+                return b'db\nbackend\nfrontend\n'
+            return super().command(args, **kwargs)
+    instance = MinimalRunner(tmp_path)
+    result = instance.snapshot({'record_id': 'manual', 'retention_days': 30, 'retention_count': 7})
+    assert result['artifacts']
+    stop = next(row for row in instance.operations if row[0] == 'stop')
+    assert 'redis' not in stop and 'worker' not in stop
+
+
 def test_failure_always_resumes_original_writers_and_keeps_partial(tmp_path):
     instance = FakeRunner(tmp_path, failed=True)
     with pytest.raises(runner.RunnerError):

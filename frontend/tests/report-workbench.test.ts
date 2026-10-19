@@ -148,3 +148,22 @@ it('金额显示去除多余尾零时不经过浮点数，也不改变业务编�
   expect(displayReportCell(result,'m_amount','-1.000000000')).toBe('-1.00')
   expect(displayReportCell(result,'status','001.2000')).toBe('001.2000')
 })
+
+it('旧版同名维度保持原样，按返回指标列格式化重命名聚合值', () => {
+  const result = output().widgets[0].result
+  result.definition = { chart_type: 'table', dimensions: [{ field: 'value' }], metric: { field: 'amount', aggregation: 'sum' } }
+  result.columns = ['value', 'm_value']
+  result.chart_columns = ['m_value']
+  expect(displayReportCell(result,'value','001.00')).toBe('001.00')
+  expect(displayReportCell(result,'value','001.2000')).toBe('001.2000')
+  expect(displayReportCell(result,'m_value','123456789123456789.120000000')).toBe('123456789123456789.12')
+  expect(displayReportCell(result,'m_value','-1.000000000')).toBe('-1.00')
+})
+
+it('无返回指标列的旧版结果继续兼容固定value指标', () => {
+  const result = output().widgets[0].result
+  result.definition = { chart_type: 'table', metric: { field: 'amount', aggregation: 'sum' } }
+  delete result.chart_columns
+  expect(displayReportCell(result,'value','123456789123456789.120000000')).toBe('123456789123456789.12')
+  expect(displayReportCell(result,'status','001.2000')).toBe('001.2000')
+})

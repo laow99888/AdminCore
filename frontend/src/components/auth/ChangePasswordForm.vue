@@ -22,8 +22,10 @@ import { BaseButton } from '@/components'
 import { uiText } from '@/i18n/uiText'
 import { useAuthStore } from '@/stores/auth'
 import authApi from '@/api/auth'
+import { useActionGuard } from '@/composables/useActionGuard'
 
 const auth = useAuthStore()
+const beginAction = useActionGuard()
 const formRef = ref<FormInstance>()
 const errorRef = ref<HTMLElement>()
 const saving = ref(false)
@@ -37,7 +39,7 @@ const rules = computed<FormRules>(() => ({
     { min: 8, message: uiText('新密码至少 8 位'), trigger: 'blur' },
     { validator: (_rule, value, done) => done(value === form.old ? new Error(uiText('新密码不能与当前密码相同')) : undefined), trigger: 'blur' },
   ],
-  new2: [{ validator: (_rule, value, done) => done(!value || value !== form.new1 ? new Error(uiText('两次输入的新密码不一致')) : undefined), trigger: 'blur' }],
+  new2: [{ required: true, validator: (_rule, value, done) => done(!value || value !== form.new1 ? new Error(uiText('两次输入的新密码不一致')) : undefined), trigger: 'blur' }],
 }))
 
 function failureText(failure: unknown): string {
@@ -62,17 +64,20 @@ function responseData(failure: unknown): unknown {
 
 async function submit() {
   if (saving.value) return
+  const isCurrent = beginAction()
   error.value = ''
   saving.value = true
   try {
     if (!await formRef.value?.validate().catch(() => false)) return
-    if (!formGuard.isCurrent()) return
+    if (!formGuard.isCurrent() || !isCurrent()) return
     await authApi.changePassword(form.old, form.new1, form.new2)
+    if (!formGuard.isCurrent() || !isCurrent()) return
     formGuard.discard()
     auth.clearSession()
     ElMessage.success(uiText('密码修改成功，请使用新密码重新登录'))
     window.location.assign('/login')
   } catch (failure: unknown) {
+    if (!formGuard.isCurrent() || !isCurrent()) return
     error.value = failureText(failure)
     await nextTick()
     errorRef.value?.focus()

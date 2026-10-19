@@ -274,6 +274,8 @@ class FormRecordViewSet(EnvelopeResponseMixin, viewsets.GenericViewSet, mixins.L
             if 'form_id' in request.data and str(request.data['form_id']) != str(form.pk):
                 raise APIError('表单已发布新版，请刷新后重新填写', status_code=409)
             data = validate_record(form.definition, request.data.get('data', request.data))
+            from .approval_integration import validate_record_inputs
+            validate_record_inputs(form, form.definition, data)
             files = validate_files(form.definition, data, request.user, form.tenant_id, lock=True)
             validate_relations(form.definition, data, request.user, form.tenant_id, lock=True)
             row = OnlineFormRecord.objects.create(form=form, form_version=form.version, owner=request.user, data=data,
@@ -298,6 +300,8 @@ class FormRecordViewSet(EnvelopeResponseMixin, viewsets.GenericViewSet, mixins.L
         if row.approval_status in {'pending', 'approved'}:
             raise APIError('审批中或已通过的表单记录不可修改', status_code=409)
         row.data = validate_record(row.definition_snapshot, request.data.get('data', request.data))
+        from .approval_integration import validate_record_inputs
+        validate_record_inputs(row.form, row.definition_snapshot, row.data)
         files = validate_files(row.definition_snapshot, row.data, request.user, row.tenant_id, lock=True)
         validate_relations(row.definition_snapshot, row.data, request.user, row.tenant_id, lock=True)
         row.version += 1

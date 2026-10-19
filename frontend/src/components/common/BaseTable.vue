@@ -37,8 +37,8 @@
         :sortable="col.sortable || false"
         :show-overflow-tooltip="col.showOverflow !== false"
       >
-        <template v-if="col.render" #default="{ row }">
-          {{ col.render(cellValue(row, col.prop), row) }}
+        <template v-if="col.render || col.format === 'datetime' || ['created_at', 'updated_at'].includes(col.prop)" #default="{ row }">
+          {{ formatCell(col, row) }}
         </template>
       </el-table-column>
 
@@ -94,10 +94,12 @@ import type { TableInstance } from 'element-plus'
 import { useTablePreferencesStore } from '@/stores/tablePreferences'
 import TableColumnSettings from './TableColumnSettings.vue'
 import { normalizeColumns, type ColumnPin, type ColumnPreference } from '@/composables/useColumnPreferences'
+import dayjs from 'dayjs'
 
 type RenderCell<T> = { bivarianceHack(value: unknown, row: T): string | number | void }['bivarianceHack']
 
 interface Column<T = unknown> {
+  format?: 'datetime'
   prop: string
   label: string
   width?: string | number
@@ -174,6 +176,16 @@ watch(() => [props.data, props.selectionIds], async () => {
   if (current === selectionGeneration) syncingSelection = false
 }, { immediate: true })
 const cellValue = (row: unknown, prop: string): unknown => row !== null && typeof row === 'object' ? Reflect.get(row, prop) : undefined
+
+function formatCell(col: Column<T>, row: T) {
+  const value = cellValue(row, col.prop)
+  if (col.render) return col.render(value, row)
+  if ((col.format === 'datetime' || ['created_at', 'updated_at'].includes(col.prop)) &&
+      typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && dayjs(value).isValid()) {
+    return dayjs(value).format('YYYY-MM-DD HH:mm')
+  }
+  return value
+}
 
 // 暴露表格实例和选中行，父组件可调用 clearSelection 等方法
 defineExpose({ tableRef, selectedRows })

@@ -20,6 +20,7 @@
   --color-primary-800: #115e59;
   --color-primary-900: #134e4a;
   --color-primary-950: #042f2e;
+  --color-primary-text: var(--color-primary-700);
 
   /* Accent/Dark - 石板灰系（Slate） */
   --color-dark-50: #f8fafc;
@@ -138,6 +139,7 @@
 
 /* ===== Dark 模式覆盖 ===== */
 .dark {
+  --color-primary-text: var(--color-primary-500);
   /* Primary - 青色保持不变 */
   /* ... 保持同 Light 模式 ... */
 

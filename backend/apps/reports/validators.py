@@ -28,6 +28,16 @@ DATA_SOURCES = {
 }
 
 
+def legacy_metric_key(dimensions, comparison=False):
+    fields = {item['field'] for item in dimensions}
+    suffixes = ('', '_previous', '_delta', '_rate') if comparison else ('',)
+    key, index = 'value', 1
+    while any(key + suffix in fields for suffix in suffixes):
+        key = 'm_value' if index == 1 else f'm_value_{index}'
+        index += 1
+    return key
+
+
 def validate_definition(value):
     if not isinstance(value, dict) or set(value) - {'data_source', 'chart_type', 'dimensions', 'metric', 'metrics', 'filters', 'limit', 'comparison'}:
         raise ValidationError('报表定义包含未登记属性')
@@ -81,7 +91,7 @@ def validate_definition(value):
         result['comparison'] = validate_comparison(value['comparison'], spec, types, dimensions, chart)
         if any(item['field'] == result['comparison']['field'] for item in normalized_filters):
             raise ValidationError('比较日期字段不能同时配置固定筛选')
-        keys = [item.get('key', 'value') + suffix for item in normalized_metrics
+        keys = [item.get('key', legacy_metric_key(dimensions, comparison=True)) + suffix for item in normalized_metrics
                 for suffix in ('', '_previous', '_delta', '_rate')]
         if len(keys) != len(set(keys)) or set(keys) & set(dim_fields):
             raise ValidationError('比较输出指标编码冲突')

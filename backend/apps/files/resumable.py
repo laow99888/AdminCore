@@ -1,9 +1,11 @@
 """可恢复分片上传：会话、分片校验、合并与过期清理。"""
 
 import hashlib
+import logging
 import os
 import re
 import tempfile
+import uuid
 from datetime import timedelta
 
 from django.conf import settings
@@ -11,6 +13,7 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.exceptions import NotFound
 
@@ -26,10 +29,15 @@ MAX_CHUNK_SIZE = 10 * 1024 * 1024
 MAX_CHUNKS = 10_000
 SESSION_TTL = timedelta(hours=24)
 SHA256 = re.compile(r'^[0-9a-f]{64}$')
+logger = logging.getLogger(__name__)
 
 
 def _chunk_name(upload_id, index):
     return f'uploads/.chunks/{upload_id}/{index}.part'
+
+
+def _stored_chunk_name(upload_id, index, chunks):
+    return chunks.get(str(index), {}).get('name') or _chunk_name(upload_id, index)
 
 
 def _visible(user):
@@ -86,6 +94,20 @@ def start_session(request, *, name, total_size, chunk_size, content_type='', exp
 
 
 def put_chunk(request, upload_id, index):
+    saved = []
+    try:
+        return _put_chunk(request, upload_id, index, saved)
+    except Exception:
+        for name in saved:
+            try:
+                default_storage.delete(name)
+            except Exception:
+                # 会话过期清理也枚举此会话专属目录，重试未登记的暂存对象。
+                logger.error('Failed to clean uncommitted upload chunk')
+        raise
+
+
+def _put_chunk(request, upload_id, index, saved):
     index = _int_value(index, '分片序号')
     if index < 0:
         raise APIError('分片序号不合法')
@@ -120,10 +142,11 @@ def put_chunk(request, upload_id, index):
                 raise APIError('同一分片序号已存在不同内容', status_code=409)
             # 同一分片的重试是幂等操作；不重复写对象存储。
             return row
-        name = _chunk_name(row.pk, index)
-        default_storage.save(name, ContentFile(body))
+        name = f'uploads/.chunks/{row.pk}/{index}_{uuid.uuid4().hex}.part'
+        name = default_storage.save(name, ContentFile(body))
+        saved.append(name)
         chunks = dict(row.chunks or {})
-        chunks[str(index)] = {'sha256': actual, 'size': len(body)}
+        chunks[str(index)] = {'sha256': actual, 'size': len(body), 'name': name}
         row.chunks = chunks
         row.save(update_fields=['chunks', 'updated_at'])
     return row
@@ -149,7 +172,7 @@ def complete_session(request, upload_id):
         try:
             for index in range(snapshot.total_chunks):
                 part_digest, part_size = hashlib.sha256(), 0
-                with default_storage.open(_chunk_name(snapshot.pk, index), 'rb') as source:
+                with default_storage.open(_stored_chunk_name(snapshot.pk, index, chunks), 'rb') as source:
                     while part := source.read(1024 * 1024):
                         total += len(part)
                         part_size += len(part)
@@ -196,28 +219,53 @@ def complete_session(request, upload_id):
             if file_obj is not None and not committed:
                 from .serializers import cleanup_failed_upload
                 cleanup_failed_upload(file_obj)
-    for index in range(snapshot.total_chunks):
-        try:
-            default_storage.delete(_chunk_name(snapshot.pk, index))
-        except Exception:
-            pass
+    with transaction.atomic():
+        current = ResumableUpload.objects.select_for_update().get(pk=snapshot.pk)
+        _cleanup_chunks(current)
     return file_obj
+
+
+def _cleanup_chunks(row):
+    """只清理已有终态会话的专属目录；成功标记与失败重试均持久化。"""
+    if row.chunks_cleaned:
+        return True
+    prefix = f'uploads/.chunks/{row.pk}/'
+    names = {_stored_chunk_name(row.pk, index, row.chunks or {}) for index in range(row.total_chunks)}
+    try:
+        try:
+            directories, files = default_storage.listdir(prefix)
+        except FileNotFoundError:
+            directories, files = [], []
+        if directories or any('/' in name or '\\' in name or name in {'.', '..'} for name in files):
+            raise ValueError('invalid_chunk_directory')
+        names.update(prefix + name for name in files)
+        if any(not name.startswith(prefix) or '/' in name[len(prefix):] or '\\' in name for name in names):
+            raise ValueError('invalid_chunk_key')
+        for name in names:
+            default_storage.delete(name)
+    except Exception:
+        logger.error('Upload chunk cleanup deferred')
+        return False
+    row.chunks_cleaned = True
+    row.save(update_fields=['chunks_cleaned', 'updated_at'])
+    return True
 
 
 def cleanup_expired_sessions(*, now=None, limit=100):
     now = now or timezone.now()
     cleaned = 0
-    for row in ResumableUpload.objects.filter(status='active', expires_at__lte=now).order_by('expires_at')[:limit]:
+    candidates = (Q(status='active', expires_at__lte=now) | Q(status__in=['completed', 'expired']))
+    for row in ResumableUpload.objects.filter(candidates, chunks_cleaned=False).order_by('updated_at', 'pk')[:limit]:
         with transaction.atomic():
-            locked = ResumableUpload.objects.select_for_update().filter(pk=row.pk, status='active', expires_at__lte=now).first()
+            locked = ResumableUpload.objects.select_for_update().filter(candidates, pk=row.pk, chunks_cleaned=False).first()
             if locked is None:
                 continue
-            for index in range(locked.total_chunks):
-                try:
-                    default_storage.delete(_chunk_name(locked.pk, index))
-                except Exception:
-                    pass
-            locked.status = 'expired'
-            locked.save(update_fields=['status', 'updated_at'])
-            cleaned += 1
+            if locked.status == 'active':
+                locked.status = 'expired'
+                locked.save(update_fields=['status', 'updated_at'])
+            if _cleanup_chunks(locked):
+                cleaned += 1
+            else:
+                # 多个失败会话公平轮换，避免单条存储故障饿死后续清理。
+                locked.save(update_fields=['updated_at'])
     return cleaned

@@ -35,7 +35,7 @@ const goHome = () => {
 .error-code {
   font-size: 120px;
   font-weight: var(--font-weight-bold);
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
   opacity: 0.1;
   line-height: 1;
 }

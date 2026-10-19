@@ -3,10 +3,14 @@ import csv
 import io
 import json
 import uuid
+import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from threading import Event
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import connection, connections, transaction
 from openpyxl import Workbook
 from rest_framework.test import APIClient
 
@@ -244,6 +248,90 @@ def test_background_rechecks_tenant_lifecycle_and_membership(settings, member_us
     run_data_import(task['id'])
     record = TaskRecord.all_objects.get(pk=task['id'])
     assert record.status == 'failed' and not PurchaseOrder.all_objects.exists()
+
+
+@pytest.mark.django_db(transaction=True)
+@pytest.mark.parametrize('import_first', [False, True])
+def test_postgres_tenant_close_and_document_commit_have_one_order(settings, member_user, monkeypatch, import_first):
+    if connection.vendor != 'postgresql':
+        pytest.skip('租户关闭与整单提交的行锁顺序必须在真实 PostgreSQL 验证')
+    from apps.data_io import business_execution
+    settings.ADMINCORE_MULTI_TENANT_ENABLED = True
+    # transaction=True 时仍由本用例线程显式投递，避免 eager 在提交请求时抢先执行。
+    monkeypatch.setattr('apps.core.events._dispatch_after_commit', lambda: None)
+    tenant = Tenant.objects.create(name='关闭顺序', slug='document-close-order')
+    TenantMembership.objects.create(tenant=tenant, user=member_user)
+    with tenant_context(tenant.pk):
+        client, _ = restricted(member_user)
+        supplier = Supplier.objects.create(code='S', name='本租户', creator=member_user)
+    client.credentials(HTTP_X_ADMINCORE_TENANT=str(tenant.pk))
+    task = submit(client, preview(client, rows(supplier) + rows(supplier, key='B')))
+    entered, resume, closing = Event(), Event(), Event()
+    close_pid = []
+    original = business_execution.serialized_values if import_first else business_execution.require
+    paused = []
+
+    def pause(*args, **kwargs):
+        result = original(*args, **kwargs)
+        if not paused:
+            paused.append(True)
+            entered.set()
+            assert resume.wait(15), 'worker 未收到继续信号'
+        return result
+
+    monkeypatch.setattr(business_execution, 'serialized_values' if import_first else 'require', pause)
+
+    def in_thread(call):
+        try:
+            return call()
+        finally:
+            connections.close_all()
+
+    def close_tenant():
+        # 与租户管理关闭操作相同的成员停用、租户状态更新事务。
+        with transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_backend_pid()')
+                close_pid.append(cursor.fetchone()[0])
+                cursor.execute("SET LOCAL lock_timeout = '10s'")
+            closing.set()
+            TenantMembership.objects.filter(tenant=tenant, is_active=True).update(is_active=False)
+            Tenant.objects.filter(pk=tenant.pk).update(status=Tenant.STATUS_CLOSED)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        worker = pool.submit(in_thread, lambda: run_data_import(task['id']))
+        try:
+            assert entered.wait(15), 'worker 未到授权边界'
+            closer = pool.submit(in_thread, close_tenant)
+            assert closing.wait(10)
+            if import_first:
+                deadline = time.monotonic() + 5
+                while time.monotonic() < deadline:
+                    with connection.cursor() as cursor:
+                        cursor.execute("SELECT wait_event_type FROM pg_stat_activity WHERE pid = %s", close_pid)
+                        state = cursor.fetchone()
+                    if state and state[0] == 'Lock':
+                        break
+                    time.sleep(0.01)
+                else:
+                    pytest.fail('关闭事务未等待整单持有的租户锁')
+                assert not closer.done()
+                assert not PurchaseOrder.all_objects.exists()
+            else:
+                closer.result(timeout=10)
+                assert Tenant.objects.get(pk=tenant.pk).status == Tenant.STATUS_CLOSED
+                assert not PurchaseOrder.all_objects.exists()
+        finally:
+            resume.set()
+        worker.result(timeout=20)
+        closer.result(timeout=15)
+    record = TaskRecord.all_objects.get(pk=task['id'])
+    assert record.status == 'failed'
+    assert record.error == 'execution_not_authorized_committed_rows_preserved'
+    assert list(PurchaseOrder.all_objects.values_list('code', flat=True)) == (['A'] if import_first else [])
+    assert ImportRowReceipt.objects.filter(tenant=tenant).count() == int(import_first)
+    assert PurchaseLine.all_objects.count() == (2 if import_first else 0)
+    assert not TenantMembership.objects.filter(tenant=tenant, is_active=True).exists()
 
 
 def test_background_enters_batch_tenant_and_stamps_all_children(admin_client, admin_user, settings):

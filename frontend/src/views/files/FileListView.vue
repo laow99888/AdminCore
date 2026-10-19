@@ -55,6 +55,7 @@
 <script setup lang="ts">
 import { sessionIdentity } from '@/auth/sessionIdentity'
 import { useLatestRead } from '@/composables/useLatestRead'
+import { useActionGuard } from '@/composables/useActionGuard'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -200,10 +201,14 @@ const handleDownload = async (row: FileRow) => {
   }
 }
 
+const beginAction = useActionGuard()
 const handleDelete = (row: FileRow) => {
+  const isCurrent = beginAction()
   ElMessageBox.confirm(uiText("确定删除文件 {p0} 吗？", { p0: row.original_name }), uiText("提示"), { type: 'warning' })
     .then(async () => {
+      if (!isCurrent()) return
       await filesApi.remove(row.id)
+      if (!isCurrent()) return
       if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText('已移入回收站'))
       capacityRefresh.value++

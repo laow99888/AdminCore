@@ -68,6 +68,15 @@ def import_allowed(user, resource):
     from apps.permissions.permissions import has_permission_code
     from apps.core.data_scope import unrestricted_user_creation
     from apps.core.modules import module_enabled
+    from apps.core.tenancy import enabled, current_tenant_id
+    if enabled() and current_tenant_id() is not None:
+        from apps.core.models import Tenant, TenantMembership
+        identifier = current_tenant_id()
+        if not Tenant.objects.filter(pk=identifier, status=Tenant.STATUS_ACTIVE).exists():
+            return False
+        if not user or (not (user.is_staff or user.is_superuser) and not TenantMembership.objects.filter(
+                tenant_id=identifier, user=user, is_active=True).exists()):
+            return False
     config = get_resource(resource)
     if config and config.get('business'):
         from .business import require

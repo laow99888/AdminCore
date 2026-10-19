@@ -36,6 +36,38 @@ def check_inputs(flow, definition):
         raise ValidationError('表单顶层字段与流程输入类型不一致')
 
 
+def approval_inputs(flow, definition, data):
+    """保存和送审使用同一冻结输入契约；不收紧未绑定审批的表单。"""
+    check_inputs(flow, definition)
+    values = {item['key']: data.get(item['key']) for item in flow.definition['inputs']}
+    try:
+        return input_data(flow.definition, values)
+    except ValidationError as error:
+        from apps.approvals.graph import scalar
+        messages = {'text': '审批输入必须为不超过200字符且不含空字符的文本',
+                    'integer': '审批输入必须为32位整数（-2147483648至2147483647）',
+                    'decimal': '审批输入必须为不超过18位数字、8位小数的精确十进制文本',
+                    'boolean': '审批输入必须为布尔值', 'date': '审批输入必须为有效的 YYYY-MM-DD 日期'}
+        errors = {}
+        for item in flow.definition['inputs']:
+            try:
+                scalar(item['type'], values[item['key']])
+            except ModelValidationError:
+                errors[item['key']] = ('审批输入不能为空' if values[item['key']] is None
+                                       else messages[item['type']])
+        raise ValidationError(errors or error.detail) from error
+
+
+def validate_record_inputs(form, definition, data):
+    if not form.approval_flow_id:
+        return
+    flow = ApprovalFlow.objects.filter(pk=form.approval_flow_id, tenant_id=form.tenant_id,
+        version=form.approval_flow_version, status__in=['published', 'archived']).first()
+    if flow is None:
+        raise ValidationError('该表单版本没有可用的冻结审批流程')
+    approval_inputs(flow, definition, data)
+
+
 def freeze_flow(form):
     if not form.approval_flow_code:
         return None
@@ -107,9 +139,8 @@ def record_action(request, code, identifier, operation):
         version=row.form.approval_flow_version, status__in=['published', 'archived']).first()
     if flow is None:
         raise ValidationError('该表单版本没有可用的冻结审批流程')
-    check_inputs(flow, row.definition_snapshot)
     normalized = validate_record(row.definition_snapshot, row.data)
-    inputs = input_data(flow.definition, {item['key']: normalized.get(item['key']) for item in flow.definition['inputs']})
+    inputs = approval_inputs(flow, row.definition_snapshot, normalized)
     files = validate_files(row.definition_snapshot, normalized, actor, row.tenant_id, lock=True)
     validate_relations(row.definition_snapshot, normalized, actor, row.tenant_id, lock=True)
     frozen = {'form_id': str(row.form_id), 'release_number': row.form.release_number,

@@ -16,7 +16,6 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.crypto import salted_hmac
 from rest_framework.exceptions import APIException, Throttled, ValidationError
-from rest_framework.throttling import BaseThrottle
 
 from apps.core.events import enqueue_event
 from apps.logs.models import OperationLog
@@ -49,7 +48,7 @@ def require_email_service():
 def limited_request(request, purpose, identity=''):
     """只信任部署配置指定的代理；缓存 add/incr 保证并发计数不丢失。"""
     now = time.time()
-    counters = [('ip', BaseThrottle().get_ident(request), 20)]
+    counters = [('ip', request_ip(request), 20)]
     if identity:
         counters.append(('identity', identity, 5))
     try:

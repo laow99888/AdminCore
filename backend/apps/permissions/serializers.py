@@ -73,9 +73,10 @@ class RoleSerializer(serializers.ModelSerializer):
     def _save_permissions(self, role, permission_objects):
         """重建角色-权限关联（RolePermission 显式中间表）"""
         from .models import RolePermission
-        RolePermission.objects.filter(role=role).delete()
+        # role 已经按当前租户验证；兼容旧 bulk_create 遗留的 NULL 关联。
+        RolePermission.all_objects.filter(role=role).delete()
         RolePermission.objects.bulk_create(
-            [RolePermission(role=role, permission=perm) for perm in permission_objects]
+            [RolePermission(role=role, permission=perm, tenant_id=role.tenant_id) for perm in permission_objects]
         )
 
     @transaction.atomic

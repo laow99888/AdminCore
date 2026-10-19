@@ -17,7 +17,7 @@ const jwt = (sid: string, marker: string) => `fixture.${btoa(JSON.stringify({ si
 const old = jwt('first', 'old'), fresh = jwt('first', 'fresh'), replacement = jwt('replacement', 'access')
 describe('401 拦截器刷新与会话边界', () => {
   beforeEach(async () => {
-    vi.resetModules(); vi.clearAllMocks(); localStorage.clear()
+    vi.resetModules(); vi.clearAllMocks(); localStorage.clear(); sessionStorage.clear()
     localStorage.setItem('token', old)
     mocks.request.interceptors.response.use.mockImplementation((fulfilled, rejected) => { mocks.fulfilled = fulfilled; mocks.rejected = rejected })
     await import('../src/api/request')
@@ -117,7 +117,7 @@ describe('401 拦截器刷新与会话边界', () => {
   it('重放发出前的新登录会被request interceptor再次阻断', () => {
     const handler = mocks.request.interceptors.request.use.mock.calls[0]![0]
     localStorage.setItem('token', replacement)
-    expect(() => handler({ _retried: true, _sessionToken: old, headers: { Authorization: `Bearer ${fresh}` } })).toThrow('Session changed before retry')
+    expect(() => handler({ _retried: true, _tenantId: '', _sessionToken: old, headers: { Authorization: `Bearer ${fresh}` } })).toThrow('Session changed before retry')
     expect(tokensBelongToSameSession(old, fresh)).toBe(true)
   })
   it('旧refresh失败时，新登录401不清除新会话', async () => {

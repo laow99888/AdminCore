@@ -25,15 +25,15 @@
         :to="item.path"
         class="menu-item"
         :class="{ active: isActive(item.path) }"
+        :aria-label="uiText(item.label)"
         @click="onNavigate"
       >
-        <span class="menu-icon">
-          <component :is="item.icon" :size="18" :stroke-width="1.75" />
-        </span>
-        <span v-if="!isCollapsed" class="menu-label">{{ uiText(item.label) }}</span>
-        <el-tooltip v-else :content="uiText(item.label)" placement="right">
-          <span></span>
+        <el-tooltip :disabled="!isCollapsed" :content="uiText(item.label)" placement="right">
+          <span class="menu-icon" aria-hidden="true">
+            <component :is="item.icon" :size="18" :stroke-width="1.75" />
+          </span>
         </el-tooltip>
+        <span v-if="!isCollapsed" class="menu-label">{{ uiText(item.label) }}</span>
       </router-link>
     </nav>
 
@@ -115,6 +115,7 @@ const isActive = (path: string) => {
 .app-sidebar {
   width: var(--sidebar-width);
   height: 100vh;
+  height: 100dvh;
   background-color: var(--color-bg-card);
   border-right: 1px solid var(--color-border);
   display: flex;
@@ -151,10 +152,7 @@ const isActive = (path: string) => {
 .logo-icon {
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
-  background: linear-gradient(135deg, var(--color-primary-500) 0%, var(--color-primary-600) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--color-primary-text);
   white-space: nowrap;
   user-select: none;
 }
@@ -184,12 +182,12 @@ const isActive = (path: string) => {
 }
 
 .menu-item:hover {
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
   background-color: var(--color-bg-elevated);
 }
 
 .menu-item.active {
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
   background-color: color-mix(in srgb, var(--color-primary-500) 10%, transparent);
   font-weight: var(--font-weight-semibold);
 }
@@ -235,7 +233,7 @@ const isActive = (path: string) => {
 
 .collapse-btn:hover {
   background-color: var(--admincore-primary-subtle, var(--color-primary-100));
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
 }
 
 /* 滚动条 */

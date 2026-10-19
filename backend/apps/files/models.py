@@ -149,6 +149,7 @@ class ResumableUpload(BaseModel):
     total_chunks = models.PositiveIntegerField()
     expected_sha256 = models.CharField(max_length=64, blank=True)
     chunks = models.JSONField(default=dict)
+    chunks_cleaned = models.BooleanField(default=False)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='active', db_index=True)
     expires_at = models.DateTimeField(db_index=True)
     file = models.OneToOneField(FileModel, on_delete=models.SET_NULL, null=True, blank=True,

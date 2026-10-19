@@ -92,7 +92,7 @@ const buttonType = computed(() => {
 .variant-ghost:hover:not(:disabled) {
   background-color: var(--color-bg-elevated);
   border-color: var(--color-primary-500);
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
 }
 
 .variant-danger {

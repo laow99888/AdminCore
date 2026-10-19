@@ -19,7 +19,7 @@ let pinia: Pinia
 describe('Cookie 模式认证状态与旧请求隔离', () => {
   beforeEach(() => {
     vi.stubEnv('VITE_AUTH_SESSION_TRANSPORT', 'cookie'); vi.resetAllMocks()
-    localStorage.clear(); discardMemorySession(); pinia = createPinia(); setActivePinia(pinia)
+    localStorage.clear(); sessionStorage.clear(); discardMemorySession(); pinia = createPinia(); setActivePinia(pinia)
     Object.defineProperty(navigator, 'locks', { configurable: true, value: { request: (_key: string, run: () => Promise<unknown>) => run() } })
     vi.mocked(authApi.login).mockResolvedValue(pair())
     vi.mocked(authApi.me).mockResolvedValue(user)
@@ -60,12 +60,12 @@ describe('Cookie 模式认证状态与旧请求隔离', () => {
       finish({ data: { data: [{ id: 'old', slug: 'old', name: '旧租户', role: 'member' }] } })
       await pending
       expect(tenants.currentId).toBe(''); expect(tenants.options).toEqual([])
-      expect(localStorage.getItem('admincore.tenant')).toBeNull()
+      expect(sessionStorage.getItem('admincore.tenant')).toBeNull()
     } finally { get.mockRestore() }
   })
 
   it('恢复租户时丢弃失效选择并确定性选择第一个成员租户', async () => {
-    localStorage.setItem('admincore.tenant', 'invalid')
+    sessionStorage.setItem('admincore.tenant', 'invalid')
     const tenants = useTenantStore()
     const get = vi.spyOn(request, 'get').mockResolvedValue({ data: { data: [
       { id: 'first', slug: 'first', name: '首个租户', role: 'member' },
@@ -73,7 +73,7 @@ describe('Cookie 模式认证状态与旧请求隔离', () => {
     ] } })
     try {
       await tenants.load()
-      expect(tenants.currentId).toBe('first'); expect(localStorage.getItem('admincore.tenant')).toBe('first')
+      expect(tenants.currentId).toBe('first'); expect(sessionStorage.getItem('admincore.tenant')).toBe('first')
       expect(get).toHaveBeenCalledWith('/organization/my-tenants/')
     } finally { get.mockRestore() }
   })

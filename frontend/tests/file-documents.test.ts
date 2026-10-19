@@ -2,11 +2,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
-import ElementPlus from 'element-plus'
+import ElementPlus, { ElSelect } from 'element-plus'
 import FileVersionsDialog from '../src/components/files/FileVersionsDialog.vue'
 import FileCapacityPanel from '../src/components/files/FileCapacityPanel.vue'
 import { fileDocumentsApi, type FileHistory } from '../src/api/fileDocuments'
-import { filesApi, downloadFile, type FileRow } from '../src/api'
+import { filesApi, downloadFile, usersApi, type FileRow } from '../src/api'
 import { useAuthStore } from '../src/stores/auth'
 import { useModuleStore } from '../src/stores/modules'
 import { useTenantStore } from '../src/stores/tenants'
@@ -31,7 +31,7 @@ function token(sid = 'session', session_version = 1, jti = 'initial') { return `
 async function setup(kind: 'versions' | 'capacity' = 'versions', permissions = ['file:read', 'file:upload', 'file:download'], staff = false, access = 'session') {
   const auth = useAuthStore(), tenants = useTenantStore(), modules = useModuleStore()
   auth.token = access; auth.user = { id: 'owner', username: 'owner', email: '', avatar: '', is_staff: staff, permissions }
-  modules.config = { contract_version: 1, preset: 'standard', modules: ['files', 'users'].map(key => ({ key, title: key, enabled: true, dependencies: [], paths: [`/${key}`] })) }
+  modules.config = { contract_version: 1, preset: 'standard', modules: ['files'].map(key => ({ key, title: key, enabled: true, dependencies: [], paths: [`/${key}`] })) }
   const wrapper = kind === 'versions'
     ? mount(FileVersionsDialog, { props: { file }, global: { plugins: [ElementPlus], stubs: { ElDialog: Dialog } } })
     : mount(FileCapacityPanel, { props: { refreshKey: 0 }, global: { plugins: [ElementPlus], stubs: { ElDialog: Dialog } } })
@@ -156,6 +156,28 @@ it('管理员设置MiB换算字节，并携带版本；保存失败保留输入'
   await wrapper.get('form').trigger('submit'); await flushPromises()
   expect(fileDocumentsApi.saveCapacity).toHaveBeenLastCalledWith('owner', 2097152, 4)
   expect(wrapper.text()).toContain('上限 2.00 MiB')
+})
+it('核心用户模块无需可选模块描述，管理员可搜索并保存其他用户容量', async () => {
+  const otherUser = { id: 'other', username: 'other-user', version: 1, email: '', first_name: '', last_name: '', is_active: true, created_at: '' }
+  vi.mocked(usersApi.list).mockResolvedValue({ items: [otherUser], pagination: { page: 1, page_size: 20, total: 1, total_pages: 1 } })
+  const { wrapper, modules } = await setup('capacity', ['file:read', 'file:upload', 'user:read'], true)
+  expect(modules.config!.modules.some(row => row.key === 'users')).toBe(false)
+  await button(wrapper, '容量管理').trigger('click'); await flushPromises()
+  const picker = wrapper.getComponent(ElSelect)
+  await picker.props('remoteMethod')!('other'); await flushPromises()
+  expect(usersApi.list).toHaveBeenCalledWith({ search: 'other', is_active: true, page: 1, page_size: 20 })
+  picker.vm.$emit('update:modelValue', otherUser.id); picker.vm.$emit('change', otherUser.id); await flushPromises()
+  expect(fileDocumentsApi.capacity).toHaveBeenLastCalledWith(otherUser.id, expect.any(AbortSignal))
+  await wrapper.get('input[role="spinbutton"]').setValue('2')
+  await wrapper.get('form').trigger('submit'); await flushPromises()
+  expect(fileDocumentsApi.saveCapacity).toHaveBeenCalledWith(otherUser.id, 2097152, 4)
+  expect(wrapper.text()).toContain('上限 1.00 MiB')
+})
+it('没有用户读取权限的管理员只能配置本人容量', async () => {
+  const { wrapper } = await setup('capacity', ['file:read', 'file:upload'], true)
+  await button(wrapper, '容量管理').trigger('click'); await flushPromises()
+  expect(wrapper.findComponent(ElSelect).exists()).toBe(false)
+  expect(usersApi.list).not.toHaveBeenCalled()
 })
 it('容量冲突必须重读再编辑，不能使用旧版本继续保存', async () => {
   const { wrapper } = await setup('capacity', ['file:read', 'file:upload'], true)

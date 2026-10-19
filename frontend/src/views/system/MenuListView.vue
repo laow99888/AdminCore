@@ -51,6 +51,7 @@
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useActionGuard } from '@/composables/useActionGuard'
 import { computed, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { isAxiosError } from 'axios'
@@ -146,10 +147,14 @@ const saveMenu = async () => {
       ? Object.values(error.response.data.data).flat().join('；') : uiText('保存失败，请重试')
   } finally { saving.value = false }
 }
+const beginAction = useActionGuard()
 const removeMenu = async (row: MenuRow) => {
+  const isCurrent = beginAction()
   try {
     await ElMessageBox.confirm(uiText('确定删除菜单 {p0} 吗？', { p0: row.name }), uiText('提示'), { type: 'warning' })
+    if (!isCurrent()) return
     await menusApi.remove(row.id)
+    if (!isCurrent()) return
     await loadMenus()
     window.dispatchEvent(new Event('admincore:menus-updated'))
     ElMessage.success(uiText('删除成功'))

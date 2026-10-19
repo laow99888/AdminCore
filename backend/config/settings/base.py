@@ -61,7 +61,7 @@ if AUTH_TOTP_ENCRYPTION_KEY:
         Fernet(AUTH_TOTP_ENCRYPTION_KEY.encode('ascii'))
     except (ValueError, UnicodeEncodeError):
         raise ValueError('AUTH_TOTP_ENCRYPTION_KEY 必须为合法的 Fernet 密钥') from None
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 import ipaddress
 from django.core.exceptions import ImproperlyConfigured
 try:
@@ -109,7 +109,7 @@ INSTALLED_APPS = [
     'apps.feature_flags',
     'apps.ip_policy',
     'apps.online_forms',
-      'apps.reports',
+    'apps.reports',
 ]
 
 # 中间件

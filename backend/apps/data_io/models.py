@@ -2,6 +2,7 @@
 from django.conf import settings
 from django.db import models
 from apps.core.models import BaseModel
+from apps.files.fields import ScannedFileField
 
 
 class ImportMapping(BaseModel):
@@ -35,6 +36,6 @@ class BusinessExportRequest(BaseModel):
     session_version = models.PositiveIntegerField()
     session_id = models.UUIDField(null=True, blank=True)
     request_id = models.CharField(max_length=100, blank=True)
-    artifact = models.FileField(upload_to='private-business-exports/%Y/%m/%d/', blank=True)
+    artifact = ScannedFileField(upload_to='private-business-exports/%Y/%m/%d/', blank=True)
     artifact_sha256 = models.CharField(max_length=64, blank=True)
     expires_at = models.DateTimeField(db_index=True)

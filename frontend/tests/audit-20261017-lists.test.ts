@@ -13,7 +13,13 @@ vi.mock('../src/i18n/uiText', async (importOriginal) => ({ ...await importOrigin
 vi.mock('../src/api', () => ({ filesApi: { list: vi.fn(), remove: vi.fn() }, rolesApi: { list: vi.fn(), remove: vi.fn() }, permissionsApi: { list: vi.fn() } }))
 vi.mock('../src/api/officePreview', () => ({ isOfficeFormat: () => false, officePreviewConfig: async () => false }))
 vi.mock('../src/api/imageProcessing', () => ({ canProcessImage: () => false, imageProcessingConfig: async () => ({ enabled: false }) }))
-vi.mock('../src/stores/modules', () => ({ useModuleStore: () => ({ enabled: () => true, config: {} }) }))
+vi.mock('../src/stores/modules', () => {
+  const config = { contract_version: 1, preset: 'standard', modules: [{ key: 'files', title: '文件', enabled: true, paths: ['/files'], dependencies: [] }] }
+  return { useModuleStore: () => ({
+    config, enabled: (key: string) => config.modules.some(module => module.key === key && module.enabled),
+    pathEnabled: (path: string) => config.modules.every(module => !module.paths.some(base => path === base || path.startsWith(base + '/')) || module.enabled),
+  }) }
+})
 const Table = defineComponent({ name: 'BaseTable', props: ['data', 'currentPage', 'total', 'loading'], emits: ['update:currentPage'], template: '<div><slot v-for="row in data" name="actions" :row="row" /></div>' })
 const Layout = defineComponent({ template: '<main><slot name="header" /><slot /></main>' })
 const row = { id: 'row', name: 'role', original_name: 'file.txt', file_type: 'txt', size: 1, permissions: [], version: 1 }

@@ -120,6 +120,8 @@ class TestDownloadAndDelete:
         upload = admin_client.post('/api/v1/files/', {'file': make_file('dl.txt', b'DATA')}, format='multipart').json()
         res = admin_client.get(f"/api/v1/files/{upload['id']}/download/")
         assert res.status_code == 200
+        assert res['Cache-Control'] == 'private, no-store'
+        assert res['X-Content-Type-Options'] == 'nosniff'
         assert b''.join(res.streaming_content) == b'DATA'
         assert FileModel.objects.get(id=upload['id']).download_count == 1
 

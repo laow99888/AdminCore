@@ -70,3 +70,10 @@ frontend/coverage/
 frontend/test-results/
 frontend/playwright-report/
 backend/config/build-profile.json
+
+# 测试与本地调试产物；诊断文件仍在本地保留
+node_modules/
+admincore-test-media-*/
+pytest-of-*/
+/backend/tmp*
+/debug.log

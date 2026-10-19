@@ -224,13 +224,7 @@ const handleCommand = async (command: string) => {
   padding: 0 var(--spacing-xl);
   gap: var(--spacing-lg);
   flex-shrink: 0;
-  backdrop-filter: blur(10px);
-  background-color: rgba(255, 255, 255, 0.8);
   z-index: 100;
-}
-
-.dark .app-header {
-  background-color: rgba(30, 41, 59, 0.8);
 }
 
 .header-left {
@@ -291,7 +285,7 @@ const handleCommand = async (command: string) => {
 
 .action-btn:hover {
   background-color: var(--admincore-primary-subtle, var(--color-primary-100));
-  color: var(--color-primary-500);
+  color: var(--color-primary-text);
 }
 
 .user-btn {

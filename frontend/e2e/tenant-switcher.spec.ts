@@ -51,6 +51,7 @@ test('多租户选择器切换后刷新并携带租户请求头', async ({ page 
   await page.getByRole('option', { name: '租户 B', exact: true }).click()
 
   const dashboardRequest = await refreshed
-  expect(await page.evaluate(() => localStorage.getItem('admincore.tenant'))).toBe('tenant-b')
+  expect(await page.evaluate(() => sessionStorage.getItem('admincore.tenant'))).toBe('tenant-b')
+  expect(await page.evaluate(() => localStorage.getItem('admincore.tenant'))).toBeNull()
   expect(dashboardRequest.headers()['x-admincore-tenant']).toBe('tenant-b')
 })

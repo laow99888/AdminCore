@@ -251,7 +251,7 @@ class Runner:
         if any(path.exists() for path in (db, media, manifest, marker, db.with_name(db.name + '.partial'), media.with_name(media.name + '.partial'))):
             raise RunnerError('备份时间戳冲突，拒绝覆盖')
         running = self.command(['ps', '--status', 'running', '--services']).decode().split()
-        if not {'db', 'redis', 'backend'} <= set(running):
+        if not {'db', 'backend'} <= set(running):
             raise RunnerError('基础服务未运行')
         writers = [service for service in WRITERS if service in running]
         resume_error = False

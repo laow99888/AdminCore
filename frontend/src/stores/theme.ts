@@ -7,7 +7,7 @@ const customProperties = [...PRIMARY_STEPS.map(step => `--color-primary-${step}`
   '--el-color-primary', '--el-color-primary-light-3', '--el-color-primary-light-5',
   '--el-color-primary-light-7', '--el-color-primary-light-8', '--el-color-primary-light-9',
   '--el-color-primary-dark-2', '--admincore-primary-on-color', '--admincore-primary-subtle',
-  '--admincore-primary-rgb']
+  '--admincore-primary-rgb', '--color-primary-text']
 
 export const useThemeStore = defineStore('theme', () => {
   const isDark = ref(false)
@@ -28,6 +28,7 @@ export const useThemeStore = defineStore('theme', () => {
     for (const step of PRIMARY_STEPS) root.style.setProperty(`--color-primary-${step}`, result.palette[step]!)
     const overrides: Record<string, string> = {
       '--el-color-primary': result.primary,
+      '--color-primary-text': result.primary,
       '--el-color-primary-light-3': result.hover,
       '--el-color-primary-light-5': isDark.value ? result.palette[400]! : result.palette[300]!,
       '--el-color-primary-light-7': isDark.value ? result.palette[800]! : result.palette[200]!,

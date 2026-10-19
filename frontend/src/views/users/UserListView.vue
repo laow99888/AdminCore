@@ -151,6 +151,7 @@ import { sessionIdentity } from '@/auth/sessionIdentity'
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useActionGuard } from '@/composables/useActionGuard'
 import { usePageState } from '@/composables/usePageState'
 import { uiText } from "@/i18n/uiText"
 
@@ -387,14 +388,18 @@ const handleSaveUser = async () => {
   }
 }
 
+const beginAction = useActionGuard()
 const handleDelete = (row: UserRow) => {
+  const isCurrent = beginAction()
   ElMessageBox.confirm(uiText("确定删除用户 {p0} 吗？", { p0: row.username }), uiText("提示"), {
     confirmButtonText: uiText("确定"),
     cancelButtonText: uiText("取消"),
     type: 'warning',
   })
     .then(async () => {
+      if (!isCurrent()) return
       await usersApi.remove(row.id)
+      if (!isCurrent()) return
       if (tableData.value.length === 1 && currentPage.value > 1) currentPage.value--
       ElMessage.success(uiText("删除成功"))
       loadUsers()

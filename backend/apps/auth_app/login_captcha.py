@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.crypto import salted_hmac
 from PIL import Image, ImageDraw, ImageFont
 from rest_framework.exceptions import APIException, Throttled, ValidationError
-from rest_framework.throttling import BaseThrottle
+from apps.core.client_ip import request_ip
 
 from .models import LoginCaptchaChallenge, LoginCaptchaGuard
 
@@ -31,7 +31,7 @@ def enabled():
 
 
 def identities(request, username):
-    ip = BaseThrottle().get_ident(request)
+    ip = request_ip(request) or ''
     normalized = str(username).strip().casefold()
     digest = lambda value: salted_hmac('admincore.auth.login-captcha.identity.v1', value,
                                       secret=settings.SECRET_KEY, algorithm='sha256').hexdigest()
