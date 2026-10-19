@@ -3,7 +3,7 @@ import { colorContrast } from '../src/utils/themeColors'
 
 const envelope = (data: unknown) => ({ code: 200, message: 'success', data })
 async function setup(page: Page, english = false) {
-  const state = { permissions: ['*'], files: true, failUsers: false, userId: 'navigation-admin' }
+  const state = { permissions: ['*'], files: true, failUsers: false, userId: 'navigation-admin', organization: false }
   await page.addInitScript(({ english }) => {
     localStorage.setItem('token', 'isolated-navigation-fixture')
     if (english) { localStorage.setItem('language', 'en-US'); localStorage.setItem('theme', 'dark') }
@@ -11,7 +11,7 @@ async function setup(page: Page, english = false) {
   await page.route('**/api/v1/**', async route => {
     const url = new URL(route.request().url()), path = url.pathname
     if (path.endsWith('/auth/me/')) return route.fulfill({ json: envelope({ id: state.userId, username: 'admin', is_staff: true, permissions: state.permissions }) })
-    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: ['files', 'tasks', 'notifications', 'system'].map(key => ({ key, enabled: key !== 'files' || state.files, paths: key === 'system' ? ['/system'] : [`/${key}`], dependencies: [], ...(key === 'files' ? { page_permissions: { '/files': 'file:read' } } : {}) })) }) })
+    if (path.endsWith('/modules/')) return route.fulfill({ json: envelope({ contract_version: 1, preset: 'standard', modules: ['files', 'tasks', 'notifications', 'system', ...(state.organization ? ['organization'] : [])].map(key => ({ key, enabled: key !== 'files' || state.files, paths: key === 'system' ? ['/system'] : [`/${key}`], dependencies: [], ...(key === 'files' ? { page_permissions: { '/files': 'file:read' } } : {}) })) }) })
     if (path.endsWith('/brand/')) return route.fulfill({ json: envelope({ name: 'AdminCore' }) })
     if (path.endsWith('/menus/my_menu/')) return route.fulfill({ json: envelope([{ id: 'u', name: '用户管理', path: '/users', icon: 'users' }, { id: 'r', name: '角色权限', path: '/roles', icon: 'shield' }, { id: 'f', name: '文件管理', path: '/files', icon: 'folder' }, { id: 'l', name: '操作日志', path: '/logs', icon: 'logs' }]) })
     if (path.endsWith('/notifications/unread_count/')) return route.fulfill({ json: envelope({ count: 0 }) })
@@ -30,6 +30,43 @@ async function setup(page: Page, english = false) {
   return state
 }
 const tabs = (page: Page) => page.locator('.navigation-shell .navigation-tab')
+
+for (const multipleTenants of [false, true]) test(`窄屏顶栏按钮不遮挡并可操作，多租户=${multipleTenants}`, async ({ page }) => {
+  const state = await setup(page)
+  state.organization = true
+  await page.route('**/api/v1/organization/my-tenants/', route => route.fulfill({ json: envelope(multipleTenants ? [
+    { id: 'tenant-a', slug: 'a', name: '租户甲', role: 'admin' },
+    { id: 'tenant-b', slug: 'b', name: '租户乙', role: 'admin' },
+  ] : []) }))
+  for (const width of [320, 375, 768]) {
+    await page.setViewportSize({ width, height: 667 })
+    await page.goto('/')
+    await expect(page.locator('.dashboard-container')).toBeVisible()
+    if (multipleTenants) await expect(page.locator('.tenant-switcher')).toBeVisible()
+    const controls = page.locator('.app-header button:visible, .app-header .tenant-switcher')
+    const boxes = await controls.evaluateAll(elements => elements.map(element => {
+      const { x, y, width, height } = element.getBoundingClientRect()
+      return { x, y, width, height }
+    }))
+    for (const [index, box] of boxes.entries()) {
+      expect(box.x).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width).toBeLessThanOrEqual(width)
+      for (const other of boxes.slice(index + 1)) {
+        const overlap = Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x) > 1 &&
+          Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y) > 1
+        expect(overlap, `顶栏控件重叠：${JSON.stringify({ box, other, width })}`).toBe(false)
+      }
+    }
+    await page.getByRole('button', { name: '打开菜单', exact: true }).click()
+    await expect(page.locator('.sidebar-menu')).toBeVisible()
+    await page.getByRole('button', { name: '收起侧栏', exact: true }).click()
+    await page.getByRole('button', { name: '搜索菜单', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: '搜索菜单', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: '搜索菜单', exact: true })).not.toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  }
+})
 
 for (const dark of [false, true]) test(`默认${dark ? '深色' : '浅色'}主按钮在悬停和聚焦时保持文字对比度`, async ({ page }) => {
   await setup(page)

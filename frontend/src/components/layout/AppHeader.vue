@@ -315,12 +315,14 @@ const handleCommand = async (command: string) => {
 
 /* 响应式 */
 @media (max-width: 768px) {
-  .header-right { gap: var(--spacing-xs); }
-  .header-left { flex: 1; min-width: 0; gap: var(--spacing-sm); }
+  .header-right { gap: var(--spacing-xs); min-width: 0; flex-shrink: 1; flex-wrap: wrap; justify-content: flex-end; }
+  .header-left { flex: 1; min-width: 36px; gap: var(--spacing-sm); }
   .shortcut-help { width: 36px; height: 36px; }
   .user-btn { padding: 0 var(--spacing-sm); }
   .app-header {
-    padding: 0 var(--spacing-sm);
+    height: auto;
+    min-height: var(--header-height);
+    padding: var(--spacing-sm);
     gap: var(--spacing-sm);
   }
 
@@ -331,5 +333,10 @@ const handleCommand = async (command: string) => {
   .user-name {
     display: none;
   }
+}
+
+@media (max-width: 480px) {
+  .header-left { flex: 0 0 36px; }
+  .header-title { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
 }
 </style>
