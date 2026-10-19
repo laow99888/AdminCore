@@ -33,6 +33,20 @@ describe('BaseForm', () => {
     await wrapper.get('button:last-child').trigger('click')
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([{ name: '初始值' }])
   })
+  it('切换记录后重置使用新记录基线，日期声明稳定传输格式', async () => {
+    const wrapper = mount(BaseForm, { props: { modelValue: { name: 'A' }, fields, resetKey: 'a' } })
+    await wrapper.setProps({ modelValue: { name: 'B' }, resetKey: 'b' })
+    await wrapper.setProps({ modelValue: { name: 'B changed' } })
+    await wrapper.get('button:last-child').trigger('click')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([{ name: 'B' }])
+    wrapper.unmount()
+    const dates = mount(BaseForm, { props: { modelValue: {}, fields: [
+      { prop: 'day', label: 'Date', type: 'date' }, { prop: 'instant', label: 'Time', type: 'datetime' },
+    ] } })
+    expect(dates.findAllComponents({ name: 'ElDatePicker' }).map(control => control.props('valueFormat')))
+      .toEqual(['YYYY-MM-DD', 'YYYY-MM-DDTHH:mm:ssZ'])
+    dates.unmount()
+  })
   it('加载时禁止输入、重置和键盘提交', async () => {
     const wrapper = mount(BaseForm, { props: { modelValue: { name: '值' }, fields, loading: true } })
     expect(wrapper.get('input').attributes('disabled')).toBeDefined()

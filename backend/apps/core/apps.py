@@ -11,4 +11,4 @@ class CoreConfig(AppConfig):
     verbose_name = '核心应用'
 
     def ready(self):
-        from . import schema  # 注册自定义 JWT schema 扩展
+        from . import schema  # noqa: F401 -- 注册 OpenAPI 扩展  # 注册自定义 JWT schema 扩展

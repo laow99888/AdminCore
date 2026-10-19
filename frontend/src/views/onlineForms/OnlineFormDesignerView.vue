@@ -1,6 +1,7 @@
 <template>
   <AppLayout
     ><div class="page">
+      <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :version="editing?.version ?? 0" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
       <BaseCard
         ><template #header
           ><div class="head">
@@ -201,6 +202,9 @@
   >
 </template>
 <script setup lang="ts">
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
+import { responseStatus } from '@/api/request'
 import "@/components/onlineForms/messages";
 import "@/components/onlineForms/lifecycleMessages";
 import { computed, onMounted, ref, watch } from "vue";
@@ -307,7 +311,10 @@ watch(
   },
   { deep: true },
 );
+const conflict = useEditConflict<OnlineFormRow>({ identifier: () => editing.value?.id || '', current: () => guard.isSessionCurrent(), fetch: onlineFormsApi.detail, apply: loadEditor })
+const conflictRows = computed(() => conflict.latest.value ? [{ label: uiText('定义'), local: JSON.stringify(editing.value), server: JSON.stringify(conflict.latest.value) }] : [])
 function loadEditor(row: OnlineFormRow) {
+  conflict.reset()
   flowChoices.value = []; flowsError.value = ''; flowsLoading.value = false;
   editing.value = JSON.parse(JSON.stringify(row));
   if (editing.value) editing.value.definition = upgrade(row.definition);
@@ -409,7 +416,7 @@ async function load() {
 }
 async function save(): Promise<boolean> {
   const epoch = context;
-  if (!editing.value || locked.value) return false;
+  if (conflict.active.value || !editing.value || locked.value) return false;
   saving.value = true;
   formError.value = "";
   try {
@@ -430,6 +437,7 @@ async function save(): Promise<boolean> {
     return true;
   } catch (err) {
     if (!currentSession(epoch)) return false;
+    if (responseStatus(err) === 409 && editing.value?.id) conflict.mark();
     formError.value = errorMessage(err, uiText("保存失败"));
     notifyError(err, uiText("保存失败"));
     return false;
@@ -439,7 +447,7 @@ async function save(): Promise<boolean> {
 }
 async function publish() {
   const epoch = context;
-  if (saving.value || !canPublish.value || editing.value?.status !== "draft")
+  if (conflict.active.value || saving.value || !canPublish.value || editing.value?.status !== "draft")
     return;
   if ((!editing.value.id || guard.dirty.value) && !(await save())) return;
   if (!editing.value?.id || !currentSession(epoch)) return;
@@ -455,6 +463,7 @@ async function publish() {
     ElMessage.success(uiText("已发布"));
   } catch (err) {
     if (!currentSession(epoch)) return;
+    if (responseStatus(err) === 409 && editing.value?.id) conflict.mark();
     formError.value = errorMessage(err, uiText("发布失败"));
     notifyError(err, uiText("发布失败"));
   } finally {

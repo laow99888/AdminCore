@@ -6,7 +6,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.exceptions import APIException
 from django.db.models.deletion import ProtectedError
-from django.db import DatabaseError
+from django.db import DatabaseError, IntegrityError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,11 +19,8 @@ class APIError(APIException):
     default_code = 'error'
 
     def __init__(self, detail=None, code=None, status_code=None):
-        if detail:
-            self.detail = detail
-        if code:
-            self.code = code
-        if status_code:
+        super().__init__(detail=detail, code=code)
+        if status_code is not None:
             self.status_code = status_code
 
 
@@ -67,6 +64,13 @@ def custom_exception_handler(exc, context):
             response = Response({'code': 503, 'message': '只读服务暂不可用', 'data': None}, status=503)
             response._admincore_replica_failure = True
             return response
+
+    cause = getattr(exc, '__cause__', None)
+    if isinstance(exc, IntegrityError) and (
+            getattr(cause, 'sqlstate', None) in {'23505', '23503'} or
+            getattr(cause, 'pgcode', None) in {'23505', '23503'} or
+            getattr(cause, 'sqlite_errorname', None) in {'SQLITE_CONSTRAINT_UNIQUE', 'SQLITE_CONSTRAINT_PRIMARYKEY', 'SQLITE_CONSTRAINT_FOREIGNKEY'}):
+        return Response({'code': 409, 'message': '唯一字段或关联记录已变化，请刷新后重试', 'data': None}, status=409)
 
     if isinstance(exc, ProtectedError):
         return Response({'code': 409, 'message': '该记录仍被业务数据引用，请先处理关联记录', 'data': None},

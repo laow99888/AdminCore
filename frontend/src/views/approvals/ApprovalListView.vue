@@ -95,9 +95,9 @@
             <PersonPicker v-model="assignee" purpose="approval" :disabled="saving || !createVisible" />
           </el-form-item>
           <el-form-item v-for="field in selectedFlowInputs" :key="field.key" :label="field.key" required>
-            <el-switch v-if="field.type === 'boolean'" v-model="flowValues[field.key]" :aria-label="field.key" />
-            <el-input-number v-else-if="field.type === 'integer'" v-model="flowValues[field.key]" :aria-label="field.key" :precision="0" :min="-2147483648" :max="2147483647" />
-            <el-input v-else v-model="flowValues[field.key]" :aria-label="field.key" :placeholder="field.type === 'date' ? 'YYYY-MM-DD' : field.type === 'decimal' ? '0.00' : ''" />
+            <el-switch v-if="field.type === 'boolean'" :model-value="flowValues[field.key] as boolean" @update:model-value="flowValues[field.key] = $event" :aria-label="field.key" />
+            <el-input-number v-else-if="field.type === 'integer'" :model-value="flowValues[field.key] as number" @update:model-value="flowValues[field.key] = $event ?? 0" :aria-label="field.key" :precision="0" :min="-2147483648" :max="2147483647" />
+            <el-input v-else :model-value="flowValues[field.key] as string" @update:model-value="flowValues[field.key] = $event" :aria-label="field.key" :placeholder="field.type === 'date' ? 'YYYY-MM-DD' : field.type === 'decimal' ? '0.00' : ''" />
           </el-form-item>
           <el-form-item :label="uiText('内容')" required>
             <el-input v-model="createForm.content" type="textarea" :rows="4" :placeholder="uiText('申请说明')" />
@@ -144,7 +144,7 @@ const saving = ref(false)
 const auth = useAuthStore()
 const flowId = ref(''), availableFlows = ref<ApprovalFlowRow[]>([]), flowsLoading = ref(false), flowsHasMore = ref(false)
 // 与 API 的受限输入契约一致；金额始终使用文本，不转换为浮点数。
-const flowValues = reactive<Record<string, any>>({})
+const flowValues = reactive<Record<string, string | number | boolean>>({})
 const selectedFlowInputs = computed(() => availableFlows.value.find(flow => flow.id === flowId.value)?.definition.inputs || [])
 watch(flowId, () => {
   for (const key of Object.keys(flowValues)) delete flowValues[key]
@@ -309,8 +309,8 @@ const decide = async (row: ApprovalRow, action: 'approve' | 'reject') => {
     await approvalsApi[action](row.id, value, row.workflow_version, step?.id)
     ElMessage.success(uiText("已{p0}", { p0: tip }))
     loadList()
-  } catch {
-    // 用户取消
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') notifyError(error, uiText('审批失败，请重试'))
   }
 }
 

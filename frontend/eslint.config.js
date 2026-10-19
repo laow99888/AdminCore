@@ -15,5 +15,6 @@ export default [
       'no-debugger': 'error',
     },
   },
+  { files: ['src/**/*.{ts,vue}'], rules: { '@typescript-eslint/no-explicit-any': 'error', 'no-console': ['error', { allow: ['warn', 'error'] }], 'vue/no-v-html': 'error' } },
   { files: ['**/*.ts'], languageOptions: { parser: tsParser } },
 ]

@@ -1,3 +1,4 @@
+from .message_services import current_template_version
 from django.db import IntegrityError, transaction
 from django.db.models import F, Prefetch
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -8,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
 from apps.core.idempotency import with_idempotency
-from apps.core.mixins import EnvelopeResponseMixin
+from apps.core.mixins import EnvelopeResponseMixin, PrivateResponseMixin
 from apps.core.schema import envelope
 from apps.core.personnel import people_response, picker_departments, PeopleQuerySerializer, PeoplePageSerializer, PickerDepartmentsSerializer
 from .announcement_services import authorize
@@ -20,19 +21,12 @@ from .message_serializers import (MessageTemplateSerializer, TemplateVersionSeri
     ChannelsResultSerializer, SentDeliveriesSerializer, MessageVersionPageSerializer)
 
 
-class PrivateMessagesMixin:
-    def finalize_response(self, request, response, *args, **kwargs):
-        response = super().finalize_response(request, response, *args, **kwargs)
-        response['Cache-Control'] = 'private, no-store'
-        return response
-
-
 @extend_schema_view(
     retrieve=extend_schema(responses=envelope('MessageTemplateDetailResponse', MessageTemplateSerializer())),
     create=extend_schema(request=TemplateWriteSerializer, responses={201: envelope('MessageTemplateCreatedResponse', MessageTemplateSerializer())}),
     partial_update=extend_schema(request=TemplateWriteSerializer, responses=envelope('MessageTemplateUpdatedResponse', MessageTemplateSerializer())),
 )
-class MessageTemplateViewSet(PrivateMessagesMixin, EnvelopeResponseMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+class MessageTemplateViewSet(PrivateResponseMixin, EnvelopeResponseMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = MessageTemplateSerializer
     queryset = MessageTemplate.objects.prefetch_related(Prefetch('versions',
@@ -74,7 +68,7 @@ class MessageTemplateViewSet(PrivateMessagesMixin, EnvelopeResponseMixin, mixins
         if row.revision != data.validated_data['revision']:
             from apps.core.system_views import VersionConflict
             raise VersionConflict()
-        subject, body = render(row.versions.get(number=row.revision), data.validated_data['values'])
+        subject, body = render(current_template_version(row), data.validated_data['values'])
         return Response({'code': 200, 'message': 'success', 'data': {'subject': subject, 'body': body}})
 
     @extend_schema(request=TemplateSendSerializer, responses={202: envelope('MessageSendResponse', SentDeliveriesSerializer())})
@@ -116,7 +110,7 @@ class MessageTemplateViewSet(PrivateMessagesMixin, EnvelopeResponseMixin, mixins
     retrieve=extend_schema(responses=envelope('MessageDeliveryDetailResponse', MessageDeliverySerializer())),
     retry=extend_schema(request=None, responses=envelope('MessageDeliveryRetryResponse', MessageDeliverySerializer())),
 )
-class MessageDeliveryViewSet(PrivateMessagesMixin, EnvelopeResponseMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+class MessageDeliveryViewSet(PrivateResponseMixin, EnvelopeResponseMixin, mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     queryset = MessageDelivery.objects.select_related('version__template').defer('subject', 'body', 'email_binding').all()
     serializer_class = MessageDeliverySerializer

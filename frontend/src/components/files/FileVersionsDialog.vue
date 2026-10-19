@@ -10,7 +10,7 @@
       <ol v-else class="version-list">
         <li v-for="row in history.items" :key="row.number">
           <div class="revision-details"><strong>{{ uiText('修订 {p0}', { p0: row.number }) }} · {{ row.original_name }}</strong>
-            <span>{{ fileBytes(row.size) }} · {{ new Date(row.created_at).toLocaleString() }}</span>
+            <span>{{ fileBytes(row.size) }} · {{ formatDateTime(row.created_at) }}</span>
             <span v-if="row.restored_from !== null">{{ uiText('回退自修订 {p0}', { p0: row.restored_from }) }}</span>
             <el-tag v-if="row.number === history.version" size="small">{{ uiText('当前版本') }}</el-tag>
           </div>
@@ -38,6 +38,7 @@
   </el-dialog>
 </template>
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { sessionIdentity } from '@/auth/sessionIdentity'
 import './documentMessages'
 import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'

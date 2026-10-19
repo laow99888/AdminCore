@@ -3,7 +3,6 @@
 """
 
 import uuid
-import json
 import logging
 import time
 from asgiref.sync import iscoroutinefunction, markcoroutinefunction
@@ -19,6 +18,10 @@ class PasswordChangeSessionMiddleware(MiddlewareMixin):
     def process_view(self, request, view_func, view_args, view_kwargs):
         if (request.user.is_authenticated and request.resolver_match.namespace == 'admin'
                 and request.resolver_match.view_name != 'admin:logout'):
+            if request.session.get('admincore_session_version') != request.user.session_version:
+                from django.contrib.auth import logout
+                logout(request)
+                return JsonResponse({'code': 401, 'message': '会话已撤销，请重新登录', 'data': None}, status=401)
             from apps.auth_app.models import TOTPDevice
             if TOTPDevice.objects.filter(user=request.user).exclude(active_secret='').exists():
                 return JsonResponse({'code': 403, 'message': '已启用双因素认证，请使用系统登录入口',

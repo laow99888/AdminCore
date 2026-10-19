@@ -1,5 +1,5 @@
 """Django 管理写入沿用显式投影；保存关联后审计，删除与审计同事务。"""
-from contextlib import nullcontext
+from contextlib import contextmanager
 
 from django.db import transaction
 from django.core.exceptions import PermissionDenied
@@ -11,6 +11,28 @@ from .audit import snapshot, write_audit
 class AuditedAdminMixin:
     audit_resource = ''
     audit_module = ''
+
+    @contextmanager
+    def authorized_write(self, request):
+        if request.method != 'POST':
+            yield
+            return
+        from django.contrib.auth import get_user_model
+        with transaction.atomic():
+            actor = get_user_model().objects.select_for_update().get(pk=request.user.pk)
+            if (not actor.is_active or not actor.is_staff or actor.must_change_password or
+                    request.session.get('admincore_session_version') != actor.session_version):
+                raise PermissionDenied('管理会话已失效，请重新登录')
+            request.user = actor
+            yield
+
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        with self.authorized_write(request):
+            return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def delete_view(self, request, object_id, extra_context=None):
+        with self.authorized_write(request):
+            return super().delete_view(request, object_id, extra_context)
 
     def available(self):
         return not self.audit_module or module_enabled(self.audit_module)
@@ -84,5 +106,5 @@ class AuditedAdminMixin:
 
     def changelist_view(self, request, extra_context=None):
         # Django 原批量 action 未提供覆盖审计与删除的外层事务。
-        with transaction.atomic() if request.method == 'POST' else nullcontext():
+        with self.authorized_write(request):
             return super().changelist_view(request, extra_context)

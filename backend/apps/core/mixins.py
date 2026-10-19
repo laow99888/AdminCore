@@ -13,6 +13,14 @@ SUCCESS_MESSAGES = {
 }
 
 
+class PrivateResponseMixin:
+    """敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。"""
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+
 class EnvelopeResponseMixin(QueryBudgetListMixin):
     """把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
 

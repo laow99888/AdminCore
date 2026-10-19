@@ -1,5 +1,5 @@
 """显式模块契约；保留所有 Django app 和迁移，只裁剪业务入口与执行。"""
-from .contracts import Module, validate_registry, scope_resources
+from .contracts import Module, validate_registry, scope_resources  # noqa: F401 -- 公开契约兼容导出
 from apps.example.manifest import MODULE as EXAMPLE_MODULE
 from .version import MODULE_CONTRACT_VERSION
 from .task_declarations import CORE_TASKS

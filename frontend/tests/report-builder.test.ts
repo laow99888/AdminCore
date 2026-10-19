@@ -10,7 +10,7 @@ import ReportBuilderView from '../src/views/reports/ReportBuilderView.vue'
 
 vi.mock('../src/i18n/uiText', () => ({ uiText: (value: string) => value, registerUiMessages: vi.fn() }))
 vi.mock('../src/api', () => ({ reportsApi: {
-  catalog: vi.fn(), list: vi.fn(), publish: vi.fn(), run: vi.fn(), update: vi.fn(),
+  catalog: vi.fn(), list: vi.fn(), detail: vi.fn(), publish: vi.fn(), run: vi.fn(), update: vi.fn(),
 } }))
 vi.mock('../src/components', () => ({ AppLayout: defineComponent({ template: '<main><slot /></main>' }) }))
 vi.mock('../src/components/common/BaseChart.vue', () => ({ default: defineComponent({ template: '<div />' }) }))
@@ -89,5 +89,28 @@ it.each([false, true])('发布后的目录重载期间禁用运行，重载失�
   await button('运行').trigger('click')
   await flushPromises()
   expect(reportsApi.run).toHaveBeenCalledExactlyOnceWith('report-fixture')
+  wrapper.unmount()
+})
+
+
+it('409 保留本地草稿，显式查看和应用服务端版本后才能继续保存', async () => {
+  const wrapper = await mountReport()
+  await flushPromises()
+  await wrapper.get('tbody tr').trigger('click')
+  const name = wrapper.get('input[maxlength="120"]')
+  await name.setValue('本地未保存草稿')
+  vi.mocked(reportsApi.update).mockRejectedValueOnce({ response: { status: 409 } })
+  vi.mocked(reportsApi.detail).mockResolvedValue({ ...definition, name: '服务器新名称', version: 2 })
+  const button = (label: string) => wrapper.findAll<HTMLButtonElement>('button').find(item => item.text() === label)!
+  await button('保存草稿').trigger('click'); await flushPromises()
+  expect((name.element as HTMLInputElement).value).toBe('本地未保存草稿')
+  expect(button('保存草稿').element.disabled).toBe(true)
+  await button('查看服务器最新值').trigger('click'); await flushPromises()
+  expect((name.element as HTMLInputElement).value).toBe('本地未保存草稿')
+  await button('载入服务器最新值（替换当前输入）').trigger('click'); await flushPromises()
+  expect((name.element as HTMLInputElement).value).toBe('服务器新名称')
+  expect(button('保存草稿').element.disabled).toBe(false)
+  await button('保存草稿').trigger('click'); await flushPromises()
+  expect(reportsApi.update).toHaveBeenLastCalledWith(definition.id, expect.objectContaining({ version: 2, name: '服务器新名称' }))
   wrapper.unmount()
 })

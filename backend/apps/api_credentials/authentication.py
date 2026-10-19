@@ -3,7 +3,6 @@ import hashlib
 import hmac
 import re
 import time
-from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
@@ -143,7 +142,6 @@ class APICredentialAuthentication(BaseAuthentication):
             usage, _ = CredentialUsageDay.objects.get_or_create(credential=credential, day=now.date())
             usage.requests += 1
             usage.save(update_fields=['requests'])
-            CredentialUsageDay.objects.filter(credential=credential, day__lt=now.date() - timedelta(days=89)).delete()
             # One activation event per credential, not one growing SQL audit row per request.
             if first:
                 OperationLog.objects.create(user=actor, actor_identifier=str(actor.pk), action='read',

@@ -1,6 +1,9 @@
 [flake8]
 # 增量阻止语法、格式化字符串、控制流及未定义名称错误；风格调整另行推进。
-select = E9,F63,F7,F82
+select = E9,F63,F7,F82,F401,F811,F841
 exclude = venv,.venv
 show-source = true
 statistics = true
+
+# settings 显式按环境导入配置。
+per-file-ignores = config/settings/*.py:F401

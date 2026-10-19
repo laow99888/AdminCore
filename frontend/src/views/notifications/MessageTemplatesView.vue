@@ -34,7 +34,7 @@
       <el-alert v-if="formError" :title="formError" type="error" :closable="false" />
       <p v-if="selected">{{ selected.name }} · {{ uiText('版本') }} {{ selected.revision }}</p>
       <el-form label-position="top" :disabled="saving" @submit.prevent="makePreview">
-        <el-form-item v-for="key in selected?.current.variables" :key="key" :label="key"><el-input v-model="values[key]" maxlength="2000" /></el-form-item>
+        <el-form-item v-for="key in selected?.current?.variables" :key="key" :label="key"><el-input v-model="values[key]" maxlength="2000" /></el-form-item>
         <el-form-item :label="uiText('收件人')"><PersonPicker v-model="picked" purpose="message" :disabled="saving || recipients.length >= 100" /><el-button :disabled="saving || !picked || recipients.length >= 100" @click="addRecipient">{{ uiText('添加收件人') }}</el-button></el-form-item>
         <div class="recipients"><el-tag v-for="person in recipients" :key="person.id" :closable="!saving" @close="removeRecipient(person.id)">{{ person.display_name }} ({{ person.username }})</el-tag></div>
         <el-form-item :label="uiText('投递渠道')"><el-checkbox-group v-model="channels" :disabled="saving || channelLoading"><el-checkbox value="inapp" :disabled="!available.inapp">{{ uiText('站内通知') }}</el-checkbox><el-checkbox value="email" :disabled="!available.email">{{ uiText('SMTP 邮件') }}</el-checkbox><el-checkbox value="webhook" :disabled="!available.webhook">Webhook</el-checkbox><el-checkbox value="sms" :disabled="!available.sms">{{ uiText('Twilio 短信') }}</el-checkbox></el-checkbox-group></el-form-item>
@@ -104,12 +104,12 @@ function clearDraft() {
 }
 const guard = useUnsavedChanges({ source: () => editorOpen.value ? form : { values: values.value, recipients: recipients.value.map(person => person.id), channels: channels.value }, active: () => editorOpen.value || sendOpen.value, busy: () => saving.value || conflict.loading.value, canEdit: () => canRead.value && (editorOpen.value ? canUpdate.value : canSend.value), clear: clearDraft })
 const conflict = useEditConflict<MessageTemplate>({ identifier: () => editorOpen.value ? form.id : '', current: () => guard.isCurrent(), fetch: messagesApi.detail,
-  apply: row => { Object.assign(form, { id: row.id, code: row.code, name: row.name, enabled: row.enabled, revision: row.revision, subject: row.current.subject, body: row.current.body, variablesText: row.current.variables.join(', ') }); formError.value = ''; guard.markClean() } })
+  apply: row => { Object.assign(form, { id: row.id, code: row.code, name: row.name, enabled: row.enabled, revision: row.revision, subject: row.current?.subject ?? '', body: row.current?.body ?? '', variablesText: row.current?.variables.join(', ') ?? '' }); formError.value = ''; guard.markClean() } })
 const conflictRows = computed(() => conflict.latest.value ? [
   { label: uiText('模板名称'), local: form.name, server: conflict.latest.value.name },
-  { label: uiText('标题模板'), local: form.subject, server: conflict.latest.value.current.subject },
-  { label: uiText('正文模板'), local: form.body, server: conflict.latest.value.current.body },
-  { label: uiText('变量名（逗号分隔）'), local: form.variablesText, server: conflict.latest.value.current.variables.join(', ') },
+  { label: uiText('标题模板'), local: form.subject, server: conflict.latest.value.current?.subject ?? '—' },
+  { label: uiText('正文模板'), local: form.body, server: conflict.latest.value.current?.body ?? '—' },
+  { label: uiText('变量名（逗号分隔）'), local: form.variablesText, server: conflict.latest.value.current?.variables.join(', ') ?? '—' },
   { label: uiText('启用'), local: String(form.enabled), server: String(conflict.latest.value.enabled) },
 ] : [])
 watch(values, invalidatePreview, { deep: true, flush: 'sync' })
@@ -134,7 +134,7 @@ function changePage(value: number) { page.value = value; void load() }
 function changeSize(value: number) { pageSize.value = value; resetList() }
 function edit(row?: MessageTemplate) {
   if (!canUpdate.value || saving.value) return
-  conflict.reset(); clearDraft(); Object.assign(form, row ? { id: row.id, code: row.code, name: row.name, subject: row.current.subject, body: row.current.body, variablesText: row.current.variables.join(', '), enabled: row.enabled, revision: row.revision } : blank()); editorOpen.value = true
+  conflict.reset(); clearDraft(); Object.assign(form, row ? { id: row.id, code: row.code, name: row.name, subject: row.current?.subject ?? '', body: row.current?.body ?? '', variablesText: row.current?.variables.join(', ') ?? '', enabled: row.enabled, revision: row.revision } : blank()); editorOpen.value = true
 }
 async function save() {
   if (saving.value || conflict.active.value || !editorOpen.value || !guard.isCurrent() || !canUpdate.value) return
@@ -150,7 +150,7 @@ async function save() {
 }
 async function compose(row: MessageTemplate) {
   if (!canSend.value || saving.value || !row.enabled) return
-  clearDraft(); selected.value = row; values.value = Object.fromEntries(row.current.variables.map(key => [key, ''])); sendOpen.value = true
+  if (!row.current) { ElMessage.error(uiText('模板当前版本缺失，请由管理员修复后重试')); return }; clearDraft(); selected.value = row; values.value = Object.fromEntries((row.current?.variables || []).map(key => [key, ''])); sendOpen.value = true
   const current = ++channelGeneration; channelController = new AbortController(); channelLoading.value = true
   try {
     const data = await messagesApi.channels(channelController.signal)

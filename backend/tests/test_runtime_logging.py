@@ -73,6 +73,7 @@ def test_outbox_restores_each_event_context_and_propagates_worker_header(admin_u
         if getattr(record, 'event', '').startswith('outbox.'):
             observed.append(json.loads(SafeJSONFormatter().format(record)))
     with patch('apps.tasks.tasks.run_maintenance.apply_async') as publish, \
+         patch('apps.core.external_dispatch.logger.log', side_effect=lambda level, message, extra: capture(logging.makeLogRecord({'levelno': level, 'msg': message, **extra}))), \
          patch('apps.core.tasks.logger.log', side_effect=lambda level, message, extra: capture(logging.makeLogRecord({'levelno': level, 'msg': message, **extra}))):
         with correlated_request('outer-context'):
             assert dispatch_outbox() == {'processed': 2, 'failed': 0}

@@ -18,6 +18,13 @@ services:
     environment:
       REALTIME_UPSTREAM: realtime:8000
   realtime:
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    mem_limit: ${REALTIME_MEMORY_LIMIT:-512m}
+    cpus: ${REALTIME_CPU_LIMIT:-1}
     build: ./backend
     restart: unless-stopped
     env_file: .env

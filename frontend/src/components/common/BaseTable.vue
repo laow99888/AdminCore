@@ -94,7 +94,7 @@ import type { TableInstance } from 'element-plus'
 import { useTablePreferencesStore } from '@/stores/tablePreferences'
 import TableColumnSettings from './TableColumnSettings.vue'
 import { normalizeColumns, type ColumnPin, type ColumnPreference } from '@/composables/useColumnPreferences'
-import dayjs from 'dayjs'
+import { formatDateTime } from '@/utils/dateTime'
 
 type RenderCell<T> = { bivarianceHack(value: unknown, row: T): string | number | void }['bivarianceHack']
 
@@ -181,8 +181,8 @@ function formatCell(col: Column<T>, row: T) {
   const value = cellValue(row, col.prop)
   if (col.render) return col.render(value, row)
   if ((col.format === 'datetime' || ['created_at', 'updated_at'].includes(col.prop)) &&
-      typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && dayjs(value).isValid()) {
-    return dayjs(value).format('YYYY-MM-DD HH:mm')
+      typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && formatDateTime(value) !== '—') {
+    return formatDateTime(value)
   }
   return value
 }

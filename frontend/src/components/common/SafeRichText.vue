@@ -2,6 +2,7 @@
   <div :aria-label="label" role="region" class="safe-rich-text">
     <p v-if="failed" role="alert">{{ uiText('正文超出安全显示限制，请联系管理员。') }}</p>
     <!-- Only the local strict sanitizer result enters v-html. -->
+    <!-- eslint-disable-next-line vue/no-v-html -->
     <div v-else-if="format === 'html'" v-html="safeHtml"></div>
     <div v-else class="plain-text">{{ content }}</div>
   </div>

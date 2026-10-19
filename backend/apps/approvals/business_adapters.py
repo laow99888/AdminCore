@@ -13,5 +13,5 @@ def sync_approval(application, request):
     return _adapter(application).sync_approval(application, request)
 
 
-def redact_approval_snapshot(application, actor, data):
-    return _adapter(application).redact_approval_snapshot(application, actor, data)
+def redact_approval_snapshot(application, actor, data, *, read_snapshot=None):
+    return _adapter(application).redact_approval_snapshot(application, actor, data, read_snapshot=read_snapshot)

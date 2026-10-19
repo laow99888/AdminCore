@@ -55,7 +55,7 @@
   "主管链的部门不存在、已停用或形成循环": "The department chain is missing, inactive or cyclic.",
   "目标部门未设置负责人或负责人就是申请人，请调整流程": "The target department has no leader, or the leader is the applicant. Adjust the workflow.",
   "任职请求包含未知或只读字段": "The appointment request contains unknown or read-only fields.",
-  "新建任职版本必须为 0": "A new appointment must use version 0.",
+  "新建任职版本必须为 0": "New position assignments require version 0.",
   "结束日期必须晚于生效日期，结束当天已不任职": "The end date must follow the start date and is exclusive.",
   "任期操作包含未知字段": "The appointment operation contains unknown fields.",
   "不能任职于停用部门": "Appointments cannot use an inactive department.",
@@ -284,7 +284,6 @@
   "文件超过 10 MiB 预览限制，请下载查看": "The file exceeds the 10 MiB preview limit. Download it to view.",
   "文本长度必须为 {minimum}–{maximum}": "Text length must be between {minimum} and {maximum}.",
   "新密码不能与当前密码相同": "The new password must differ from the current password.",
-  "新建任职版本必须为 0": "New position assignments require version 0.",
   "新建公告版本必须为 0": "New announcements require version 0.",
   "新建字典版本必须为 0": "New dictionaries require version 0.",
   "新建岗位版本必须为 0": "New positions require version 0.",
@@ -914,5 +913,12 @@
   "机器身份请使用独立管理入口": "Use the dedicated management interface for service identities",
   "没有机器身份管理权限": "You do not have permission to manage service identities",
   "角色不存在、未启用或不属于当前租户": "A role is missing, inactive, or belongs to another tenant",
-  "请先选择机器身份所属租户": "Select the service identity tenant first"
+  "请先选择机器身份所属租户": "Select the service identity tenant first",
+  "会话已撤销，请重新登录": "Your session was revoked. Please sign in again.",
+  "唯一字段或关联记录已变化，请刷新后重试": "Unique fields or related records have changed. Refresh and retry.",
+  "必须传入当前版本": "The current version is required.",
+  "模板当前版本缺失，请由管理员修复后重试": "The current template version is missing. Ask an administrator to repair it before retrying.",
+  "登录尝试过于频繁，请稍后重试": "Too many login attempts. Please retry later.",
+  "登录服务暂不可用，请稍后重试": "Login is temporarily unavailable. Please retry later.",
+  "管理会话已失效，请重新登录": "Your administrative session has expired. Please sign in again."
 }

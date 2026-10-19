@@ -5,6 +5,7 @@ export default defineConfig({
   ...viteConfig,
   test: {
     environment: 'jsdom',
+    maxWorkers: 4,
     server: { deps: { inline: [/element-plus/] } },
     setupFiles: ['./tests/setup.ts'],
     include: ['tests/**/*.test.ts'],
@@ -15,7 +16,7 @@ export default defineConfig({
       reporter: ['text', 'html', 'json-summary'],
       // 门禁略低于 2026-10-17 实测基线，防止后续改动回退覆盖率，同时给测试运行环境保留小幅波动空间。
       thresholds: {
-        statements: 36, branches: 33, functions: 30, lines: 39,
+        statements: 54, branches: 50, functions: 47, lines: 56,
         // 关键链路独立守住已测基线，避免全局平均值掩盖认证或基础组件回退。
         'src/auth/**/*.ts': { statements: 89, branches: 86, functions: 94, lines: 96 },
         'src/stores/auth.ts': { statements: 85, branches: 75, functions: 88, lines: 93 },

@@ -178,7 +178,7 @@
             :label="uiText(field.label)"
             :required="field.required"
             ><GeneratedFieldInput
-              v-model="form[field.name]"
+              :model-value="scalarValue(form[field.name])" @update:model-value="form[field.name] = $event"
               :field="field"
               :label="uiText(field.label)"
               :endpoint="endpoint"
@@ -190,7 +190,7 @@
             v-if="schema.structure === 'tree' && fieldAllowed('parent', 'read')"
             :label="uiText('父节点')"
             ><GeneratedFieldInput
-              v-model="form.parent"
+              :model-value="scalarValue(form.parent)" @update:model-value="form.parent = $event"
               :field="parentField"
               :label="uiText('父节点')"
               :endpoint="endpoint"
@@ -206,23 +206,23 @@
           <div class="head">
             <h3>{{ uiText(detail.label) }}</h3>
             <el-button
-              :disabled="saving || readOnly || !detailWritable(detail) || form[detail.name].length >= (detail.max_rows ?? 100)"
+              :disabled="saving || readOnly || !detailWritable(detail) || detailRows(form, detail.name).length >= (detail.max_rows ?? 100)"
               @click="addLine(detail)"
               >{{ uiText("添加明细") }}</el-button
             >
           </div>
-          <p v-if="!form[detail.name].length">{{ uiText("暂无明细") }}</p>
+          <p v-if="!detailRows(form, detail.name).length">{{ uiText("暂无明细") }}</p>
           <div
-            v-for="(line, index) in form[detail.name]"
-            :key="index"
+            v-for="(line, index) in detailRows(form, detail.name)"
+            :key="rowKey(line)"
             class="detail-row"
           >
             <div class="head">
               <span>{{ uiText("明细") }} {{ Number(index) + 1 }}</span
               ><el-button
                 :aria-label="uiText('删除明细') + ' ' + (Number(index) + 1)"
-                :disabled="saving || readOnly || !detailWritable(detail) || form[detail.name].length <= (detail.min_rows ?? 0)"
-                @click="form[detail.name].splice(index, 1)"
+                :disabled="saving || readOnly || !detailWritable(detail) || detailRows(form, detail.name).length <= (detail.min_rows ?? 0)"
+                @click="detailRows(form, detail.name).splice(index, 1)"
                 >{{ uiText("删除") }}</el-button
               >
             </div>
@@ -235,7 +235,7 @@
                 :label="uiText(field.label)"
                 :required="field.required"
                 ><GeneratedFieldInput
-                  v-model="line[field.name]"
+                  :model-value="scalarValue(line[field.name])" @update:model-value="line[field.name] = $event"
                   :field="field"
                   :label="
                     uiText(detail.label) +
@@ -265,6 +265,8 @@
   >
 </template>
 <script setup lang="ts">
+import { useRowKey } from '@/composables/useRowKey'
+const rowKey = useRowKey()
 import "./messages";
 import { computed, defineAsyncComponent, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { ElMessageBox } from "element-plus";
@@ -298,10 +300,10 @@ import {
 const props = defineProps<{ schema: GeneratedSchema }>();
 const router = useRouter();
 const route = useRoute();
-const editable = (row: Row) => !props.schema.approval || ['draft', 'rejected', 'cancelled'].includes(row.approval_status);
+const editable = (row: Row) => !props.schema.approval || ['draft', 'rejected', 'cancelled'].includes(row.approval_status || '');
 const approvalLabel = (value: unknown) => uiText(({ draft: '草稿', pending: '审批中', approved: '已通过', rejected: '已驳回', cancelled: '已撤回' } as Record<string, string>)[String(value)] || String(value ?? ''));
 // 业务字段由服务端生成的固定 schema 约束；表单需要同时保存标量和多组明细。
-type Row = { id: string; version: number; [key: string]: any };
+import { scalarValue, detailRows, type GeneratedRecord as Row } from './recordValues';
 const auth = useAuthStore(),
   modules = useModuleStore(),
   resource = props.schema.module;
@@ -597,14 +599,14 @@ async function openRow(row: Pick<Row, 'id'>, readonly: boolean) {
   }
 }
 function addLine(detail: GeneratedDetail) {
-  form[detail.name].push(defaultValues(detail.fields));
+  detailRows(form, detail.name).push(defaultValues(detail.fields));
 }
 function payload() {
   const value: Record<string, unknown> = { version: form.version };
   for (const field of formFields.value.filter(field => fieldAllowed(field.name, 'write'))) value[field.name] = form[field.name];
   if (props.schema.structure === "tree" && fieldAllowed('parent', 'write')) value.parent = form.parent;
   for (const detail of props.schema.details.filter(detailWritable))
-    value[detail.name] = form[detail.name].map(
+    value[detail.name] = detailRows(form, detail.name).map(
       (line: Record<string, unknown>) =>
         Object.fromEntries(
           detail.fields

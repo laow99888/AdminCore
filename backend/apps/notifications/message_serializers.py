@@ -1,5 +1,5 @@
+from apps.core.strict_serializers import StrictSerializer as StrictMessageSerializer
 from rest_framework import serializers
-from collections.abc import Mapping
 from drf_spectacular.utils import extend_schema_field
 from apps.core.personnel import PeoplePaginationSerializer
 
@@ -17,22 +17,16 @@ class MessageTemplateSerializer(serializers.ModelSerializer):
     current = serializers.SerializerMethodField()
 
     @staticmethod
-    @extend_schema_field(TemplateVersionSerializer())
-    def get_current(row) -> dict:
-        current = row.current_versions[0] if hasattr(row, 'current_versions') else row.versions.get(number=row.revision)
-        return TemplateVersionSerializer(current).data
+    @extend_schema_field(TemplateVersionSerializer(allow_null=True))
+    def get_current(row) -> dict | None:
+        versions = row.current_versions if hasattr(row, 'current_versions') else list(row.versions.filter(number=row.revision)[:1])
+        return TemplateVersionSerializer(versions[0]).data if versions else None
 
     class Meta:
         model = MessageTemplate
         fields = ['id', 'code', 'name', 'enabled', 'revision', 'current', 'created_at', 'updated_at']
         read_only_fields = fields
 
-
-class StrictMessageSerializer(serializers.Serializer):
-    def to_internal_value(self, data):
-        if isinstance(data, Mapping) and set(data) - set(self.fields):
-            raise serializers.ValidationError({'fields': '不允许的通知字段'})
-        return super().to_internal_value(data)
 
 
 class TemplateWriteSerializer(StrictMessageSerializer):

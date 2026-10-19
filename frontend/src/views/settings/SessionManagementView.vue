@@ -24,6 +24,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -42,7 +43,7 @@ const page = ref(1), pageSize = ref(10), total = ref(0), search = ref(''), submi
 const loading = ref(false), busy = ref(false), dialog = ref(false), error = ref(''), notice = ref('')
 const canRevoke = computed(() => !!(auth.user?.is_staff || auth.user?.is_superuser) && auth.can('session:revoke'))
 let controller: AbortController | undefined, alive = true
-const time = (value: string) => value ? new Date(value).toLocaleString() : '—'
+const time = (value: string) => value ? formatDateTime(value) : '—'
 const columns = computed(() => props.admin ? [
   { prop: 'username', label: uiText('用户名'), width: 180 },
   { prop: 'is_current_user', label: uiText('当前用户'), width: 130, render: (value: boolean) => value ? uiText('是') : '—' },

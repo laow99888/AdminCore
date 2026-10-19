@@ -147,9 +147,10 @@ async function handle401(error: AxiosError): Promise<unknown> {
     refreshing = pending
     refreshingToken = originalAccess
   }
-  const { access, stale } = await refreshing
+  const { access, stale, retryable } = await refreshing
   if (!access) {
-    if (!stale && tokensBelongToSameSession(originalAccess, getAccessToken())) forceRelogin()
+    if (retryable) notifyError(error, uiText('网络异常，请检查连接'))
+    if (!stale && !retryable && tokensBelongToSameSession(originalAccess, getAccessToken())) forceRelogin()
     return Promise.reject(error)
   }
   if (!tokensBelongToSameSession(originalAccess, access) || !tokensBelongToSameSession(originalAccess, getAccessToken())) return Promise.reject(error)
@@ -200,7 +201,7 @@ request.interceptors.response.use(
       error.message = message
       notifyError(error, message)
     } else {
-      error.message = uiText("网络异常，请检查连接")
+      error.message = error.code === 'ECONNABORTED' ? uiText('请求超时，请重试') : uiText("网络异常，请检查连接")
       notifyError(error, error.message)
     }
     return Promise.reject(error)

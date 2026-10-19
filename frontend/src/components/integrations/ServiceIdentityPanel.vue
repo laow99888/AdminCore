@@ -32,6 +32,7 @@
   </el-card>
 </template>
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import { BaseButton, BaseTable } from '@/components'
@@ -55,7 +56,7 @@ const operation = ref<'create' | 'edit' | 'toggle' | 'issue' | 'rotate' | 'revok
 const validIdentity = computed(() => !!draft.value.name.trim() && draft.value.role_ids.length > 0 && draft.value.role_ids.length <= 16)
 const validCredential = computed(() => !!credentialDraft.value.name.trim() && credentialDraft.value.scopes.length > 0 && days.value >= 1 && days.value <= 90)
 const confirmationDescription = computed(() => uiText(operation.value === 'toggle' ? '确认变更身份状态？停用后已有密钥永久失效。' : operation.value === 'rotate' ? '确认轮换机器密钥？旧密钥立即失效，新密钥仅展示一次。' : operation.value === 'revoke' ? '确认撤销机器凭证？撤销后不能恢复。' : '确认保存机器身份或签发只读凭证？授权仍受当前角色、数据范围和字段权限约束。'))
-const time = (value: string | null) => value ? new Date(value).toLocaleString() : '—'
+const time = (value: string | null) => value ? formatDateTime(value) : '—'
 const columns = computed(() => [{ prop: 'name', label: uiText('身份名称'), width: 180 }, { prop: 'description', label: uiText('用途说明'), width: 260 }, { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '已启用' : '已停用') }, { prop: 'version', label: uiText('版本'), width: 90 }])
 const credentialColumns = computed(() => [{ prop: 'name', label: uiText('凭证名称'), width: 180 }, { prop: 'scopes', label: uiText('只读能力'), width: 200, render: (value: string[]) => value.join(', ') }, { prop: 'expires_at', label: uiText('过期时间'), width: 200, render: time }, { prop: 'revoked_at', label: uiText('撤销时间'), width: 200, render: time }, { prop: 'version', label: uiText('版本'), width: 90 }])
 let alive = true, generation = 0, controller: AbortController | undefined, detailController: AbortController | undefined

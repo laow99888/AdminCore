@@ -17,6 +17,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import TokenError
 from .throttling import LoginRateThrottle
 from .browser_session import BrowserSessionMixin
+from apps.core.mixins import PrivateResponseMixin
 from apps.core.client_ip import request_ip
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -50,7 +51,7 @@ class RegisteredSessionSerializer(TokenPairSerializer):
 @extend_schema_view(
     post=extend_schema(request=LoginRequestSerializer, responses=LoginResponseSerializer, parameters=BROWSER_SESSION_PARAMETERS),
 )
-class CustomTokenObtainPairView(BrowserSessionMixin, TokenObtainPairView):
+class CustomTokenObtainPairView(PrivateResponseMixin, BrowserSessionMixin, TokenObtainPairView):
     """自定义登录视图"""
     serializer_class = CustomTokenObtainPairSerializer
     throttle_classes = [LoginRateThrottle]
@@ -67,11 +68,6 @@ class CustomTokenObtainPairView(BrowserSessionMixin, TokenObtainPairView):
         if username is not None and (not isinstance(username, str) or len(username) > 150):
             raise serializers.ValidationError({'username': '用户名需为不超过 150 字的文本'})
         return super().initial(request, *args, **kwargs)
-
-    def finalize_response(self, request, response, *args, **kwargs):
-        response = super().finalize_response(request, response, *args, **kwargs)
-        response['Cache-Control'] = 'private, no-store'
-        return response
 
     def post(self, request, *args, **kwargs):
         from .login_captcha import require_captcha, record_failure
@@ -105,14 +101,9 @@ class CustomTokenObtainPairView(BrowserSessionMixin, TokenObtainPairView):
     me=extend_schema(responses=envelope('CurrentUserResponse', UserSerializer())),
     change_password=extend_schema(request=ChangePasswordSerializer, responses=MessageResponse),
 )
-class AuthViewSet(BrowserSessionMixin, viewsets.ViewSet):
+class AuthViewSet(PrivateResponseMixin, BrowserSessionMixin, viewsets.ViewSet):
     """认证相关端点"""
     permission_classes = [AllowAny]
-
-    def finalize_response(self, request, response, *args, **kwargs):
-        response = super().finalize_response(request, response, *args, **kwargs)
-        response['Cache-Control'] = 'private, no-store'
-        return response
 
     @extend_schema(methods=['GET'], responses=envelope('PersonalProfileResponse', ProfileReadSerializer()))
     @extend_schema(methods=['PATCH'], request=ProfileWriteSerializer,

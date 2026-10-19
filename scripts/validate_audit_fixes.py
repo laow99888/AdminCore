@@ -22,6 +22,7 @@ def worker():
     import pytest
     os.chdir(ROOT / 'backend')
     return pytest.main(['-q', '--tb=short', 'tests/test_audit_fix_lifecycle.py',
+                       'tests/test_cross_review.py',
                        'tests/test_audit_fix_contracts.py', 'tests/test_audit_fix_storage_outbox.py',
                        'tests/test_tenant_object_contract.py', 'tests/test_multi_tenant.py',
                        'tests/test_advanced_approvals.py',

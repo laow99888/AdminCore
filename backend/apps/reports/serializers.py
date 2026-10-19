@@ -1,3 +1,4 @@
+from apps.core.tenant_validation import TenantUniqueSerializerMixin
 from rest_framework import serializers
 from .models import ReportDefinition
 from .dashboards import validate_design
@@ -32,7 +33,8 @@ class ReportSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'status', 'version', 'created_by', 'created_by_name', 'published_by', 'published_by_name', 'published_at', 'created_at', 'updated_at']
 
 
-class ReportDesignSerializer(serializers.ModelSerializer):
+class ReportDesignSerializer(TenantUniqueSerializerMixin, serializers.ModelSerializer):
+    tenant_unique_fields = ('code',)
     version = serializers.IntegerField(required=False, min_value=1)
     class Meta:
         model = ReportDefinition

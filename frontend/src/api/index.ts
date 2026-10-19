@@ -126,7 +126,7 @@ export const filesApi = {
     const form = new FormData()
     form.append('file', file)
     if (description) form.append('description', description)
-    return request.post<ApiResponse<FileRow>>('/files/', form)
+    return request.post<ApiResponse<FileRow>>('/files/', form, { timeout: 300000 })
   },
   remove: (id: string) => request.delete(`/files/${id}/`),
   purge: (id: string) => request.delete(`/files/${id}/purge/`),
@@ -174,6 +174,7 @@ export interface ReportDefinition {
 }
 export interface ReportCatalogItem { key: string; label: string; dimensions: string[]; metrics: string[]; filters: string[]; field_types?: Record<string, ReportFieldType> }
 export const reportsApi = {
+  detail: async (id: string, signal?: AbortSignal) => (await request.get<ApiResponse<ReportDefinition>>(`/reports/definitions/${id}/`, { signal })).data.data,
   catalog: async (): Promise<ReportCatalogItem[]> => (await request.get<ApiResponse<ReportCatalogItem[]>>('/reports/catalog/')).data.data,
   list: (params?: ListParams) => getPaged<ReportDefinition>('/reports/definitions/', params),
   create: (data: Pick<ReportDefinition, 'name' | 'code' | 'kind' | 'definition'>) => request.post<ApiResponse<ReportDefinition>>('/reports/definitions/', data),
@@ -311,6 +312,7 @@ export const approvalsApi = {
 }
 
 export const approvalFlowsApi = {
+  detail: async (id: string, signal?: AbortSignal) => (await request.get<ApiResponse<ApprovalFlowRow>>(`/approvals/flows/${id}/`, { signal })).data.data,
   list: (params?: ListParams) => getPaged<ApprovalFlowRow>('/approvals/flows/', params),
   create: (data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition'>) => request.post('/approvals/flows/', data),
   update: (id: string, data: Pick<ApprovalFlowRow, 'name' | 'code' | 'definition' | 'version'>) => request.put(`/approvals/flows/${id}/`, data),
@@ -338,6 +340,7 @@ export interface OnlineFormDefinition { schema_version?: 2; fields: OnlineFormFi
 export interface OnlineFormRow { id: string; name: string; code: string; status: 'draft' | 'published' | 'archived'; version: number; definition: OnlineFormDefinition }
 export interface OnlineFormRecordRow { id: string; form: string; form_version: number; owner: string; owner_name?: string; data: Record<string, unknown>; version: number; created_at: string; updated_at: string }
 export const onlineFormsApi = {
+  detail: async (id: string, signal?: AbortSignal) => (await request.get<ApiResponse<OnlineFormRow>>(`/online-forms/forms/${id}/`, { signal })).data.data,
   list: (params?: ListParams) => getPaged<OnlineFormRow>('/online-forms/forms/', params),
   create: (data: Pick<OnlineFormRow, 'name' | 'code' | 'definition'>) => request.post('/online-forms/forms/', data),
   update: (id: string, data: Pick<OnlineFormRow, 'name' | 'code' | 'definition' | 'version'>) => request.put(`/online-forms/forms/${id}/`, data),

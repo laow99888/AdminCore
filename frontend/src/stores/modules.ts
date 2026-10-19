@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useAuthStore } from './auth'
+import { useTenantStore } from './tenants'
 import request, { type ApiResponse } from '@/api/request'
 import { frontendExtensions } from '@/modules/registry'
 
@@ -24,9 +26,16 @@ export const useModuleStore = defineStore('modules', () => {
   const config = ref<Capabilities | null>(null)
   let pending: Promise<void> | undefined
   let fetchedAt = 0
+  let generation = 0
+  const auth = useAuthStore()
+  const tenants = useTenantStore()
+  function reset() { generation++; pending = undefined; fetchedAt = 0; config.value = null }
+  watch([() => auth.user?.id, () => tenants.currentId], reset, { flush: 'sync' })
   async function load(force = false) {
     if (!force && config.value && Date.now() - fetchedAt < 30000) return
+    const owner = generation
     if (!pending) pending = request.get<ApiResponse<Capabilities>>('/modules/').then(response => {
+      if (owner !== generation) return
       const value = response.data.data
       if (!value || value.contract_version !== 1 || !Array.isArray(value.modules) ||
           value.modules.some(module => !module || typeof module.key !== 'string' || typeof module.enabled !== 'boolean' ||
@@ -40,7 +49,7 @@ export const useModuleStore = defineStore('modules', () => {
       if (__ADMINCORE_MINIMAL_BUILD__ && value.modules.some(module => module.enabled)) throw new Error('精简前端无法加载已启用的可选模块，请同步重新构建完整前后端镜像')
       config.value = value
       fetchedAt = Date.now()
-    }).catch(error => { config.value = null; throw error }).finally(() => { pending = undefined })
+    }).catch(error => { if (owner === generation) config.value = null; throw error }).finally(() => { if (owner === generation) pending = undefined })
     return pending
   }
   function enabled(key: string) {
@@ -52,5 +61,5 @@ export const useModuleStore = defineStore('modules', () => {
       !module.paths.some(base => path === base || path.startsWith(base + '/')) || module.enabled)
   }
   const pagePermissions = computed<Record<string, string>>(() => Object.assign({}, ...(config.value?.modules.map(module => module.page_permissions || {}) ?? [])))
-  return { config, load, enabled, pathEnabled, pagePermissions }
+  return { config, load, enabled, pathEnabled, pagePermissions, reset }
 })

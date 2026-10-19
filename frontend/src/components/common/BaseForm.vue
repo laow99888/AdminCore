@@ -75,6 +75,7 @@
         v-else-if="field.type === 'date'"
         v-model="formModel[field.prop]"
         type="date"
+        value-format="YYYY-MM-DD"
         :placeholder="field.placeholder"
         :disabled="field.disabled"
       />
@@ -84,6 +85,7 @@
         v-else-if="field.type === 'datetime'"
         v-model="formModel[field.prop]"
         type="datetime"
+        value-format="YYYY-MM-DDTHH:mm:ssZ"
         :placeholder="field.placeholder"
         :disabled="field.disabled"
       />
@@ -128,12 +130,12 @@
 <script setup lang="ts">
 import { uiText } from "@/i18n/uiText"
 
-import { computed, nextTick, ref, toRaw } from 'vue'
-import type { FormInstance } from 'element-plus'
+import { computed, nextTick, ref, toRaw, watch } from 'vue'
+import type { FormInstance, FormRules } from 'element-plus'
 
 type FieldType = 'text' | 'email' | 'password' | 'number' | 'select' | 'multiselect' | 'date' | 'datetime' | 'switch' | 'checkbox' | 'textarea'
 
-interface FormField<T = any> {
+interface FormField<T = Record<string, unknown>> {
   prop: Extract<keyof T, string>
   label: string
   type: FieldType
@@ -141,18 +143,19 @@ interface FormField<T = any> {
   required?: boolean
   disabled?: boolean
   clearable?: boolean
-  options?: Array<{ label: string; value: any }>
+  options?: Array<{ label: string; value: string | number | boolean }>
   checkboxLabel?: string
   rows?: number
 }
 
-interface Props<T = any> {
+interface Props<T = Record<string, unknown>> {
   modelValue: T
   fields: FormField<T>[]
-  rules?: Record<string, any>
+  rules?: FormRules
   loading?: boolean
   submitText?: string
   resetText?: string
+  resetKey?: string | number
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -162,14 +165,21 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<{
-  'update:modelValue': [value: any]
-  'submit': [value: any]
+  'update:modelValue': [value: Record<string, unknown>]
+  'submit': [value: Record<string, unknown>]
 }>()
 
 const formRef = ref<FormInstance>()
 const validating = ref(false)
 const busy = computed(() => props.loading || validating.value)
-const initialValues = structuredClone(toRaw(props.modelValue))
+let initialValues = structuredClone(toRaw(props.modelValue))
+// 调用方加载另一条记录时显式更新 resetKey；日常受控输入不改变重置基线。
+watch(() => props.resetKey, () => {
+  initialValues = structuredClone(toRaw(props.modelValue))
+  formRef.value?.clearValidate()
+})
+// Element Plus 的各控件 v-model 类型不同，动态表单只在该适配边界使用 any；公共输入输出仍是 unknown。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const formModel = new Proxy({} as Record<string, any>, {
   get: (_target, key: string) => props.modelValue[key],
   set: (_target, key: string, value) => {

@@ -2,7 +2,7 @@
 测试环境配置
 """
 
-import tempfile
+from config.test_media import create_test_media
 
 from .base import *
 
@@ -23,7 +23,7 @@ DATABASES = {
 ADMINCORE_DB_READ_REPLICA_ENABLED = False
 
 # 媒体文件写入临时目录，避免测试产物污染仓库
-MEDIA_ROOT = tempfile.mkdtemp(prefix='admincore-test-media-')
+MEDIA_ROOT = create_test_media()
 # 单元测试绝不连接部署环境中的对象存储。
 ADMINCORE_STORAGE_BACKEND = 'local'
 STORAGES = {'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},

@@ -7,7 +7,6 @@ import os
 import logging
 from collections.abc import Mapping
 
-from django.conf import settings
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 

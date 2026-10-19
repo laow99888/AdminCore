@@ -10,6 +10,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 
 from .models import IdempotencyRecord
+from .tenancy import current_tenant_id, enabled
 
 IDEMPOTENT_WRITE_METHODS = frozenset({'POST', 'PUT', 'PATCH', 'DELETE'})
 
@@ -40,6 +41,7 @@ def with_idempotency(request, scope, callback, ttl_hours=24):
     with transaction.atomic():
         record, created = IdempotencyRecord.objects.get_or_create(
             actor=request.user, scope=scope, key=raw_key,
+            tenant_id=current_tenant_id() if enabled() else None,
             defaults={'request_hash': digest, 'expires_at': now + timedelta(hours=ttl_hours)},
         )
         record = IdempotencyRecord.objects.select_for_update().get(pk=record.pk)

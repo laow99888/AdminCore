@@ -14,6 +14,32 @@ from apps.logs.admin_audit import AuditedAdminMixin
 
 
 class MFAAdminAuthenticationForm(AdminAuthenticationForm):
+    def clean(self):
+        from .throttling import LoginRateThrottle
+        from .login_captcha import CaptchaUnavailable, record_failure
+        from apps.core.client_ip import request_ip
+        from apps.logs.models import LoginLog
+        throttle = LoginRateThrottle()
+        try:
+            allowed = throttle.allow_request(self.request, None)
+        except CaptchaUnavailable:
+            raise ValidationError('登录服务暂不可用，请稍后重试', code='unavailable') from None
+        if not allowed:
+            raise ValidationError('登录尝试过于频繁，请稍后重试', code='throttled')
+        try:
+            return super().clean()
+        except ValidationError:
+            username = str(self.data.get('username', ''))[:150]
+            try:
+                record_failure(self.request, username)
+            except CaptchaUnavailable:
+                raise ValidationError('登录服务暂不可用，请稍后重试', code='unavailable') from None
+            LoginLog.objects.create(username=username, status='failed',
+                ip_address=request_ip(self.request) or '0.0.0.0',
+                user_agent=self.request.META.get('HTTP_USER_AGENT', '')[:500],
+                error_message='管理后台登录认证失败')
+            raise
+
     def confirm_login_allowed(self, user):
         if user.is_service_account:
             raise ValidationError('机器身份不能用于交互登录', code='service_account')

@@ -170,10 +170,11 @@ def record_action(request, code, identifier, operation):
     return row
 
 
-def redact_approval_snapshot(application, actor, data):
+def redact_approval_snapshot(application, actor, data, *, read_snapshot=None):
     """审批参与资格不授予动态业务值或附件访问；读取权限实时复核且只投影已知类型。"""
     empty = {**data, 'title': '在线表单审批', 'extra_data': {}, 'business_snapshot': {}}
-    if not module_enabled('online_forms') or not has_permission_code(actor, 'online_form:record_read'):
+    can_read = read_snapshot.can('online_form:record_read') if read_snapshot else has_permission_code(actor, 'online_form:record_read')
+    if not module_enabled('online_forms') or not can_read:
         return empty
     frozen = application.business_snapshot
     if not isinstance(frozen, dict) or not isinstance(frozen.get('definition'), dict) or not isinstance(frozen.get('data'), dict):

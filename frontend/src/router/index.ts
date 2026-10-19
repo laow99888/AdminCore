@@ -131,7 +131,7 @@ router.beforeEach(async (to, _from, next) => {
         next('/unavailable')
         return
       }
-      if (!modules.pathEnabled(to.path)) { next('/'); return }
+      if (!modules.pathEnabled(to.path)) { ElMessage.warning(uiText('该模块未启用，请联系管理员')); next('/'); return }
       if (modules.enabled('organization')) {
         const { useTenantStore } = await import('@/stores/tenants')
         const tenants = useTenantStore()

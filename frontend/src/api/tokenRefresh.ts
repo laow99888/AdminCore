@@ -1,4 +1,5 @@
-interface RefreshResult { access: string | null; stale: boolean }
+interface RefreshResult { access: string | null; stale: boolean; retryable?: boolean }
+import { retryableRefresh } from '../auth/refreshFailure'
 type RefreshRequest = (refresh: string) => Promise<{ access?: unknown; refresh?: unknown }>
 import { getAccessToken, getRefreshToken, setAccessToken, setRefreshToken } from '../auth/tokenStorage'
 import { sessionIdentity as identity } from '../auth/sessionIdentity'
@@ -27,11 +28,12 @@ export async function refreshSessionTokens(failedAccess: string | null, post: Re
       setAccessToken(tokens.access)
       if (typeof tokens.refresh === 'string' && tokens.refresh) setRefreshToken(tokens.refresh)
       return { access: tokens.access, stale: false }
-    } catch {
+    } catch (error) {
       const latestAccess = getAccessToken(), latestRefresh = getRefreshToken()
       // Fallback for browsers without Web Locks: reuse a rotation completed by another tab.
       if (sameSession(latestAccess, latestRefresh) && latestAccess !== failedAccess) return { access: latestAccess, stale: false }
-      return { access: null, stale: latestRefresh !== refresh || latestAccess !== access }
+      const stale = latestRefresh !== refresh || latestAccess !== access
+      return { access: null, stale, ...(!stale && retryableRefresh(error) ? { retryable: true } : {}) }
     }
   }
   return navigator.locks?.request ? navigator.locks.request('admincore:refresh-token', run) : run()

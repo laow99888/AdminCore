@@ -117,14 +117,14 @@ class Announcement(BaseModel):
 
 
 class MessageTemplate(BaseModel):
-    code = models.SlugField(max_length=40, unique=True)
+    code = models.SlugField(max_length=40)
     name = models.CharField(max_length=100)
     enabled = models.BooleanField(default=True)
     revision = models.PositiveIntegerField(default=1)
 
     class Meta:
         ordering = ['code']
-        constraints = [models.CheckConstraint(condition=models.Q(revision__gte=1), name='message_template_revision_valid')]
+        constraints = [models.UniqueConstraint(fields=['tenant', *['code']], condition=models.Q(tenant__isnull=False), name='message_template_code_tenant_unique'), models.UniqueConstraint(fields=['code'], condition=models.Q(tenant__isnull=True), name='message_template_code_global_unique')] + [models.CheckConstraint(condition=models.Q(revision__gte=1), name='message_template_revision_valid')]
 
 
 class MessageTemplateVersion(BaseModel):

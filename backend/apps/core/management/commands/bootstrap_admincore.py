@@ -107,7 +107,7 @@ class Command(BaseCommand):
         # 4. 角色 + 角色权限
         role_map = {}
         for role_name, (desc, codes) in ROLES.items():
-            role, role_created = Role.objects.get_or_create(name=role_name, defaults={'description': desc})
+            role, role_created = Role.objects.get_or_create(name=role_name, tenant_id=None, defaults={'description': desc})
             role_map[role_name] = role
             for code in codes:
                 # 回收站升级只登记权限，不自动扩大已有角色权限；新库沿用声明的默认角色。

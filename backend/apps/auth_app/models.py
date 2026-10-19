@@ -4,7 +4,6 @@
 
 from django.db import models, transaction
 from django.contrib.auth.models import AbstractUser
-from apps.core.models import BaseModel
 from apps.core.fields import EncryptedPhoneField
 import uuid
 

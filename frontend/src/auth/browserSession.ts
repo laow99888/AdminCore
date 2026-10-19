@@ -1,4 +1,5 @@
 import publicRequest from '../api/publicRequest'
+import { retryableRefresh } from './refreshFailure'
 import { API_BASE_URL } from '../api/baseUrl'
 import { cookieSessionEnabled, BROWSER_SESSION_MARKER, MEMORY_TOKEN_CHANGED } from './sessionTransport'
 import { ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY, announceBrowserSession, browserSessionMarker, clearLegacyTokens, clearSession, discardMemorySession, getAccessToken, setAccessToken } from './tokenStorage'
@@ -76,7 +77,7 @@ export async function initializeBrowserSession(): Promise<void> {
   })
 }
 
-export async function refreshBrowserSession(failed: string | null): Promise<{ access: string | null; stale: boolean }> {
+export async function refreshBrowserSession(failed: string | null): Promise<{ access: string | null; stale: boolean; retryable?: boolean }> {
   const marker = browserSessionMarker()
   try {
     return await withBrowserSessionLock(async () => {
@@ -85,8 +86,9 @@ export async function refreshBrowserSession(failed: string | null): Promise<{ ac
       if (current !== failed) return { access: current, stale: false }
       return { access: await restoreBrowserSession(current), stale: false }
     })
-  } catch {
-    return { access: null, stale: marker !== browserSessionMarker() || !tokensBelongToSameSession(failed, getAccessToken()) }
+  } catch (error) {
+    const stale = marker !== browserSessionMarker() || !tokensBelongToSameSession(failed, getAccessToken())
+    return { access: null, stale, ...(!stale && retryableRefresh(error) ? { retryable: true } : {}) }
   }
 }
 

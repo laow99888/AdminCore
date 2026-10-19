@@ -49,4 +49,12 @@ describe('单次刷新轮换与跨标签页协调', () => {
     const access = seed()
     expect(await refreshSessionTokens(access, async () => { throw new Error('expired') })).toEqual({ access: null, stale: false })
   })
+  it.each([undefined, 429, 503])('临时刷新失败 %s 保留凭据以便重试，不重放旧请求', async status => {
+    const access = seed(), refresh = localStorage.getItem('refreshToken')
+    const result = await refreshSessionTokens(access, async () => { throw { isAxiosError: true, ...(status ? { response: { status } } : {}) } })
+    expect(result).toEqual({ access: null, stale: false, retryable: true })
+    expect(localStorage.getItem('token')).toBe(access)
+    expect(localStorage.getItem('refreshToken')).toBe(refresh)
+  })
+
 })

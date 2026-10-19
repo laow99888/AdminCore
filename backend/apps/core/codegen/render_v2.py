@@ -174,13 +174,18 @@ def before_delete(*, actor, instance):
     """校验业务状态是否允许删除。"""
     pass
 '''
+    def replace_required(value, old, new, count=1):
+        if value.count(old) != count:
+            raise ValueError('生成模板锚点缺失或重复，拒绝输出不完整模块')
+        return value.replace(old, new, 1)
+
     context = {'MODULE': module, 'MODEL': model, 'API_PREFIX': module.replace('_', '-'), 'TITLE_REPR': repr(definition.title),
                'TITLE_JSON': script_json(definition.title), 'SEARCH_FIELDS': repr(tuple(field['name'] for field in definition.fields if field['query'] == 'contains'))}
     for name in ['apps.py', 'urls.py', 'manifest.py', 'views.py', 'module.md']:
         value = template(name, context)
         if name == 'manifest.py':
             value += '\n# 开放凭证仍须逐资源签发 read scope；模块默认关闭。\nAPI_CAPABILITIES = ("read",)\n'
-            value = value.replace('AdminCore.codegen.v1', 'AdminCore.codegen.v2')
+            value = replace_required(value, 'AdminCore.codegen.v1', 'AdminCore.codegen.v2')
             search_fields = [field['name'] for field in definition.fields
                              if field['kind'] == 'string' and field['query'] in {'eq', 'contains'}][:3]
             if search_fields:
@@ -193,16 +198,16 @@ def before_delete(*, actor, instance):
                 policy_fields.extend([group['name'], *(group['name'] + '.' + field['name'] for field in group['fields'])])
             if definition.structure == 'tree':
                 policy_fields.append('parent')
-            value = value.replace('    default_enabled=False,',
+            value = replace_required(value, '    default_enabled=False,',
                 f'    field_policies=(({module!r}, {tuple(policy_fields)!r}),),\n    default_enabled=False,')
             if ((definition.structure == 'single' and not definition.details and not definition.approval)
                     or (definition.structure == 'master_detail' and definition.details)):
-                value = value.replace('    default_enabled=False,', f'    data_io_resources=({module!r},),\n    default_enabled=False,')
+                value = replace_required(value, '    default_enabled=False,', f'    data_io_resources=({module!r},),\n    default_enabled=False,')
             if definition.approval:
-                value = value.replace('    default_enabled=False,', "    dependencies=('approvals',),\n    default_enabled=False,")
-                value = value.replace("('read', 'create', 'update', 'delete')", "('read', 'create', 'update', 'delete', 'submit', 'withdraw')")
+                value = replace_required(value, '    default_enabled=False,', "    dependencies=('approvals',),\n    default_enabled=False,")
+                value = replace_required(value, "('read', 'create', 'update', 'delete')", "('read', 'create', 'update', 'delete', 'submit', 'withdraw')")
         if name == 'views.py':
-            value = value.replace('from drf_spectacular.utils import extend_schema, extend_schema_view', 'from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter')
+            value = replace_required(value, 'from drf_spectacular.utils import extend_schema, extend_schema_view', 'from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter')
             parameters = []
             for field in definition.fields:
                 if field['query'] != 'none':
@@ -210,18 +215,18 @@ def before_delete(*, actor, instance):
                         parameters.append(f'OpenApiParameter({field["name"] + suffix!r}, str, description={field["label"]!r})')
             if definition.structure == 'tree':
                 parameters.append("OpenApiParameter('parent', str, description='父节点UUID；root表示根节点')")
-            value = value.replace('@extend_schema_view(', '@extend_schema_view(\n    list=extend_schema(parameters=[' + ', '.join(parameters) + ']),', 1)
-            value = value.replace('from rest_framework import viewsets', 'from rest_framework import viewsets\nfrom apps.core.codegen.runtime import GeneratedViewMixin\nfrom .services import service\nfrom .schema import SCHEMA')
-            value = value.replace('class RecordViewSet(QueryBudgetListMixin,', 'class RecordViewSet(GeneratedViewMixin, QueryBudgetListMixin,')
-            value = value.replace('    serializer_class = RecordSerializer', '    generated_schema = SCHEMA\n    generated_service = service\n    serializer_class = RecordSerializer')
-            value = value.replace('from .serializers import ', f'from .serializers import {model}ListSerializer as ListSerializer\nfrom .serializers import ', 1)
-            value = value.replace('    def get_queryset(self):\n        return visible(self.request.user)',
+            value = replace_required(value, '@extend_schema_view(', '@extend_schema_view(\n    list=extend_schema(parameters=[' + ', '.join(parameters) + ']),', 1)
+            value = replace_required(value, 'from rest_framework import viewsets', 'from rest_framework import viewsets\nfrom apps.core.codegen.runtime import GeneratedViewMixin\nfrom .services import service\nfrom .schema import SCHEMA')
+            value = replace_required(value, 'class RecordViewSet(QueryBudgetListMixin,', 'class RecordViewSet(GeneratedViewMixin, QueryBudgetListMixin,')
+            value = replace_required(value, '    serializer_class = RecordSerializer', '    generated_schema = SCHEMA\n    generated_service = service\n    serializer_class = RecordSerializer')
+            value = replace_required(value, 'from .serializers import ', f'from .serializers import {model}ListSerializer as ListSerializer\nfrom .serializers import ', 1)
+            value = replace_required(value, '    def get_queryset(self):\n        return visible(self.request.user)',
                 '    def get_serializer_class(self):\n        return ListSerializer if self.action == "list" else RecordSerializer\n\n    def get_queryset(self):\n        rows = visible(self.request.user)\n        return rows if self.action == "list" else rows.prefetch_related(*[item["name"] for item in SCHEMA["details"]])')
-            value = value.replace("    ordering_fields = ['created_at', 'updated_at']", '    ordering_fields = ' + repr(['id', 'created_at', 'updated_at', *[field['name'] for field in definition.fields if field['sortable']]]))
-            value = value.replace("    ordering = ['-created_at', '-id']", '    ordering = ' + repr(list(definition.ordering)))
-            value = value.replace("'destroy': '" + module + ":delete'}", "'destroy': '" + module + ":delete', 'choices': '" + module + ":read'}")
+            value = replace_required(value, "    ordering_fields = ['created_at', 'updated_at']", '    ordering_fields = ' + repr(['id', 'created_at', 'updated_at', *[field['name'] for field in definition.fields if field['sortable']]]))
+            value = replace_required(value, "    ordering = ['-created_at', '-id']", '    ordering = ' + repr(list(definition.ordering)))
+            value = replace_required(value, "'destroy': '" + module + ":delete'}", "'destroy': '" + module + ":delete', 'choices': '" + module + ":read'}")
             if definition.approval:
-                value = value.replace("'choices': '" + module + ":read'}", "'choices': '" + module + ":read', 'submit': '" + module + ":submit', 'withdraw': '" + module + ":withdraw'}")
+                value = replace_required(value, "'choices': '" + module + ":read'}", "'choices': '" + module + ":read', 'submit': '" + module + ":submit', 'withdraw': '" + module + ":withdraw'}")
         if name == 'module.md':
             value = value[:value.index('仅支持有界文本')]
             value += '\nV2 支持单表/树表/主子表。字段、查询、控件及排序以 schema.py 为准。关联对象由服务端重新核验权限和数据范围；附件只引用已上传且有权访问的一般文件。\n\n主子表提交每组完整明细，省略分组表示保留（PATCH）；提交数组表示整体替换，明细ID不作为编辑契约，主记录version控制整单并发。默认只允许表单配置开启的字段写入，计算字段在 extensions.py 中实现。\n\n**手写文件**：extensions.py 与 RecordListView.vue 只允许首次创建；计划将现有文件标为 preserved，再次应用不要选择它们。其他文件由生成器管理，修改前先转移业务逻辑到扩展。禁止用ZIP直接覆盖已有模块；使用CLI预览和逐文件选择。\n\n树表采用父节点筛选逐层浏览，服务端串行检查移动并拒绝环及删除有子节点的记录。字典变更不改写历史记录；再次提交失效值时返回校验错误。关联目标必须是已登记且启用的生成模块，不允许指向认证、权限等内部模型。\n'

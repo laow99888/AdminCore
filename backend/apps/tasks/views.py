@@ -5,11 +5,11 @@
 import logging
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from apps.core.schema import envelope, MessageResponse
+from apps.core.schema import envelope
 from apps.core.schema import CleanupRequestSerializer
 from apps.core.query_budget import QueryBudgetListMixin
 
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response

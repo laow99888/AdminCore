@@ -21,6 +21,7 @@
   </AppLayout>
 </template>
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import { BaseButton, BaseTable } from '@/components'
@@ -41,7 +42,7 @@ const validDraft = computed(() => /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$
 const columns = computed(() => [
   { prop: 'username', label: uiText('本地账号'), width: 160 }, { prop: 'user_id', label: uiText('本地用户 UUID'), width: 300 },
   { prop: 'issuer', label: uiText('身份签发方'), width: 260 }, { prop: 'subject', label: uiText('供应商 subject'), width: 240 },
-  { prop: 'revoked_at', label: uiText('撤销时间'), width: 200, render: (value: string | null) => value ? new Date(value).toLocaleString() : '—' },
+  { prop: 'revoked_at', label: uiText('撤销时间'), width: 200, render: (value: string | null) => value ? formatDateTime(value) : '—' },
 ])
 let controller: AbortController | undefined, alive = true
 async function load() {

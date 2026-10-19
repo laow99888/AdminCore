@@ -379,6 +379,10 @@ def test_usage_rolling_retention_does_not_reset_total(session_client):
     CredentialUsageDay.objects.create(credential_id=data['id'], day=day - timedelta(days=89), requests=3)
     APICredential.objects.filter(pk=data['id']).update(accepted_requests=13)
     assert client.get(BASE + 'tasks/').status_code == 200
+    # 清理移入已有定时维护任务，认证热路径只计数。
+    assert CredentialUsageDay.objects.filter(day=day - timedelta(days=90)).exists()
+    from apps.core.tasks import cleanup_expired_sessions
+    cleanup_expired_sessions()
     assert not CredentialUsageDay.objects.filter(day=day - timedelta(days=90)).exists()
     stats = session_client.get(BASE + f'credentials/{data["id"]}/statistics/?days=90').json()['data']
     assert stats['accepted_requests'] == 14 and stats['recent_requests'] == 4

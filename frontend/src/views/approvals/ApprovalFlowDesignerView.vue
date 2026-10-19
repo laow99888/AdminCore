@@ -1,5 +1,6 @@
 <template>
   <AppLayout>
+    <EditConflictPanel v-if="conflict.active.value" :loading="conflict.loading.value" :failed="conflict.failed.value" :version="editing?.version ?? 0" :server-version="conflict.latest.value?.version" :rows="conflictRows" @inspect="conflict.inspect" @apply="conflict.applyLatest" />
     <div class="flow-page">
       <BaseCard>
         <template #header>
@@ -86,7 +87,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
+import { useEditConflict } from '@/composables/useEditConflict'
+import { responseStatus } from '@/api/request'
+import { computed, onMounted, ref } from 'vue'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
 import { useLatestRead } from '@/composables/useLatestRead'
 import { errorMessage, notifyError } from '@/api/request'
@@ -119,7 +123,10 @@ const isApproval = (node: EditableNode) => ['user', 'parallel', 'or'].includes(n
 const page = ref(1), total = ref(0)
 const beginRead = useLatestRead(() => { flows.value = []; total.value = 0 })
 const guard = useUnsavedChanges({ source: () => editing.value?.status === 'draft' ? { editing: editing.value, nodes: nodes.value, edges: edges.value, versionTwo: versionTwo.value, inputs: inputs.value } : null, busy: () => saving.value, clear: () => { editing.value = null; nodes.value = []; edges.value = []; inputs.value = []; versionTwo.value = false } })
+const conflict = useEditConflict<ApprovalFlowRow>({ identifier: () => editing.value?.id || '', current: () => guard.isSessionCurrent(), fetch: approvalFlowsApi.detail, apply: loadEditor })
+const conflictRows = computed(() => conflict.latest.value ? [{ label: uiText('定义'), local: JSON.stringify(editing.value), server: JSON.stringify(conflict.latest.value) }] : [])
 function loadEditor(flow: ApprovalFlowRow) {
+  conflict.reset()
   editing.value = JSON.parse(JSON.stringify(flow))
   versionTwo.value = flow.definition.schema_version === 2
   inputs.value = JSON.parse(JSON.stringify(flow.definition.inputs || []))
@@ -166,22 +173,22 @@ function definition(): ApprovalFlowRow['definition'] {
   }
 }
 async function saveFlow(): Promise<boolean> {
-  if (!editing.value || editing.value.status !== 'draft' || saving.value) return false
+  if (conflict.active.value || !editing.value || editing.value.status !== 'draft' || saving.value) return false
   saving.value = true
   try {
     const payload = { name: editing.value.name, code: editing.value.code, definition: definition(), version: editing.value.version }
     const response = editing.value.id ? await approvalFlowsApi.update(editing.value.id, payload) : await approvalFlowsApi.create(payload)
     if (!guard.isSessionCurrent()) return false
     loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('流程草稿已保存')); return true
-  } catch (err) { notifyError(err, uiText('保存失败')); return false } finally { saving.value = false }
+  } catch (err) { if (!guard.isSessionCurrent()) return false; if (responseStatus(err) === 409 && editing.value?.id) conflict.mark(); notifyError(err, uiText('保存失败')); return false } finally { saving.value = false }
 }
 async function publishFlow() {
-  if (saving.value || editing.value?.status !== 'draft') return
+  if (conflict.active.value || saving.value || editing.value?.status !== 'draft') return
   if ((!editing.value.id || guard.dirty.value) && !await saveFlow()) return
   if (!editing.value?.id) return
   saving.value = true
   try { const response = await approvalFlowsApi.publish(editing.value.id, editing.value.version); if (!guard.isSessionCurrent()) return; loadEditor(response.data.data || response.data); await load(); ElMessage.success(uiText('已发布')) }
-  catch (err) { notifyError(err, uiText('发布失败')) } finally { saving.value = false }
+  catch (err) { if (!guard.isSessionCurrent()) return; if (responseStatus(err) === 409 && editing.value?.id) conflict.mark(); notifyError(err, uiText('发布失败')) } finally { saving.value = false }
 }
 async function createRevision() {
   if (saving.value || !editing.value?.id || !await guard.confirmDiscard()) return

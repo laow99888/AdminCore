@@ -10,7 +10,7 @@
     <p v-if="loading" role="status">{{ uiText('正在加载调用统计') }}</p>
     <el-alert v-if="error" :title="error" type="error" :closable="false" role="alert" />
     <template v-if="data">
-      <p>{{ uiText('统计起点') }}：{{ new Date(data.statistics_started_at).toLocaleString() }}</p>
+      <p>{{ uiText('统计起点') }}：{{ formatDateTime(data.statistics_started_at) }}</p>
       <p>{{ uiText('累计已授权请求') }}：{{ data.accepted_requests }} · {{ uiText('所选期间请求') }}：{{ data.recent_requests }}</p>
       <p v-if="!data.daily.length">{{ uiText('所选期间暂无请求') }}</p>
       <ul v-else class="statistics-days"><li v-for="day in data.daily" :key="day.day"><time>{{ day.day }} UTC</time><span>{{ day.requests }}</span></li></ul>
@@ -19,6 +19,7 @@
   </el-dialog>
 </template>
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { BaseButton } from '@/components'
 import { apiCredentialsApi, type APICredential, type CredentialStatistics } from '@/api/apiCredentials'

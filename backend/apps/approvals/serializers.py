@@ -28,7 +28,11 @@ class ApprovalRequestSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         if instance.business_module and self.context.get('request') is not None:
             from .business_adapters import redact_approval_snapshot
-            data = redact_approval_snapshot(instance, self.context['request'].user, data)
+            from apps.permissions.read_snapshot import ReadPermissionSnapshot
+            actor = self.context['request'].user
+            if not hasattr(self, '_read_snapshot'):
+                self._read_snapshot = ReadPermissionSnapshot(actor)
+            data = redact_approval_snapshot(instance, actor, data, read_snapshot=self._read_snapshot)
         return data
 
     class Meta:

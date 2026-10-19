@@ -46,12 +46,14 @@ const canRead = computed(() => auth.can('file:read'))
 const options = ref<OnlineAttachment[]>([]), selected = ref<OnlineAttachment | null>(null), preview = ref<FileRow | null>(null)
 const loading = ref(false), uploading = ref(false), more = ref(false), failure = ref(''), input = ref<HTMLInputElement>()
 let generation = 0, controller: AbortController | undefined, page = 1, query = ''
+let uploadGeneration = 0, lastRead = { resolve: false, append: false }
 
 function previewRow(row: OnlineAttachment): FileRow {
   // 预览组件仅使用 id/type/name/size；从不构造或复制存储 URL。
   return { ...row, file: '', size_display: '', description: '', download_count: 0, created_at: '', is_deleted: false, deleted_at: null, lifecycle_version: 1 }
 }
 function reset() {
+  uploadGeneration++
   generation++; controller?.abort(); options.value = []; selected.value = null; preview.value = null
   loading.value = false; uploading.value = false; more.value = false; failure.value = ''; page = 1; query = ''
 }
@@ -59,6 +61,7 @@ async function load(resolve = false, append = false) {
   const context = props.context
   if (!context || !canRead.value || (!resolve && formDisabled.value)) return
   const current = ++generation
+  lastRead = { resolve, append }
   controller?.abort(); controller = new AbortController(); loading.value = true; failure.value = ''
   try {
     const result = await onlineFormAttachmentsApi.choices(context, props.id, {
@@ -73,23 +76,23 @@ async function load(resolve = false, append = false) {
 }
 function search(value: string) { query = value; page = 1; void load() }
 function loadMore() { if (!loading.value) { page++; void load(false, true) } }
-function retry() { if (formDisabled.value || !query) void load(true); else void load() }
+function retry() { if (lastRead.append) page++; void load(lastRead.resolve, lastRead.append) }
 async function upload(event: Event) {
   const element = event.target as HTMLInputElement, file = element.files?.[0]
   element.value = ''
   if (!file || formDisabled.value || !props.context || !canRead.value || !auth.can('file:upload') || uploading.value) return
-  const current = generation
+  const current = ++uploadGeneration
   uploading.value = true; failure.value = ''
   try {
     const result = await filesApi.upload(file)
-    if (current !== generation || formDisabled.value) return
+    if (current !== uploadGeneration || formDisabled.value) return
     // 上传使用当前租户；选项解析再次按目标表单/记录与 ACL 复核，不能盲信上传返回值。
     const verified = await onlineFormAttachmentsApi.choices(props.context, props.id, { selected: result.data.data.id, resolve: true })
-    if (current !== generation || formDisabled.value) return
+    if (current !== uploadGeneration || formDisabled.value) return
     if (!verified.selected) throw new Error(uiText('附件不可用或无权访问'))
     selected.value = verified.selected; emit('update:modelValue', selected.value.id)
-  } catch (err) { if (current === generation) failure.value = errorMessage(err, uiText('附件上传失败，请重试')) }
-  finally { if (current === generation) uploading.value = false }
+  } catch (err) { if (current === uploadGeneration) failure.value = errorMessage(err, uiText('附件上传失败，请重试')) }
+  finally { if (current === uploadGeneration) uploading.value = false }
 }
 async function download() {
   if (!selected.value || !auth.can('file:download')) return

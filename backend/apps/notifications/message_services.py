@@ -50,6 +50,14 @@ def template_values(row, version):
             'variables': version.variables, 'content_sha256': hashlib.sha256((version.subject + '\n' + version.body).encode()).hexdigest()}
 
 
+def current_template_version(row):
+    version = row.versions.filter(number=row.revision).first()
+    if version is None:
+        from apps.core.system_views import VersionConflict
+        raise VersionConflict('模板当前版本缺失，请由管理员修复后重试')
+    return version
+
+
 @transaction.atomic
 def save_template(request, actor, data, identifier=None):
     validate_content(data['subject'], data['body'], data['variables'])
@@ -60,7 +68,7 @@ def save_template(request, actor, data, identifier=None):
         if row.revision != data['revision']:
             from apps.core.system_views import VersionConflict
             raise VersionConflict()
-        before = template_values(row, row.versions.get(number=row.revision))
+        before = template_values(row, current_template_version(row))
         if data['code'] != row.code:
             raise ValidationError('模板编码创建后不能修改')
         row.name, row.enabled, row.revision = data['name'], data['enabled'], row.revision + 1
@@ -90,7 +98,7 @@ def submit(request, actor, template_id, revision, recipient_ids, channels, value
     row = get_object_or_404(MessageTemplate.objects.select_for_update(), pk=template_id)
     if not row.enabled or row.revision != revision:
         raise ValidationError('模板停用或版本已变化，请重新预览')
-    version = row.versions.get(number=revision)
+    version = current_template_version(row)
     subject, body = render(version, values)
     if any(not enabled(channel) for channel in channels):
         raise ValidationError('所选渠道未启用或未配置，未登记任何发送')

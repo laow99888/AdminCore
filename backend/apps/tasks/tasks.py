@@ -9,7 +9,6 @@ import logging
 
 from celery import shared_task
 from apps.tasks.routing import RegisteredPolicyTask
-from django.conf import settings
 from django.utils import timezone
 from .maintenance import exclusive
 

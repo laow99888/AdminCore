@@ -19,7 +19,7 @@
         <el-form-item :label="uiText('名称')" required><el-input v-model="form.name" maxlength="100" /></el-form-item>
         <el-form-item :label="uiText('描述')"><el-input v-model="form.description" maxlength="500" /></el-form-item>
         <el-form-item :label="uiText('启用')"><el-switch v-model="form.is_active" /></el-form-item>
-        <fieldset v-for="(item, index) in form.items" :key="index" class="dict-item">
+        <fieldset v-for="(item, index) in form.items" :key="rowKey(item)" class="dict-item">
           <legend>{{ uiText('字典项') }} {{ index + 1 }}</legend>
           <el-form-item :label="uiText('名称')" required><el-input v-model="item.label" maxlength="100" /></el-form-item>
           <el-form-item :label="uiText('值')" required><el-input v-model="item.value" maxlength="100" /></el-form-item>
@@ -36,9 +36,12 @@
 </template>
 
 <script setup lang="ts">
+import { useRowKey } from '@/composables/useRowKey'
+const rowKey = useRowKey()
 import EditConflictPanel from '@/components/common/EditConflictPanel.vue'
 import { useEditConflict } from '@/composables/useEditConflict'
 import { useUnsavedChanges } from '@/composables/useUnsavedChanges'
+import { useLatestRead } from '@/composables/useLatestRead'
 import { usePageState } from '@/composables/usePageState'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -72,12 +75,14 @@ const conflictRows = computed(() => {
 })
 const columns = computed(() => [{ prop: 'code', label: uiText('编码'), width: 180 }, { prop: 'name', label: uiText('名称'), width: 200 },
   { prop: 'is_active', label: uiText('状态'), width: 100, render: (value: boolean) => uiText(value ? '启用' : '停用') }])
+const beginRead = useLatestRead(() => { rows.value = []; total.value = 0; loading.value = false; error.value = '' })
 async function load() {
+  const current = beginRead()
   loading.value = true
   error.value = ''
-  try { const data = await systemApi.dictionaries(page.value, keyword.value, pageSize.value); rows.value = data.items; total.value = data.pagination.total }
-  catch { error.value = uiText('字典加载失败，请重试') }
-  finally { loading.value = false }
+  try { const data = await systemApi.dictionaries(page.value, keyword.value, pageSize.value); if (current()) { rows.value = data.items; total.value = data.pagination.total } }
+  catch { if (current()) error.value = uiText('字典加载失败，请重试') }
+  finally { if (current()) loading.value = false }
 }
 function changePage(value: number) { page.value = value; load() }
 function changeSize(value: number) { pageSize.value = value; page.value = 1; load() }

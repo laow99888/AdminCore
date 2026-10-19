@@ -6,7 +6,7 @@
       <p role="status">{{ uiText('后台导出') }}：{{ taskLabel(exportTask.status) }} · {{ exportTask.progress }}% · {{ uiText('总单据数') }} {{ exportTask.result?.documents ?? 0 }} · {{ uiText('展开行数') }} {{ exportTask.result?.rows ?? 0 }}</p>
       <p>{{ uiText('最多10000单、50000展开行、50 MiB，有效24小时。各明细组按序横向对齐；下载时复核当前权限和数据，变化后需重新导出。') }}</p>
       <p v-if="exportTask.status === 'failed' || exportTask.status === 'cancelled'" role="alert">{{ uiText('导出已停止，请检查权限或缩小范围后重新导出；运行中可在任务中心取消。') }}</p>
-      <p v-if="exportTask.result?.expires_at">{{ uiText('导出有效期至') }} {{ new Date(exportTask.result.expires_at).toLocaleString() }}</p>
+      <p v-if="exportTask.result?.expires_at">{{ uiText('导出有效期至') }} {{ formatDateTime(exportTask.result.expires_at) }}</p>
       <el-button :disabled="busy" @click="refreshExport">{{ uiText('刷新导出结果') }}</el-button>
       <el-button v-if="exportTask.status === 'success'" :disabled="busy || exportExpired" @click="downloadExport">{{ uiText('下载导出文件') }}</el-button>
     </section>
@@ -42,7 +42,7 @@
         <p v-if="summary?.source_rows !== undefined">{{ uiText('源文件行数') }}：{{ summary.source_rows }}</p>
         <p v-if="task && task.status === 'failed'" role="alert">{{ uiText('任务已停止，已成功的行保留；请到任务中心检查原因并接续。') }}</p>
         <ul v-if="!task && preview?.errors.length" class="errors"><li v-for="item in preview.errors" :key="item.row">{{ uiText('第 {p0} 行', { p0: item.row }) }}：{{ rowError(item.message) }}</li></ul>
-        <p v-if="!task && preview">{{ uiText('预检有效期至') }} {{ new Date(preview.expires_at).toLocaleString() }}</p>
+        <p v-if="!task && preview">{{ uiText('预检有效期至') }} {{ formatDateTime(preview.expires_at) }}</p>
       </template>
       </div>
       <template #footer><div class="business-io-footer">
@@ -59,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { sessionIdentity } from '@/auth/sessionIdentity'
 import './businessMessages'
 import { computed, onDeactivated, onScopeDispose, reactive, ref, watch } from 'vue'

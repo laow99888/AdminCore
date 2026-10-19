@@ -26,7 +26,8 @@ class LoginRateThrottle(TrustedClientIPMixin, BaseThrottle):
         now = time.time()
         window = int(now // 60)
         self.retry_after = 60 - now % 60
-        username = str(request.data.get('username', '')).strip().casefold()
+        data = request.data if hasattr(request, 'data') else request.POST
+        username = str(data.get('username', '')).strip().casefold()
         identities = [('ip', self.get_ident(request), 10)]
         if username:
             identities.append(('username', username, 5))

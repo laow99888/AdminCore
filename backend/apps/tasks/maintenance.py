@@ -83,12 +83,16 @@ def exclusive(key):
 def valid_preview(key, record_id, user_id):
     from datetime import timedelta
     from django.utils import timezone
-    from apps.core.system_config import config_value
     from .models import MaintenanceRequest
     preview = MaintenanceRequest.objects.select_related('record').filter(
         pk=record_id, key=key, record__creator_id=user_id, record__status='success',
         record__completed_at__gte=timezone.now() - timedelta(minutes=15), options__dry_run=True,
     ).first()
+    return preview_is_valid(key, preview)
+
+
+def preview_is_valid(key, preview):
+    from apps.core.system_config import config_value
     if key == 'backup':
         from .backup import available, policy
         result = preview.record.result if preview else None

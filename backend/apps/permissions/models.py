@@ -11,13 +11,14 @@ User = get_user_model()
 
 class Role(BaseModel):
     """角色模型"""
-    name = models.CharField(max_length=100, unique=True, verbose_name='角色名')
+    name = models.CharField(max_length=100, verbose_name='角色名')
     description = models.TextField(blank=True, verbose_name='描述')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
     version = models.PositiveIntegerField(default=1)
     field_permissions = models.JSONField(default=dict, blank=True, verbose_name='字段权限策略')
 
     class Meta:
+        constraints = [models.UniqueConstraint(fields=['tenant', *['name']], condition=models.Q(tenant__isnull=False), name='role_name_tenant_unique'), models.UniqueConstraint(fields=['name'], condition=models.Q(tenant__isnull=True), name='role_name_global_unique')]
         verbose_name = '角色'
         verbose_name_plural = '角色'
 

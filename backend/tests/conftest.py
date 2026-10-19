@@ -28,6 +28,8 @@ def cleanup_test_media(request):
     root = Path(settings.MEDIA_ROOT).resolve()
     yield
     if request.session.testsfailed:
+        from config.test_media import preserve_test_media
+        preserve_test_media(root)
         print(f'保留失败测试媒体：{root}')
     elif (getattr(settings, 'TESTING', False)
           and root.parent == Path(tempfile.gettempdir()).resolve()

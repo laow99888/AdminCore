@@ -43,7 +43,7 @@ def sync_approval(application, request):
                   action='update', before=before, after=service.projection(row))
 
 
-def redact_approval_snapshot(application, actor, data):
+def redact_approval_snapshot(application, actor, data, *, read_snapshot=None):
     """按查看者当前权限过滤冻结快照；字段改名/模块失效时采取关闭访问。"""
     from apps.permissions.field_permissions import business_allowed_fields
     from apps.permissions.permissions import has_permission_code
@@ -53,8 +53,9 @@ def redact_approval_snapshot(application, actor, data):
         return {**data, 'title': '业务审批', 'extra_data': {}, 'business_snapshot': {}}
     if not schema.get('approval'):
         return {**data, 'title': schema['title'], 'extra_data': {}, 'business_snapshot': {}}
-    allowed = business_allowed_fields(actor, application.business_module, 'read')
-    if not module_enabled(application.business_module) or not has_permission_code(actor, application.business_module + ':read'):
+    allowed = read_snapshot.fields(application.business_module) if read_snapshot else business_allowed_fields(actor, application.business_module, 'read')
+    can_read = read_snapshot.can(application.business_module + ':read') if read_snapshot else has_permission_code(actor, application.business_module + ':read')
+    if not module_enabled(application.business_module) or not can_read:
         allowed = set()
     snapshot = data.get('business_snapshot') or {}
     title_field = next(field for field in schema['fields'] if field['name'] == schema['approval']['title_field'])

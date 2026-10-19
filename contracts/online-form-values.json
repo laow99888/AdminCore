@@ -1,0 +1,114 @@
+{
+  "definition": {
+    "schema_version": 2,
+    "fields": [
+      {
+        "key": "note",
+        "label": "Note",
+        "type": "text",
+        "default": "default",
+        "max_length": 100
+      },
+      {
+        "key": "show",
+        "label": "Show",
+        "type": "boolean"
+      },
+      {
+        "key": "hidden",
+        "label": "Hidden",
+        "type": "text",
+        "max_length": 100,
+        "visible_when": [
+          {
+            "field": "show",
+            "op": "eq",
+            "value": true
+          }
+        ]
+      },
+      {
+        "key": "amount",
+        "label": "Amount",
+        "type": "decimal",
+        "scale": 2
+      },
+      {
+        "key": "lines",
+        "label": "Lines",
+        "type": "detail",
+        "fields": [
+          {
+            "key": "note",
+            "label": "Note",
+            "type": "text",
+            "default": "line default",
+            "max_length": 100
+          }
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "missing-default",
+      "input": {},
+      "submission": {
+        "note": "default"
+      }
+    },
+    {
+      "name": "explicit-empty",
+      "input": {
+        "note": ""
+      },
+      "submission": {
+        "note": ""
+      }
+    },
+    {
+      "name": "explicit-null",
+      "input": {
+        "note": null
+      },
+      "submission": {
+        "note": null
+      }
+    },
+    {
+      "name": "hidden-field",
+      "input": {
+        "show": false,
+        "hidden": "stale"
+      },
+      "submission": {
+        "note": "default",
+        "show": false
+      }
+    },
+    {
+      "name": "decimal-detail",
+      "input": {
+        "amount": "0.10",
+        "lines": [
+          {
+            "note": ""
+          },
+          {}
+        ]
+      },
+      "submission": {
+        "note": "default",
+        "amount": "0.10",
+        "lines": [
+          {
+            "note": ""
+          },
+          {
+            "note": "line default"
+          }
+        ]
+      }
+    }
+  ]
+}

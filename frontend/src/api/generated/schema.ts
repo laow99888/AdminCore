@@ -2327,20 +2327,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_deliveries_list"];
         put?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         post: operations["notifications_deliveries_create"];
         delete?: never;
         options?: never;
@@ -2355,27 +2345,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_deliveries_retrieve"];
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         put: operations["notifications_deliveries_update"];
         post?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         delete: operations["notifications_deliveries_destroy"];
         options?: never;
         head?: never;
@@ -2391,12 +2366,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         post: operations["notifications_deliveries_retry_create"];
         delete?: never;
         options?: never;
@@ -2508,20 +2478,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_templates_list"];
         put?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         post: operations["notifications_templates_create"];
         delete?: never;
         options?: never;
@@ -2536,24 +2496,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_templates_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         patch: operations["notifications_templates_partial_update"];
         trace?: never;
     };
@@ -2566,12 +2516,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         post: operations["notifications_templates_preview_create"];
         delete?: never;
         options?: never;
@@ -2588,12 +2533,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         post: operations["notifications_templates_send_create"];
         delete?: never;
         options?: never;
@@ -2608,12 +2548,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_templates_versions_retrieve"];
         put?: never;
         post?: never;
@@ -2630,12 +2565,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_templates_channels_retrieve"];
         put?: never;
         post?: never;
@@ -2652,12 +2582,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_templates_recipient_departments_retrieve"];
         put?: never;
         post?: never;
@@ -2674,12 +2599,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description 把 ViewSet 的写操作/详情响应包成统一格式 {code, message, data}
-         *
-         *     list 已由 StandardPagination.get_paginated_response 统一包装；
-         *     自定义 action 自行构造 Response 的不受影响。
-         */
+        /** @description 敏感接口统一禁止共享缓存；保留状态码、Cookie 和内容协商结果。 */
         get: operations["notifications_templates_recipients_retrieve"];
         put?: never;
         post?: never;
@@ -6719,7 +6639,7 @@ export interface components {
              * Format: date-time
              */
             readonly created_at: string;
-            readonly current: components["schemas"]["TemplateVersion"];
+            readonly current: components["schemas"]["TemplateVersion"] | null;
             readonly enabled: boolean;
             /** Format: uuid */
             readonly id: string;
@@ -7880,7 +7800,6 @@ export interface components {
             name?: string;
             version?: number;
         };
-        /** @description 角色序列化器 */
         PatchedRoleRequest: {
             /** 描述 */
             description?: string;
@@ -8474,7 +8393,6 @@ export interface components {
             restore_number?: number;
             version: number;
         };
-        /** @description 角色序列化器 */
         Role: {
             /**
              * 创建时间
@@ -8526,7 +8444,6 @@ export interface components {
             data: components["schemas"]["Role"];
             message: string;
         };
-        /** @description 角色序列化器 */
         RoleRequest: {
             /** 描述 */
             description?: string;

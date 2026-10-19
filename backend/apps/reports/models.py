@@ -7,7 +7,7 @@ class ReportDefinition(BaseModel):
     STATUS_CHOICES = [('draft', '草稿'), ('published', '已发布'), ('archived', '已归档')]
     KIND_CHOICES = [('report', '报表'), ('dashboard', '大屏')]
     name = models.CharField(max_length=120)
-    code = models.CharField(max_length=64, unique=True)
+    code = models.CharField(max_length=64)
     kind = models.CharField(max_length=12, choices=KIND_CHOICES, default='report')
     status = models.CharField(max_length=12, choices=STATUS_CHOICES, default='draft', db_index=True)
     version = models.PositiveIntegerField(default=1)
@@ -17,5 +17,6 @@ class ReportDefinition(BaseModel):
     published_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        constraints = [models.UniqueConstraint(fields=['tenant', *['code']], condition=models.Q(tenant__isnull=False), name='report_code_tenant_unique'), models.UniqueConstraint(fields=['code'], condition=models.Q(tenant__isnull=True), name='report_code_global_unique')]
         ordering = ['-updated_at', '-id']
         indexes = [models.Index(fields=['status', 'code']), models.Index(fields=['created_by', 'status'])]

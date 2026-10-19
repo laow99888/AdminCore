@@ -2,6 +2,7 @@
 权限系统序列化器
 """
 
+from apps.core.tenant_validation import TenantUniqueSerializerMixin
 from rest_framework import serializers
 from drf_spectacular.utils import extend_schema_field
 from drf_spectacular.helpers import lazy_serializer
@@ -19,17 +20,8 @@ class PermissionSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'created_at')
 
 
-class RolePermissionSerializer(serializers.ModelSerializer):
-    """角色权限序列化器"""
-    permission_detail = PermissionSerializer(source='permission', read_only=True)
-
-    class Meta:
-        model = Role
-        fields = ('id', 'name', 'description', 'is_active', 'permissions')
-        read_only_fields = ('id',)
-
-
-class RoleSerializer(serializers.ModelSerializer):
+class RoleSerializer(TenantUniqueSerializerMixin, serializers.ModelSerializer):
+    tenant_unique_fields = ('name',)
     """角色序列化器"""
     # Role 与 Permission 通过 RolePermission 中间表关联，显式取权限明细
     permissions = serializers.SerializerMethodField()

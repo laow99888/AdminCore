@@ -330,6 +330,8 @@ class GeneratedService:
         row = None if action == 'create' else self.visible(actor).select_for_update(of=('self',)).filter(pk=identifier).first()
         if action != 'create' and row is None:
             raise NotFound()
+        if 'version' not in values:
+            raise ValidationError({'version': '必须传入当前版本'})
         version = values.pop('version')
         if version != (0 if row is None else row.version):
             raise VersionConflict()

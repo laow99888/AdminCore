@@ -1,4 +1,5 @@
 """只管理注册维护计划；核心可靠派发不开放启停。"""
+from apps.core.strict_serializers import StrictSerializer
 import hashlib
 import json
 import re
@@ -7,7 +8,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from celery.schedules import crontab
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.utils import timezone
 from django_celery_beat.models import CrontabSchedule, PeriodicTask
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers
@@ -27,12 +27,6 @@ from .reliability import policy as task_policy
 from .models import MaintenanceRequest, TaskRecord
 from .serializers import TaskRecordSerializer
 
-
-class StrictSerializer(serializers.Serializer):
-    def to_internal_value(self, data):
-        if not isinstance(data, dict) or set(data) - set(self.fields):
-            raise ValidationError({'non_field_errors': ['请求包含未注册字段']})
-        return super().to_internal_value(data)
 
 
 class ScheduleWriteSerializer(StrictSerializer):
@@ -106,9 +100,9 @@ def revision(row):
     return hashlib.sha256(json.dumps(configuration(row), sort_keys=True).encode()).hexdigest() if row else '0'
 
 
-def schedule_row(key, user):
+def schedule_row(key, user, snapshot=None):
     job = JOBS[key]
-    row = PeriodicTask.objects.select_related('crontab').filter(name=job['schedule']).first()
+    row = snapshot['schedules'].get(job['schedule']) if snapshot is not None else PeriodicTask.objects.select_related('crontab').filter(name=job['schedule']).first()
     supported = True
     try:
         options = validate_options(key, json.loads(row.kwargs)) if row else validate_options(key, {})
@@ -116,12 +110,14 @@ def schedule_row(key, user):
             supported = False
     except (ValueError, ValidationError):
         options, supported = {}, False
-    last = TaskRecord.objects.filter(related_resource='maintenance:' + key).order_by('-created_at').first()
-    preview = MaintenanceRequest.objects.select_related('record').filter(
+    last = snapshot['last'].get('maintenance:' + key) if snapshot is not None else TaskRecord.objects.filter(related_resource='maintenance:' + key).order_by('-created_at').first()
+    preview = snapshot['previews'].get(key) if snapshot is not None else MaintenanceRequest.objects.select_related('record').filter(
         key=key, record__creator=user, options__dry_run=True, record__status='success',
     ).order_by('-record__completed_at').first()
+    from .maintenance import preview_is_valid
+    valid = preview_is_valid(key, preview) if snapshot is not None else bool(preview and valid_preview(key, preview.pk, user.pk))
     preview_data = {'id': str(preview.pk), 'result': preview.record.result,
-                    'completed_at': preview.record.completed_at.isoformat()} if preview and valid_preview(key, preview.pk, user.pk) else None
+                    'completed_at': preview.record.completed_at.isoformat()} if preview and valid else None
     return {'key': key, 'name': job['name'], 'task': job['task'], 'enabled': bool(row and row.enabled),
             'module_enabled': task_enabled(job['task']), 'missing': row is None, 'revision': revision(row),
             'cron': configuration(row)['cron'] if row and row.crontab else {
@@ -146,7 +142,19 @@ class ScheduleView(APIView):
 
     @extend_schema(responses=envelope('MaintenanceSchedulesResponse', ScheduleRowSerializer(many=True)))
     def get(self, request):
-        return Response({'code': 200, 'message': 'success', 'data': [schedule_row(key, request.user) for key in JOBS]})
+        from datetime import timedelta
+        from django.db.models import F, Window
+        from django.db.models.functions import RowNumber
+        from django.utils import timezone
+        latest = TaskRecord.objects.filter(related_resource__in=['maintenance:' + key for key in JOBS]).annotate(
+            rank=Window(RowNumber(), partition_by=[F('related_resource')], order_by=[F('created_at').desc(), F('pk').desc()])).filter(rank=1)
+        previews = MaintenanceRequest.objects.select_related('record').filter(
+            key__in=JOBS, record__creator=request.user, options__dry_run=True, record__status='success',
+            record__completed_at__gte=timezone.now() - timedelta(minutes=15)).annotate(
+                rank=Window(RowNumber(), partition_by=[F('key')], order_by=[F('record__completed_at').desc(), F('pk').desc()])).filter(rank=1)
+        snapshot = {'schedules': {row.name: row for row in PeriodicTask.objects.select_related('crontab').filter(name__in=[job['schedule'] for job in JOBS.values()])},
+                    'last': {row.related_resource: row for row in latest}, 'previews': {row.key: row for row in previews}}
+        return Response({'code': 200, 'message': 'success', 'data': [schedule_row(key, request.user, snapshot) for key in JOBS]})
 
     @extend_schema(request=ScheduleWriteSerializer, responses=envelope('MaintenanceScheduleUpdatedResponse', ScheduleRowSerializer()))
     def patch(self, request, key):

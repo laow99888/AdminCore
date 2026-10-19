@@ -10,7 +10,7 @@ from django.core.cache import cache
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
-from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, Throttled, ValidationError
+from rest_framework.exceptions import AuthenticationFailed, PermissionDenied, Throttled
 
 from apps.auth_app.models import AuthSession, TOTPDevice
 from apps.auth_app.recovery import password_digest

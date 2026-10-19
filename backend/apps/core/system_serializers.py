@@ -1,4 +1,5 @@
 import re
+from apps.core.tenant_validation import TenantUniqueSerializerMixin
 from rest_framework import serializers
 from .models import DataDictionary
 
@@ -20,7 +21,8 @@ class ConfigRowSerializer(serializers.Serializer):
     effective = serializers.CharField()
 
 
-class DictionarySerializer(serializers.ModelSerializer):
+class DictionarySerializer(TenantUniqueSerializerMixin, serializers.ModelSerializer):
+    tenant_unique_fields = ('code',)
     # 0 只用于新建；更新时必须回传当前版本。
     version = serializers.IntegerField(min_value=0, required=True)
 

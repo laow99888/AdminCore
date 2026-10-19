@@ -1,16 +1,8 @@
+from apps.core.strict_serializers import StrictSerializer
 import unicodedata
-from collections.abc import Mapping
 
 from rest_framework import serializers
 
-
-class StrictSerializer(serializers.Serializer):
-    def to_internal_value(self, data):
-        if not isinstance(data, Mapping) or set(data) - set(self.fields):
-            raise serializers.ValidationError({'non_field_errors': ['存在不支持的字段']})
-        if hasattr(data, 'getlist') and any(len(data.getlist(key)) != 1 for key in data):
-            raise serializers.ValidationError({'non_field_errors': ['字段不能重复']})
-        return super().to_internal_value(data)
 
 
 def normalized_name(value):

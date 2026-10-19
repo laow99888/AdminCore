@@ -10,8 +10,9 @@ from django.utils import timezone
 from .models import OutboxEvent
 from .tenancy import tenant_context
 from apps.logs.context import correlated_request
+from . import broker_dispatch
 
-TOPICS = ('notification.delivery', 'task.failed', 'auth.email', 'file.purge')
+TOPICS = ('notification.delivery', 'task.failed', 'auth.email', 'file.purge', *broker_dispatch.TOPICS)
 LEASE_SECONDS = 300
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,17 @@ def dispatch_external(limit):
                 event.save(update_fields=['status', 'last_error', 'updated_at'])
                 failed += 1
                 continue
-            if event.topic != 'file.purge' and event.attempts >= 5:
+            attempt_limit = 5
+            if event.topic in broker_dispatch.TOPICS:
+                with tenant_context(event.tenant_id):
+                    execution = broker_dispatch.execution_for(event)
+                    attempt_limit = broker_dispatch.dispatch_policy(event, execution)['dispatch_attempts']
+                    if execution and execution.record.status == 'pending' and event.attempts >= attempt_limit:
+                        execution.record.mark_failed('dispatch_attempts_exhausted')
+            if event.topic != 'file.purge' and event.attempts >= attempt_limit:
                 event.status, event.last_error = 'failed', 'dispatch_exhausted'
                 event.save(update_fields=['status', 'last_error', 'updated_at'])
+                # 已耗尽事件没有再次派发，不重复计入本批失败数。
                 continue
             event.attempts += 1
             event.status, event.available_at = 'processing', now + timedelta(seconds=LEASE_SECONDS)
@@ -66,7 +75,9 @@ def dispatch_external(limit):
         deferred_until = None
         with correlated_request(event.request_id), tenant_context(event.tenant_id):
             try:
-                if event.topic == 'notification.delivery':
+                if event.topic in broker_dispatch.TOPICS:
+                    broker_dispatch.publish(event)
+                elif event.topic == 'notification.delivery':
                     from apps.notifications.message_services import deliver
                     if deliver(event.payload):
                         error = 'channel_delivery_failed'
@@ -97,7 +108,7 @@ def dispatch_external(limit):
                     attempts=event.attempts - 1, last_error='', updated_at=timezone.now())
             continue
         values = {'status': 'failed' if error else 'succeeded', 'last_error': error,
-                  'available_at': timezone.now() + timedelta(seconds=min(3600, 2 ** min(event.attempts, 12))),
+                  'available_at': timezone.now() + (timedelta(seconds=min(3600, 2 ** min(event.attempts, 12))) if error else timedelta()),
                   'published_at': None if error else timezone.now(), 'updated_at': timezone.now()}
         # attempt与租约共同匹配，迟到的旧领取不能回写新状态。
         updated = OutboxEvent.objects.filter(pk=event.pk, status='processing', attempts=event.attempts,
@@ -105,7 +116,9 @@ def dispatch_external(limit):
         if updated:
             with correlated_request(event.request_id):
                 logger.log(logging.WARNING if error else logging.INFO, 'Reliable external event processed',
-                    extra={'event': 'outbox.failed' if error else 'outbox.succeeded', 'event_id': str(event.pk)})
+                    extra={'event': 'outbox.failed' if error else 'outbox.succeeded', 'event_id': str(event.pk),
+                           'record_id': str(event.payload.get('record_id', '')),
+                           'delivery_id': str(event.payload.get('delivery_id', ''))})
         processed += int(bool(updated) and not error)
         failed += int(bool(updated) and bool(error))
     return {'processed': processed, 'failed': failed}

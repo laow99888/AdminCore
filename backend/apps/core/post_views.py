@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from apps.core.tenant_validation import TenantUniqueSerializerMixin
 from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
@@ -29,7 +30,8 @@ class StrictWriteSerializer(serializers.ModelSerializer):
         return super().to_internal_value(data)
 
 
-class PostSerializer(StrictWriteSerializer):
+class PostSerializer(TenantUniqueSerializerMixin, StrictWriteSerializer):
+    tenant_unique_fields = ('code',)
     code = serializers.RegexField(r'^[a-z][a-z0-9_]{0,63}$', max_length=64)
     version = serializers.IntegerField(min_value=0)
 

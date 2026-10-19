@@ -88,7 +88,7 @@ export function activeValues(
   const result: FormValues = {};
   for (const field of fields) {
     if (!matches(field.visible_when, result, fields)) continue;
-    let raw = values[field.key] ?? field.default;
+    let raw = Object.prototype.hasOwnProperty.call(values, field.key) ? values[field.key] : field.default;
     if (field.computation) {
       try {
         raw = calculateDecimal(field.computation, result, field.scale ?? 2);
@@ -118,14 +118,15 @@ export function submissionValues(
   const active = activeValues(fields, values);
   return Object.fromEntries(
     fields
-      .filter((field) => !field.computation && field.key in active)
+      .filter((field) => !field.computation && matches(field.visible_when, active, fields) &&
+        (Object.prototype.hasOwnProperty.call(values, field.key) || field.key in active))
       .map((field) => [
         field.key,
-        field.type === "detail" && Array.isArray(active[field.key])
-          ? (active[field.key] as FormValues[]).map((row) =>
+        field.type === "detail" && Array.isArray(values[field.key] ?? active[field.key])
+          ? ((values[field.key] ?? active[field.key]) as FormValues[]).map((row) =>
               submissionValues(field.fields || [], row),
             )
-          : active[field.key],
+          : Object.prototype.hasOwnProperty.call(values, field.key) ? values[field.key] ?? null : active[field.key],
       ]),
   );
 }

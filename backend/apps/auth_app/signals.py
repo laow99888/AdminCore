@@ -2,6 +2,21 @@
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 from .models import User
+from django.contrib.auth.signals import user_logged_in
+
+
+@receiver(user_logged_in, dispatch_uid='auth.admin_session_version')
+def remember_admin_session_version(sender, request, user, **kwargs):
+    # 与撤销设备共用用户锁：不能在认证之后把已撤销的快照登记为新会话。
+    from django.db import transaction
+    from django.contrib.auth import logout
+    with transaction.atomic():
+        current = User.objects.select_for_update().get(pk=user.pk)
+        if not current.is_active or current.session_version != user.session_version or current.password != user.password:
+            logout(request)
+            return
+        request.session['admincore_session_version'] = current.session_version
+
 
 
 @receiver(pre_delete, sender=User, dispatch_uid='auth.retire_deleted_user_avatar')

@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatDateTime } from '@/utils/dateTime'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { onBeforeRouteLeave } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -73,7 +74,7 @@ const confirmationDescription = computed(() => uiText(operation.value === 'creat
 const secretOpen = ref(false), issuedSecret = ref('')
 const canCreate = computed(() => auth.can('api_credential:create')), canRevoke = computed(() => auth.can('api_credential:revoke'))
 const validDraft = computed(() => !!draft.value.name.trim() && draft.value.scopes.length > 0 && days.value >= 1 && days.value <= 90)
-const time = (value: string | null) => value ? new Date(value).toLocaleString() : '—'
+const time = (value: string | null) => value ? formatDateTime(value) : '—'
 const columns = computed(() => [
   { prop: 'name', label: uiText('名称'), width: 180 },
   { prop: 'scopes', label: uiText('只读能力'), width: 220, render: (value: string[]) => value.join(', ') },

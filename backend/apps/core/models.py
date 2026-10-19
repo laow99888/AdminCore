@@ -176,12 +176,17 @@ class SavedListView(BaseModel):
 
 
 class DataDictionary(BaseModel):
-    code = models.CharField(max_length=64, unique=True)
+    code = models.CharField(max_length=64)
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
     items = models.JSONField(default=list)
     version = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [models.UniqueConstraint(fields=['tenant', *['code']], condition=models.Q(tenant__isnull=False), name='dictionary_code_tenant_unique'), models.UniqueConstraint(fields=['code'], condition=models.Q(tenant__isnull=True), name='dictionary_code_global_unique')]
+
 
 
 class Department(BaseModel):
@@ -223,7 +228,7 @@ class OrganizationAppointment(BaseModel):
 
 class Post(BaseModel):
     """任职信息，不参与角色授权或数据范围计算。"""
-    code = models.CharField(max_length=64, unique=True)
+    code = models.CharField(max_length=64)
     name = models.CharField(max_length=100)
     description = models.CharField(max_length=500, blank=True)
     order = models.PositiveIntegerField(default=0)
@@ -231,6 +236,7 @@ class Post(BaseModel):
     version = models.PositiveIntegerField(default=1)
 
     class Meta:
+        constraints = [models.UniqueConstraint(fields=['tenant', *['code']], condition=models.Q(tenant__isnull=False), name='post_code_tenant_unique'), models.UniqueConstraint(fields=['code'], condition=models.Q(tenant__isnull=True), name='post_code_global_unique')]
         ordering = ['order', 'name', 'id']
 
 
@@ -272,7 +278,7 @@ class IdempotencyRecord(BaseModel):
     expires_at = models.DateTimeField()
 
     class Meta:
-        constraints = [models.UniqueConstraint(fields=['actor', 'scope', 'key'], name='unique_idempotency_actor_scope_key')]
+        constraints = [models.UniqueConstraint(fields=['tenant', *['actor', 'scope', 'key']], condition=models.Q(tenant__isnull=False), name='idempotency_tenant_unique'), models.UniqueConstraint(fields=['actor', 'scope', 'key'], condition=models.Q(tenant__isnull=True), name='idempotency_global_unique')]
         indexes = [models.Index(fields=['status', 'expires_at'])]
         ordering = ['-created_at']
 

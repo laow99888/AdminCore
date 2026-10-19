@@ -58,8 +58,12 @@ class UserListSerializer(MaskedContactSerializerMixin, serializers.ModelSerializ
         read_only_fields = ('id', 'created_at')
 
     def to_representation(self, instance):
-        return filter_read_fields(self.context.get('request', None).user if self.context.get('request') else None,
-                                  'user', super().to_representation(instance))
+        from apps.permissions.field_permissions import allowed_fields
+        if not hasattr(self, '_read_fields'):
+            request = self.context.get('request')
+            self._read_fields = allowed_fields(request.user if request else None, 'user', 'read')
+        return {key: value for key, value in super().to_representation(instance).items() if key in self._read_fields}
+
 
 
 class UserRoleAssignmentMixin:
