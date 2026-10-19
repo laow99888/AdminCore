@@ -1,74 +1,28 @@
-# AdminCore API 规范
+# API 规范
 
-- 基础路径：`/api/v1/`
-- 交互式文档（Swagger）：`/api/v1/docs/`，ReDoc：`/api/v1/redoc/`，OpenAPI Schema：`/api/v1/schema/`（drf-spectacular 自动生成）
-- 实际验证状态见 [COMPATIBILITY.md](../COMPATIBILITY.md)
-- 版本状态：公开 `GET/HEAD /api/versions/`；当前仅 v1，默认无废弃计划。弃用公告、至少90天兼容期、响应头及发布/撤回步骤见[API版本与废弃流程](API版本与废弃流程-2026-10-15.md)。
+基础路径 `/api/v1/`。Swagger `/api/v1/docs/`、ReDoc `/api/v1/redoc/`、Schema `/api/v1/schema/`。准确字段、动作、权限及当前路由以代码和严格生成的 [OpenAPI 快照](../frontend/src/api/generated/openapi.json) 为准，不再手工维护容易失真的端点总表。快照是完整模块契约，当前部署可能关闭部分模块。
 
-## 认证
+## 认证与响应
 
-JWT Bearer（Simple JWT）：
+支持既有 JWT Bearer；同源 HTTPS 浏览器可选择 Cookie 会话构建，配置见 [会话迁移](令牌存储与会话迁移方案.md)。所有请求复用前端统一请求层，Cookie 模式的 CSRF 与刷新协议不可省略。注册默认关闭，管理员初始化密码只用于首次新账号。
 
-```
-Authorization: Bearer <access_token>
-```
+普通业务成功/错误响应使用 `{code, message, data}`，列表为 `data.items` 与 `data.pagination`。登录/刷新、流式下载、SSE、健康探针等有各自契约；不能为追求统一而包装其原始格式。Bearer 登录返回顶层 access/refresh，用户资料再请求 auth/me；挑战与首次改密以实际响应处理。
 
-| 端点 | 方法 | 说明 |
-|---|---|---|
-| `/api/v1/auth/login/` | POST | 登录，返回 `{access, refresh, user}` |
-| `/api/v1/auth/register/` | POST | 注册 |
-| `/api/v1/auth/refresh/` | POST | 刷新 access token |
-| `/api/v1/auth/logout/` | POST | 登出 |
-| `/api/v1/auth/me/` | GET | 当前用户信息 |
-| `/api/v1/auth/change_password/` | POST | 修改密码 |
+常见状态：400 输入校验、401 会话失效、403 授权拒绝、404 不存在或不可见、409 版本/状态冲突、429 限流、503 查询/服务预算。限流频率由 settings/环境与特定端点策略决定，不能引用旧文档中的固定全站数字。
 
-## 统一响应格式
+## 授权与输入
 
-成功（普通动作）：`{code, message, data}`；列表分页：`data.items` + `data.pagination`（total/page/page_size/total_pages）。
+动作权限、租户、数据范围与字段策略共同生效；管理员身份与角色名不同。权限真源见 [授权契约](授权契约清单.md)，新增公开入口更新对应白名单和测试。
 
-错误：`{code, message, data}`，`code` 与 HTTP 状态码一致（400 参数错误、401 未认证、403 无权限、404 不存在、429 限流、500 服务器错误）。
+列表白名单、排序与分页规则见 [输入契约](标准列表查询输入与排序-2026-10-16.md)。自定义 action 单独声明参数；字段、归属、版本及关联由序列化器和服务共同校验，不能把任意客户端字段传进 ORM。
 
-限流：匿名 100 次/小时，认证用户 1000 次/小时。
+写入必须遵守事务内重新授权、版本校验、审计及副作用边界，见 [工程约束](ai/工程约束.md)。幂等和批量事务语义按具体入口，不假定所有 POST 可安全重试。
 
-## 端点总表
+## 新增或修改接口
 
-| 模块 | 路径 | 权限 | 说明 |
-|---|---|---|---|
-| 用户 | `/users/` | 管理员 | CRUD、`{id}/reset_password/`、`bulk_action/` |
-| 角色 | `/permissions/roles/` | 管理员 | CRUD（`permission_ids` 分配权限） |
-| 权限 | `/permissions/permissions/` | 认证用户 | 只读列表 |
-| 菜单 | `/permissions/menus/`、`/permissions/menus/my_menu/` | 认证用户 | 菜单树 |
-| 文件 | `/files/` | 认证用户 | 上传（multipart，白名单+大小限制）、列表（非管理员仅见自己）；`{id}/download/`、`{id}/purge/`（物理删除，管理员） |
-| 任务 | `/tasks/` | 管理员 | 任务记录；`{id}/cancel/`、`cleanup/` |
-| 通知 | `/notifications/` | 认证用户 | 我的通知；`mark_read/`、`mark_all_read/`、`unread_count/`；POST 群发（管理员） |
-| 审批 | `/approvals/` | 认证用户 | `?box=todo/done/sent` 三视角；`{id}/approve/`、`{id}/reject/`、`{id}/cancel/` |
-| 导入导出 | `/data-io/import/`、`/data-io/import/{task_id}/`（GET 结果 / POST 重试）、`/data-io/template/`、`/data-io/export/` | 管理员 | Excel/CSV 导入导出（导出参数用 `export_format=csv|xlsx`） |
-| 日志 | `/logs/operation/`、`/logs/login/`、`/logs/exception/` | 管理员 | 只读查询 |
-| 仪表盘 | `/dashboard/stats/` | 认证用户 | 统计指标 + 7 日登录趋势 + 任务状态分布 |
-| 健康检查 | `/api/v1/health/` | 公开 | `{"status": "ok"}` |
+1. 在独立业务 app 编写模型/序列化器/服务/视图和行为测试，显式登记路由与权限。
+2. 为实际响应、错误和分页补 OpenAPI，严格导出并生成 SDK；前端从现有 API/SDK 层调用。
+3. 验证允许、匿名、越权、租户/数据/字段范围、冲突与撤权；并发在 PostgreSQL 验证。
+4. 变更公共契约时按 [API 生命周期](API版本与废弃流程-2026-10-15.md) 评估兼容窗口。产品版本不是 API 路径版本。
 
-## 前端对接
-
-前端请求层在 `frontend/src/api/`（axios 拦截器自动携带 token、401 跳登录、统一错误提示）。新增接口时：
-
-1. 后端：应用内写 view/serializer，注册到应用 `urls.py`
-2. 前端：`src/api/index.ts` 补充类型与方法
-3. 测试：`backend/tests/` 对应模块加用例，或扩展 `smoke_test.py`
-
-## 示例
-
-```bash
-# 登录
-curl -X POST http://localhost:8000/api/v1/auth/login/ \
-  -H 'Content-Type: application/json' \
-  -d '{"username": "admin", "password": "<配置的管理员密码>"}'
-
-# 携带 token 查询待办审批
-curl http://localhost:8000/api/v1/approvals/?box=todo \
-  -H "Authorization: Bearer <access>"
-
-# 导入用户（multipart）
-curl -X POST http://localhost:8000/api/v1/data-io/import/ \
-  -H "Authorization: Bearer <access>" \
-  -F file=@import-users.xlsx -F resource=users
-```
+生成命令和检查见 [SDK 手册](OpenAPI与TypeScript%20SDK.md) 与 [验证与交付](ai/验证与交付.md)。

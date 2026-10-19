@@ -10,7 +10,7 @@
 
 | 维度 | 规范原文（sub2api） | AdminCore 实际实现 |
 |---|---|---|
-| UI 组件 | 无组件库，Tailwind 原子类自研 | **Element Plus**（见 `frontend/theme-config.ts`） |
+| UI 组件 | 无组件库，Tailwind 原子类自研 | **Element Plus**（见 [CSS 适配](../frontend/src/styles/globals.css)） |
 | 图表 | chart.js + vue-chartjs | **Apache ECharts**（见 `components/common/BaseChart.vue`） |
 | 图标 | Heroicons v2 Outline | **Lucide**（同为 24px 描边体系，`lucide-vue-next`） |
 | 令牌载体 | `tailwind.config.js` + `style.css` | `frontend/src/styles/design-tokens.css`（CSS 变量） |

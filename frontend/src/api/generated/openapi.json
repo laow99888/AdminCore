@@ -16116,7 +16116,7 @@
   },
   "info": {
     "title": "AdminCore API",
-    "version": "0.1.0-dev.1",
+    "version": "1.0.0",
     "x-admincore-modules": [
       "files",
       "tasks",

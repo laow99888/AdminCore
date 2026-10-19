@@ -63,6 +63,26 @@ def test_export_uses_commit_not_dirty_tree_and_excludes_private_files(source, tm
     assert 'private-secret-value' not in json.dumps(data)
 
 
+def test_ai_entrypoints_and_manuals_are_exported_from_commit(source, tmp_path):
+    actual = Path(__file__).resolve().parents[2]
+    paths = [Path('AGENTS.md'), Path('CLAUDE.md')]
+    paths.extend(path.relative_to(actual) for path in (actual / 'docs/ai').glob('*.md'))
+    for relative in paths:
+        target = source / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((actual / relative).read_bytes())
+    git(source, 'add', '.')
+    git(source, 'commit', '-m', '加入人工智能开发入口')
+    output = tmp_path / 'business'
+    metadata = create(source, output)
+    for relative in paths:
+        assert (output / relative).read_text(encoding='utf-8') == (actual / relative).read_text(encoding='utf-8')
+        assert relative.as_posix() in metadata['files']
+    project = (output / 'PROJECT.md').read_text(encoding='utf-8')
+    assert '[AGENTS.md](AGENTS.md)' in project
+    assert '(docs/ai/README.md)' in project
+
+
 @pytest.mark.parametrize('name', ['AdminCore', '../project', 'x', 'a'*33, 'app;rm', '-app', 'app_1'])
 def test_invalid_name_never_creates_target(source, tmp_path, name):
     target = tmp_path / 'refused'

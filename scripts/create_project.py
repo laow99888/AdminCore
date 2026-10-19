@@ -179,6 +179,8 @@ def create_project(target, *, name, preset='minimal', source=ROOT, ref='HEAD',
     (target / 'compose.project.yml').write_text(override, encoding='utf-8')
     (target / 'PROJECT.md').write_text(
         '# ' + name + '\n\n底座 ' + version + '，源提交 `' + revision + '`。\n\n'
+        'AI接手先读 [AGENTS.md](AGENTS.md)，再按 [任务导航](docs/ai/README.md) 定位代码、约束与测试。\n'
+        '业务规则用 [业务上下文模板](docs/ai/业务上下文模板.md) 记录，按 [业务开发流程](docs/ai/业务开发流程.md) 扩展独立模块。\n\n'
         '运行 `python scripts/project.py up` 构建启动，`status` 查看，`check` 检查，`stop` 停止（保留卷）。\n'
         '首次管理员admin的随机密码仅保存在本目录 `.env`，首次登录必须改密；不要提交该文件。\n'
         '访问 http://127.0.0.1:' + str(frontend_port) + ' 。当前只绑定本机HTTP，公网TLS须按部署手册独立配置。\n'
