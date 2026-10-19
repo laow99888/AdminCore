@@ -28,4 +28,3 @@ describe('改密响应归属隔离', () => {
     expect(auth.user?.id).toBe('new-user');expect(localStorage.getItem('token')).toBe('new-session-fixture');wrapper.unmount()
   })
 })
-
