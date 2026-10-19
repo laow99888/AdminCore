@@ -10,6 +10,8 @@ x-python-hardening: &python-hardening
 services:
   backend:
     <<: *python-hardening
+    environment:
+      XDG_RUNTIME_DIR: /tmp
     mem_limit: ${BACKEND_MEMORY_LIMIT:-1g}
     cpus: ${BACKEND_CPU_LIMIT:-2}
   worker:

@@ -20,6 +20,7 @@ DATABASE = 'sha256:' + 'c' * 64
     (['docker-compose.yml'], {'backend', 'worker', 'beat'}),
     (['docker-compose.yml', 'compose.minimal.yml'], {'backend'}),
     (['docker-compose.yml', 'compose.realtime.yml'], set(release.ROLES)),
+    (['docker-compose.yml', 'compose.realtime.yml', 'compose.hardened.yml'], set(release.ROLES)),
 ])
 def test_real_compose_definitions_support_shared_artifacts(tmp_path, files, roles):
     if not shutil.which('docker'):
@@ -38,6 +39,11 @@ def test_real_compose_definitions_support_shared_artifacts(tmp_path, files, role
     assert effective['services']['backend']['environment']['DB_PASSWORD'] == 'synthetic-release-test-only'
     assert set(effective['services']) & set(release.ROLES) == roles
     assert release.build_targets(effective) == ['backend', 'frontend']
+    for name in ('backend', 'realtime'):
+        service = effective['services'].get(name, {})
+        if service.get('read_only'):
+            assert service['environment']['XDG_RUNTIME_DIR'] == '/tmp'
+            assert any(mount.startswith('/tmp:') for mount in service['tmpfs'])
 
 
 def config():
@@ -113,3 +119,35 @@ def test_verify_rejects_runtime_or_configuration_drift(tmp_path, monkeypatch, mi
     monkeypatch.setattr(release, 'command', command)
     with pytest.raises(release.ReleaseError):
         release.verify(tmp_path, ['compose.yml'], output)
+
+
+@pytest.mark.parametrize('instance', ['healthy', 'unhealthy', 'missing'])
+def test_verify_excludes_oneoff_containers_but_requires_healthy_service(tmp_path, monkeypatch, instance):
+    (tmp_path / 'compose.yml').write_text('services: {}')
+    (tmp_path / '.env').write_text('')
+    output = tmp_path / 'release'
+    output.mkdir()
+    images = {'backend': BACKEND}
+    (output / 'manifest.json').write_text(json.dumps({'schema_version': 1, 'project': 'fixture', 'images': images}))
+    (output / 'compose.release.yml').write_text(release.pinned_overlay(images), encoding='utf-8')
+    effective = {'name': 'fixture', 'services': {'backend': {'image': BACKEND, 'pull_policy': 'never'}}}
+    details = {
+        'probe': {'Image': FRONTEND, 'Config': {'Labels': {'com.docker.compose.oneoff': 'True'}},
+                  'State': {'Running': False, 'Health': {'Status': 'unhealthy'}}},
+        'service': {'Image': BACKEND, 'Config': {'Labels': {'com.docker.compose.oneoff': 'False'}},
+                    'State': {'Running': True, 'Health': {'Status': instance}}},
+    }
+
+    def command(args, root, **kwargs):
+        if 'config' in args:
+            return json.dumps(effective)
+        if 'ps' in args:
+            return 'probe' if instance == 'missing' else 'probe\nservice'
+        return json.dumps([details[args[-1]]])
+
+    monkeypatch.setattr(release, 'command', command)
+    if instance == 'healthy':
+        assert release.verify(tmp_path, ['compose.yml'], output)['passed']
+    else:
+        with pytest.raises(release.ReleaseError):
+            release.verify(tmp_path, ['compose.yml'], output)

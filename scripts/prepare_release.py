@@ -116,11 +116,19 @@ def verify(root, files, output, *, env_file='.env', project=None):
         containers = command(base + ['ps', '--all', '--quiet', name], root).split()
         if not containers:
             raise ReleaseError('发布服务没有运行实例：' + name)
+        instances = 0
         for container in containers:
             details = json.loads(command(['docker', 'inspect', container], root))[0]
+            # Compose ps --all 也列出备份/诊断的 run 容器；它们不是部署副本。
+            labels = details.get('Config', {}).get('Labels') or {}
+            if str(labels.get('com.docker.compose.oneoff', '')).lower() == 'true':
+                continue
+            instances += 1
             state = details['State']
             if details['Image'] != image or not state.get('Running') or state.get('Health', {}).get('Status', 'healthy') != 'healthy':
                 raise ReleaseError('发布实例镜像、运行或健康状态不匹配：' + name)
+        if not instances:
+            raise ReleaseError('发布服务没有运行实例：' + name)
     return {'passed': True, 'project': manifest['project'], 'services': sorted(images)}
 
 
