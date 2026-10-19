@@ -14,7 +14,7 @@ npm run test:typecheck
 
 默认生成 `src/api/generated/openapi.json`、`schema.ts` 和 `routes.ts`。三者均提交 Git；修改后端接口、serializer、operationId 或模块 URL 后须重新生成。不要手改生成文件。`sdk:check` 重新导出并逐文件比较，允许 Windows/Linux 换行差异；任何 schema、类型或路由漂移都失败。独立 `sdk-contract` CI 同时执行漂移检查、类型正反例、调用测试和导出测试。
 
-默认 full 契约显式启用全部登记模块，包含本批 13 个模块、155 条路径，表示可安装能力合集。它不代表部署已启用全部能力。运行环境仍按模块开关、权限和数据范围决定是否允许访问；接口关闭返回原有错误，不由 SDK 绕过。
+默认 full 契约显式启用全部登记模块，表示可安装能力合集；当前模块集合以 `backend/apps/core/modules.py` 为准，路径集合以生成的 `openapi.json` 为准，不使用历史验收数量描述当前全集。它不代表部署已启用全部能力。运行环境仍按模块开关、权限和数据范围决定是否允许访问；接口关闭返回原有错误，不由 SDK 绕过。
 
 导出使用隔离测试配置，不读取 `.env`、部署数据库或供应商配置，不访问线上 `/schema/`。自定义契约必须显式指定输出目录，防止误覆盖仓库 full 契约：
 
