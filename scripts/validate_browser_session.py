@@ -148,7 +148,10 @@ def main():
         compose('exec', '-T', 'frontend', 'nginx', '-s', 'reload')
         compose('cp', str(FOLDER / 'tls.crt'), 'backend:/tmp/oidc-ca.crt')
         compose('cp', str(FOLDER / 'tls.key'), 'backend:/tmp/oidc.key')
-        compose('cp', str(FOLDER / 'tls.crt'), 'realtime:/tmp/oidc-ca.crt')
+        # Docker cp 不支持只读根文件系统；通过容器内进程写入允许的 /tmp tmpfs。
+        compose('exec', '-T', 'realtime', 'python', '-c',
+                "import sys; from pathlib import Path; Path('/tmp/oidc-ca.crt').write_text(sys.stdin.read())",
+                input=(FOLDER / 'tls.crt').read_text())
         compose('exec', '-d', 'backend', 'python', '/app/browser_oidc_fixture.py')
         ready = """import time, urllib.request
 for attempt in range(30):

@@ -44,8 +44,8 @@ async function confirmClose() {
   return ElMessageBox.confirm('放弃此演示草稿吗？', '提示').then(() => true, () => false)
 }
 async function closeEditor() { if (await confirmClose()) open.value = false }
-function save(value: { name: string }) {
-  if (saving.value) return
+function save(value: Record<string, unknown>) {
+  if (saving.value || typeof value.name !== 'string') return
   rows.value.push({ id: rows.value.length + 1, name: value.name })
   draft.value = { name: '' }; open.value = false
 }
