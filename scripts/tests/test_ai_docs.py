@@ -25,7 +25,7 @@ def documentation_copy(tmp_path):
     root.mkdir()
     files = checker.documentation_files(checker.ROOT)
     files.extend(checker.ROOT / path for path in (
-        'frontend/package.json', 'backend/config/base-version.json',
+        'frontend/package.json', 'frontend/package-lock.json', 'backend/config/base-version.json',
         'frontend/src/api/generated/openapi.json', 'backend/apps/core/modules.py'))
     for source in files:
         destination = root / source.relative_to(checker.ROOT)
@@ -75,6 +75,23 @@ def test_version_drift_is_rejected(documentation_copy):
     version['version'] = '99.0.0'
     path.write_text(json.dumps(version), encoding='utf-8')
     with pytest.raises(ValueError, match='OpenAPI 不一致'):
+        checker.check(documentation_copy)
+
+
+@pytest.mark.parametrize('filename,keys', [
+    ('package.json', ('version',)),
+    ('package-lock.json', ('version',)),
+    ('package-lock.json', ('packages', '', 'version')),
+])
+def test_frontend_version_drift_is_rejected(documentation_copy, filename, keys):
+    path = documentation_copy / 'frontend' / filename
+    content = json.loads(path.read_text(encoding='utf-8'))
+    parent = content
+    for key in keys[:-1]:
+        parent = parent[key]
+    parent[keys[-1]] = '99.0.0'
+    path.write_text(json.dumps(content), encoding='utf-8')
+    with pytest.raises(ValueError, match='前端 .*版本与产品版本不一致'):
         checker.check(documentation_copy)
 
 

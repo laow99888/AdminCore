@@ -64,7 +64,8 @@ def check(root=ROOT):
     files = documentation_files(root)
     errors = []
     links = 0
-    scripts = json.loads((root / 'frontend/package.json').read_text(encoding='utf-8'))['scripts']
+    package = json.loads((root / 'frontend/package.json').read_text(encoding='utf-8'))
+    scripts = package['scripts']
     for path in files:
         if not path.is_file():
             errors.append(f'缺少文档：{path.relative_to(root)}')
@@ -109,6 +110,14 @@ def check(root=ROOT):
                     errors.append(f'能力地图缺少已注册模块入口：{app}')
     try:
         version = json.loads((root / 'backend/config/base-version.json').read_text(encoding='utf-8'))['version']
+        lock = json.loads((root / 'frontend/package-lock.json').read_text(encoding='utf-8'))
+        for label, actual in (
+            ('package.json', package['version']),
+            ('package-lock.json', lock['version']),
+            ('package-lock.json packages[""]', lock['packages']['']['version']),
+        ):
+            if actual != version:
+                errors.append(f'前端 {label} 版本与产品版本不一致：{actual} != {version}')
         schema = json.loads((root / 'frontend/src/api/generated/openapi.json').read_text(encoding='utf-8'))
         if schema['info']['version'] != version:
             errors.append('产品版本与 OpenAPI 不一致，请重新生成 SDK')

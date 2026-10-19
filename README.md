@@ -4,7 +4,7 @@
 
 **AI 接手从 [AGENTS.md](AGENTS.md) 开始**，按 [任务导航](docs/ai/README.md) 找到对应 [能力、代码与测试](docs/ai/能力地图.md)。整体调用链见 [系统结构](项目结构说明.md)，业务新增按 [开发流程](docs/ai/业务开发流程.md)。不需要先通读历史审计报告。
 
-首个正式版本 **[v1.0.0](https://github.com/laow99888/AdminCore/releases/tag/v1.0.0)** 已发布；对应提交、检查证据与采用方式见 [发布策略](docs/发布与版本策略.md)。下游业务版本与底座版本独立管理；main 的后续提交不自动包含在该标签中。
+当前产品版本 **[v1.0.2](https://github.com/laow99888/AdminCore/releases/tag/v1.0.2)**；对应发布提交、检查证据与采用方式见 [发布策略](docs/发布与版本策略.md) 和 Release。下游业务版本与底座版本独立管理；main 的后续提交不自动包含在该标签中。
 
 ## 项目特点
 

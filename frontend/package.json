@@ -1,6 +1,6 @@
 {
   "name": "admincore-frontend",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "AdminCore 中后台管理系统前端框架",
   "type": "module",
   "scripts": {
