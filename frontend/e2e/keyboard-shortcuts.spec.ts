@@ -41,7 +41,11 @@ async function closeHelp(page: Page) {
   // Shortcut suppression also covers closing overlays, beyond dialog-content visibility.
   await expect(page.locator('.el-overlay:visible')).toHaveCount(0)
 }
-async function focusPage(page: Page) { await page.locator('.header-title').click() }
+async function focusPage(page: Page) {
+  // Narrow headers keep their title available to assistive technology only.
+  // Click the content padding to leave text fields without activating a control.
+  await page.locator('.layout-content').click({ position: { x: 8, y: 8 } })
+}
 async function sidebar(page: Page, path: string) {
   if (page.viewportSize()!.width <= 768) await page.getByRole('button', { name: /打开菜单|Open Menu/ }).click()
   await page.locator(`.sidebar-menu a[href="${path}"]`).click()
