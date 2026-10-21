@@ -7,11 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -24,14 +24,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python -m pytest -q scripts/tests/test_demo_project.py
       - run: python scripts/validate_demo.py --ref HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: demo-isolation-evidence
@@ -44,12 +44,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -59,7 +59,7 @@ jobs:
       - run: ADMINCORE_BUILD_PROFILE=minimal npm run build && npm run check:bundle
         working-directory: frontend
       - run: python scripts/validate_minimal_build.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: minimal-build-evidence
@@ -74,8 +74,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
@@ -84,7 +84,7 @@ jobs:
       - run: python -m pytest -q scripts/tests/test_create_project.py scripts/tests/test_project_upgrade.py scripts/tests/test_validate_project_upgrades.py
       - run: python scripts/validate_project_template.py
       - run: python scripts/validate_project_upgrades.py --output .codex-validation/project-upgrades-django-ci
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: project-template-evidence
@@ -98,14 +98,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python -m pytest -q scripts/tests/test_prepare_release.py
       - run: python scripts/validate_release.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: release-artifact-evidence
@@ -118,13 +118,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python scripts/validate_api_lifecycle.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: api-lifecycle-contract-evidence
@@ -136,8 +136,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python scripts/check_dependency_locks.py
@@ -148,12 +148,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -161,7 +161,7 @@ jobs:
       - run: npm install -g npm@11.19.0 && npm ci && npx playwright install --with-deps chromium
         working-directory: frontend
       - run: python scripts/validate_local_exports.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: local-exports-contract-evidence
@@ -178,11 +178,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -195,7 +195,7 @@ jobs:
       - run: python scripts/validate_codegen.py
       - run: python scripts/validate_codegen_v2.py --postgres --browser
       - run: python scripts/validate_codegen_v2.py --integrations --business-io --postgres --browser
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: codegen-contract-evidence
@@ -224,11 +224,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -237,7 +237,7 @@ jobs:
       - run: npm install -g npm@11.19.0 && npm ci && npx playwright install --with-deps chromium
         working-directory: frontend
       - run: python scripts/validate_online_forms_v2.py --postgres
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: online-forms-v2-evidence
@@ -253,13 +253,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python scripts/validate_example.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: example-contract-evidence
@@ -271,13 +271,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python -m pytest -q scripts/tests/test_realtime_capacity.py && python scripts/validate_realtime.py --include-capacity-edge --include-capacity-burst
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: realtime-contract-evidence
@@ -291,13 +291,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python scripts/validate_backup.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backup-contract-evidence
@@ -310,12 +310,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -323,7 +323,7 @@ jobs:
       - run: npm install -g npm@11.19.0 && npm ci && npx playwright install --with-deps chromium
         working-directory: frontend
       - run: python -m pytest -q scripts/tests/test_image_capacity.py && python scripts/validate_images.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: image-contract-evidence
@@ -339,13 +339,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python scripts/validate_storage.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: storage-contract-evidence
@@ -359,8 +359,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
@@ -388,8 +388,8 @@ jobs:
       OFFICE_CI_OWNER: office-preview-${{ github.run_id }}-${{ github.run_attempt }}
       OFFICE_IMAGE_TAG: 127.0.0.1:18590/admincore-office:ci-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
@@ -429,7 +429,7 @@ jobs:
         env:
           OFFICE_REVIEWED_IMAGE: ${{ steps.converter.outputs.image }}
         run: python scripts/validate_office_preview.py --image "$OFFICE_REVIEWED_IMAGE" --ref HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: office-preview-evidence
@@ -458,8 +458,8 @@ jobs:
       DJANGO_ENV: testing
       DJANGO_SECRET_KEY: ci-test-only-ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-abcdefghijklmnopqrstuvwxyz
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r requirements.dev.lock
@@ -476,7 +476,7 @@ jobs:
       - run: python scripts/validate_audit_fixes.py
       - run: python scripts/validate_feature_flags.py
       - run: python scripts/validate_ip_policy.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: audit-fixes-postgres-evidence
@@ -495,8 +495,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -512,7 +512,7 @@ jobs:
         working-directory: frontend
         env:
           ADMINCORE_MICRO_FRONTENDS_ENABLED: 'true'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: frontend-failure-evidence
@@ -523,11 +523,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -536,7 +536,7 @@ jobs:
       - run: npm install -g npm@11.19.0 && npm ci && npx playwright install --with-deps chromium
         working-directory: frontend
       - run: python scripts/validate_browser_session.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: browser-session-evidence
@@ -551,11 +551,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24.21.0'
           cache: npm
@@ -563,7 +563,7 @@ jobs:
       - run: npm install -g npm@11.19.0 && npm ci && npx playwright install --with-deps chromium
         working-directory: frontend
       - run: python scripts/validate_p2_pages.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: p2-pages-evidence
@@ -581,13 +581,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.13.15'
       - run: python -m pip install --require-hashes -r backend/requirements.dev.lock
       - run: python scripts/validate_foundation.py
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: foundation-contract-evidence
