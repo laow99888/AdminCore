@@ -1,7 +1,7 @@
 # 开发/测试工具；与 requirements.txt 一起解析到 requirements.dev.lock。
 black==26.10.1
-flake8==7.4.1
-pytest==9.1.1
+flake8==7.5.0
+pytest==9.2.0
 pytest-django==4.14.0
 pytest-cov==7.1.0
 django-extensions==4.1
